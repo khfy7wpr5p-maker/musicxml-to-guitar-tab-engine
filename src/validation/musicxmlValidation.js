@@ -30,6 +30,11 @@ function invalidMusicXml(message, details = {}) {
   return new MusicXmlValidationError(message, 'INVALID_MUSICXML', details);
 }
 
+function pathMatches(stack, expectedPath) {
+  return stack.length === expectedPath.length
+    && expectedPath.every((name, index) => stack[index] === name);
+}
+
 function validateMusicXml(input, options = {}) {
   const xml = normalizeXmlInput(input, options);
   const parser = new SaxesParser({ xmlns: true, position: true });
@@ -49,20 +54,23 @@ function validateMusicXml(input, options = {}) {
 
   parser.on('opentag', (tag) => {
     const name = localName(tag);
-    const parent = stack.at(-1) || null;
 
     if (stack.length === 0) {
       root = name;
       version = getAttribute(tag, 'version') || null;
-    } else if (parent === 'score-partwise' && name === 'part-list') {
+    } else if (name === 'part-list' && pathMatches(stack, ['score-partwise'])) {
       partListCount += 1;
-    } else if (parent === 'part-list' && name === 'score-part') {
+    } else if (name === 'score-part' && pathMatches(stack, ['score-partwise', 'part-list'])) {
       scorePartIds.push(getAttribute(tag, 'id'));
-    } else if (parent === 'score-partwise' && name === 'part') {
+    } else if (name === 'part' && pathMatches(stack, ['score-partwise'])) {
       activePartIndex = partIds.length;
       partIds.push(getAttribute(tag, 'id'));
       measureCounts.push(0);
-    } else if (parent === 'part' && name === 'measure' && activePartIndex >= 0) {
+    } else if (
+      name === 'measure'
+      && activePartIndex >= 0
+      && pathMatches(stack, ['score-partwise', 'part'])
+    ) {
       measureCounts[activePartIndex] += 1;
     }
 
@@ -70,10 +78,10 @@ function validateMusicXml(input, options = {}) {
   });
 
   parser.on('closetag', () => {
-    const closed = stack.pop();
-    if (closed === 'part') {
+    if (pathMatches(stack, ['score-partwise', 'part'])) {
       activePartIndex = -1;
     }
+    stack.pop();
   });
 
   try {
