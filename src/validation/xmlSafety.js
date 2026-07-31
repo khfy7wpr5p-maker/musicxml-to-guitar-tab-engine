@@ -2,6 +2,9 @@
 
 const DEFAULT_MAX_XML_BYTES = 5 * 1024 * 1024;
 
+const TRUSTED_MUSICXML_PARTWISE_DOCTYPE =
+  /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 4\.0\.3 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i;
+
 class XmlSafetyError extends Error {
   constructor(message, code, details = {}) {
     super(message);
@@ -28,6 +31,37 @@ function decodeUtf8Buffer(input) {
   } catch {
     throw new XmlSafetyError('Input is not valid UTF-8.', 'INVALID_ENCODING');
   }
+}
+
+function normalizeTrustedMusicXmlDoctype(xml) {
+  if (/<!\s*ENTITY\b/i.test(xml)) {
+    throw new XmlSafetyError(
+      'Entity declarations are not allowed.',
+      'UNSAFE_XML_DECLARATION',
+    );
+  }
+
+  const doctypeDeclarations = xml.match(/<!\s*DOCTYPE\b/gi) || [];
+  if (doctypeDeclarations.length === 0) {
+    return xml;
+  }
+
+  if (doctypeDeclarations.length !== 1) {
+    throw new XmlSafetyError(
+      'XML must not contain multiple DOCTYPE declarations.',
+      'UNSAFE_XML_DECLARATION',
+    );
+  }
+
+  const trustedDoctype = TRUSTED_MUSICXML_PARTWISE_DOCTYPE.exec(xml);
+  if (!trustedDoctype) {
+    throw new XmlSafetyError(
+      'Only the trusted external MusicXML 4.0.3 partwise DOCTYPE is allowed.',
+      'UNSAFE_XML_DECLARATION',
+    );
+  }
+
+  return trustedDoctype[1] + xml.slice(trustedDoctype[0].length);
 }
 
 function normalizeXmlInput(input, options = {}) {
@@ -78,14 +112,7 @@ function normalizeXmlInput(input, options = {}) {
     });
   }
 
-  if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(xml)) {
-    throw new XmlSafetyError(
-      'DTD and entity declarations are not allowed.',
-      'UNSAFE_XML_DECLARATION',
-    );
-  }
-
-  return xml;
+  return normalizeTrustedMusicXmlDoctype(xml);
 }
 
 module.exports = {
