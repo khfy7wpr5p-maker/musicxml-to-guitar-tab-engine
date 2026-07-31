@@ -142,6 +142,16 @@ test('normalizes MusicXML beam hook values to the canonical data contract', () =
   ]);
 });
 
+test('rejects notes with conflicting, missing or repeated rest and pitch structures', () => {
+  const completeTail = '<duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff>';
+  const pitch = '<pitch><step>C</step><octave>4</octave></pitch>';
+
+  expectCode(score(`<note><rest/>${pitch}${completeTail}</note>`), 'INVALID_MUSICXML');
+  expectCode(score(`<note>${completeTail}</note>`), 'INVALID_MUSICXML');
+  expectCode(score(`<note><rest/><rest/>${completeTail}</note>`), 'INVALID_MUSICXML');
+  expectCode(score(`<note>${pitch}${pitch}${completeTail}</note>`), 'INVALID_MUSICXML');
+});
+
 test('rejects chord, backup, forward and multiple-voice content', () => {
   expectCode(score(note({ extra: '<chord/>', duration: 16, type: 'whole' })), 'UNSUPPORTED_POLYPHONY');
   expectCode(score(`${note({ duration: 16, type: 'whole' })}<backup><duration>4</duration></backup>`), 'UNSUPPORTED_POLYPHONY');
