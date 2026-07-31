@@ -192,6 +192,18 @@ function parseMusicXmlNotes(input, options = {}) {
       throw parserError('A note closed outside an active measure.');
     }
 
+    if (currentNote.isRest === currentNote.hasPitch) {
+      throw parserError(
+        'Every note must contain exactly one rest or pitch element.',
+        'INVALID_MUSICXML',
+        {
+          ...location(),
+          hasRest: currentNote.isRest,
+          hasPitch: currentNote.hasPitch,
+        },
+      );
+    }
+
     const divisions = currentMeasure.divisions;
     if (!Number.isInteger(divisions)) {
       throw parserError('A divisions value is required before musical events.', 'INVALID_MUSICXML', location());
@@ -412,6 +424,7 @@ function parseMusicXmlNotes(input, options = {}) {
       }
       currentNote = {
         isRest: false,
+        hasPitch: false,
         duration: null,
         type: null,
         dots: 0,
@@ -442,7 +455,16 @@ function parseMusicXmlNotes(input, options = {}) {
         throw parserError('Tuplets are not supported by the MVP parser.', 'UNSUPPORTED_TUPLET', location());
       }
       if (name === 'rest' && pathMatches(elements, ['score-partwise', 'part', 'measure', 'note'])) {
+        if (currentNote.isRest) {
+          throw parserError('A note may contain only one rest element.', 'INVALID_MUSICXML', location());
+        }
         currentNote.isRest = true;
+      }
+      if (name === 'pitch' && pathMatches(elements, ['score-partwise', 'part', 'measure', 'note'])) {
+        if (currentNote.hasPitch) {
+          throw parserError('A note may contain only one pitch element.', 'INVALID_MUSICXML', location());
+        }
+        currentNote.hasPitch = true;
       }
       if (name === 'dot' && pathMatches(elements, ['score-partwise', 'part', 'measure', 'note'])) {
         currentNote.dots += 1;
