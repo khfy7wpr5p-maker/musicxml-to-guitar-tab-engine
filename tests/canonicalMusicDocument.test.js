@@ -51,7 +51,7 @@ function repeatedVisibleMeasureNumberScore() {
 </score-partwise>`;
 }
 
-test('creates an immutable CanonicalMusicDocument without exposing parser measure field names', () => {
+test('creates an immutable CanonicalMusicDocument with an explicit event allowlist', () => {
   const parsed = parseMusicXmlNotes(fixture('parser-single-voice.musicxml'));
   const canonical = createCanonicalMusicDocument(parsed);
 
@@ -64,21 +64,26 @@ test('creates an immutable CanonicalMusicDocument without exposing parser measur
   assert.equal(canonical.voiceCount, 1);
 
   const [firstMeasure] = canonical.measures;
+  const [firstEvent] = firstMeasure.events;
   assert.equal(firstMeasure.measureKey, 'P1:measure:0');
   assert.equal(firstMeasure.measureIndex, 0);
   assert.equal(firstMeasure.visibleMeasureNumber, '1');
   assert.equal(Object.hasOwn(firstMeasure, 'number'), false);
   assert.equal(Object.hasOwn(firstMeasure, 'index'), false);
-  assert.equal(firstMeasure.events[0].measureKey, firstMeasure.measureKey);
-  assert.deepEqual(firstMeasure.events[0].pitch, {
+  assert.equal(firstEvent.measureKey, firstMeasure.measureKey);
+  assert.deepEqual(firstEvent.pitch, {
     step: 'C', alter: 0, octave: 4, written: 'C4', midi: 60,
   });
+  assert.equal(Object.hasOwn(firstEvent, 'selectedPosition'), false);
+  assert.equal(Object.hasOwn(firstEvent, 'alternativePositions'), false);
+  assert.equal(Object.hasOwn(firstEvent, 'confidence'), false);
+  assert.equal(Object.hasOwn(firstEvent, 'requiresTeacherReview'), false);
 
   assert.notStrictEqual(firstMeasure, parsed.measures[0]);
-  assert.notStrictEqual(firstMeasure.events[0], parsed.measures[0].events[0]);
+  assert.notStrictEqual(firstEvent, parsed.measures[0].events[0]);
   assert.ok(Object.isFrozen(canonical));
   assert.ok(Object.isFrozen(firstMeasure));
-  assert.ok(Object.isFrozen(firstMeasure.events[0]));
+  assert.ok(Object.isFrozen(firstEvent));
 });
 
 test('keeps duplicate visible measure numbers while generating unique stable measure keys', () => {
@@ -123,6 +128,39 @@ test('rejects structurally inconsistent parser output before creating canonical 
   });
   expectInvalidParserOutput(parsed, (document) => {
     document.measures[0].actualDurationDivisions -= 1;
+  });
+});
+
+test('independently validates rhythm types, note durations and measure durations', () => {
+  const parsed = parseMusicXmlNotes(fixture('parser-single-voice.musicxml'));
+
+  expectInvalidParserOutput(parsed, (document) => {
+    document.measures[0].events[0].rhythm.type = '32nd';
+  });
+
+  expectInvalidParserOutput(parsed, (document) => {
+    const measure = document.measures[0];
+    measure.timeSignature.beats = 5;
+    measure.expectedDurationDivisions = 20;
+    measure.actualDurationDivisions = 20;
+    measure.events[0].rhythm.durationDivisions = 8;
+    measure.events[1].start = { divisions: 8, beats: 2 };
+    measure.events[2].start = { divisions: 10, beats: 2.5 };
+    measure.events[3].start = { divisions: 12, beats: 3 };
+  });
+
+  expectInvalidParserOutput(parsed, (document) => {
+    document.measures[0].timeSignature.beats = 3;
+  });
+});
+
+test('rejects an empty parsed document at the canonical boundary', () => {
+  const parsed = parseMusicXmlNotes(fixture('parser-single-voice.musicxml'));
+
+  expectInvalidParserOutput(parsed, (document) => {
+    document.measures = [];
+    document.measureCount = 0;
+    document.voiceCount = 0;
   });
 });
 
