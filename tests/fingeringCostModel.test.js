@@ -166,3 +166,59 @@ test('rejects invalid or unknown profile fields with a stable error code', () =>
     );
   }
 });
+
+test('rejects position cost component or total overflow', () => {
+  const profiles = [
+    { highFretWeight: Number.MAX_VALUE },
+    {
+      highFretThreshold: 19,
+      highFretWeight: Number.MAX_VALUE * 0.75,
+      openStringPreferenceWeight: Number.MAX_VALUE * 0.75,
+    },
+  ];
+
+  for (const profile of profiles) {
+    assert.throws(
+      () => calculatePositionCost({ string: 1, fret: 20 }, profile),
+      (error) => {
+        assert.ok(error instanceof FingeringCostError);
+        assert.equal(error.code, 'INVALID_FINGERING_COST_PROFILE');
+        return true;
+      },
+    );
+  }
+});
+
+test('rejects transition cost component overflow', () => {
+  assert.throws(
+    () => calculateTransitionCost(
+      { string: 6, fret: 0 },
+      { string: 1, fret: 20 },
+      { fretMovementWeight: Number.MAX_VALUE },
+    ),
+    (error) => {
+      assert.ok(error instanceof FingeringCostError);
+      assert.equal(error.code, 'INVALID_FINGERING_COST_PROFILE');
+      return true;
+    },
+  );
+});
+
+test('requires an explicit compatible high-fret threshold for shorter fret ranges', () => {
+  assert.throws(
+    () => createFingeringCostProfile({ maximumFret: 10 }),
+    (error) => {
+      assert.ok(error instanceof FingeringCostError);
+      assert.equal(error.code, 'INVALID_FINGERING_COST_PROFILE');
+      return true;
+    },
+  );
+
+  const profile = createFingeringCostProfile({
+    maximumFret: 10,
+    highFretThreshold: 10,
+  });
+
+  assert.equal(profile.maximumFret, 10);
+  assert.equal(profile.highFretThreshold, 10);
+});
