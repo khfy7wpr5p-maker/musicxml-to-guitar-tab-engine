@@ -41,6 +41,16 @@ function requireNonNegativeFinite(value, field) {
   return value;
 }
 
+function requireFiniteCost(value, field) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw invalidProfile(`${field} must remain a finite non-negative number.`, {
+      field,
+      value,
+    });
+  }
+  return value;
+}
+
 function requireNonNegativeInteger(value, field) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw invalidProfile(`${field} must be a non-negative safe integer.`, {
@@ -159,11 +169,18 @@ function calculatePositionCost(position, profileOverrides = {}) {
   validateCostPosition(position, profile, 'position');
 
   const highFretDistance = Math.max(0, position.fret - profile.highFretThreshold);
-  const highFretCost = highFretDistance * profile.highFretWeight;
-  const openStringPreferenceCost = position.fret === 0
-    ? 0
-    : profile.openStringPreferenceWeight;
-  const total = highFretCost + openStringPreferenceCost;
+  const highFretCost = requireFiniteCost(
+    highFretDistance * profile.highFretWeight,
+    'highFretCost',
+  );
+  const openStringPreferenceCost = requireFiniteCost(
+    position.fret === 0 ? 0 : profile.openStringPreferenceWeight,
+    'openStringPreferenceCost',
+  );
+  const total = requireFiniteCost(
+    highFretCost + openStringPreferenceCost,
+    'positionCostTotal',
+  );
 
   return deepFreeze({
     total,
@@ -188,12 +205,22 @@ function calculateTransitionCost(previousPosition, nextPosition, profileOverride
   const largeShiftDistance = Math.max(0, fretMovement - profile.largeShiftThreshold);
   const positionCost = calculatePositionCost(nextPosition, profile);
 
-  const fretMovementCost = fretMovement * profile.fretMovementWeight;
-  const stringMovementCost = stringMovement * profile.stringMovementWeight;
-  const largeShiftCost = largeShiftDistance * profile.largeShiftWeight;
-  const samePositionPreferenceCost = samePosition
-    ? 0
-    : profile.samePositionPreferenceWeight;
+  const fretMovementCost = requireFiniteCost(
+    fretMovement * profile.fretMovementWeight,
+    'fretMovementCost',
+  );
+  const stringMovementCost = requireFiniteCost(
+    stringMovement * profile.stringMovementWeight,
+    'stringMovementCost',
+  );
+  const largeShiftCost = requireFiniteCost(
+    largeShiftDistance * profile.largeShiftWeight,
+    'largeShiftCost',
+  );
+  const samePositionPreferenceCost = requireFiniteCost(
+    samePosition ? 0 : profile.samePositionPreferenceWeight,
+    'samePositionPreferenceCost',
+  );
 
   const reasons = [];
   if (
@@ -210,12 +237,13 @@ function calculateTransitionCost(previousPosition, nextPosition, profileOverride
   }
 
   const isPlayable = reasons.length === 0;
-  const finiteTotal = (
+  const finiteTotal = requireFiniteCost(
     fretMovementCost
-    + stringMovementCost
-    + largeShiftCost
-    + positionCost.total
-    + samePositionPreferenceCost
+      + stringMovementCost
+      + largeShiftCost
+      + positionCost.total
+      + samePositionPreferenceCost,
+    'transitionCostTotal',
   );
 
   return deepFreeze({
