@@ -487,6 +487,73 @@ function validateParsedMusicDocument(parsedDocument) {
   return true;
 }
 
+function createCanonicalStart(start) {
+  return {
+    divisions: start.divisions,
+    beats: start.beats,
+  };
+}
+
+function createCanonicalBeam(beam) {
+  return {
+    level: beam.level,
+    value: beam.value,
+  };
+}
+
+function createCanonicalRhythm(rhythm) {
+  return {
+    durationDivisions: rhythm.durationDivisions,
+    type: rhythm.type,
+    dots: rhythm.dots,
+    timeModification: rhythm.timeModification,
+    tieStart: rhythm.tieStart,
+    tieStop: rhythm.tieStop,
+    beam: rhythm.beam.map(createCanonicalBeam),
+  };
+}
+
+function createCanonicalPitch(pitch) {
+  return {
+    step: pitch.step,
+    alter: pitch.alter,
+    octave: pitch.octave,
+    written: pitch.written,
+    midi: pitch.midi,
+  };
+}
+
+function createCanonicalSourceLocation(sourceLocation) {
+  return {
+    partId: sourceLocation.partId,
+    measure: sourceLocation.measure,
+    noteIndex: sourceLocation.noteIndex,
+  };
+}
+
+function createCanonicalTimeSignature(timeSignature) {
+  return {
+    beats: timeSignature.beats,
+    beatType: timeSignature.beatType,
+  };
+}
+
+function createCanonicalWarning(warning) {
+  return {
+    code: warning.code,
+    message: warning.message,
+    severity: warning.severity,
+    location: isObject(warning.location)
+      ? { measure: warning.location.measure }
+      : null,
+    details: {},
+  };
+}
+
+function createCanonicalWarnings(warnings) {
+  return warnings.map(createCanonicalWarning);
+}
+
 function createCanonicalEvent(event, measureKey) {
   const canonicalEvent = {
     eventId: event.eventId,
@@ -495,14 +562,14 @@ function createCanonicalEvent(event, measureKey) {
     type: event.type,
     voice: event.voice,
     staff: event.staff,
-    start: clonePlainData(event.start),
-    rhythm: clonePlainData(event.rhythm),
-    sourceLocation: clonePlainData(event.sourceLocation),
-    warnings: clonePlainData(event.warnings),
+    start: createCanonicalStart(event.start),
+    rhythm: createCanonicalRhythm(event.rhythm),
+    sourceLocation: createCanonicalSourceLocation(event.sourceLocation),
+    warnings: createCanonicalWarnings(event.warnings),
   };
 
   if (event.type === 'note') {
-    canonicalEvent.pitch = clonePlainData(event.pitch);
+    canonicalEvent.pitch = createCanonicalPitch(event.pitch);
   }
 
   return canonicalEvent;
@@ -520,12 +587,12 @@ function createCanonicalMusicDocument(parsedDocument) {
       measureIndex: measure.index,
       visibleMeasureNumber: measure.number,
       implicit: measure.implicit,
-      timeSignature: clonePlainData(measure.timeSignature),
+      timeSignature: createCanonicalTimeSignature(measure.timeSignature),
       divisions: measure.divisions,
       expectedDurationDivisions: measure.expectedDurationDivisions,
       actualDurationDivisions: measure.actualDurationDivisions,
       events,
-      warnings: clonePlainData(measure.warnings),
+      warnings: createCanonicalWarnings(measure.warnings),
     };
   });
 
