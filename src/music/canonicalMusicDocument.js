@@ -314,22 +314,18 @@ function validateEvent(event, context) {
 
   const duration = validateRhythm(event.rhythm, measure.divisions, location);
 
-  if (event.selectedPosition !== null) {
+  if (Object.hasOwn(event, 'selectedPosition') && event.selectedPosition !== null) {
     throw invalid('Parser output must not select a guitar position.', location);
   }
-  if (requireArray(event.alternativePositions, 'event.alternativePositions', location).length !== 0) {
-    throw invalid('Parser output must not contain guitar position alternatives.', location);
-  }
-  if (
-    typeof event.confidence !== 'number'
-    || !Number.isFinite(event.confidence)
-    || event.confidence < 0
-    || event.confidence > 1
-  ) {
-    throw invalid('event.confidence must be a finite number from 0 to 1.', location);
-  }
-  if (typeof event.requiresTeacherReview !== 'boolean') {
-    throw invalid('event.requiresTeacherReview must be boolean.', location);
+  if (Object.hasOwn(event, 'alternativePositions')) {
+    const alternativePositions = requireArray(
+      event.alternativePositions,
+      'event.alternativePositions',
+      location,
+    );
+    if (alternativePositions.length !== 0) {
+      throw invalid('Parser output must not contain guitar position alternatives.', location);
+    }
   }
   requireArray(event.warnings, 'event.warnings', location);
 
