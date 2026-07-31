@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-timewise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Guitar</part-name></score-part>
+  </part-list>
+  <measure number="1">
+    <part id="P1"/>
+  </measure>
+</score-timewise>
