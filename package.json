@@ -1,0 +1,15 @@
+{
+  "name": "seslitab-tab-ocr-engine",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent and safety-first guitar tablature OCR service.",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check src/app.js && node --test"
+  }
+}
