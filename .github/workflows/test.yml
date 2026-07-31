@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 18
+          - 20
+          - 22
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        run: npm test

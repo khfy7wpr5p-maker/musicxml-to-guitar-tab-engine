@@ -1,0 +1,14 @@
+{
+  "name": "musicxml-to-guitar-tab-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Convert MusicXML scores into playable six-string guitar tablature.",
+  "main": "src/guitar/fretboard.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
