@@ -86,6 +86,73 @@ test('creates an immutable CanonicalMusicDocument with an explicit event allowli
   assert.ok(Object.isFrozen(firstEvent));
 });
 
+test('projects nested canonical data through explicit field allowlists', () => {
+  const parsed = clone(parseMusicXmlNotes(fixture('parser-single-voice.musicxml')));
+  const measure = parsed.measures[0];
+  const event = measure.events.find((candidate) => candidate.type === 'note');
+  const beamedEvent = parsed.measures
+    .flatMap((candidateMeasure) => candidateMeasure.events)
+    .find((candidate) => candidate.rhythm.beam.length > 0);
+
+  assert.ok(event);
+  assert.ok(beamedEvent);
+
+  measure.timeSignature.parserInternalField = true;
+  event.start.parserInternalField = true;
+  event.rhythm.parserInternalField = true;
+  event.pitch.parserInternalField = true;
+  event.sourceLocation.parserInternalField = true;
+  beamedEvent.rhythm.beam[0].parserInternalField = true;
+
+  const warning = {
+    code: 'PARSER_DETAIL',
+    message: 'Parser-only diagnostic data.',
+    severity: 'warning',
+    location: {
+      measure: measure.number,
+      parserOffset: 17,
+    },
+    details: {
+      parserState: 'hidden',
+    },
+    parserInternalField: true,
+  };
+  event.warnings.push(clone(warning));
+  measure.warnings.push(clone(warning));
+
+  const canonical = createCanonicalMusicDocument(parsed);
+  const canonicalMeasure = canonical.measures[0];
+  const canonicalEvent = canonicalMeasure.events[event.eventIndex];
+  const canonicalBeamedEvent = canonical.measures
+    .flatMap((candidateMeasure) => candidateMeasure.events)
+    .find((candidate) => candidate.rhythm.beam.length > 0);
+
+  assert.equal(Object.hasOwn(canonicalMeasure.timeSignature, 'parserInternalField'), false);
+  assert.equal(Object.hasOwn(canonicalEvent.start, 'parserInternalField'), false);
+  assert.equal(Object.hasOwn(canonicalEvent.rhythm, 'parserInternalField'), false);
+  assert.equal(Object.hasOwn(canonicalEvent.pitch, 'parserInternalField'), false);
+  assert.equal(Object.hasOwn(canonicalEvent.sourceLocation, 'parserInternalField'), false);
+  assert.equal(
+    Object.hasOwn(canonicalBeamedEvent.rhythm.beam[0], 'parserInternalField'),
+    false,
+  );
+
+  for (const canonicalWarning of [canonicalEvent.warnings[0], canonicalMeasure.warnings[0]]) {
+    assert.deepEqual(Object.keys(canonicalWarning).sort(), [
+      'code', 'details', 'location', 'message', 'severity',
+    ]);
+    assert.deepEqual(canonicalWarning.location, { measure: measure.number });
+    assert.deepEqual(canonicalWarning.details, {});
+  }
+
+  assert.ok(Object.isFrozen(canonicalEvent.start));
+  assert.ok(Object.isFrozen(canonicalEvent.rhythm));
+  assert.ok(Object.isFrozen(canonicalBeamedEvent.rhythm.beam[0]));
+  assert.ok(Object.isFrozen(canonicalEvent.pitch));
+  assert.ok(Object.isFrozen(canonicalEvent.sourceLocation));
+  assert.ok(Object.isFrozen(canonicalEvent.warnings[0]));
+});
+
 test('accepts valid musical parser output without parser-specific workflow placeholders', () => {
   const parsed = clone(parseMusicXmlNotes(fixture('parser-single-voice.musicxml')));
 
