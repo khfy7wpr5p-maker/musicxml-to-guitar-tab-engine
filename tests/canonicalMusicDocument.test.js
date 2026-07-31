@@ -86,6 +86,40 @@ test('creates an immutable CanonicalMusicDocument with an explicit event allowli
   assert.ok(Object.isFrozen(firstEvent));
 });
 
+test('accepts valid musical parser output without parser-specific workflow placeholders', () => {
+  const parsed = clone(parseMusicXmlNotes(fixture('parser-single-voice.musicxml')));
+
+  for (const measure of parsed.measures) {
+    for (const event of measure.events) {
+      delete event.selectedPosition;
+      delete event.alternativePositions;
+      delete event.confidence;
+      delete event.requiresTeacherReview;
+    }
+  }
+
+  const canonical = createCanonicalMusicDocument(parsed);
+  assert.equal(canonical.measureCount, 2);
+  assert.equal(canonical.measures[0].events[0].pitch.midi, 60);
+});
+
+test('rejects actual guitar-position decisions when optional parser fields are present', () => {
+  const parsed = parseMusicXmlNotes(fixture('parser-single-voice.musicxml'));
+
+  expectInvalidParserOutput(parsed, (document) => {
+    document.measures[0].events[0].selectedPosition = {
+      stringNumber: 2,
+      fretNumber: 1,
+    };
+  });
+
+  expectInvalidParserOutput(parsed, (document) => {
+    document.measures[0].events[0].alternativePositions = [
+      { stringNumber: 3, fretNumber: 5 },
+    ];
+  });
+});
+
 test('keeps duplicate visible measure numbers while generating unique stable measure keys', () => {
   const canonical = parseCanonicalMusicDocument(repeatedVisibleMeasureNumberScore());
 
