@@ -58,6 +58,28 @@ test('rejects missing or duplicate direct part-list elements', () => {
   );
 });
 
+test('rejects nested structural lookalikes outside the required direct paths', () => {
+  expectValidationCode(
+    '<score-partwise><part-list/><container><part-list><score-part id="P1"/></part-list></container><part id="P1"><measure/></part></score-partwise>',
+    'INVALID_MUSICXML',
+  );
+
+  expectValidationCode(
+    '<score-partwise><part-list><wrapper><score-part id="P1"/></wrapper></part-list><part id="P1"><measure/></part></score-partwise>',
+    'INVALID_MUSICXML',
+  );
+
+  expectValidationCode(
+    '<score-partwise><part-list><score-part id="P1"/></part-list><container><part id="P1"><measure/></part></container></score-partwise>',
+    'INVALID_MUSICXML',
+  );
+
+  expectValidationCode(
+    '<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1"><container><measure/></container></part></score-partwise>',
+    'INVALID_MUSICXML',
+  );
+});
+
 test('rejects missing score parts, missing parts and missing measures', () => {
   expectValidationCode(
     '<score-partwise><part-list/><part id="P1"><measure number="1"/></part></score-partwise>',
