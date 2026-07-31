@@ -55,5 +55,5 @@ test('rejects invalid component values', () => {
 
 test('rejects pitches outside MIDI range', () => {
   assert.throws(() => pitchNameToMidi('C-2'), /MIDI range/i);
-  assert.throws(() => pitchNameToMidi('G9'), /MIDI range/i);
+  assert.throws(() => pitchNameToMidi('G#9'), /MIDI range/i);
 });
