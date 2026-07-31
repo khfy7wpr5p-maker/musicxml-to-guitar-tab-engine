@@ -3,6 +3,13 @@
 const { pitchToMidi, PitchError } = require('./pitch');
 
 const CANONICAL_MUSIC_DOCUMENT_VERSION = '1.0.0';
+const SUPPORTED_RHYTHM_TYPES = Object.freeze({
+  whole: Object.freeze({ numerator: 4, denominator: 1 }),
+  half: Object.freeze({ numerator: 2, denominator: 1 }),
+  quarter: Object.freeze({ numerator: 1, denominator: 1 }),
+  eighth: Object.freeze({ numerator: 1, denominator: 2 }),
+  '16th': Object.freeze({ numerator: 1, denominator: 4 }),
+});
 const BEAM_VALUES = new Set([
   'begin',
   'continue',
@@ -112,6 +119,44 @@ function expectedWrittenPitch(step, alter, octave) {
   return `${step}${accidental}${octave}`;
 }
 
+function expectedRhythmDuration(divisions, type, dots, location) {
+  const base = SUPPORTED_RHYTHM_TYPES[type];
+  if (!base) {
+    throw invalid('event.rhythm.type is not supported by the canonical contract.', {
+      ...location,
+      type,
+    });
+  }
+
+  const dotDenominator = 2 ** dots;
+  const dotNumerator = (2 ** (dots + 1)) - 1;
+  const numerator = divisions * base.numerator * dotNumerator;
+  const denominator = base.denominator * dotDenominator;
+
+  if (numerator % denominator !== 0) {
+    throw invalid('event rhythm cannot be represented by measure divisions.', {
+      ...location,
+      divisions,
+      type,
+      dots,
+    });
+  }
+
+  return numerator / denominator;
+}
+
+function expectedMeasureDuration(divisions, timeSignature, location) {
+  const numerator = divisions * timeSignature.beats * 4;
+  if (numerator % timeSignature.beatType !== 0) {
+    throw invalid('time signature cannot be represented by measure divisions.', {
+      ...location,
+      divisions,
+      timeSignature: clonePlainData(timeSignature),
+    });
+  }
+  return numerator / timeSignature.beatType;
+}
+
 function validatePitch(pitch, location) {
   requireObject(pitch, 'event.pitch', location);
   if (!/^[A-G]$/.test(pitch.step)) {
@@ -156,18 +201,31 @@ function validatePitch(pitch, location) {
   }
 }
 
-function validateRhythm(rhythm, location) {
+function validateRhythm(rhythm, divisions, location) {
   requireObject(rhythm, 'event.rhythm', location);
   const duration = requirePositiveInteger(
     rhythm.durationDivisions,
     'event.rhythm.durationDivisions',
     location,
   );
-  requireNonEmptyString(rhythm.type, 'event.rhythm.type', location);
-  requireNonNegativeInteger(rhythm.dots, 'event.rhythm.dots', location);
-  if (rhythm.dots > 3) {
+  const type = requireNonEmptyString(rhythm.type, 'event.rhythm.type', location);
+  const dots = requireNonNegativeInteger(rhythm.dots, 'event.rhythm.dots', location);
+  if (dots > 3) {
     throw invalid('event.rhythm.dots must not exceed three.', location);
   }
+
+  const expectedDuration = expectedRhythmDuration(divisions, type, dots, location);
+  if (duration !== expectedDuration) {
+    throw invalid('event.rhythm.durationDivisions does not match type and dots.', {
+      ...location,
+      duration,
+      expectedDuration,
+      divisions,
+      type,
+      dots,
+    });
+  }
+
   if (rhythm.timeModification !== null) {
     throw invalid('Monophonic parser output must not contain timeModification.', location);
   }
@@ -201,7 +259,13 @@ function validateRhythm(rhythm, location) {
 }
 
 function validateEvent(event, context) {
-  const { partId, measure, measureArrayIndex, eventArrayIndex, expectedStart } = context;
+  const {
+    partId,
+    measure,
+    measureArrayIndex,
+    eventArrayIndex,
+    expectedStart,
+  } = context;
   const location = {
     measureIndex: measureArrayIndex,
     visibleMeasureNumber: measure.number,
@@ -248,7 +312,7 @@ function validateEvent(event, context) {
     });
   }
 
-  const duration = validateRhythm(event.rhythm, location);
+  const duration = validateRhythm(event.rhythm, measure.divisions, location);
 
   if (event.selectedPosition !== null) {
     throw invalid('Parser output must not select a guitar position.', location);
@@ -304,23 +368,36 @@ function validateMeasure(measure, context) {
   if (typeof measure.implicit !== 'boolean') {
     throw invalid('measure.implicit must be boolean.', location);
   }
-  requirePositiveInteger(measure.divisions, 'measure.divisions', location);
+  const divisions = requirePositiveInteger(measure.divisions, 'measure.divisions', location);
 
   const timeSignature = requireObject(measure.timeSignature, 'measure.timeSignature', location);
   requirePositiveInteger(timeSignature.beats, 'timeSignature.beats', location);
   requirePositiveInteger(timeSignature.beatType, 'timeSignature.beatType', location);
 
-  requirePositiveInteger(
+  const declaredExpectedDuration = requirePositiveInteger(
     measure.expectedDurationDivisions,
     'measure.expectedDurationDivisions',
     location,
   );
+  const calculatedExpectedDuration = expectedMeasureDuration(
+    divisions,
+    timeSignature,
+    location,
+  );
+  if (declaredExpectedDuration !== calculatedExpectedDuration) {
+    throw invalid('measure.expectedDurationDivisions does not match time signature and divisions.', {
+      ...location,
+      declaredExpectedDuration,
+      calculatedExpectedDuration,
+    });
+  }
+
   requireNonNegativeInteger(
     measure.actualDurationDivisions,
     'measure.actualDurationDivisions',
     location,
   );
-  if (measure.actualDurationDivisions > measure.expectedDurationDivisions) {
+  if (measure.actualDurationDivisions > declaredExpectedDuration) {
     throw invalid('Measure duration exceeds its expected duration.', location);
   }
 
@@ -352,7 +429,7 @@ function validateMeasure(measure, context) {
       actualDurationDivisions: measure.actualDurationDivisions,
     });
   }
-  if (events.length > 0 && !measure.implicit && cursor !== measure.expectedDurationDivisions) {
+  if (events.length > 0 && !measure.implicit && cursor !== declaredExpectedDuration) {
     throw invalid('Non-pickup measure duration does not match expectedDurationDivisions.', location);
   }
 
@@ -371,13 +448,16 @@ function validateParsedMusicDocument(parsedDocument) {
   }
 
   const partId = requireNonEmptyString(parsedDocument.partId, 'parsedDocument.partId');
-  requireNonNegativeInteger(parsedDocument.measureCount, 'parsedDocument.measureCount');
+  requirePositiveInteger(parsedDocument.measureCount, 'parsedDocument.measureCount');
   requireNonNegativeInteger(parsedDocument.voiceCount, 'parsedDocument.voiceCount');
   if (parsedDocument.voiceCount > 1) {
     throw invalid('Monophonic parser output must not report more than one voice.');
   }
 
   const measures = requireArray(parsedDocument.measures, 'parsedDocument.measures');
+  if (measures.length === 0) {
+    throw invalid('parsedDocument.measures must contain at least one measure.');
+  }
   if (parsedDocument.measureCount !== measures.length) {
     throw invalid('parsedDocument.measureCount does not match measures.length.', {
       measureCount: parsedDocument.measureCount,
@@ -411,15 +491,33 @@ function validateParsedMusicDocument(parsedDocument) {
   return true;
 }
 
+function createCanonicalEvent(event, measureKey) {
+  const canonicalEvent = {
+    eventId: event.eventId,
+    eventIndex: event.eventIndex,
+    measureKey,
+    type: event.type,
+    voice: event.voice,
+    staff: event.staff,
+    start: clonePlainData(event.start),
+    rhythm: clonePlainData(event.rhythm),
+    sourceLocation: clonePlainData(event.sourceLocation),
+    warnings: clonePlainData(event.warnings),
+  };
+
+  if (event.type === 'note') {
+    canonicalEvent.pitch = clonePlainData(event.pitch);
+  }
+
+  return canonicalEvent;
+}
+
 function createCanonicalMusicDocument(parsedDocument) {
   validateParsedMusicDocument(parsedDocument);
 
   const measures = parsedDocument.measures.map((measure) => {
     const measureKey = createMeasureKey(parsedDocument.partId, measure.index);
-    const events = measure.events.map((event) => ({
-      ...clonePlainData(event),
-      measureKey,
-    }));
+    const events = measure.events.map((event) => createCanonicalEvent(event, measureKey));
 
     return {
       measureKey,
