@@ -150,7 +150,10 @@ function optimizeFingering(candidateLayers, options = {}) {
     }
   }
 
-  const profile = createFingeringCostProfile(options.costProfile || {});
+  const costProfile = Object.hasOwn(options, 'costProfile')
+    ? options.costProfile
+    : {};
+  const profile = createFingeringCostProfile(costProfile);
   const layers = validateCandidateLayers(candidateLayers, profile);
 
   let states = layers[0].map(({ position }) => {
