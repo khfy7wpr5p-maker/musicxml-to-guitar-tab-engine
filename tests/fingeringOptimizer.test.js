@@ -106,6 +106,8 @@ test('excludes unplayable transitions and rejects when no path remains', () => {
 test('rejects empty or malformed candidate layers with a stable code', () => {
   const invalidInputs = [
     [],
+    new Array(1),
+    [new Array(1)],
     [null],
     [[]],
     [[null]],
