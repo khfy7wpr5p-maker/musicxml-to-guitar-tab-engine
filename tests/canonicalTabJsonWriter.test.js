@@ -214,14 +214,23 @@ test('rejects invalid result identities and unsupported schema versions', () => 
   );
 });
 
-test('rejects unknown or invalid writer options', () => {
+test('rejects unknown, accessor, symbol or invalid writer options', () => {
   const canonicalTabResult = restOnlyResult();
+  const symbolOption = {};
+  symbolOption[Symbol('unknown')] = true;
+  const accessorOption = {};
+  Object.defineProperty(accessorOption, 'pretty', {
+    enumerable: true,
+    get: () => true,
+  });
   const invalidOptions = [
     null,
     [],
     { unknown: true },
     { pretty: 2 },
     { trailingNewline: 'yes' },
+    symbolOption,
+    accessorOption,
   ];
 
   for (const options of invalidOptions) {
@@ -241,10 +250,21 @@ test('rejects JSON-unsafe values instead of silently dropping or changing them',
     { name: 'function', apply: (value) => { value.unsafe = () => {}; } },
     { name: 'symbol value', apply: (value) => { value.unsafe = Symbol('unsafe'); } },
     { name: 'bigint', apply: (value) => { value.unsafe = 1n; } },
+    { name: 'non-plain object', apply: (value) => { value.unsafe = new Date(0); } },
     {
       name: 'sparse array',
       apply: (value) => {
         value.measures = new Array(value.measureCount);
+      },
+    },
+    {
+      name: 'array accessor',
+      apply: (value) => {
+        const measure = value.measures[0];
+        Object.defineProperty(value.measures, '0', {
+          enumerable: true,
+          get: () => measure,
+        });
       },
     },
     {
