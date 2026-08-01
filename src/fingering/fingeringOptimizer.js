@@ -1,10 +1,22 @@
 'use strict';
 
 const {
+  FingeringCostError,
   createFingeringCostProfile,
   calculatePositionCost,
   calculateTransitionCost,
 } = require('./costModel');
+
+const COST_OVERFLOW_FIELDS = new Set([
+  'highFretCost',
+  'openStringPreferenceCost',
+  'positionCostTotal',
+  'fretMovementCost',
+  'stringMovementCost',
+  'largeShiftCost',
+  'samePositionPreferenceCost',
+  'transitionCostTotal',
+]);
 
 class FingeringOptimizerError extends Error {
   constructor(message, code, details = {}) {
@@ -28,6 +40,23 @@ function noPlayableFingering(details = {}) {
     'No playable fingering path exists for the supplied candidate layers.',
     'NO_PLAYABLE_FINGERING',
     details,
+  );
+}
+
+function fingeringCostOverflow(details = {}) {
+  return new FingeringOptimizerError(
+    'No finite fingering path exists for the supplied candidate layers.',
+    'FINGERING_COST_OVERFLOW',
+    details,
+  );
+}
+
+function isCostOverflowError(error) {
+  return (
+    error instanceof FingeringCostError
+    && error.code === 'INVALID_FINGERING_COST_PROFILE'
+    && COST_OVERFLOW_FIELDS.has(error.details?.field)
+    && !Number.isFinite(error.details?.value)
   );
 }
 
@@ -138,6 +167,22 @@ function chooseBetter(current, candidate) {
     : current;
 }
 
+function exceedsMovementLimits(previousPosition, nextPosition, profile) {
+  const fretMovement = Math.abs(nextPosition.fret - previousPosition.fret);
+  const stringMovement = Math.abs(nextPosition.string - previousPosition.string);
+
+  return (
+    (
+      profile.maximumFretMovement !== null
+      && fretMovement > profile.maximumFretMovement
+    )
+    || (
+      profile.maximumStringMovement !== null
+      && stringMovement > profile.maximumStringMovement
+    )
+  );
+}
+
 function optimizeFingering(candidateLayers, options = {}) {
   if (!options || typeof options !== 'object' || Array.isArray(options)) {
     throw invalidCandidates('options must be an object.');
@@ -156,28 +201,62 @@ function optimizeFingering(candidateLayers, options = {}) {
   const profile = createFingeringCostProfile(costProfile);
   const layers = validateCandidateLayers(candidateLayers, profile);
 
-  let states = layers[0].map(({ position }) => {
-    const cost = calculatePositionCost(position, profile);
-    return {
+  let firstLayerSawOverflow = false;
+  let states = [];
+
+  for (const { position } of layers[0]) {
+    let cost;
+    try {
+      cost = calculatePositionCost(position, profile);
+    } catch (error) {
+      if (!isCostOverflowError(error)) {
+        throw error;
+      }
+      firstLayerSawOverflow = true;
+      continue;
+    }
+
+    states.push({
       position,
       totalCost: cost.total,
       positions: [position],
       costs: [cost],
-    };
-  });
+    });
+  }
+
+  if (states.length === 0) {
+    if (firstLayerSawOverflow) {
+      throw fingeringCostOverflow({ layerIndex: 0 });
+    }
+    throw noPlayableFingering({ layerIndex: 0 });
+  }
 
   for (let layerIndex = 1; layerIndex < layers.length; layerIndex += 1) {
     const nextStates = [];
+    let layerSawOverflow = false;
 
     for (const { position: nextPosition } of layers[layerIndex]) {
       let best = null;
 
       for (const previousState of states) {
-        const transitionCost = calculateTransitionCost(
-          previousState.position,
-          nextPosition,
-          profile,
-        );
+        if (exceedsMovementLimits(previousState.position, nextPosition, profile)) {
+          continue;
+        }
+
+        let transitionCost;
+        try {
+          transitionCost = calculateTransitionCost(
+            previousState.position,
+            nextPosition,
+            profile,
+          );
+        } catch (error) {
+          if (!isCostOverflowError(error)) {
+            throw error;
+          }
+          layerSawOverflow = true;
+          continue;
+        }
 
         if (!transitionCost.isPlayable) {
           continue;
@@ -185,11 +264,8 @@ function optimizeFingering(candidateLayers, options = {}) {
 
         const totalCost = previousState.totalCost + transitionCost.total;
         if (!Number.isFinite(totalCost)) {
-          throw new FingeringOptimizerError(
-            'Accumulated fingering cost must remain finite.',
-            'FINGERING_COST_OVERFLOW',
-            { layerIndex, totalCost },
-          );
+          layerSawOverflow = true;
+          continue;
         }
 
         best = chooseBetter(best, {
@@ -206,6 +282,9 @@ function optimizeFingering(candidateLayers, options = {}) {
     }
 
     if (nextStates.length === 0) {
+      if (layerSawOverflow) {
+        throw fingeringCostOverflow({ layerIndex });
+      }
       throw noPlayableFingering({ layerIndex });
     }
 
