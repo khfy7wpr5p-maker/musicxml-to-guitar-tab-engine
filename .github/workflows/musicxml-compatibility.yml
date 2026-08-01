@@ -1,0 +1,67 @@
+name: MusicXML Compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "feature/**"
+
+permissions:
+  contents: read
+
+jobs:
+  alphatab-import:
+    name: alphaTab import / Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 18
+          - 20
+          - 22
+
+    env:
+      ALPHATAB_EXPECTED_VERSION: 1.8.4
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install pinned alphaTab test package without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4
+
+      - name: Run alphaTab MusicXML importer smoke test
+        run: node tests/compatibility/alphaTabMusicXmlSmoke.mjs
+
+  musescore-availability:
+    name: MuseScore CLI availability
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check preinstalled MuseScore commands without installing software
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in MuseScore4 musescore4 mscore4 musescore mscore; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$command"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "MuseScore CLI is not preinstalled on the GitHub-hosted runner; import and round-trip tests are not run."
+            exit 0
+          fi
+          "$found" --version
