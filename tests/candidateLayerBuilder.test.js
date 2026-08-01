@@ -10,12 +10,46 @@ const {
   buildCandidateLayers,
 } = require('../src/fingering/candidateLayerBuilder');
 const { PlayabilityError } = require('../src/guitar/playability');
+const { STANDARD_TUNING } = require('../src/guitar/tuning');
 const {
   parseCanonicalMusicDocument,
 } = require('../src/parser/parseCanonicalMusicDocument');
 
 function readFixture(name) {
   return fs.readFileSync(path.join(__dirname, 'fixtures', name));
+}
+
+function createLowDMusicXml() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Guitar</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>1</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note>
+        <pitch><step>D</step><octave>2</octave></pitch>
+        <duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff>
+      </note>
+    </measure>
+  </part>
+</score-partwise>`;
+}
+
+function deepFreezeGraph(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+  for (const nested of Object.values(value)) {
+    deepFreezeGraph(nested, seen);
+  }
+  return Object.freeze(value);
 }
 
 function createUnplayableMusicXml() {
@@ -86,6 +120,25 @@ test('honors a configured fret range while preserving deterministic candidate or
   ]);
 });
 
+test('supports custom tuning when it makes a note playable', () => {
+  const canonicalDocument = parseCanonicalMusicDocument(createLowDMusicXml());
+  const dropDTuning = STANDARD_TUNING.map((entry) => (
+    entry.number === 6
+      ? { number: 6, pitch: 'D2', midi: 38 }
+      : { ...entry }
+  ));
+
+  assert.throws(
+    () => buildCandidateLayers(canonicalDocument),
+    (error) => error.code === 'UNPLAYABLE_NOTE',
+  );
+
+  const result = buildCandidateLayers(canonicalDocument, { tuning: dropDTuning });
+
+  assert.deepEqual(result.candidateLayers, [[{ string: 6, fret: 0 }]]);
+  assert.equal(result.guitarConfiguration.tuning[5].midi, 38);
+});
+
 test('rejects notes outside the configured guitar range with event location details', () => {
   const canonicalDocument = parseCanonicalMusicDocument(createUnplayableMusicXml());
 
@@ -121,6 +174,25 @@ test('accepts only deeply frozen canonical boundary output', () => {
   assert.throws(
     () => buildCandidateLayers({}),
     (error) => error.code === 'INVALID_CANONICAL_MUSIC_DOCUMENT',
+  );
+});
+
+test('rejects cyclic frozen lookalikes instead of recursing during metadata cloning', () => {
+  const canonicalDocument = parseCanonicalMusicDocument(
+    readFixture('parser-single-voice.musicxml'),
+  );
+  const forgedDocument = structuredClone(canonicalDocument);
+  const rhythm = forgedDocument.measures[0].events[0].rhythm;
+  rhythm.cycle = rhythm;
+  deepFreezeGraph(forgedDocument);
+
+  assert.throws(
+    () => buildCandidateLayers(forgedDocument),
+    (error) => {
+      assert.ok(error instanceof CandidateLayerBuilderError);
+      assert.equal(error.code, 'INVALID_CANONICAL_MUSIC_DOCUMENT');
+      return true;
+    },
   );
 });
 
