@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   alphatab-import:
-    name: alphaTab import and SVG render / Node.js ${{ matrix.node-version }}
+    name: Tests, alphaTab import and SVG render / Node.js ${{ matrix.node-version }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -41,6 +41,9 @@ jobs:
 
       - name: Install project dependencies
         run: npm ci --ignore-scripts
+
+      - name: Run complete repository test suite
+        run: npm test
 
       - name: Install pinned alphaTab test package without changing the repository
         run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4
@@ -96,7 +99,7 @@ jobs:
       - name: Run alphaTab browser renderer and cursor smoke test
         env:
           ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
-        run: node tests/compatibility/alphaTabBrowserCursorSmoke.mjs
+        run: node tests/compatibility/alphaTabBrowserRendererCursorValidated.mjs
 
       - name: Upload alphaTab renderer screenshot
         if: always()
