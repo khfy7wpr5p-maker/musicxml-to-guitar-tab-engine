@@ -90,7 +90,7 @@ function validateCandidateLayers(candidateLayers, profile) {
     throw invalidCandidates('candidateLayers must be a non-empty array.');
   }
 
-  return candidateLayers.map((layer, layerIndex) => {
+  return Array.from(candidateLayers, (layer, layerIndex) => {
     if (!Array.isArray(layer) || layer.length === 0) {
       throw invalidCandidates(
         'Every candidate layer must be a non-empty array.',
@@ -98,45 +98,44 @@ function validateCandidateLayers(candidateLayers, profile) {
       );
     }
 
-    return layer
-      .map((position, candidateIndex) => {
-        if (!position || typeof position !== 'object' || Array.isArray(position)) {
-          throw invalidCandidates(
-            'Every candidate must be a position object.',
-            { layerIndex, candidateIndex },
-          );
-        }
-        if (
-          !Number.isSafeInteger(position.string)
-          || position.string < 1
-          || position.string > 6
-        ) {
-          throw invalidCandidates(
-            'Candidate string must be an integer from 1 to 6.',
-            { layerIndex, candidateIndex, position },
-          );
-        }
-        if (
-          !Number.isSafeInteger(position.fret)
-          || position.fret < 0
-          || position.fret > profile.maximumFret
-        ) {
-          throw invalidCandidates(
-            'Candidate fret is outside the configured range.',
-            {
-              layerIndex,
-              candidateIndex,
-              position,
-              maximumFret: profile.maximumFret,
-            },
-          );
-        }
+    return Array.from(layer, (position, candidateIndex) => {
+      if (!position || typeof position !== 'object' || Array.isArray(position)) {
+        throw invalidCandidates(
+          'Every candidate must be a position object.',
+          { layerIndex, candidateIndex },
+        );
+      }
+      if (
+        !Number.isSafeInteger(position.string)
+        || position.string < 1
+        || position.string > 6
+      ) {
+        throw invalidCandidates(
+          'Candidate string must be an integer from 1 to 6.',
+          { layerIndex, candidateIndex, position },
+        );
+      }
+      if (
+        !Number.isSafeInteger(position.fret)
+        || position.fret < 0
+        || position.fret > profile.maximumFret
+      ) {
+        throw invalidCandidates(
+          'Candidate fret is outside the configured range.',
+          {
+            layerIndex,
+            candidateIndex,
+            position,
+            maximumFret: profile.maximumFret,
+          },
+        );
+      }
 
-        return {
-          position: clonePosition(position),
-          originalIndex: candidateIndex,
-        };
-      })
+      return {
+        position: clonePosition(position),
+        originalIndex: candidateIndex,
+      };
+    })
       .sort((a, b) => (
         comparePositions(a.position, b.position)
         || a.originalIndex - b.originalIndex
