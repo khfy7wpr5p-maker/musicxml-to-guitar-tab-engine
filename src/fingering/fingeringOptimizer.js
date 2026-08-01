@@ -78,6 +78,13 @@ function clonePosition(position) {
   };
 }
 
+function comparePositions(a, b) {
+  return (
+    a.string - b.string
+    || a.fret - b.fret
+  );
+}
+
 function validateCandidateLayers(candidateLayers, profile) {
   if (!Array.isArray(candidateLayers) || candidateLayers.length === 0) {
     throw invalidCandidates('candidateLayers must be a non-empty array.');
@@ -131,28 +138,37 @@ function validateCandidateLayers(candidateLayers, profile) {
         };
       })
       .sort((a, b) => (
-        a.position.string - b.position.string
-        || a.position.fret - b.position.fret
+        comparePositions(a.position, b.position)
         || a.originalIndex - b.originalIndex
       ));
   });
 }
 
-function comparePaths(a, b) {
-  const length = Math.min(a.length, b.length);
-  for (let index = 0; index < length; index += 1) {
-    const comparison = (
-      a[index].string - b[index].string
-      || a[index].fret - b[index].fret
-    );
-    if (comparison !== 0) {
-      return comparison;
-    }
-  }
-  return a.length - b.length;
+function compareStatePaths(a, b) {
+  const previousRankA = a.previousState?.pathRank ?? -1;
+  const previousRankB = b.previousState?.pathRank ?? -1;
+
+  return (
+    previousRankA - previousRankB
+    || comparePositions(a.position, b.position)
+  );
 }
 
-function chooseBetter(current, candidate) {
+function assignPathRanks(states) {
+  const orderedStates = [...states].sort(compareStatePaths);
+  let pathRank = -1;
+  let previousState = null;
+
+  for (const state of orderedStates) {
+    if (!previousState || compareStatePaths(previousState, state) !== 0) {
+      pathRank += 1;
+    }
+    state.pathRank = pathRank;
+    previousState = state;
+  }
+}
+
+function chooseBetterTransition(current, candidate) {
   if (!current) {
     return candidate;
   }
@@ -162,7 +178,22 @@ function chooseBetter(current, candidate) {
   if (candidate.totalCost > current.totalCost) {
     return current;
   }
-  return comparePaths(candidate.positions, current.positions) < 0
+  return candidate.previousState.pathRank < current.previousState.pathRank
+    ? candidate
+    : current;
+}
+
+function chooseBetterFinalState(current, candidate) {
+  if (!current) {
+    return candidate;
+  }
+  if (candidate.totalCost < current.totalCost) {
+    return candidate;
+  }
+  if (candidate.totalCost > current.totalCost) {
+    return current;
+  }
+  return candidate.pathRank < current.pathRank
     ? candidate
     : current;
 }
@@ -181,6 +212,25 @@ function exceedsMovementLimits(previousPosition, nextPosition, profile) {
       && stringMovement > profile.maximumStringMovement
     )
   );
+}
+
+function reconstructResult(bestState) {
+  const positions = [];
+  const costs = [];
+
+  for (let state = bestState; state; state = state.previousState) {
+    positions.push(clonePosition(state.position));
+    costs.push(state.cost);
+  }
+
+  positions.reverse();
+  costs.reverse();
+
+  return deepFreeze({
+    totalCost: bestState.totalCost,
+    positions,
+    costs,
+  });
 }
 
 function optimizeFingering(candidateLayers, options = {}) {
@@ -219,8 +269,9 @@ function optimizeFingering(candidateLayers, options = {}) {
     states.push({
       position,
       totalCost: cost.total,
-      positions: [position],
-      costs: [cost],
+      cost,
+      previousState: null,
+      pathRank: -1,
     });
   }
 
@@ -230,6 +281,8 @@ function optimizeFingering(candidateLayers, options = {}) {
     }
     throw noPlayableFingering({ layerIndex: 0 });
   }
+
+  assignPathRanks(states);
 
   for (let layerIndex = 1; layerIndex < layers.length; layerIndex += 1) {
     const nextStates = [];
@@ -268,11 +321,12 @@ function optimizeFingering(candidateLayers, options = {}) {
           continue;
         }
 
-        best = chooseBetter(best, {
+        best = chooseBetterTransition(best, {
           position: nextPosition,
           totalCost,
-          positions: [...previousState.positions, nextPosition],
-          costs: [...previousState.costs, transitionCost],
+          cost: transitionCost,
+          previousState,
+          pathRank: -1,
         });
       }
 
@@ -288,23 +342,20 @@ function optimizeFingering(candidateLayers, options = {}) {
       throw noPlayableFingering({ layerIndex });
     }
 
+    assignPathRanks(nextStates);
     states = nextStates;
   }
 
   let best = null;
   for (const state of states) {
-    best = chooseBetter(best, state);
+    best = chooseBetterFinalState(best, state);
   }
 
   if (!best) {
     throw noPlayableFingering({ layerIndex: 0 });
   }
 
-  return deepFreeze({
-    totalCost: best.totalCost,
-    positions: best.positions.map(clonePosition),
-    costs: best.costs,
-  });
+  return reconstructResult(best);
 }
 
 module.exports = {
