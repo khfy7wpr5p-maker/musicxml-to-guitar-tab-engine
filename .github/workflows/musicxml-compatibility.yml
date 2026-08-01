@@ -51,6 +51,62 @@ jobs:
       - name: Run alphaTab SVG renderer smoke test
         run: node tests/compatibility/alphaTabSvgRendererSmoke.mjs
 
+  alphatab-browser:
+    name: alphaTab browser renderer and cursor / Node.js 22
+    runs-on: ubuntu-latest
+
+    env:
+      ALPHATAB_EXPECTED_VERSION: 1.8.4
+      PUPPETEER_CORE_VERSION: 25.3.0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install pinned browser test packages without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4 puppeteer-core@25.3.0
+
+      - name: Detect a preinstalled Chrome or Chromium executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$(command -v "$command")"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "No preinstalled Chrome or Chromium executable was found." >&2
+            exit 1
+          fi
+          echo "BROWSER_EXECUTABLE=$found" >> "$GITHUB_ENV"
+          "$found" --version
+
+      - name: Run alphaTab browser renderer and cursor smoke test
+        env:
+          ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
+        run: node tests/compatibility/alphaTabBrowserRendererCursorSmoke.mjs
+
+      - name: Upload alphaTab renderer screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alphatab-renderer-cursor
+          path: ${{ runner.temp }}/alphatab-renderer-cursor.png
+          if-no-files-found: warn
+          retention-days: 14
+
   musescore-availability:
     name: MuseScore CLI availability
     runs-on: ubuntu-latest
