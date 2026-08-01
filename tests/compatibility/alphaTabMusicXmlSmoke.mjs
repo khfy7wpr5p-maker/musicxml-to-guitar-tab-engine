@@ -168,13 +168,19 @@ assert.deepEqual(
   notationMusicalBeats.map((beat) => beat.dots),
   tablatureMusicalBeats.map((beat) => beat.dots),
 );
-assertStrictlyNonDecreasing(
-  notationMusicalBeats.map((beat) => beat.absolutePlaybackStart),
-  'standard-notation playback starts',
-);
-assertStrictlyNonDecreasing(
-  tablatureMusicalBeats.map((beat) => beat.absolutePlaybackStart),
-  'tablature playback starts',
+
+const notationPlaybackStarts = notationMusicalBeats.map((beat) => beat.absolutePlaybackStart);
+const tablaturePlaybackStarts = tablatureMusicalBeats.map((beat) => beat.absolutePlaybackStart);
+assertStrictlyNonDecreasing(notationPlaybackStarts, 'standard-notation playback starts');
+assertStrictlyNonDecreasing(tablaturePlaybackStarts, 'tablature playback starts');
+assert.deepEqual(notationPlaybackStarts, tablaturePlaybackStarts);
+
+const notationBeamingModes = notationMusicalBeats.map((beat) => beat.beamingMode);
+const tablatureBeamingModes = tablatureMusicalBeats.map((beat) => beat.beamingMode);
+assert.deepEqual(notationBeamingModes, tablatureBeamingModes);
+assert.ok(
+  notationBeamingModes.filter((mode) => mode !== 0).length >= 6,
+  'Explicit MusicXML beams must produce non-auto alphaTab beaming modes.',
 );
 
 assert.equal(notationNotes.filter((note) => note.isTieOrigin).length, 1);
@@ -209,4 +215,6 @@ process.stdout.write(`${JSON.stringify({
   firstSelectedPosition: musicXmlPosition(tablatureNotes[1], tablatureStaff.tuning.length),
   doubleDigitFret: tablatureNotes.some((note) => note.fret === 10),
   tieOriginsPerStaff: notationNotes.filter((note) => note.isTieOrigin).length,
+  explicitBeamBeatsPerStaff: notationBeamingModes.filter((mode) => mode !== 0).length,
+  synchronizedPlaybackStarts: true,
 })}\n`);
