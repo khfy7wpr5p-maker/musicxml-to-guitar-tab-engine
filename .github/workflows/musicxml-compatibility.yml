@@ -55,7 +55,7 @@ jobs:
         run: node tests/compatibility/alphaTabSvgRendererSmoke.mjs
 
   alphatab-browser:
-    name: alphaTab browser renderer and cursor / Node.js 22
+    name: alphaTab browser renderer, cursor and synth / Node.js 22
     runs-on: ubuntu-latest
 
     env:
@@ -100,6 +100,9 @@ jobs:
         env:
           ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
         run: node tests/compatibility/alphaTabBrowserRendererCursorValidated.mjs
+
+      - name: Run alphaTab browser synthesizer smoke test
+        run: node tests/compatibility/alphaTabBrowserSynthSmoke.mjs
 
       - name: Upload alphaTab renderer screenshot
         if: always()
