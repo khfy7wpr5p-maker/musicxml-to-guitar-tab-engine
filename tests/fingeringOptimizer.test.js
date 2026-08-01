@@ -359,3 +359,25 @@ test('does not mutate input and deeply freezes output', () => {
   assert.ok(Object.isFrozen(result.costs[0]));
   assert.ok(Object.isFrozen(result.costs[0].breakdown));
 });
+
+test('handles a long six-candidate sequence with deterministic output', () => {
+  const noteCount = 10000;
+  const candidates = [
+    { string: 1, fret: 0 },
+    { string: 2, fret: 0 },
+    { string: 3, fret: 0 },
+    { string: 4, fret: 0 },
+    { string: 5, fret: 0 },
+    { string: 6, fret: 0 },
+  ];
+  const layers = Array.from({ length: noteCount }, () => candidates);
+
+  const result = optimizeFingering(layers);
+
+  assert.equal(result.totalCost, 0);
+  assert.equal(result.positions.length, noteCount);
+  assert.equal(result.costs.length, noteCount);
+  assert.ok(result.positions.every(
+    (position) => position.string === 1 && position.fret === 0,
+  ));
+});
