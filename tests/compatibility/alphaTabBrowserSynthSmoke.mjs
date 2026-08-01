@@ -61,13 +61,14 @@ const pageHtml = `<!doctype html>
   const api = new alphaTab.AlphaTabApi(document.getElementById('alphaTab'), {
     core:{
       engine:'svg',useWorkers:false,enableLazyLoading:false,
-      fontDirectory:'/assets/font/',scriptFile:'/assets/${alphaTabScript}'
+      fontDirectory:'/assets/font/',
+      scriptFile:window.location.origin + '/assets/${alphaTabScript}'
     },
     player:{
       enablePlayer:true,
       playerMode:alphaTab.PlayerMode.EnabledSynthesizer,
       outputMode:alphaTab.PlayerOutputMode.WebAudioScriptProcessor,
-      soundFont:'/assets/soundfont/sonivox.sf2',
+      soundFont:window.location.origin + '/assets/soundfont/sonivox.sf2',
       enableCursor:false,
       enableElementHighlighting:false
     }
