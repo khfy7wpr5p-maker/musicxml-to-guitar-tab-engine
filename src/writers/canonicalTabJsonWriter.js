@@ -150,25 +150,32 @@ function normalizeOptions(options) {
   }
 
   const allowedFields = new Set(['pretty', 'trailingNewline']);
-  for (const field of Object.keys(options)) {
-    if (!allowedFields.has(field)) {
-      throw invalidOptions('options contains an unknown field.', { field });
-    }
-  }
+  const normalized = {
+    pretty: false,
+    trailingNewline: false,
+  };
 
-  for (const field of allowedFields) {
-    if (Object.hasOwn(options, field) && typeof options[field] !== 'boolean') {
-      throw invalidOptions(`options.${field} must be boolean.`, {
-        field,
-        value: options[field],
+  for (const key of Reflect.ownKeys(options)) {
+    if (typeof key === 'symbol' || !allowedFields.has(key)) {
+      throw invalidOptions('options contains an unknown field.', {
+        field: typeof key === 'symbol' ? key.toString() : key,
       });
     }
+
+    const descriptor = Object.getOwnPropertyDescriptor(options, key);
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+      throw invalidOptions('options fields must be enumerable data properties.', { field: key });
+    }
+    if (typeof descriptor.value !== 'boolean') {
+      throw invalidOptions(`options.${key} must be boolean.`, {
+        field: key,
+        value: descriptor.value,
+      });
+    }
+    normalized[key] = descriptor.value;
   }
 
-  return {
-    pretty: options.pretty === true,
-    trailingNewline: options.trailingNewline === true,
-  };
+  return normalized;
 }
 
 function appendPath(path, key) {
@@ -226,18 +233,32 @@ function validateJsonValue(value, path, active, validated) {
     }
 
     for (let index = 0; index < value.length; index += 1) {
-      if (!Object.hasOwn(value, index)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor) {
         throw unsafeValue('CanonicalTabResult arrays must not be sparse.', {
           path: appendPath(path, index),
         });
       }
-      validateJsonValue(value[index], appendPath(path, index), active, validated);
+      if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+        throw unsafeValue('CanonicalTabResult array items must be enumerable data properties.', {
+          path: appendPath(path, index),
+        });
+      }
+      validateJsonValue(
+        descriptor.value,
+        appendPath(path, index),
+        active,
+        validated,
+      );
     }
   } else {
     if (!isPlainObject(value)) {
+      const prototype = Object.getPrototypeOf(value);
       throw unsafeValue('CanonicalTabResult must contain only plain objects and arrays.', {
         path,
-        constructorName: value.constructor && value.constructor.name,
+        constructorName: prototype && prototype.constructor
+          ? prototype.constructor.name
+          : null,
       });
     }
 
@@ -272,8 +293,8 @@ function validateJsonValue(value, path, active, validated) {
 
 function serializeCanonicalTabResult(canonicalTabResult, options = {}) {
   const normalizedOptions = normalizeOptions(options);
-  validateCanonicalTabResultIdentity(canonicalTabResult);
   validateJsonValue(canonicalTabResult, '$', new WeakSet(), new WeakSet());
+  validateCanonicalTabResultIdentity(canonicalTabResult);
 
   let jsonText;
   try {
