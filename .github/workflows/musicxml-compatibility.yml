@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/canonical-tab-json-writer
 
 permissions:
   contents: read
