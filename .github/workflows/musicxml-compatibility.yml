@@ -96,7 +96,7 @@ jobs:
       - name: Run alphaTab browser renderer and cursor smoke test
         env:
           ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
-        run: node tests/compatibility/alphaTabBrowserRendererCursorSmoke.mjs
+        run: node tests/compatibility/alphaTabBrowserCursorSmoke.mjs
 
       - name: Upload alphaTab renderer screenshot
         if: always()
