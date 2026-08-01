@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   alphatab-import:
-    name: alphaTab import / Node.js ${{ matrix.node-version }}
+    name: alphaTab import and SVG render / Node.js ${{ matrix.node-version }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -47,6 +47,9 @@ jobs:
       - name: Run alphaTab MusicXML importer smoke test
         run: node tests/compatibility/alphaTabMusicXmlSmoke.mjs
 
+      - name: Run alphaTab SVG renderer smoke test
+        run: node tests/compatibility/alphaTabSvgRendererSmoke.mjs
+
   musescore-availability:
     name: MuseScore CLI availability
     runs-on: ubuntu-latest
@@ -57,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           found=""
-          for command in MuseScore4 musescore4 mscore4 musescore mscore; do
+          for command in MuseScore4 musescore4 mscore4 MuseScore3 musescore3 mscore3 musescore mscore; do
             if command -v "$command" >/dev/null 2>&1; then
               found="$command"
               break
