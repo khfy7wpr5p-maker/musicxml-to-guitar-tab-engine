@@ -162,6 +162,162 @@ test('rejects explicitly supplied falsy cost profiles', () => {
   }
 });
 
+test('skips an overflowing first-layer candidate when a finite candidate remains', () => {
+  const result = optimizeFingering(
+    [[
+      { string: 1, fret: 20 },
+      { string: 6, fret: 0 },
+    ]],
+    {
+      costProfile: {
+        highFretThreshold: 0,
+        highFretWeight: Number.MAX_VALUE,
+      },
+    },
+  );
+
+  assert.deepEqual(result.positions, [{ string: 6, fret: 0 }]);
+  assert.equal(result.totalCost, 0);
+});
+
+test('rejects when every first-layer candidate overflows', () => {
+  assert.throws(
+    () => optimizeFingering(
+      [[
+        { string: 1, fret: 20 },
+        { string: 2, fret: 20 },
+      ]],
+      {
+        costProfile: {
+          highFretThreshold: 0,
+          highFretWeight: Number.MAX_VALUE,
+        },
+      },
+    ),
+    (error) => {
+      assert.ok(error instanceof FingeringOptimizerError);
+      assert.equal(error.code, 'FINGERING_COST_OVERFLOW');
+      assert.equal(error.details.layerIndex, 0);
+      return true;
+    },
+  );
+});
+
+test('skips a transition component overflow when a finite path remains', () => {
+  const result = optimizeFingering(
+    [
+      [
+        { string: 1, fret: 20 },
+        { string: 6, fret: 0 },
+      ],
+      [{ string: 6, fret: 0 }],
+    ],
+    {
+      costProfile: {
+        fretMovementWeight: Number.MAX_VALUE,
+      },
+    },
+  );
+
+  assert.deepEqual(result.positions, [
+    { string: 6, fret: 0 },
+    { string: 6, fret: 0 },
+  ]);
+  assert.equal(result.totalCost, 0);
+});
+
+test('skips an accumulated overflow when a finite path remains', () => {
+  const largeFiniteCost = Number.MAX_VALUE * 0.75;
+  const result = optimizeFingering(
+    [
+      [
+        { string: 1, fret: 1 },
+        { string: 6, fret: 0 },
+      ],
+      [{ string: 6, fret: 0 }],
+    ],
+    {
+      costProfile: {
+        fretMovementWeight: largeFiniteCost,
+        openStringPreferenceWeight: largeFiniteCost,
+      },
+    },
+  );
+
+  assert.deepEqual(result.positions, [
+    { string: 6, fret: 0 },
+    { string: 6, fret: 0 },
+  ]);
+  assert.equal(result.totalCost, 0);
+});
+
+test('rejects when every transition path overflows', () => {
+  assert.throws(
+    () => optimizeFingering(
+      [
+        [
+          { string: 1, fret: 20 },
+          { string: 2, fret: 20 },
+        ],
+        [{ string: 6, fret: 0 }],
+      ],
+      {
+        costProfile: {
+          fretMovementWeight: Number.MAX_VALUE,
+        },
+      },
+    ),
+    (error) => {
+      assert.ok(error instanceof FingeringOptimizerError);
+      assert.equal(error.code, 'FINGERING_COST_OVERFLOW');
+      assert.equal(error.details.layerIndex, 1);
+      return true;
+    },
+  );
+});
+
+test('applies movement limits before evaluating overflowing transition costs', () => {
+  assert.throws(
+    () => optimizeFingering(
+      [
+        [{ string: 1, fret: 0 }],
+        [{ string: 1, fret: 20 }],
+      ],
+      {
+        costProfile: {
+          maximumFretMovement: 0,
+          fretMovementWeight: Number.MAX_VALUE,
+        },
+      },
+    ),
+    (error) => {
+      assert.ok(error instanceof FingeringOptimizerError);
+      assert.equal(error.code, 'NO_PLAYABLE_FINGERING');
+      assert.equal(error.details.layerIndex, 1);
+      return true;
+    },
+  );
+});
+
+test('does not hide an invalid cost profile as a fingering overflow', () => {
+  assert.throws(
+    () => optimizeFingering(
+      [[{ string: 1, fret: 0 }]],
+      {
+        costProfile: {
+          fretMovementWeight: Number.POSITIVE_INFINITY,
+        },
+      },
+    ),
+    (error) => {
+      assert.equal(error.name, 'FingeringCostError');
+      assert.equal(error.code, 'INVALID_FINGERING_COST_PROFILE');
+      assert.equal(error.details.field, 'fretMovementWeight');
+      return true;
+    },
+  );
+});
+
 test('rejects accumulated fingering cost overflow', () => {
   assert.throws(
     () => optimizeFingering(
