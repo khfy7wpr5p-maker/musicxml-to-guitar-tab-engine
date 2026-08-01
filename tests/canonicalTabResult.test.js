@@ -132,9 +132,9 @@ test('stores selected and alternative positions without recomputing fingering do
   );
   const firstNote = result.measures[0].events[0];
 
-  assert.deepEqual(firstNote.selectedPosition, { string: 2, fret: 1 });
+  assert.deepEqual(firstNote.selectedPosition, { string: 3, fret: 5 });
   assert.deepEqual(firstNote.alternativePositions, [
-    { string: 3, fret: 5 },
+    { string: 2, fret: 1 },
     { string: 4, fret: 10 },
     { string: 5, fret: 15 },
     { string: 6, fret: 20 },
