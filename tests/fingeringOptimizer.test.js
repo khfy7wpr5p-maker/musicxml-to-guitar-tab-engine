@@ -56,6 +56,30 @@ test('breaks equal-cost ties by string then fret deterministically', () => {
   assert.deepEqual(first.positions, [{ string: 1, fret: 2 }]);
 });
 
+test('breaks equal-cost ties across multiple layers deterministically', () => {
+  const first = optimizeFingering([
+    [
+      { string: 3, fret: 0 },
+      { string: 1, fret: 0 },
+    ],
+    [{ string: 2, fret: 0 }],
+  ]);
+  const second = optimizeFingering([
+    [
+      { string: 1, fret: 0 },
+      { string: 3, fret: 0 },
+    ],
+    [{ string: 2, fret: 0 }],
+  ]);
+
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.positions, [
+    { string: 1, fret: 0 },
+    { string: 2, fret: 0 },
+  ]);
+  assert.equal(first.totalCost, 1);
+});
+
 test('excludes unplayable transitions and rejects when no path remains', () => {
   assert.throws(
     () => optimizeFingering(
@@ -119,6 +143,47 @@ test('rejects invalid and unknown optimizer options', () => {
       },
     );
   }
+});
+
+test('rejects explicitly supplied falsy cost profiles', () => {
+  const invalidProfiles = [null, false, 0, ''];
+
+  for (const costProfile of invalidProfiles) {
+    assert.throws(
+      () => optimizeFingering(
+        [[{ string: 1, fret: 0 }]],
+        { costProfile },
+      ),
+      (error) => {
+        assert.equal(error.code, 'INVALID_FINGERING_COST_PROFILE');
+        return true;
+      },
+    );
+  }
+});
+
+test('rejects accumulated fingering cost overflow', () => {
+  assert.throws(
+    () => optimizeFingering(
+      [
+        [{ string: 1, fret: 0 }],
+        [{ string: 1, fret: 1 }],
+        [{ string: 1, fret: 0 }],
+        [{ string: 1, fret: 1 }],
+      ],
+      {
+        costProfile: {
+          fretMovementWeight: Number.MAX_VALUE / 2,
+        },
+      },
+    ),
+    (error) => {
+      assert.ok(error instanceof FingeringOptimizerError);
+      assert.equal(error.code, 'FINGERING_COST_OVERFLOW');
+      assert.equal(error.details.layerIndex, 3);
+      return true;
+    },
+  );
 });
 
 test('does not mutate input and deeply freezes output', () => {
