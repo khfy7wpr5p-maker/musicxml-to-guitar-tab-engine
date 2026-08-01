@@ -66,6 +66,7 @@ const pageHtml = `<!doctype html>
     player:{
       enablePlayer:true,
       playerMode:alphaTab.PlayerMode.EnabledSynthesizer,
+      outputMode:alphaTab.PlayerOutputMode.WebAudioScriptProcessor,
       soundFont:'/assets/soundfont/sonivox.sf2',
       enableCursor:false,
       enableElementHighlighting:false
@@ -182,17 +183,56 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage();
   const messages = [];
+  const failedRequests = [];
   page.on('console', message => messages.push(`${message.type()}: ${message.text()}`));
   page.on('pageerror', error => messages.push(`pageerror: ${error.stack || error.message}`));
+  page.on('requestfailed', request => {
+    failedRequests.push({url:request.url(),error:request.failure()?.errorText || null});
+  });
 
   await page.goto(`http://127.0.0.1:${address.port}/`, {
     waitUntil:'networkidle0',timeout:30000
   });
-  await page.waitForFunction(
-    () => window.__synthSmoke?.playerReady === true || window.__synthSmoke?.error,
-    {timeout:30000},
-  );
-  const readyState = await page.evaluate(() => window.__synthSmoke);
+
+  let readinessTimedOut = false;
+  try {
+    await page.waitForFunction(
+      () => window.__synthSmoke?.playerReady === true || window.__synthSmoke?.error,
+      {timeout:45000},
+    );
+  } catch {
+    readinessTimedOut = true;
+  }
+
+  const readyState = await page.evaluate(() => {
+    const state = window.__synthSmoke;
+    const api = window.__alphaTabSynthApi;
+    return {
+      ...state,
+      runtime:{
+        apiExists:Boolean(api),
+        playerExists:Boolean(api?.player),
+        readyForPlayback:Boolean(api?.isReadyForPlayback),
+        actualPlayerMode:api?.actualPlayerMode ?? null,
+        endTick:api?.endTick ?? null,
+        endTime:api?.endTime ?? null,
+        audioContextState:api?.player?.output?.audioContext?.state ?? null
+      }
+    };
+  });
+
+  if (readinessTimedOut || readyState.error || !readyState.playerReady) {
+    process.stdout.write(`${JSON.stringify({
+      browser:await browser.version(),
+      bundledSoundFontBytes:fs.statSync(bundledSoundFont).size,
+      readinessTimedOut,
+      browserMessages:messages,
+      failedRequests,
+      state:readyState
+    })}\n`);
+  }
+
+  assert.equal(readinessTimedOut,false,'alphaTab synthesizer did not become ready within 45 seconds.');
   assert.equal(readyState.error,null,readyState.error || messages.join('\n'));
   assert.equal(readyState.playerReady,true);
 
@@ -203,6 +243,7 @@ try {
     browser:await browser.version(),
     bundledSoundFontBytes:fs.statSync(bundledSoundFont).size,
     browserMessages:messages,
+    failedRequests,
     ...result
   })}\n`);
 
