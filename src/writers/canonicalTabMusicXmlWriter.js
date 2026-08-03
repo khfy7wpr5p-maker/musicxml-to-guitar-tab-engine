@@ -540,13 +540,13 @@ class XmlBuilder {
   }
 }
 
-function writePitch(builder, pitch) {
+function writePitch(builder, pitch, octaveOffset = 0) {
   builder.open('pitch');
   builder.element('step', pitch.step);
   if (pitch.alter !== 0) {
     builder.element('alter', String(pitch.alter));
   }
-  builder.element('octave', String(pitch.octave));
+  builder.element('octave', String(pitch.octave + octaveOffset));
   builder.close('pitch');
 }
 
@@ -564,7 +564,7 @@ function writeEvent(builder, event, staff, voice) {
   if (event.type === 'rest') {
     builder.empty('rest');
   } else {
-    writePitch(builder, event.pitch);
+    writePitch(builder, event.pitch, staff === 1 ? 1 : 0);
   }
   builder.element('duration', String(event.rhythm.durationDivisions));
   writeTies(builder, event.rhythm, 'tie');
@@ -598,9 +598,8 @@ function writeEvent(builder, event, staff, voice) {
   builder.close('note');
 }
 
-function writeTimeSignature(builder, measure, staff, hidden) {
-  const attributes = ` number="${staff}"${hidden ? ' print-object="no"' : ''}`;
-  builder.open('time', attributes);
+function writeTimeSignature(builder, measure) {
+  builder.open('time');
   builder.element('beats', String(measure.timeSignature.beats));
   builder.element('beat-type', String(measure.timeSignature.beatType));
   builder.close('time');
@@ -620,11 +619,23 @@ function writeStaffTuning(builder, tuningByString) {
   }
 }
 
-function writeAttributes(builder, measure, measureIndex, tuningByString) {
+function writeAttributes(
+  builder,
+  measure,
+  measureIndex,
+  tuningByString,
+  previousMeasure = null,
+) {
   builder.open('attributes');
   builder.element('divisions', String(measure.divisions));
-  writeTimeSignature(builder, measure, 1, false);
-  writeTimeSignature(builder, measure, 2, true);
+
+  const timeSignatureChanged = previousMeasure === null
+    || previousMeasure.timeSignature.beats !== measure.timeSignature.beats
+    || previousMeasure.timeSignature.beatType !== measure.timeSignature.beatType;
+
+  if (timeSignatureChanged) {
+    writeTimeSignature(builder, measure);
+  }
 
   if (measureIndex === 0) {
     builder.element('staves', '2');
@@ -645,6 +656,13 @@ function writeAttributes(builder, measure, measureIndex, tuningByString) {
     builder.element('staff-lines', '6');
     writeStaffTuning(builder, tuningByString);
     builder.close('staff-details');
+
+    builder.open('transpose', ' number="1"');
+    builder.element('diatonic', '0');
+    builder.element('chromatic', '0');
+    builder.element('octave-change', '-1');
+    builder.close('transpose');
+
   }
 
   builder.close('attributes');
@@ -687,7 +705,17 @@ function serializeCanonicalTabResultToMusicXml(canonicalTabResult, options = {})
     );
     const implicit = measure.implicit ? ' implicit="yes"' : '';
     builder.open('measure', ` number="${number}"${implicit}`);
-    writeAttributes(builder, measure, measureIndex, tuningByString);
+    const previousMeasure = measureIndex === 0
+      ? null
+      : canonicalTabResult.measures[measureIndex - 1];
+
+    writeAttributes(
+      builder,
+      measure,
+      measureIndex,
+      tuningByString,
+      previousMeasure,
+    );
 
     for (const event of measure.events) {
       writeEvent(builder, event, 1, 1);

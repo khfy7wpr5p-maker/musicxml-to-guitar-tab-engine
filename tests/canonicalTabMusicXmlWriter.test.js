@@ -261,12 +261,12 @@ test('preserves measure order and mirrors the original note/rest sequence on bot
 
   assert.deepEqual(measures.map((measure) => measure.attributes.number), ['1', '2']);
   assert.deepEqual(notesOnStaff(measures[0], 1).map(pitchKey), [
-    'C4', 'D:14', 'E4', 'rest',
+    'C5', 'D:15', 'E5', 'rest',
   ]);
   assert.deepEqual(notesOnStaff(measures[0], 2).map(pitchKey), [
     'C4', 'D:14', 'E4', 'rest',
   ]);
-  assert.deepEqual(notesOnStaff(measures[1], 1).map(pitchKey), ['C4', 'F4']);
+  assert.deepEqual(notesOnStaff(measures[1], 1).map(pitchKey), ['C5', 'F5']);
   assert.deepEqual(notesOnStaff(measures[1], 2).map(pitchKey), ['C4', 'F4']);
 
   const backupDurations = measures.map((measure) => (
@@ -498,7 +498,7 @@ test('matches the independently reviewed single-note golden MusicXML fixture', (
   const firstMeasure = measureNodes(root)[0];
   const notationNote = notesOnStaff(firstMeasure, 1)[0];
   const tabNote = notesOnStaff(firstMeasure, 2)[0];
-  assert.equal(pitchKey(notationNote), 'C4');
+  assert.equal(pitchKey(notationNote), 'C5');
   assert.equal(text(directChild(notationNote, 'duration')), '1');
   assert.equal(text(descendants(tabNote, 'string')[0]), '2');
   assert.equal(text(descendants(tabNote, 'fret')[0]), '1');

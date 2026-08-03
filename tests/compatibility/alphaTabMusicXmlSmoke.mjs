@@ -183,10 +183,39 @@ assert.ok(
   'Explicit MusicXML beams must produce non-auto alphaTab beaming modes.',
 );
 
-assert.equal(notationNotes.filter((note) => note.isTieOrigin).length, 1);
-assert.equal(notationNotes.filter((note) => note.isTieDestination).length, 1);
+// Writer output preserves both notation and TAB tie elements.
+assert.equal(
+  (compatibilityXml.match(/<tie\b[^>]*type="start"[^>]*\/?>/g) || []).length,
+  2,
+);
+assert.equal(
+  (compatibilityXml.match(/<tie\b[^>]*type="stop"[^>]*\/?>/g) || []).length,
+  2,
+);
+
+// alphaTab 1.8.4 drops standard-notation ties when a MusicXML
+// octave transpose is present, while TAB ties remain intact.
+assert.equal(notationNotes.filter((note) => note.isTieOrigin).length, 0);
+assert.equal(notationNotes.filter((note) => note.isTieDestination).length, 0);
 assert.equal(tablatureNotes.filter((note) => note.isTieOrigin).length, 1);
 assert.equal(tablatureNotes.filter((note) => note.isTieDestination).length, 1);
+
+// Removing only transpose restores alphaTab notation ties.
+const noTransposeXml = compatibilityXml.replace(
+  /\s*<transpose\b[^>]*>[\s\S]*?<\/transpose>/,
+  '',
+);
+const noTransposeScore = loadScore(noTransposeXml);
+const noTransposeNotationNotes = allNotes(noTransposeScore.tracks[0].staves[0]);
+
+assert.equal(
+  noTransposeNotationNotes.filter((note) => note.isTieOrigin).length,
+  1,
+);
+assert.equal(
+  noTransposeNotationNotes.filter((note) => note.isTieDestination).length,
+  1,
+);
 
 const singleNoteXml = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/canonical-tab-single-note.golden.musicxml'),

@@ -17,11 +17,7 @@
     <measure number="1">
       <attributes>
         <divisions>1</divisions>
-        <time number="1">
-          <beats>1</beats>
-          <beat-type>4</beat-type>
-        </time>
-        <time number="2" print-object="no">
+        <time>
           <beats>1</beats>
           <beat-type>4</beat-type>
         </time>
@@ -63,11 +59,16 @@
             <tuning-octave>4</tuning-octave>
           </staff-tuning>
         </staff-details>
+        <transpose number="1">
+          <diatonic>0</diatonic>
+          <chromatic>0</chromatic>
+          <octave-change>-1</octave-change>
+        </transpose>
       </attributes>
       <note>
         <pitch>
           <step>C</step>
-          <octave>4</octave>
+          <octave>5</octave>
         </pitch>
         <duration>1</duration>
         <voice>1</voice>

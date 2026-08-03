@@ -145,7 +145,15 @@ test('compatibility fixture preserves measures, pickup timing and mirrored event
     text(directChild(directChild(measure, 'backup'), 'duration'))
   )), ['4', '16', '16', '16', '16']);
 
-  const expectedEvents = [
+  const expectedNotationEvents = [
+    ['E:0:5'],
+    ['C:0:5'],
+    ['rest', 'F:1:5', 'G:0:5', 'A:0:5'],
+    ['B:0:4', 'B:-1:4', 'D:0:5', 'E:0:5', 'A:0:4'],
+    ['D:0:6', 'D:0:6', 'rest'],
+  ];
+
+  const expectedTabEvents = [
     ['E:0:4'],
     ['C:0:4'],
     ['rest', 'F:1:4', 'G:0:4', 'A:0:4'],
@@ -154,8 +162,14 @@ test('compatibility fixture preserves measures, pickup timing and mirrored event
   ];
 
   for (let index = 0; index < measureNodes.length; index += 1) {
-    assert.deepEqual(notesOnStaff(measureNodes[index], 1).map(eventIdentity), expectedEvents[index]);
-    assert.deepEqual(notesOnStaff(measureNodes[index], 2).map(eventIdentity), expectedEvents[index]);
+    assert.deepEqual(
+      notesOnStaff(measureNodes[index], 1).map(eventIdentity),
+      expectedNotationEvents[index],
+    );
+    assert.deepEqual(
+      notesOnStaff(measureNodes[index], 2).map(eventIdentity),
+      expectedTabEvents[index],
+    );
   }
 });
 
