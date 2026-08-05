@@ -1,12 +1,13 @@
 'use strict';
 
 const { version: ENGINE_VERSION } = require('../../package.json');
+const {
+  ENGINE_NAME,
+  CANONICAL_TAB_RESULT_VERSION,
+} = require('../contracts/canonicalTabContractMetadata');
 const { createFingeringCostProfile } = require('../fingering/costModel');
 const { optimizeFingering } = require('../fingering/fingeringOptimizer');
 const { buildCandidateLayers } = require('../fingering/candidateLayerBuilder');
-
-const ENGINE_NAME = 'musicxml-to-guitar-tab-engine';
-const CANONICAL_TAB_RESULT_VERSION = '1.0.0';
 
 class CanonicalTabResultError extends Error {
   constructor(message, code, details = {}) {
