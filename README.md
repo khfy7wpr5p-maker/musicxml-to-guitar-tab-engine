@@ -2,6 +2,8 @@
 
 A standalone, deterministic engine that converts supported MusicXML scores into playable six-string guitar tablature.
 
+AI agents, coding assistants, and automated development tools must begin with [AI_CONTEXT.md](AI_CONTEXT.md).
+
 ## Project purpose
 
 The engine reads musical information from MusicXML, preserves measures and rhythm, calculates every physically valid guitar string/fret position, and selects a reproducible fingering path.
@@ -212,10 +214,16 @@ PDF-to-MusicXML conversion and application integration must remain external adap
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Data contract](docs/DATA-CONTRACT.md)
-- [MVP specification](docs/MVP-SPEC.md)
-- [MusicXML compatibility evidence](docs/musicxml-compatibility.md)
+Read in this order:
+
+1. [AI context — start here](AI_CONTEXT.md)
+2. [Current implementation status](docs/current-status.md)
+3. [Package and verification status](docs/package-status.md)
+4. [Architecture](docs/ARCHITECTURE.md)
+5. [Canonical result contract audit](docs/canonical-contract-audit.md)
+6. [MVP specification](docs/MVP-SPEC.md)
+7. [MusicXML compatibility evidence](docs/musicxml-compatibility.md)
+8. [Deprecated data-contract draft](docs/DATA-CONTRACT.md)
 
 ## Development
 
