@@ -1,5 +1,15 @@
 # MusicXML to Guitar TAB Engine — Architecture
 
+## Current implementation authority
+
+This document includes planned architecture as well as implemented behavior. For the current `CanonicalTabResult` contract, use the following sources in order:
+
+1. `src/tab/canonicalTabResult.js`
+2. the reviewed golden fixtures and canonical result tests
+3. [`canonical-contract-audit.md`](./canonical-contract-audit.md)
+
+[`DATA-CONTRACT.md`](./DATA-CONTRACT.md) is a deprecated historical draft until the shared schema and validator milestone is completed. Planned fields must not be treated as current runtime fields. Writers may validate and serialize the canonical result, but must not recalculate fingering or introduce undocumented result fields.
+
 ## 1. Architecture Goal
 
 The system converts validated MusicXML scores into playable six-string guitar tablature while preserving musical timing, measure structure and pitch information.
