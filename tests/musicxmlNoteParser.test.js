@@ -9,6 +9,9 @@ const {
   MusicXmlNoteParserError,
   parseMusicXmlNotes,
 } = require('../src/parser/musicxmlNoteParser');
+const {
+  MusicXmlValidationError,
+} = require('../src/validation/musicxmlValidation');
 
 const fixture = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name));
 
@@ -199,6 +202,17 @@ test('uses stable parser error types and codes for parser-specific failures', ()
     (error) => {
       assert.ok(error instanceof MusicXmlNoteParserError);
       assert.equal(error.code, 'INVALID_MEASURE_DURATION');
+      return true;
+    },
+  );
+});
+
+test('preserves structural validation error types after the single-pass refactor', () => {
+  assert.throws(
+    () => parseMusicXmlNotes('<score-timewise version="4.0"/>'),
+    (error) => {
+      assert.ok(error instanceof MusicXmlValidationError);
+      assert.equal(error.code, 'UNSUPPORTED_SCORE_FORMAT');
       return true;
     },
   );

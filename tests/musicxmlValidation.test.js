@@ -123,3 +123,18 @@ test('accepts a default MusicXML namespace', () => {
 
   assert.equal(validateMusicXml(xml).measureCount, 1);
 });
+
+test('keeps structural validation independent from unsupported note semantics', () => {
+  const xml = `<?xml version="1.0"?>
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"><note><chord/></note></measure></part>
+    </score-partwise>`;
+
+  assert.deepEqual(validateMusicXml(xml), {
+    format: 'score-partwise',
+    version: '4.0',
+    partId: 'P1',
+    measureCount: 1,
+  });
+});
