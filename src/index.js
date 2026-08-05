@@ -13,6 +13,9 @@ const {
   PREFLIGHT_STATUS,
   preflightMusicXml,
 } = require('./validation/musicxmlPreflight');
+const {
+  serializeCanonicalTabResultToAscii,
+} = require('./writers/canonicalTabAsciiWriter');
 
 module.exports = {
   FretboardError,
@@ -21,5 +24,6 @@ module.exports = {
   getPositionCandidates,
   positionToMidi,
   preflightMusicXml,
+  serializeCanonicalTabResultToAscii,
   validateMidi,
 };
