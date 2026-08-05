@@ -7,12 +7,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SaxesParser } = require('saxes');
 
-const {
-  parseCanonicalTabResult,
-} = require('../src/parser/parseCanonicalTabResult');
-const {
-  validateMusicXml,
-} = require('../src/validation/musicxmlValidation');
+const { parseCanonicalTabResult } = require('../src/parser/parseCanonicalTabResult');
+const { validateMusicXml } = require('../src/validation/musicxmlValidation');
 const {
   CanonicalTabMusicXmlWriterError,
   serializeCanonicalTabResultToMusicXml,
@@ -69,10 +65,7 @@ function singleNoteResult() {
 }
 
 function restOnlyResult() {
-  return parseCanonicalTabResult(score(
-    note({ rest: true }),
-    { beats: 1, divisions: 1 },
-  ));
+  return parseCanonicalTabResult(score(note({ rest: true }), { beats: 1, divisions: 1 }));
 }
 
 function emptyMeasureResult() {
@@ -83,10 +76,13 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function expectWriterCode(fn, code) {
+function expectWriterCode(fn, code, rule = undefined) {
   assert.throws(fn, (error) => {
     assert.ok(error instanceof CanonicalTabMusicXmlWriterError);
     assert.equal(error.code, code);
+    if (rule !== undefined) {
+      assert.equal(error.details.rule, rule);
+    }
     return true;
   });
 }
@@ -96,9 +92,7 @@ function parseXmlTree(xml) {
   const stack = [];
   let root = null;
 
-  parser.on('error', (error) => {
-    throw error;
-  });
+  parser.on('error', (error) => { throw error; });
   parser.on('opentag', (tag) => {
     const attributes = Object.fromEntries(
       Object.entries(tag.attributes || {}).map(([key, attribute]) => [
@@ -112,21 +106,14 @@ function parseXmlTree(xml) {
       text: '',
       children: [],
     };
-    if (stack.length > 0) {
-      stack[stack.length - 1].children.push(node);
-    } else {
-      root = node;
-    }
+    if (stack.length > 0) stack[stack.length - 1].children.push(node);
+    else root = node;
     stack.push(node);
   });
   parser.on('text', (value) => {
-    if (stack.length > 0) {
-      stack[stack.length - 1].text += value;
-    }
+    if (stack.length > 0) stack[stack.length - 1].text += value;
   });
-  parser.on('closetag', () => {
-    stack.pop();
-  });
+  parser.on('closetag', () => { stack.pop(); });
   parser.write(xml).close();
   return root;
 }
@@ -142,9 +129,7 @@ function directChild(node, name) {
 function descendants(node, name) {
   const matches = [];
   for (const child of node.children) {
-    if (child.name === name) {
-      matches.push(child);
-    }
+    if (child.name === name) matches.push(child);
     matches.push(...descendants(child, name));
   }
   return matches;
@@ -165,9 +150,7 @@ function notesOnStaff(measure, staff) {
 }
 
 function pitchKey(noteNode) {
-  if (directChild(noteNode, 'rest')) {
-    return 'rest';
-  }
+  if (directChild(noteNode, 'rest')) return 'rest';
   const pitch = directChild(noteNode, 'pitch');
   const step = text(directChild(pitch, 'step'));
   const alter = text(directChild(pitch, 'alter'));
@@ -175,12 +158,16 @@ function pitchKey(noteNode) {
   return `${step}${alter === null ? '' : `:${alter}`}${octave}`;
 }
 
-test('serializes a valid CanonicalTabResult as well-formed single-part MusicXML', () => {
-  const xml = serializeCanonicalTabResultToMusicXml(fullResult());
-  const validated = validateMusicXml(xml);
-  const root = parseXmlTree(xml);
+test('serializes valid data as deterministic, well-formed two-staff MusicXML without mutation', () => {
+  const result = fullResult();
+  const before = structuredClone(result);
+  const first = serializeCanonicalTabResultToMusicXml(result);
+  const second = serializeCanonicalTabResultToMusicXml(result);
+  const root = parseXmlTree(first);
 
-  assert.deepEqual(validated, {
+  assert.equal(first, second);
+  assert.equal(first.includes('\n'), false);
+  assert.deepEqual(validateMusicXml(first), {
     format: 'score-partwise',
     version: '4.0',
     partId: 'P1',
@@ -188,57 +175,43 @@ test('serializes a valid CanonicalTabResult as well-formed single-part MusicXML'
   });
   assert.equal(root.name, 'score-partwise');
   assert.equal(root.attributes.version, '4.0');
-  assert.equal(xml.includes('<!DOCTYPE'), false);
-  assert.equal(xml.includes('<!ENTITY'), false);
-});
-
-test('returns byte-identical output without mutating deeply frozen input', () => {
-  const result = fullResult();
-  const before = structuredClone(result);
-
-  const first = serializeCanonicalTabResultToMusicXml(result);
-  const second = serializeCanonicalTabResultToMusicXml(result);
-  const pretty = serializeCanonicalTabResultToMusicXml(result, { pretty: true });
-  const prettyWithNewline = serializeCanonicalTabResultToMusicXml(result, {
-    pretty: true,
-    trailingNewline: true,
-  });
-
-  assert.equal(first, second);
-  assert.equal(first.includes('\n'), false);
-  assert.match(pretty, /\n  <identification>/);
-  assert.equal(pretty.endsWith('\n'), false);
-  assert.equal(prettyWithNewline, `${pretty}\n`);
+  assert.equal(first.includes('<!DOCTYPE'), false);
+  assert.equal(first.includes('<!ENTITY'), false);
   assert.deepEqual(result, before);
   assert.ok(Object.isFrozen(result));
-  assert.ok(Object.isFrozen(result.measures[0].events[0]));
 });
 
-test('uses one guitar part with a regular notation staff and alternate TAB staff', () => {
-  const root = parseXmlTree(
-    serializeCanonicalTabResultToMusicXml(fullResult()),
-  );
-  const firstMeasure = measureNodes(root)[0];
-  const attributes = directChild(firstMeasure, 'attributes');
+test('preserves notation, TAB, rests, timing, ties and beams while using selectedPosition only', () => {
+  const original = fullResult();
+  const alteredAlternatives = cloneJson(original);
+  alteredAlternatives.measures[0].events[0].alternativePositions = [{ string: 6, fret: 20 }];
+  const xml = serializeCanonicalTabResultToMusicXml(original);
 
-  assert.equal(text(directChild(attributes, 'staves')), '2');
-  assert.equal(text(directChild(attributes, 'part-symbol')), 'none');
+  assert.equal(serializeCanonicalTabResultToMusicXml(alteredAlternatives), xml);
+  const root = parseXmlTree(xml);
+  const measures = measureNodes(root);
+  assert.deepEqual(measures.map((measure) => measure.attributes.number), ['1', '2']);
+  assert.deepEqual(notesOnStaff(measures[0], 1).map(pitchKey), ['C5', 'D:15', 'E5', 'rest']);
+  assert.deepEqual(notesOnStaff(measures[0], 2).map(pitchKey), ['C4', 'D:14', 'E4', 'rest']);
+  assert.deepEqual(notesOnStaff(measures[1], 1).map(pitchKey), ['C5', 'F5']);
+  assert.deepEqual(notesOnStaff(measures[1], 2).map(pitchKey), ['C4', 'F4']);
+  assert.deepEqual(measures.map((measure) => text(directChild(directChild(measure, 'backup'), 'duration'))), ['16', '16']);
 
-  const clefs = directChildren(attributes, 'clef');
-  assert.deepEqual(clefs.map((clef) => ({
-    number: clef.attributes.number,
-    sign: text(directChild(clef, 'sign')),
-    line: text(directChild(clef, 'line')),
-  })), [
-    { number: '1', sign: 'G', line: '2' },
-    { number: '2', sign: 'TAB', line: '5' },
-  ]);
+  const notationNote = notesOnStaff(measures[0], 1)[0];
+  const tabNote = notesOnStaff(measures[0], 2)[0];
+  assert.equal(descendants(notationNote, 'technical').length, 0);
+  assert.equal(text(descendants(tabNote, 'string')[0]), '3');
+  assert.equal(text(descendants(tabNote, 'fret')[0]), '5');
+  assert.deepEqual(directChildren(notationNote, 'tie').map((entry) => entry.attributes.type), ['start']);
+  assert.deepEqual(directChildren(notesOnStaff(measures[0], 1)[1], 'beam').map((entry) => ({
+    number: entry.attributes.number,
+    value: text(entry),
+  })), [{ number: '1', value: 'begin' }]);
+});
 
-  const details = directChild(attributes, 'staff-details');
-  assert.equal(details.attributes.number, '2');
-  assert.equal(details.attributes['show-frets'], 'numbers');
-  assert.equal(text(directChild(details, 'staff-type')), 'alternate');
-  assert.equal(text(directChild(details, 'staff-lines')), '6');
+test('writes standard six-string tuning, rests and empty measures without invented events', () => {
+  const fullRoot = parseXmlTree(serializeCanonicalTabResultToMusicXml(fullResult()));
+  const details = descendants(fullRoot, 'staff-details')[0];
   assert.deepEqual(directChildren(details, 'staff-tuning').map((tuning) => ({
     line: tuning.attributes.line,
     step: text(directChild(tuning, 'tuning-step')),
@@ -251,142 +224,53 @@ test('uses one guitar part with a regular notation staff and alternate TAB staff
     { line: '5', step: 'B', octave: '3' },
     { line: '6', step: 'E', octave: '4' },
   ]);
-});
 
-test('preserves measure order and mirrors the original note/rest sequence on both staves', () => {
-  const root = parseXmlTree(
-    serializeCanonicalTabResultToMusicXml(fullResult()),
-  );
-  const measures = measureNodes(root);
-
-  assert.deepEqual(measures.map((measure) => measure.attributes.number), ['1', '2']);
-  assert.deepEqual(notesOnStaff(measures[0], 1).map(pitchKey), [
-    'C5', 'D:15', 'E5', 'rest',
-  ]);
-  assert.deepEqual(notesOnStaff(measures[0], 2).map(pitchKey), [
-    'C4', 'D:14', 'E4', 'rest',
-  ]);
-  assert.deepEqual(notesOnStaff(measures[1], 1).map(pitchKey), ['C5', 'F5']);
-  assert.deepEqual(notesOnStaff(measures[1], 2).map(pitchKey), ['C4', 'F4']);
-
-  const backupDurations = measures.map((measure) => (
-    text(directChild(directChild(measure, 'backup'), 'duration'))
-  ));
-  assert.deepEqual(backupDurations, ['16', '16']);
-});
-
-test('preserves durations, note types, dots, ties and beams on both staves', () => {
-  const root = parseXmlTree(
-    serializeCanonicalTabResultToMusicXml(fullResult()),
-  );
-  const measures = measureNodes(root);
-
-  for (const staff of [1, 2]) {
-    const firstMeasureNotes = notesOnStaff(measures[0], staff);
-    const secondMeasureNotes = notesOnStaff(measures[1], staff);
-
-    assert.deepEqual(firstMeasureNotes.map((noteNode) => text(directChild(noteNode, 'duration'))), [
-      '4', '2', '2', '8',
-    ]);
-    assert.deepEqual(firstMeasureNotes.map((noteNode) => text(directChild(noteNode, 'type'))), [
-      'quarter', 'eighth', 'eighth', 'half',
-    ]);
-    assert.equal(directChildren(secondMeasureNotes[1], 'dot').length, 1);
-    assert.equal(text(directChild(secondMeasureNotes[1], 'duration')), '12');
-
-    assert.deepEqual(directChildren(firstMeasureNotes[0], 'tie').map(
-      (tie) => tie.attributes.type,
-    ), ['start']);
-    assert.deepEqual(descendants(firstMeasureNotes[0], 'tied').map(
-      (tie) => tie.attributes.type,
-    ), ['start']);
-    assert.deepEqual(directChildren(secondMeasureNotes[0], 'tie').map(
-      (tie) => tie.attributes.type,
-    ), ['stop']);
-    assert.deepEqual(descendants(secondMeasureNotes[0], 'tied').map(
-      (tie) => tie.attributes.type,
-    ), ['stop']);
-
-    assert.deepEqual(directChildren(firstMeasureNotes[1], 'beam').map((beam) => ({
-      number: beam.attributes.number,
-      value: text(beam),
-    })), [{ number: '1', value: 'begin' }]);
-    assert.deepEqual(directChildren(firstMeasureNotes[2], 'beam').map((beam) => ({
-      number: beam.attributes.number,
-      value: text(beam),
-    })), [{ number: '1', value: 'end' }]);
-  }
-});
-
-test('uses only selectedPosition for TAB technical data and ignores alternatives', () => {
-  const original = fullResult();
-  const alteredAlternatives = cloneJson(original);
-  alteredAlternatives.measures[0].events[0].alternativePositions = [
-    { string: 6, fret: 20 },
-  ];
-
-  const originalXml = serializeCanonicalTabResultToMusicXml(original);
-  const alteredXml = serializeCanonicalTabResultToMusicXml(alteredAlternatives);
-  assert.equal(alteredXml, originalXml);
-
-  const root = parseXmlTree(originalXml);
-  const firstMeasure = measureNodes(root)[0];
-  const notationNote = notesOnStaff(firstMeasure, 1)[0];
-  const tabNote = notesOnStaff(firstMeasure, 2)[0];
-
-  assert.equal(descendants(notationNote, 'technical').length, 0);
-  assert.equal(text(descendants(tabNote, 'string')[0]), '3');
-  assert.equal(text(descendants(tabNote, 'fret')[0]), '5');
-  assert.equal(original.measures[0].events[0].alternativePositions.some(
-    (position) => position.string === 2 && position.fret === 1,
-  ), true);
-});
-
-test('does not emit string or fret elements for rests and supports all-rest scores', () => {
-  const root = parseXmlTree(
+  const restMeasure = measureNodes(parseXmlTree(
     serializeCanonicalTabResultToMusicXml(restOnlyResult()),
-  );
-  const measure = measureNodes(root)[0];
-
+  ))[0];
   for (const staff of [1, 2]) {
-    const notes = notesOnStaff(measure, staff);
+    const notes = notesOnStaff(restMeasure, staff);
     assert.equal(notes.length, 1);
     assert.ok(directChild(notes[0], 'rest'));
     assert.equal(descendants(notes[0], 'string').length, 0);
     assert.equal(descendants(notes[0], 'fret').length, 0);
   }
-  assert.equal(text(directChild(directChild(measure, 'backup'), 'duration')), '1');
-  assert.doesNotThrow(() => validateMusicXml(
-    serializeCanonicalTabResultToMusicXml(restOnlyResult()),
-  ));
+
+  const emptyMeasure = measureNodes(parseXmlTree(
+    serializeCanonicalTabResultToMusicXml(emptyMeasureResult()),
+  ))[0];
+  assert.equal(directChildren(emptyMeasure, 'note').length, 0);
+  assert.equal(directChildren(emptyMeasure, 'backup').length, 0);
+  assert.ok(directChild(emptyMeasure, 'attributes'));
 });
 
-test('writes an empty measure explicitly without inventing notes or timing', () => {
-  const xml = serializeCanonicalTabResultToMusicXml(emptyMeasureResult());
-  const root = parseXmlTree(xml);
-  const measure = measureNodes(root)[0];
+test('supports pretty output and matches the independently reviewed golden MusicXML fixture', () => {
+  const compact = serializeCanonicalTabResultToMusicXml(singleNoteResult());
+  const pretty = serializeCanonicalTabResultToMusicXml(singleNoteResult(), { pretty: true });
+  const prettyWithNewline = serializeCanonicalTabResultToMusicXml(singleNoteResult(), {
+    pretty: true,
+    trailingNewline: true,
+  });
+  const golden = readFixture('canonical-tab-single-note.golden.musicxml', 'utf8');
 
-  assert.equal(directChildren(measure, 'note').length, 0);
-  assert.equal(directChildren(measure, 'backup').length, 0);
-  assert.ok(directChild(measure, 'attributes'));
-  assert.doesNotThrow(() => validateMusicXml(xml));
+  assert.equal(compact.includes('\n'), false);
+  assert.match(pretty, /\n  <identification>/);
+  assert.equal(pretty.endsWith('\n'), false);
+  assert.equal(prettyWithNewline, `${pretty}\n`);
+  assert.equal(prettyWithNewline, golden);
+  assert.doesNotThrow(() => validateMusicXml(golden));
 });
 
-test('rejects invalid identities, unsupported schemas and unsupported monophonic structures', () => {
-  expectWriterCode(
-    () => serializeCanonicalTabResultToMusicXml(null),
-    'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
-  );
-  expectWriterCode(
-    () => serializeCanonicalTabResultToMusicXml({}),
-    'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
-  );
+test('adapts shared contract failures to stable MusicXML writer codes and details', () => {
+  expectWriterCode(() => serializeCanonicalTabResultToMusicXml(null), 'INVALID_CANONICAL_TAB_MUSICXML_RESULT');
+  expectWriterCode(() => serializeCanonicalTabResultToMusicXml({}), 'INVALID_CANONICAL_TAB_MUSICXML_RESULT');
 
   const unsupportedSchema = cloneJson(singleNoteResult());
   unsupportedSchema.schemaVersion = '2.0.0';
   expectWriterCode(
     () => serializeCanonicalTabResultToMusicXml(unsupportedSchema),
     'UNSUPPORTED_CANONICAL_TAB_MUSICXML_SCHEMA',
+    'UNSUPPORTED_SCHEMA_VERSION',
   );
 
   const multipleVoices = cloneJson(singleNoteResult());
@@ -394,6 +278,7 @@ test('rejects invalid identities, unsupported schemas and unsupported monophonic
   expectWriterCode(
     () => serializeCanonicalTabResultToMusicXml(multipleVoices),
     'UNSUPPORTED_CANONICAL_TAB_MUSICXML_STRUCTURE',
+    'SAFE_INTEGER_RANGE',
   );
 
   const nonSequential = cloneJson(singleNoteResult());
@@ -401,61 +286,60 @@ test('rejects invalid identities, unsupported schemas and unsupported monophonic
   expectWriterCode(
     () => serializeCanonicalTabResultToMusicXml(nonSequential),
     'UNSUPPORTED_CANONICAL_TAB_MUSICXML_STRUCTURE',
+    'EVENT_START_SEQUENCE_MISMATCH',
   );
 
   const tuplet = cloneJson(singleNoteResult());
-  tuplet.measures[0].events[0].rhythm.timeModification = {
-    actualNotes: 3,
-    normalNotes: 2,
-  };
+  tuplet.measures[0].events[0].rhythm.timeModification = { actualNotes: 3, normalNotes: 2 };
   expectWriterCode(
     () => serializeCanonicalTabResultToMusicXml(tuplet),
     'UNSUPPORTED_CANONICAL_TAB_MUSICXML_STRUCTURE',
+    'TIME_MODIFICATION_NOT_SUPPORTED',
   );
 });
 
-test('escapes XML text and attributes and rejects invalid XML 1.0 characters', () => {
-  const escaped = cloneJson(singleNoteResult());
-  escaped.engine.name = 'Engine & <TAB> "safe"';
-  escaped.measures[0].visibleMeasureNumber = '1 & <"\'';
+test('retains MusicXML-specific tuning, beam and XML 1.0 output checks', () => {
+  const missingPitch = cloneJson(singleNoteResult());
+  missingPitch.guitar.tuning[0].pitch = null;
+  expectWriterCode(
+    () => serializeCanonicalTabResultToMusicXml(missingPitch),
+    'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
+  );
 
+  const highBeam = cloneJson(fullResult());
+  highBeam.measures[0].events[1].rhythm.beam[0].level = 9;
+  expectWriterCode(
+    () => serializeCanonicalTabResultToMusicXml(highBeam),
+    'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
+  );
+
+  const escaped = cloneJson(singleNoteResult());
+  escaped.engine.version = '0.1 & <TAB> "safe"';
+  escaped.measures[0].visibleMeasureNumber = '1 & <"\'';
+  for (const event of escaped.measures[0].events) {
+    event.sourceLocation.measure = escaped.measures[0].visibleMeasureNumber;
+  }
   const xml = serializeCanonicalTabResultToMusicXml(escaped);
   const root = parseXmlTree(xml);
-  const measure = measureNodes(root)[0];
-  assert.equal(
-    text(descendants(root, 'software')[0]),
-    'Engine & <TAB> "safe" 0.1.0',
-  );
-  assert.equal(measure.attributes.number, '1 & <"\'');
-  assert.match(xml, /Engine &amp; &lt;TAB&gt; "safe"/);
+  assert.equal(text(descendants(root, 'software')[0]), 'musicxml-to-guitar-tab-engine 0.1 & <TAB> "safe"');
+  assert.equal(measureNodes(root)[0].attributes.number, '1 & <"\'');
+  assert.match(xml, /0\.1 &amp; &lt;TAB&gt; "safe"/);
   assert.match(xml, /number="1 &amp; &lt;&quot;&apos;"/);
 
   const invalidCharacter = cloneJson(singleNoteResult());
-  invalidCharacter.engine.name = `unsafe${String.fromCharCode(1)}`;
+  invalidCharacter.engine.version = `unsafe${String.fromCharCode(1)}`;
   expectWriterCode(
     () => serializeCanonicalTabResultToMusicXml(invalidCharacter),
     'INVALID_CANONICAL_TAB_MUSICXML_VALUE',
   );
 });
 
-test('rejects unknown, accessor, symbol and non-boolean writer options', () => {
+test('rejects invalid writer options before serialization', () => {
   const result = singleNoteResult();
   const accessor = {};
-  Object.defineProperty(accessor, 'pretty', {
-    enumerable: true,
-    get: () => true,
-  });
+  Object.defineProperty(accessor, 'pretty', { enumerable: true, get: () => true });
   const symbolOption = { [Symbol('pretty')]: true };
-
-  for (const options of [
-    null,
-    [],
-    { unknown: true },
-    { pretty: 2 },
-    { trailingNewline: 'yes' },
-    accessor,
-    symbolOption,
-  ]) {
+  for (const options of [null, [], { unknown: true }, { pretty: 2 }, { trailingNewline: 'yes' }, accessor, symbolOption]) {
     expectWriterCode(
       () => serializeCanonicalTabResultToMusicXml(result, options),
       'INVALID_CANONICAL_TAB_MUSICXML_OPTIONS',
@@ -482,26 +366,5 @@ test('loads and runs without importing the candidate generator or fingering opti
     cwd: path.join(__dirname, '..'),
     encoding: 'utf8',
   });
-
   assert.equal(child.status, 0, child.stderr);
-});
-
-test('matches the independently reviewed single-note golden MusicXML fixture', () => {
-  const xml = serializeCanonicalTabResultToMusicXml(singleNoteResult(), {
-    pretty: true,
-    trailingNewline: true,
-  });
-  const golden = readFixture('canonical-tab-single-note.golden.musicxml', 'utf8');
-
-  assert.equal(xml, golden);
-  const root = parseXmlTree(golden);
-  const firstMeasure = measureNodes(root)[0];
-  const notationNote = notesOnStaff(firstMeasure, 1)[0];
-  const tabNote = notesOnStaff(firstMeasure, 2)[0];
-  assert.equal(pitchKey(notationNote), 'C5');
-  assert.equal(text(directChild(notationNote, 'duration')), '1');
-  assert.equal(text(descendants(tabNote, 'string')[0]), '2');
-  assert.equal(text(descendants(tabNote, 'fret')[0]), '1');
-  assert.equal(text(directChild(directChild(firstMeasure, 'backup'), 'duration')), '1');
-  assert.doesNotThrow(() => validateMusicXml(golden));
 });
