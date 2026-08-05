@@ -1,0 +1,137 @@
+name: MusicXML Compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+      - feature/canonical-tab-json-writer
+
+permissions:
+  contents: read
+
+jobs:
+  alphatab-import:
+    name: Tests, alphaTab import and SVG render / Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 18
+          - 20
+          - 22
+
+    env:
+      ALPHATAB_EXPECTED_VERSION: 1.8.4
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run complete repository test suite
+        run: npm test
+
+      - name: Install pinned alphaTab test package without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4
+
+      - name: Run alphaTab MusicXML importer smoke test
+        run: node tests/compatibility/alphaTabMusicXmlSmoke.mjs
+
+      - name: Run alphaTab SVG renderer smoke test
+        run: node tests/compatibility/alphaTabSvgRendererSmoke.mjs
+
+  alphatab-browser:
+    name: alphaTab browser renderer and cursor; synth diagnostic / Node.js 22
+    runs-on: ubuntu-latest
+
+    env:
+      ALPHATAB_EXPECTED_VERSION: 1.8.4
+      PUPPETEER_CORE_VERSION: 25.3.0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install pinned browser test packages without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4 puppeteer-core@25.3.0
+
+      - name: Detect a preinstalled Chrome or Chromium executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$(command -v "$command")"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "No preinstalled Chrome or Chromium executable was found." >&2
+            exit 1
+          fi
+          echo "BROWSER_EXECUTABLE=$found" >> "$GITHUB_ENV"
+          "$found" --version
+
+      - name: Run alphaTab browser renderer and cursor smoke test
+        env:
+          ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
+        run: node tests/compatibility/alphaTabBrowserRendererCursorValidated.mjs
+
+      - name: Run alphaTab browser synthesizer diagnostic
+        continue-on-error: true
+        run: node tests/compatibility/alphaTabBrowserSynthSmoke.mjs
+
+      - name: Upload alphaTab renderer screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alphatab-renderer-cursor
+          path: ${{ runner.temp }}/alphatab-renderer-cursor.png
+          if-no-files-found: warn
+          retention-days: 14
+
+  musescore-availability:
+    name: MuseScore CLI availability
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check preinstalled MuseScore commands without installing software
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in MuseScore4 musescore4 mscore4 MuseScore3 musescore3 mscore3 musescore mscore; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$command"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "MuseScore CLI is not preinstalled on the GitHub-hosted runner; import and round-trip tests are not run."
+            exit 0
+          fi
+          "$found" --version
