@@ -18,14 +18,28 @@ class ParsedMusicXmlDocumentError extends Error {
 }
 
 function deepFreeze(value) {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
+  if (!value || typeof value !== 'object') {
     return value;
   }
 
-  Object.freeze(value);
-  for (const nested of Object.values(value)) {
-    deepFreeze(nested);
+  const stack = [value];
+  const seen = new WeakSet();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object' || seen.has(current)) {
+      continue;
+    }
+
+    seen.add(current);
+    for (const nested of Object.values(current)) {
+      if (nested && typeof nested === 'object' && !seen.has(nested)) {
+        stack.push(nested);
+      }
+    }
+    Object.freeze(current);
   }
+
   return value;
 }
 
@@ -34,14 +48,13 @@ function localName(tag) {
 }
 
 function createAttributes(tag) {
-  const attributes = {};
+  const attributes = [];
   for (const attribute of Object.values(tag.attributes || {})) {
-    const name = attribute.local || attribute.name;
-    attributes[name] = {
-      name,
+    attributes.push({
+      name: attribute.local || attribute.name,
       value: attribute.value,
       uri: attribute.uri || '',
-    };
+    });
   }
   return attributes;
 }

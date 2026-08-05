@@ -51,22 +51,28 @@ function lastDirectChild(node, name) {
   return matches.length === 0 ? null : matches[matches.length - 1];
 }
 
-function descendants(node, name, matches = []) {
-  for (const child of node.children) {
+function descendants(node, name) {
+  const matches = [];
+  const stack = [...node.children].reverse();
+
+  while (stack.length > 0) {
+    const child = stack.pop();
     if (child.name === name) {
       matches.push(child);
     }
-    descendants(child, name, matches);
+    for (let index = child.children.length - 1; index >= 0; index -= 1) {
+      stack.push(child.children[index]);
+    }
   }
+
   return matches;
 }
 
 function getAttribute(node, name) {
-  const attribute = node.attributes[name];
-  if (!attribute || attribute.uri.length > 0) {
-    return undefined;
-  }
-  return attribute.value;
+  const attribute = node.attributes.find(
+    (candidate) => candidate.name === name && candidate.uri.length === 0,
+  );
+  return attribute ? attribute.value : undefined;
 }
 
 function textOf(node) {
@@ -157,13 +163,28 @@ function expectedMeasureDuration(divisions, timeSignature) {
 }
 
 function deepFreeze(value) {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
+  if (!value || typeof value !== 'object') {
     return value;
   }
-  Object.freeze(value);
-  for (const nested of Object.values(value)) {
-    deepFreeze(nested);
+
+  const stack = [value];
+  const seen = new WeakSet();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object' || seen.has(current)) {
+      continue;
+    }
+
+    seen.add(current);
+    for (const nested of Object.values(current)) {
+      if (nested && typeof nested === 'object' && !seen.has(nested)) {
+        stack.push(nested);
+      }
+    }
+    Object.freeze(current);
   }
+
   return value;
 }
 
