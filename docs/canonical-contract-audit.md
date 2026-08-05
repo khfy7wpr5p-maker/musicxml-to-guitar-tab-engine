@@ -253,7 +253,7 @@ The preferred direction is to keep teacher feedback and operational conversion s
 - replace duplicated writer contract checks with the shared validator
 - retain writer-specific output validation
 - prove JSON and MusicXML outputs remain deterministic and unchanged
-- rebase the draft ASCII writer work onto the shared contract before review
+- update the draft ASCII writer work onto the shared contract before review
 
 ## 13. Acceptance criteria for this audit
 
@@ -291,3 +291,18 @@ The writer convergence branch makes `src/contracts/canonicalTabResultContract.js
 - no package-root export, public API, dependency, parser, optimizer, pipeline, schema or canonical result-shape change is introduced.
 
 After this convergence, writer modules are serializers rather than competing authorities for the `CanonicalTabResult 1.0.0` contract. The draft ASCII writer remains outside this branch and must be updated separately after PR 1C is reviewed and merged.
+
+## 16. Internal ASCII writer convergence boundary
+
+The draft ASCII writer is updated after Milestone 1C to use the same internal canonical validation boundary as the JSON and MusicXML writers.
+
+- `canonicalTabAsciiWriter.js` delegates all `CanonicalTabResult 1.0.0` structure, JSON-safety, musical-invariant, selected-position and cost checks to `validateCanonicalTabResult()`.
+- only ASCII-specific option validation and six-string text rendering remain inside the writer.
+- `CanonicalTabAsciiWriterError` and the existing ASCII error codes remain stable; shared contract `contractCode`, `path` and `rule` details are preserved in adapted errors.
+- the renderer uses only `selectedPosition`, preserves measure boundaries, represents rests and empty measures, aligns double-digit frets and optionally appends one trailing newline.
+- tests use contract-valid fixtures and verify that changing valid `alternativePositions` does not affect visible output.
+- loading the ASCII writer must not load candidate generation or fingering optimization modules.
+- the writer remains internal and is not exported from `src/index.js`; package-root exposure is deferred to the separately reviewed Milestone 3 public writer API.
+- no parser, optimizer, pipeline, schema, canonical result shape, package dependency or lockfile change is introduced.
+
+This update keeps PR #16 in draft until its new branch head has passed the complete Tests and MusicXML Compatibility workflows and has received separate approval for Ready-for-review.

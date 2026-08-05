@@ -1,9 +1,13 @@
 'use strict';
 
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const packageApi = require('..');
+const {
+  validateCanonicalTabResult,
+} = require('../src/contracts/canonicalTabResultContract');
 const {
   parseCanonicalTabResult,
 } = require('../src/parser/parseCanonicalTabResult');
@@ -11,6 +15,18 @@ const {
   CanonicalTabAsciiWriterError,
   serializeCanonicalTabResultToAscii,
 } = require('../src/writers/canonicalTabAsciiWriter');
+const {
+  createCanonicalTabCompatibilityFixture,
+} = require('./fixtures/compatibility/canonicalTabCompatibilityFixture');
+
+const EXPECTED_COMPATIBILITY_ASCII = [
+  '1|-0-|---|----2--3--5-|----------0----|-10--10----|',
+  '2|---|---|------------|-0-----3-------|-----------|',
+  '3|---|-5-|------------|----3--------2-|-----------|',
+  '4|---|---|------------|---------------|-----------|',
+  '5|---|---|------------|---------------|-----------|',
+  '6|---|---|------------|---------------|-----------|',
+].join('\n');
 
 function score(measuresXml) {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -33,26 +49,8 @@ function note({
   return `<note>${pitch}<duration>${duration}</duration><voice>1</voice><type>${type}</type><staff>1</staff></note>`;
 }
 
-function threeEventResult() {
-  const canonicalTabResult = parseCanonicalTabResult(score(`
-    <measure number="1">
-      <attributes>
-        <divisions>1</divisions>
-        <time><beats>3</beats><beat-type>4</beat-type></time>
-        <staves>1</staves>
-      </attributes>
-      ${note({ step: 'E', octave: 4 })}
-      ${note({ rest: true })}
-      ${note({ step: 'D', octave: 3 })}
-    </measure>`));
-  const mutable = JSON.parse(JSON.stringify(canonicalTabResult));
-  mutable.measures[0].events[0].selectedPosition = { string: 1, fret: 0 };
-  mutable.measures[0].events[2].selectedPosition = { string: 6, fret: 10 };
-  return mutable;
-}
-
 function emptyThenNoteResult() {
-  const canonicalTabResult = parseCanonicalTabResult(score(`
+  return parseCanonicalTabResult(score(`
     <measure number="1">
       <attributes>
         <divisions>1</divisions>
@@ -63,128 +61,167 @@ function emptyThenNoteResult() {
     <measure number="2">
       ${note({ step: 'C', octave: 4 })}
     </measure>`));
-  const mutable = JSON.parse(JSON.stringify(canonicalTabResult));
-  mutable.measures[1].events[0].selectedPosition = { string: 2, fret: 1 };
-  return mutable;
 }
 
-function expectWriterCode(fn, code) {
+function expectWriterError(fn, {
+  code,
+  contractCode,
+  path: expectedPath,
+  rule,
+}) {
   assert.throws(fn, (error) => {
     assert.ok(error instanceof CanonicalTabAsciiWriterError);
     assert.equal(error.code, code);
+    if (contractCode !== undefined) {
+      assert.equal(error.details.contractCode, contractCode);
+    }
+    if (expectedPath !== undefined) {
+      assert.equal(error.details.path, expectedPath);
+    }
+    if (rule !== undefined) {
+      assert.equal(error.details.rule, rule);
+    }
     return true;
   });
 }
 
-test('renders strings 1 through 6 with selected frets, rests and aligned double-digit cells', () => {
-  const ascii = serializeCanonicalTabResultToAscii(threeEventResult());
-  const lines = ascii.split('\n');
+test('renders the reviewed compatibility fixture byte-for-byte with aligned six-string TAB', () => {
+  const fixture = createCanonicalTabCompatibilityFixture();
 
-  assert.deepEqual(lines, [
-    '1|-0--------|',
-    '2|----------|',
-    '3|----------|',
-    '4|----------|',
-    '5|----------|',
-    '6|-------10-|',
-  ]);
+  assert.strictEqual(validateCanonicalTabResult(fixture), fixture);
+  assert.equal(
+    serializeCanonicalTabResultToAscii(fixture),
+    EXPECTED_COMPATIBILITY_ASCII,
+  );
+
+  const lines = EXPECTED_COMPATIBILITY_ASCII.split('\n');
   assert.equal(new Set(lines.map((line) => line.length)).size, 1);
-  for (const line of lines) {
-    assert.equal(line.slice(5, 8), '---');
-  }
+  assert.ok(lines[0].includes('-10--10-'));
+  assert.equal(lines[0].split('|').length, 7);
 });
 
-test('preserves measure boundaries and gives empty measures a visible aligned cell', () => {
-  const lines = serializeCanonicalTabResultToAscii(emptyThenNoteResult()).split('\n');
+test('preserves measure boundaries and gives an empty measure one visible aligned cell', () => {
+  const fixture = emptyThenNoteResult();
 
-  assert.deepEqual(lines, [
-    '1|---|---|',
-    '2|---|-1-|',
-    '3|---|---|',
-    '4|---|---|',
-    '5|---|---|',
-    '6|---|---|',
-  ]);
-  for (const line of lines) {
-    assert.equal((line.match(/\|/g) || []).length, 3);
-  }
+  assert.strictEqual(validateCanonicalTabResult(fixture), fixture);
+  assert.deepEqual(
+    serializeCanonicalTabResultToAscii(fixture).split('\n'),
+    [
+      '1|---|---|',
+      '2|---|-1-|',
+      '3|---|---|',
+      '4|---|---|',
+      '5|---|---|',
+      '6|---|---|',
+    ],
+  );
 });
 
 test('is deterministic, supports one optional trailing newline and does not mutate input', () => {
-  const canonicalTabResult = threeEventResult();
-  const before = structuredClone(canonicalTabResult);
+  const fixture = createCanonicalTabCompatibilityFixture();
+  const before = structuredClone(fixture);
 
-  const first = serializeCanonicalTabResultToAscii(canonicalTabResult);
-  const second = serializeCanonicalTabResultToAscii(canonicalTabResult);
+  const first = serializeCanonicalTabResultToAscii(fixture);
+  const second = serializeCanonicalTabResultToAscii(fixture);
   const withNewline = serializeCanonicalTabResultToAscii(
-    canonicalTabResult,
+    fixture,
     { trailingNewline: true },
   );
 
   assert.equal(first, second);
   assert.equal(withNewline, `${first}\n`);
-  assert.deepEqual(canonicalTabResult, before);
+  assert.deepEqual(fixture, before);
 });
 
-test('uses only selectedPosition and ignores alternativePositions for visible TAB', () => {
-  const baseline = threeEventResult();
+test('uses only selectedPosition and ignores valid alternative-position changes', () => {
+  const baseline = createCanonicalTabCompatibilityFixture();
   const changedAlternatives = structuredClone(baseline);
+
   changedAlternatives.measures[0].events[0].alternativePositions = [
-    { string: 6, fret: 20 },
     { string: 2, fret: 5 },
   ];
-  changedAlternatives.measures[0].events[2].alternativePositions = [];
+  changedAlternatives.measures[4].events[0].alternativePositions = [];
+  changedAlternatives.measures[4].events[1].alternativePositions = [];
 
+  assert.strictEqual(
+    validateCanonicalTabResult(changedAlternatives),
+    changedAlternatives,
+  );
   assert.equal(
     serializeCanonicalTabResultToAscii(changedAlternatives),
     serializeCanonicalTabResultToAscii(baseline),
   );
 });
 
-test('rejects invalid Canonical TAB results with structured error codes', () => {
-  expectWriterCode(
-    () => serializeCanonicalTabResultToAscii(null),
-    'INVALID_CANONICAL_TAB_ASCII_RESULT',
-  );
-
-  const unsupported = threeEventResult();
+test('adapts shared contract schema, path and rule details to stable ASCII errors', () => {
+  const unsupported = structuredClone(createCanonicalTabCompatibilityFixture());
   unsupported.schemaVersion = '2.0.0';
-  expectWriterCode(
+  expectWriterError(
     () => serializeCanonicalTabResultToAscii(unsupported),
-    'UNSUPPORTED_CANONICAL_TAB_ASCII_SCHEMA',
+    {
+      code: 'UNSUPPORTED_CANONICAL_TAB_ASCII_SCHEMA',
+      contractCode: 'UNSUPPORTED_CANONICAL_TAB_SCHEMA',
+      path: 'canonicalTabResult.schemaVersion',
+      rule: 'UNSUPPORTED_SCHEMA_VERSION',
+    },
   );
 
-  const invalidPosition = threeEventResult();
-  invalidPosition.measures[0].events[0].selectedPosition = { string: 7, fret: 0 };
-  expectWriterCode(
+  const invalidPosition = structuredClone(createCanonicalTabCompatibilityFixture());
+  invalidPosition.measures[0].events[0].selectedPosition.string = 7;
+  expectWriterError(
     () => serializeCanonicalTabResultToAscii(invalidPosition),
-    'INVALID_CANONICAL_TAB_ASCII_RESULT',
+    {
+      code: 'INVALID_CANONICAL_TAB_ASCII_RESULT',
+      contractCode: 'INVALID_CANONICAL_TAB_RESULT',
+      path: 'canonicalTabResult.measures[0].events[0].selectedPosition.string',
+      rule: 'SAFE_INTEGER_RANGE',
+    },
   );
 });
 
-test('rejects invalid or unknown ASCII writer options before rendering', () => {
-  const canonicalTabResult = threeEventResult();
+test('rejects invalid or unknown ASCII writer options before contract validation', () => {
+  const fixture = createCanonicalTabCompatibilityFixture();
 
-  expectWriterCode(
-    () => serializeCanonicalTabResultToAscii(canonicalTabResult, null),
-    'INVALID_CANONICAL_TAB_ASCII_OPTIONS',
+  expectWriterError(
+    () => serializeCanonicalTabResultToAscii(fixture, null),
+    { code: 'INVALID_CANONICAL_TAB_ASCII_OPTIONS' },
   );
-  expectWriterCode(
-    () => serializeCanonicalTabResultToAscii(canonicalTabResult, { width: 4 }),
-    'INVALID_CANONICAL_TAB_ASCII_OPTIONS',
+  expectWriterError(
+    () => serializeCanonicalTabResultToAscii(fixture, { width: 4 }),
+    { code: 'INVALID_CANONICAL_TAB_ASCII_OPTIONS' },
   );
-  expectWriterCode(
+  expectWriterError(
     () => serializeCanonicalTabResultToAscii(
-      canonicalTabResult,
+      fixture,
       { trailingNewline: 'yes' },
     ),
-    'INVALID_CANONICAL_TAB_ASCII_OPTIONS',
+    { code: 'INVALID_CANONICAL_TAB_ASCII_OPTIONS' },
+  );
+  expectWriterError(
+    () => serializeCanonicalTabResultToAscii(null, { width: 4 }),
+    { code: 'INVALID_CANONICAL_TAB_ASCII_OPTIONS' },
   );
 });
 
-test('exposes the ASCII writer through the package root API', () => {
-  assert.equal(
-    packageApi.serializeCanonicalTabResultToAscii,
-    serializeCanonicalTabResultToAscii,
-  );
+test('loading the ASCII writer does not load candidate generation or optimization modules', () => {
+  const repositoryRoot = path.resolve(__dirname, '..');
+  const script = `
+    require('./src/writers/canonicalTabAsciiWriter');
+    const forbidden = Object.keys(require.cache)
+      .map((filename) => filename.replace(/\\\\/g, '/'))
+      .filter((filename) => (
+        filename.endsWith('/src/fingering/candidateLayerBuilder.js')
+        || filename.endsWith('/src/fingering/fingeringOptimizer.js')
+      ));
+    if (forbidden.length > 0) {
+      console.error(forbidden.join('\\n'));
+      process.exit(1);
+    }
+  `;
+  const result = spawnSync(process.execPath, ['-e', script], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
