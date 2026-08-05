@@ -1,8 +1,15 @@
 'use strict';
 
 const { parsePitchName, pitchToMidi, PitchError } = require('../music/pitch');
+const {
+  CANONICAL_TAB_RESULT_VERSION,
+} = require('../contracts/canonicalTabContractMetadata');
+const {
+  CanonicalTabContractError,
+  validateCanonicalTabResult,
+} = require('../contracts/canonicalTabResultContract');
 
-const SUPPORTED_CANONICAL_TAB_RESULT_VERSION = '1.0.0';
+const SUPPORTED_CANONICAL_TAB_RESULT_VERSION = CANONICAL_TAB_RESULT_VERSION;
 const MUSICXML_VERSION = '4.0';
 const BEAM_VALUES = Object.freeze({
   begin: 'begin',
@@ -11,7 +18,17 @@ const BEAM_VALUES = Object.freeze({
   'forward-hook': 'forward hook',
   'backward-hook': 'backward hook',
 });
-const RHYTHM_TYPES = new Set(['whole', 'half', 'quarter', 'eighth', '16th']);
+const UNSUPPORTED_CONTRACT_RULES = new Set([
+  'SIX_STRING_TUNING_REQUIRED',
+  'UNSUPPORTED_EVENT_TYPE',
+  'SINGLE_STAFF_REQUIRED',
+  'MULTIPLE_VOICES_NOT_SUPPORTED',
+  'EVENT_START_SEQUENCE_MISMATCH',
+  'UNSUPPORTED_RHYTHM_TYPE',
+  'TIME_MODIFICATION_NOT_SUPPORTED',
+  'UNSUPPORTED_BEAM_VALUE',
+  'NON_PICKUP_MEASURE_DURATION_MISMATCH',
+]);
 
 class CanonicalTabMusicXmlWriterError extends Error {
   constructor(message, code, details = {}) {
@@ -70,50 +87,6 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-function requirePlainObject(value, path) {
-  if (!isPlainObject(value)) {
-    throw invalidResult(`${path} must be a plain object.`, { path });
-  }
-  return value;
-}
-
-function requireArray(value, path) {
-  if (!Array.isArray(value)) {
-    throw invalidResult(`${path} must be an array.`, { path });
-  }
-  return value;
-}
-
-function requireString(value, path, { allowEmpty = false } = {}) {
-  if (typeof value !== 'string' || (!allowEmpty && value.length === 0)) {
-    throw invalidResult(`${path} must be ${allowEmpty ? 'a string' : 'a non-empty string'}.`, {
-      path,
-    });
-  }
-  return value;
-}
-
-function requireSafeInteger(value, path, { minimum = null, maximum = null } = {}) {
-  if (!Number.isSafeInteger(value)) {
-    throw invalidResult(`${path} must be a safe integer.`, { path, value });
-  }
-  if (minimum !== null && value < minimum) {
-    throw invalidResult(`${path} is below the supported minimum.`, {
-      path,
-      value,
-      minimum,
-    });
-  }
-  if (maximum !== null && value > maximum) {
-    throw invalidResult(`${path} exceeds the supported maximum.`, {
-      path,
-      value,
-      maximum,
-    });
-  }
-  return value;
-}
-
 function normalizeOptions(options) {
   if (!isPlainObject(options)) {
     throw invalidOptions('options must be a plain object.');
@@ -148,8 +121,52 @@ function normalizeOptions(options) {
   return normalized;
 }
 
+function isUnsupportedContractError(error) {
+  if (UNSUPPORTED_CONTRACT_RULES.has(error.details && error.details.rule)) {
+    return true;
+  }
+  return error.details
+    && error.details.path === 'canonicalTabResult.voiceCount'
+    && error.details.rule === 'SAFE_INTEGER_RANGE'
+    && error.details.actual > 1;
+}
+
+function adaptContractError(error) {
+  if (!(error instanceof CanonicalTabContractError)) {
+    return error;
+  }
+
+  const details = {
+    ...error.details,
+    contractCode: error.code,
+  };
+  if (error.code === 'UNSUPPORTED_CANONICAL_TAB_SCHEMA') {
+    return unsupportedSchema(details);
+  }
+  if (isUnsupportedContractError(error)) {
+    return unsupportedStructure(
+      'The CanonicalTabResult contains a structure that the MusicXML writer does not support.',
+      details,
+    );
+  }
+  return invalidResult(
+    'canonicalTabResult violates the CanonicalTabResult contract.',
+    details,
+  );
+}
+
+function validateSharedContract(canonicalTabResult) {
+  try {
+    validateCanonicalTabResult(canonicalTabResult);
+  } catch (error) {
+    throw adaptContractError(error);
+  }
+}
+
 function assertXmlSafeString(value, path) {
-  requireString(value, path, { allowEmpty: true });
+  if (typeof value !== 'string') {
+    throw invalidResult(`${path} must be a string.`, { path });
+  }
 
   for (const character of value) {
     const codePoint = character.codePointAt(0);
@@ -184,120 +201,21 @@ function escapeXmlAttribute(value, path) {
     .replaceAll("'", '&apos;');
 }
 
-function validatePitch(pitch, path) {
-  requirePlainObject(pitch, path);
-  if (typeof pitch.step !== 'string' || !/^[A-G]$/.test(pitch.step)) {
-    throw invalidResult(`${path}.step must be A through G.`, { path: `${path}.step` });
-  }
-  requireSafeInteger(pitch.alter, `${path}.alter`, { minimum: -2, maximum: 2 });
-  requireSafeInteger(pitch.octave, `${path}.octave`);
-  requireSafeInteger(pitch.midi, `${path}.midi`, { minimum: 0, maximum: 127 });
-  requireString(pitch.written, `${path}.written`);
-
-  let expectedMidi;
-  try {
-    expectedMidi = pitchToMidi({
-      step: pitch.step,
-      alter: pitch.alter,
-      octave: pitch.octave,
-    });
-  } catch (error) {
-    if (error instanceof PitchError) {
-      throw invalidResult(`${path} contains invalid pitch components.`, { path });
-    }
-    throw error;
-  }
-
-  if (pitch.midi !== expectedMidi) {
-    throw invalidResult(`${path}.midi does not match the pitch components.`, {
-      path: `${path}.midi`,
-      expectedMidi,
-      actualMidi: pitch.midi,
-    });
-  }
-}
-
-function validateRhythm(rhythm, path) {
-  requirePlainObject(rhythm, path);
-  requireSafeInteger(rhythm.durationDivisions, `${path}.durationDivisions`, { minimum: 1 });
-  if (!RHYTHM_TYPES.has(rhythm.type)) {
-    throw unsupportedStructure('The MusicXML writer does not support this rhythm type.', {
-      path: `${path}.type`,
-      type: rhythm.type,
-    });
-  }
-  requireSafeInteger(rhythm.dots, `${path}.dots`, { minimum: 0, maximum: 3 });
-  if (rhythm.timeModification !== null) {
-    throw unsupportedStructure('Tuplets and time modifications are not supported.', {
-      path: `${path}.timeModification`,
-    });
-  }
-  if (typeof rhythm.tieStart !== 'boolean' || typeof rhythm.tieStop !== 'boolean') {
-    throw invalidResult(`${path} tie fields must be boolean.`, { path });
-  }
-
-  const beams = requireArray(rhythm.beam, `${path}.beam`);
-  const levels = new Set();
-  let previousLevel = 0;
-  for (let index = 0; index < beams.length; index += 1) {
-    const beamPath = `${path}.beam[${index}]`;
-    const beam = requirePlainObject(beams[index], beamPath);
-    requireSafeInteger(beam.level, `${beamPath}.level`, { minimum: 1, maximum: 8 });
-    if (levels.has(beam.level) || beam.level < previousLevel) {
-      throw invalidResult('Beam levels must be unique and sorted.', { path: beamPath });
-    }
-    if (!Object.hasOwn(BEAM_VALUES, beam.value)) {
-      throw unsupportedStructure('The MusicXML writer does not support this beam value.', {
-        path: `${beamPath}.value`,
-        value: beam.value,
-      });
-    }
-    levels.add(beam.level);
-    previousLevel = beam.level;
-  }
-}
-
-function validatePosition(position, guitar, path) {
-  requirePlainObject(position, path);
-  requireSafeInteger(position.string, `${path}.string`, { minimum: 1, maximum: 6 });
-  requireSafeInteger(position.fret, `${path}.fret`, {
-    minimum: guitar.minimumFret,
-    maximum: guitar.maximumFret,
-  });
-}
-
-function validateGuitar(guitar) {
-  requirePlainObject(guitar, 'canonicalTabResult.guitar');
-  requireSafeInteger(guitar.minimumFret, 'canonicalTabResult.guitar.minimumFret', { minimum: 0 });
-  requireSafeInteger(guitar.maximumFret, 'canonicalTabResult.guitar.maximumFret', {
-    minimum: guitar.minimumFret,
-  });
-
-  const tuning = requireArray(guitar.tuning, 'canonicalTabResult.guitar.tuning');
-  if (tuning.length !== 6) {
-    throw unsupportedStructure('The MusicXML writer supports exactly six guitar strings.', {
-      stringCount: tuning.length,
-    });
-  }
-
-  const byString = new Map();
-  for (let index = 0; index < tuning.length; index += 1) {
+function prepareTuning(canonicalTabResult) {
+  const tuningByString = new Map();
+  for (let index = 0; index < canonicalTabResult.guitar.tuning.length; index += 1) {
+    const entry = canonicalTabResult.guitar.tuning[index];
     const path = `canonicalTabResult.guitar.tuning[${index}]`;
-    const entry = requirePlainObject(tuning[index], path);
-    requireSafeInteger(entry.number, `${path}.number`, { minimum: 1, maximum: 6 });
-    requireString(entry.pitch, `${path}.pitch`);
-    requireSafeInteger(entry.midi, `${path}.midi`, { minimum: 0, maximum: 127 });
-    if (byString.has(entry.number)) {
-      throw invalidResult('Guitar tuning string numbers must be unique.', {
-        path: `${path}.number`,
-        string: entry.number,
+    if (typeof entry.pitch !== 'string' || entry.pitch.length === 0) {
+      throw invalidResult('Guitar tuning pitch metadata is required for MusicXML output.', {
+        path: `${path}.pitch`,
       });
     }
 
-    let pitch;
+    let parsedPitch;
     try {
-      pitch = parsePitchName(entry.pitch);
-      if (pitchToMidi(pitch) !== entry.midi) {
+      parsedPitch = parsePitchName(entry.pitch);
+      if (pitchToMidi(parsedPitch) !== entry.midi) {
         throw new PitchError('Tuning pitch and MIDI value do not match.');
       }
     } catch (error) {
@@ -306,199 +224,35 @@ function validateGuitar(guitar) {
       }
       throw error;
     }
-
-    byString.set(entry.number, { ...entry, parsedPitch: pitch });
+    tuningByString.set(entry.number, { ...entry, parsedPitch });
   }
-
-  for (let string = 1; string <= 6; string += 1) {
-    if (!byString.has(string)) {
-      throw invalidResult('Guitar tuning must define strings 1 through 6.', { string });
-    }
-  }
-
-  return byString;
+  return tuningByString;
 }
 
-function validateEvent(event, measure, eventIndex, guitar, cursor) {
-  const path = `canonicalTabResult.measures[${measure.measureIndex}].events[${eventIndex}]`;
-  requirePlainObject(event, path);
-  if (event.eventIndex !== eventIndex) {
-    throw invalidResult('Event index does not match the event array order.', { path });
-  }
-  requireString(event.eventId, `${path}.eventId`);
-  if (event.measureKey !== measure.measureKey) {
-    throw invalidResult('Event measureKey does not match its containing measure.', { path });
-  }
-  if (event.type !== 'note' && event.type !== 'rest') {
-    throw unsupportedStructure('Only note and rest events are supported.', {
-      path: `${path}.type`,
-      type: event.type,
-    });
-  }
-  if (event.voice !== 1 || event.staff !== 1) {
-    throw unsupportedStructure('Only canonical single-voice, single-staff events are supported.', {
-      path,
-      voice: event.voice,
-      staff: event.staff,
-    });
-  }
-
-  const start = requirePlainObject(event.start, `${path}.start`);
-  requireSafeInteger(start.divisions, `${path}.start.divisions`, { minimum: 0 });
-  if (start.divisions !== cursor) {
-    throw unsupportedStructure('Events must form one sequential monophonic stream.', {
-      path: `${path}.start.divisions`,
-      expectedStart: cursor,
-      actualStart: start.divisions,
-    });
-  }
-
-  validateRhythm(event.rhythm, `${path}.rhythm`);
-  requireArray(event.warnings, `${path}.warnings`);
-  requirePlainObject(event.sourceLocation, `${path}.sourceLocation`);
-
-  if (event.type === 'rest') {
-    if (Object.hasOwn(event, 'pitch')) {
-      throw invalidResult('Rest events must not contain pitch data.', { path });
-    }
-    if (event.selectedPosition !== null) {
-      throw invalidResult('Rest events must use selectedPosition: null.', { path });
-    }
-    if (!Array.isArray(event.alternativePositions) || event.alternativePositions.length !== 0) {
-      throw invalidResult('Rest events must use an empty alternativePositions array.', { path });
-    }
-    if (event.fingeringCost !== null) {
-      throw invalidResult('Rest events must use fingeringCost: null.', { path });
-    }
-  } else {
-    validatePitch(event.pitch, `${path}.pitch`);
-    validatePosition(event.selectedPosition, guitar, `${path}.selectedPosition`);
-    requireArray(event.alternativePositions, `${path}.alternativePositions`);
-    requirePlainObject(event.fingeringCost, `${path}.fingeringCost`);
-  }
-
-  return event.rhythm.durationDivisions;
-}
-
-function validateMeasure(measure, measureIndex, guitar) {
-  const path = `canonicalTabResult.measures[${measureIndex}]`;
-  requirePlainObject(measure, path);
-  if (measure.measureIndex !== measureIndex) {
-    throw invalidResult('Measure index does not match the measure array order.', { path });
-  }
-  requireString(measure.measureKey, `${path}.measureKey`);
-  requireString(measure.visibleMeasureNumber, `${path}.visibleMeasureNumber`);
-  if (typeof measure.implicit !== 'boolean') {
-    throw invalidResult(`${path}.implicit must be boolean.`, { path: `${path}.implicit` });
-  }
-  requireSafeInteger(measure.divisions, `${path}.divisions`, { minimum: 1 });
-  requireSafeInteger(measure.expectedDurationDivisions, `${path}.expectedDurationDivisions`, {
-    minimum: 1,
-  });
-  requireSafeInteger(measure.actualDurationDivisions, `${path}.actualDurationDivisions`, {
-    minimum: 0,
-    maximum: measure.expectedDurationDivisions,
-  });
-
-  const timeSignature = requirePlainObject(measure.timeSignature, `${path}.timeSignature`);
-  requireSafeInteger(timeSignature.beats, `${path}.timeSignature.beats`, { minimum: 1 });
-  requireSafeInteger(timeSignature.beatType, `${path}.timeSignature.beatType`, { minimum: 1 });
-  requireArray(measure.warnings, `${path}.warnings`);
-
-  const events = requireArray(measure.events, `${path}.events`);
-  let cursor = 0;
-  let noteCount = 0;
-  let restCount = 0;
-  for (let eventIndex = 0; eventIndex < events.length; eventIndex += 1) {
-    const event = events[eventIndex];
-    cursor += validateEvent(event, measure, eventIndex, guitar, cursor);
-    if (event.type === 'note') {
-      noteCount += 1;
-    } else {
-      restCount += 1;
+function validateMusicXmlRenderability(canonicalTabResult) {
+  for (let measureIndex = 0; measureIndex < canonicalTabResult.measures.length; measureIndex += 1) {
+    const measure = canonicalTabResult.measures[measureIndex];
+    for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      const event = measure.events[eventIndex];
+      for (let beamIndex = 0; beamIndex < event.rhythm.beam.length; beamIndex += 1) {
+        const beam = event.rhythm.beam[beamIndex];
+        const path = `canonicalTabResult.measures[${measureIndex}].events[${eventIndex}].rhythm.beam[${beamIndex}]`;
+        if (beam.level > 8) {
+          throw invalidResult('MusicXML beam numbers must not exceed 8.', {
+            path: `${path}.level`,
+            value: beam.level,
+            maximum: 8,
+          });
+        }
+        if (!Object.hasOwn(BEAM_VALUES, beam.value)) {
+          throw unsupportedStructure('The MusicXML writer does not support this beam value.', {
+            path: `${path}.value`,
+            value: beam.value,
+          });
+        }
+      }
     }
   }
-
-  if (cursor !== measure.actualDurationDivisions) {
-    throw invalidResult('Measure event durations do not match actualDurationDivisions.', {
-      path,
-      eventDurationTotal: cursor,
-      actualDurationDivisions: measure.actualDurationDivisions,
-    });
-  }
-  if (events.length > 0 && !measure.implicit && cursor !== measure.expectedDurationDivisions) {
-    throw unsupportedStructure('A non-implicit measure must fill its declared duration.', {
-      path,
-      eventDurationTotal: cursor,
-      expectedDurationDivisions: measure.expectedDurationDivisions,
-    });
-  }
-
-  return { noteCount, restCount };
-}
-
-function validateCanonicalTabResult(canonicalTabResult) {
-  requirePlainObject(canonicalTabResult, 'canonicalTabResult');
-  if (canonicalTabResult.documentType !== 'CanonicalTabResult') {
-    throw invalidResult('canonicalTabResult.documentType must be CanonicalTabResult.');
-  }
-  if (canonicalTabResult.schemaVersion !== SUPPORTED_CANONICAL_TAB_RESULT_VERSION) {
-    throw unsupportedSchema({
-      expectedSchemaVersion: SUPPORTED_CANONICAL_TAB_RESULT_VERSION,
-      actualSchemaVersion: canonicalTabResult.schemaVersion,
-    });
-  }
-  const engine = requirePlainObject(canonicalTabResult.engine, 'canonicalTabResult.engine');
-  requireString(engine.name, 'canonicalTabResult.engine.name');
-  requireString(engine.version, 'canonicalTabResult.engine.version');
-  if (canonicalTabResult.requiresTeacherReview !== true) {
-    throw invalidResult('canonicalTabResult.requiresTeacherReview must be true.');
-  }
-  requireSafeInteger(canonicalTabResult.voiceCount, 'canonicalTabResult.voiceCount', {
-    minimum: 0,
-  });
-  if (canonicalTabResult.voiceCount > 1) {
-    throw unsupportedStructure('Only single-voice CanonicalTabResult input is supported.', {
-      voiceCount: canonicalTabResult.voiceCount,
-    });
-  }
-  requireSafeInteger(canonicalTabResult.measureCount, 'canonicalTabResult.measureCount', {
-    minimum: 1,
-  });
-  requireSafeInteger(canonicalTabResult.noteCount, 'canonicalTabResult.noteCount', { minimum: 0 });
-  requireSafeInteger(canonicalTabResult.restCount, 'canonicalTabResult.restCount', { minimum: 0 });
-  if (
-    typeof canonicalTabResult.totalFingeringCost !== 'number'
-    || !Number.isFinite(canonicalTabResult.totalFingeringCost)
-    || canonicalTabResult.totalFingeringCost < 0
-  ) {
-    throw invalidResult('canonicalTabResult.totalFingeringCost must be finite and non-negative.');
-  }
-
-  const guitar = canonicalTabResult.guitar;
-  const tuningByString = validateGuitar(guitar);
-  const measures = requireArray(canonicalTabResult.measures, 'canonicalTabResult.measures');
-  if (measures.length !== canonicalTabResult.measureCount) {
-    throw invalidResult('measureCount must match measures.length.');
-  }
-
-  let noteCount = 0;
-  let restCount = 0;
-  for (let measureIndex = 0; measureIndex < measures.length; measureIndex += 1) {
-    const counts = validateMeasure(measures[measureIndex], measureIndex, guitar);
-    noteCount += counts.noteCount;
-    restCount += counts.restCount;
-  }
-  if (noteCount !== canonicalTabResult.noteCount || restCount !== canonicalTabResult.restCount) {
-    throw invalidResult('Canonical TAB event counts do not match the declared counts.', {
-      declaredNoteCount: canonicalTabResult.noteCount,
-      actualNoteCount: noteCount,
-      declaredRestCount: canonicalTabResult.restCount,
-      actualRestCount: restCount,
-    });
-  }
-
-  return { tuningByString };
 }
 
 class XmlBuilder {
@@ -619,13 +373,7 @@ function writeStaffTuning(builder, tuningByString) {
   }
 }
 
-function writeAttributes(
-  builder,
-  measure,
-  measureIndex,
-  tuningByString,
-  previousMeasure = null,
-) {
+function writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure = null) {
   builder.open('attributes');
   builder.element('divisions', String(measure.divisions));
 
@@ -662,7 +410,6 @@ function writeAttributes(
     builder.element('chromatic', '0');
     builder.element('octave-change', '-1');
     builder.close('transpose');
-
   }
 
   builder.close('attributes');
@@ -670,7 +417,9 @@ function writeAttributes(
 
 function serializeCanonicalTabResultToMusicXml(canonicalTabResult, options = {}) {
   const normalizedOptions = normalizeOptions(options);
-  const { tuningByString } = validateCanonicalTabResult(canonicalTabResult);
+  validateSharedContract(canonicalTabResult);
+  validateMusicXmlRenderability(canonicalTabResult);
+  const tuningByString = prepareTuning(canonicalTabResult);
   const builder = new XmlBuilder(normalizedOptions.pretty);
 
   builder.line('<?xml version="1.0" encoding="UTF-8"?>');
@@ -709,13 +458,7 @@ function serializeCanonicalTabResultToMusicXml(canonicalTabResult, options = {})
       ? null
       : canonicalTabResult.measures[measureIndex - 1];
 
-    writeAttributes(
-      builder,
-      measure,
-      measureIndex,
-      tuningByString,
-      previousMeasure,
-    );
+    writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure);
 
     for (const event of measure.events) {
       writeEvent(builder, event, 1, 1);

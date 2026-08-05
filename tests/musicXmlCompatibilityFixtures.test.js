@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 const { SaxesParser } = require('saxes');
 
 const {
+  validateCanonicalTabResult,
+} = require('../src/contracts/canonicalTabResultContract');
+const {
   serializeCanonicalTabResultToMusicXml,
 } = require('../src/writers/canonicalTabMusicXmlWriter');
 const {
@@ -112,6 +115,7 @@ function technicalPosition(noteNode) {
 test('compatibility fixture produces deterministic, secure and well-formed MusicXML', () => {
   const fixture = createCanonicalTabCompatibilityFixture();
   const before = structuredClone(fixture);
+  assert.strictEqual(validateCanonicalTabResult(fixture), fixture);
   const first = serializeCanonicalTabResultToMusicXml(fixture);
   const second = serializeCanonicalTabResultToMusicXml(fixture);
 

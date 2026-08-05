@@ -278,3 +278,16 @@ The independently reviewed Milestone 1B branch adds the machine-verifiable and r
 The JSON Schema records structural constraints. Cross-field musical invariants remain the responsibility of the shared runtime validator. Existing writers keep their defensive validators until PR 1C migrates them to this shared boundary with byte-identical output tests.
 
 `CanonicalTabResult 1.0.0` remains unchanged. Future model, confidence and teacher-feedback fields remain outside v1 unless a separately reviewed versioned extension is approved.
+
+## 15. Milestone 1C writer convergence boundary
+
+The writer convergence branch makes `src/contracts/canonicalTabResultContract.js` the single canonical input-validation boundary for the JSON and MusicXML writers.
+
+- `canonicalTabJsonWriter.js` delegates exact-field, schema, JSON-safety, cyclic-reference and musical-invariant checks to `validateCanonicalTabResult()`.
+- `canonicalTabMusicXmlWriter.js` delegates the same canonical checks to the shared validator and retains only MusicXML output requirements: XML 1.0 character safety, escaping, parseable tuning pitch metadata and MusicXML beam-number limits.
+- writer-specific error classes and public error codes remain stable; shared contract `path` and `rule` details are preserved in adapted writer errors.
+- compact, pretty and trailing-newline behavior remains unchanged.
+- reviewed JSON and MusicXML golden outputs remain byte-identical.
+- no package-root export, public API, dependency, parser, optimizer, pipeline, schema or canonical result-shape change is introduced.
+
+After this convergence, writer modules are serializers rather than competing authorities for the `CanonicalTabResult 1.0.0` contract. The draft ASCII writer remains outside this branch and must be updated separately after PR 1C is reviewed and merged.
