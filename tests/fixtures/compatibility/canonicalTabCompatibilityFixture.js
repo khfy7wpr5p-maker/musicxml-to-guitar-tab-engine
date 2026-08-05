@@ -1,5 +1,10 @@
 'use strict';
 
+const {
+  calculatePositionCost,
+  calculateTransitionCost,
+} = require('../../../src/fingering/costModel');
+
 const STANDARD_TUNING = Object.freeze([
   Object.freeze({ number: 1, pitch: 'E4', midi: 64 }),
   Object.freeze({ number: 2, pitch: 'B3', midi: 59 }),
@@ -36,15 +41,6 @@ function deepFreeze(value) {
 
 function position(string, fret) {
   return { string, fret };
-}
-
-function cost() {
-  return {
-    positionCost: 0,
-    transitionCost: 0,
-    totalCost: 0,
-    components: {},
-  };
 }
 
 function rhythm(durationDivisions, type, {
@@ -100,7 +96,7 @@ function noteEvent({
     pitch: eventPitch,
     selectedPosition,
     alternativePositions,
-    fingeringCost: cost(),
+    fingeringCost: null,
   };
 }
 
@@ -158,6 +154,31 @@ function measure({
     events,
     warnings: [],
   };
+}
+
+function applyFingeringCosts(measures) {
+  let previousPosition = null;
+  let totalFingeringCost = 0;
+
+  for (const measureValue of measures) {
+    for (const event of measureValue.events) {
+      if (event.type === 'rest') {
+        continue;
+      }
+
+      event.fingeringCost = previousPosition === null
+        ? calculatePositionCost(event.selectedPosition, DEFAULT_FINGERING_PROFILE)
+        : calculateTransitionCost(
+          previousPosition,
+          event.selectedPosition,
+          DEFAULT_FINGERING_PROFILE,
+        );
+      totalFingeringCost += event.fingeringCost.total;
+      previousPosition = event.selectedPosition;
+    }
+  }
+
+  return totalFingeringCost;
 }
 
 function createCanonicalTabCompatibilityFixture() {
@@ -377,6 +398,7 @@ function createCanonicalTabCompatibilityFixture() {
       ],
     }),
   ];
+  const totalFingeringCost = applyFingeringCosts(measures);
 
   return deepFreeze({
     documentType: 'CanonicalTabResult',
@@ -399,7 +421,7 @@ function createCanonicalTabCompatibilityFixture() {
       maximumFret: 20,
     },
     fingeringProfile: DEFAULT_FINGERING_PROFILE,
-    totalFingeringCost: 0,
+    totalFingeringCost,
     measureCount: measures.length,
     voiceCount: 1,
     noteCount: 12,

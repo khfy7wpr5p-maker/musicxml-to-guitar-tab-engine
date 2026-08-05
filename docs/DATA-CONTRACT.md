@@ -1,5 +1,8 @@
 # MusicXML to Guitar TAB Engine — Data Contract
 
+> [!WARNING]
+> **Deprecated draft — not the current runtime contract.** This document predates the implemented `CanonicalTabResult` structure and contains planned fields that the engine does not currently produce. Do not build integrations from the examples below. See [`canonical-contract-audit.md`](./canonical-contract-audit.md) for the evidence-based field comparison, current authoritative implementation sources and migration plan. The implemented result remains `CanonicalTabResult` schema version `1.0.0` until a separately reviewed schema change is merged.
+
 ## 1. Purpose
 
 This document defines the canonical data format used by the MusicXML to Guitar TAB Engine.
