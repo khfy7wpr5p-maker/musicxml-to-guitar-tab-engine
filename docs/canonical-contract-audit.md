@@ -264,3 +264,17 @@ This audit is complete when:
 - architecture documentation points to the actual implementation sources
 - future learning fields are identified as optional extension work, not current behavior
 - no source, test, dependency, lockfile, package entry point or public API is changed
+
+## 14. Milestone 1B implementation boundary
+
+The independently reviewed Milestone 1B branch adds the machine-verifiable and runtime enforcement layer for the frozen v1 contract:
+
+- `schemas/canonical-tab-result.v1.schema.json` defines the structural contract using JSON Schema Draft 2020-12.
+- `src/contracts/canonicalTabResultContract.js` provides the internal `validateCanonicalTabResult()` boundary and stable `CanonicalTabContractError` codes.
+- valid and unsupported-schema fixtures record reviewable contract examples.
+- contract tests cover JSON-safe data, exact v1 fields, deterministic identities, monophonic timing, pitch and tuning consistency, physical string/fret validity, fingering costs and the flattened warning index.
+- no runtime dependency, package-root export, writer refactor or result-shape change is introduced.
+
+The JSON Schema records structural constraints. Cross-field musical invariants remain the responsibility of the shared runtime validator. Existing writers keep their defensive validators until PR 1C migrates them to this shared boundary with byte-identical output tests.
+
+`CanonicalTabResult 1.0.0` remains unchanged. Future model, confidence and teacher-feedback fields remain outside v1 unless a separately reviewed versioned extension is approved.
