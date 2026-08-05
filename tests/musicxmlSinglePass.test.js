@@ -21,7 +21,10 @@ const validScore = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
-function runCounted(entryExpression) {
+const emptyMeasureScore = validScore.replace(/<note>[\s\S]*?<\/note>/, '');
+const chordScore = validScore.replace('<pitch>', '<chord/><pitch>');
+
+function runCounted(entryExpression, xmlSource = validScore) {
   const script = `
     const Module = require('node:module');
     const originalLoad = Module._load;
@@ -42,7 +45,7 @@ function runCounted(entryExpression) {
       }
       return loaded;
     };
-    const xml = ${JSON.stringify(validScore)};
+    const xml = ${JSON.stringify(xmlSource)};
     ${entryExpression}
     process.stdout.write(String(saxPasses));
   `;
@@ -106,8 +109,88 @@ test('parseMusicXmlNotes performs one complete SAX construction', () => {
   );
 });
 
+test('preflightMusicXml performs one complete SAX construction', () => {
+  assert.equal(
+    runCounted(`
+      const { preflightMusicXml } = require('./src/validation/musicxmlPreflight');
+      const result = preflightMusicXml(xml);
+      if (result.status !== 'PASS') throw new Error('Expected PASS preflight.');
+    `),
+    1,
+  );
+});
+
+test('parseCanonicalTabResult performs one complete SAX construction', () => {
+  assert.equal(
+    runCounted(`
+      const { parseCanonicalTabResult } = require('./src/parser/parseCanonicalTabResult');
+      const result = parseCanonicalTabResult(xml);
+      if (result.documentType !== 'CanonicalTabResult') {
+        throw new Error('Expected canonical TAB result.');
+      }
+    `),
+    1,
+  );
+});
+
+test('public conversion shares one SAX construction for PASS input', () => {
+  assert.equal(
+    runCounted(`
+      const { convertMusicXmlToCanonicalTab } = require('./src/core/conversionPipeline');
+      const result = convertMusicXmlToCanonicalTab(xml);
+      if (result.preflight.status !== 'PASS' || !result.canonicalTabResult) {
+        throw new Error('Expected successful conversion.');
+      }
+    `),
+    1,
+  );
+});
+
+test('public conversion shares one SAX construction for WARNING input', () => {
+  assert.equal(
+    runCounted(`
+      const { convertMusicXmlToCanonicalTab } = require('./src/core/conversionPipeline');
+      const result = convertMusicXmlToCanonicalTab(xml);
+      if (result.preflight.status !== 'WARNING' || !result.canonicalTabResult) {
+        throw new Error('Expected warning conversion.');
+      }
+    `, emptyMeasureScore),
+    1,
+  );
+});
+
+test('public conversion shares one SAX construction for BLOCKED input', () => {
+  assert.equal(
+    runCounted(`
+      const { convertMusicXmlToCanonicalTab } = require('./src/core/conversionPipeline');
+      const result = convertMusicXmlToCanonicalTab(xml);
+      if (result.preflight.status !== 'BLOCKED' || result.canonicalTabResult !== null) {
+        throw new Error('Expected blocked conversion.');
+      }
+    `, chordScore),
+    1,
+  );
+});
+
+test('invalid public conversion options fail before SAX construction', () => {
+  assert.equal(
+    runCounted(`
+      const { convertMusicXmlToCanonicalTab } = require('./src/core/conversionPipeline');
+      let rejected = false;
+      try {
+        convertMusicXmlToCanonicalTab(xml, { unknown: true });
+      } catch (error) {
+        if (error.code !== 'INVALID_CANONICAL_TAB_OPTIONS') throw error;
+        rejected = true;
+      }
+      if (!rejected) throw new Error('Expected invalid options to be rejected.');
+    `),
+    0,
+  );
+});
+
 test('structural validation does not reject semantically unsupported chord content', () => {
-  const chordScore = validScore.replace('<pitch>', '<chord/><pitch>');
+  const chordScoreInput = validScore.replace('<pitch>', '<chord/><pitch>');
   const {
     validateMusicXml,
   } = require('../src/validation/musicxmlValidation');
@@ -115,9 +198,9 @@ test('structural validation does not reject semantically unsupported chord conte
     parseMusicXmlNotes,
   } = require('../src/parser/musicxmlNoteParser');
 
-  assert.equal(validateMusicXml(chordScore).measureCount, 1);
+  assert.equal(validateMusicXml(chordScoreInput).measureCount, 1);
   assert.throws(
-    () => parseMusicXmlNotes(chordScore),
+    () => parseMusicXmlNotes(chordScoreInput),
     (error) => error.code === 'UNSUPPORTED_POLYPHONY',
   );
 });

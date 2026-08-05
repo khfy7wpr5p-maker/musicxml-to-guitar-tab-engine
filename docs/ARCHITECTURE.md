@@ -555,4 +555,28 @@ For each direct entry point, XML normalization and SAX parsing occur once:
 - `validateMusicXml(input)` performs one SAX pass and one structural projection.
 - `parseMusicXmlNotes(input)` performs one SAX pass and then structural plus semantic projection without reparsing the source.
 
-The public conversion pipeline still invokes preflight and conversion separately in this milestone, so complete pipeline deduplication is deferred to Milestone 2B. Resource ceilings beyond the existing byte limit, including depth, element, text, measure, event and deadline limits, remain Milestone 2C work.
+Resource ceilings beyond the existing byte limit, including depth, element, text, measure, event and deadline limits, remain Milestone 2C work.
+
+## 20. Milestone 2B shared public conversion parse
+
+The public conversion pipeline now shares one immutable semantic parse between preflight reporting and canonical conversion.
+
+```text
+Raw MusicXML
+      ↓
+parseMusicXmlNotes() — one SAX pass
+      ↓
+Parsed monophonic notes
+      ├─ preflight report
+      └─ CanonicalMusicDocument
+             ↓
+        CanonicalTabResult
+```
+
+`inspectMusicXml(input, parserOptions)` is an internal validation-module boundary. It returns a frozen pair containing the preflight report and the parsed monophonic notes. On a blocked input, the report preserves the existing safety, structure, capability or content classification and `parsedNotes` is `null`.
+
+`preflightMusicXml()` remains the standalone public preflight entry point and returns only the report. `parseCanonicalTabResult()` remains a standalone direct conversion entry point. Neither package-root export shape nor the canonical TAB contract changes.
+
+`convertMusicXmlToCanonicalTab()` validates conversion options before parsing, performs one semantic MusicXML parse, preserves PASS, WARNING and BLOCKED behavior, and feeds the same parsed notes into `CanonicalMusicDocument` and `CanonicalTabResult` creation. PASS, WARNING and BLOCKED public conversion paths therefore construct one `SaxesParser`; invalid conversion options construct none.
+
+Explicit XML depth, element, text, measure, event, deadline and cancellation ceilings remain Milestone 2C work. The common public error contract remains Milestone 2D work.

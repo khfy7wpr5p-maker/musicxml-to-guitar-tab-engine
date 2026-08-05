@@ -85,35 +85,50 @@ function collectWarnings(parsed) {
   );
 }
 
-function preflightMusicXml(input, options = {}) {
-  try {
-    const parsed = parseMusicXmlNotes(input, options);
-    const issues = collectWarnings(parsed);
+function createPreflightReport(parsed) {
+  const issues = collectWarnings(parsed);
 
-    return deepFreeze({
-      status: issues.length > 0
-        ? PREFLIGHT_STATUS.WARNING
-        : PREFLIGHT_STATUS.PASS,
-      canProcess: true,
-      summary: {
-        format: parsed.format,
-        version: parsed.version,
-        partId: parsed.partId,
-        measureCount: parsed.measureCount,
-        voiceCount: parsed.voiceCount,
-      },
-      issues,
+  return deepFreeze({
+    status: issues.length > 0
+      ? PREFLIGHT_STATUS.WARNING
+      : PREFLIGHT_STATUS.PASS,
+    canProcess: true,
+    summary: {
+      format: parsed.format,
+      version: parsed.version,
+      partId: parsed.partId,
+      measureCount: parsed.measureCount,
+      voiceCount: parsed.voiceCount,
+    },
+    issues,
+  });
+}
+
+function inspectMusicXml(input, options = {}) {
+  try {
+    const parsedNotes = parseMusicXmlNotes(input, options);
+    return Object.freeze({
+      preflight: createPreflightReport(parsedNotes),
+      parsedNotes,
     });
   } catch (error) {
     if (isKnownPreflightError(error)) {
-      return blockedReport(error);
+      return Object.freeze({
+        preflight: blockedReport(error),
+        parsedNotes: null,
+      });
     }
 
     throw error;
   }
 }
 
+function preflightMusicXml(input, options = {}) {
+  return inspectMusicXml(input, options).preflight;
+}
+
 module.exports = {
   PREFLIGHT_STATUS,
+  inspectMusicXml,
   preflightMusicXml,
 };

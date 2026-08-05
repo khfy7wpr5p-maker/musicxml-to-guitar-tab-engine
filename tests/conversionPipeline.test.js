@@ -60,6 +60,29 @@ test('continues after PASS and returns a canonical TAB result', () => {
   assert.equal(Object.isFrozen(result), true);
 });
 
+test('reuses the inspected note data across preflight and canonical conversion', () => {
+  const result = convertMusicXmlToCanonicalTab(score(wholeNote));
+  const { summary } = result.preflight;
+  const canonical = result.canonicalTabResult;
+  const measure = canonical.measures[0];
+  const event = measure.events[0];
+
+  assert.deepEqual(summary, {
+    format: canonical.source.format,
+    version: canonical.source.version,
+    partId: canonical.source.partId,
+    measureCount: canonical.measureCount,
+    voiceCount: canonical.voiceCount,
+  });
+  assert.equal(measure.visibleMeasureNumber, '1');
+  assert.equal(event.eventIndex, 0);
+  assert.deepEqual(event.sourceLocation, {
+    partId: 'P1',
+    measure: '1',
+    noteIndex: 0,
+  });
+});
+
 test('preserves WARNING issues while continuing conversion', () => {
   const result = convertMusicXmlToCanonicalTab(score());
 
@@ -68,6 +91,10 @@ test('preserves WARNING issues while continuing conversion', () => {
   assert.equal(result.preflight.issues[0].code, 'EMPTY_MEASURE');
   assert.equal(result.canonicalTabResult.measureCount, 1);
   assert.equal(result.canonicalTabResult.warnings[0].warning.code, 'EMPTY_MEASURE');
+  assert.deepEqual(
+    result.preflight.issues[0].location,
+    result.canonicalTabResult.warnings[0].warning.location,
+  );
 });
 
 test('stops after BLOCKED and does not create a canonical TAB result', () => {
