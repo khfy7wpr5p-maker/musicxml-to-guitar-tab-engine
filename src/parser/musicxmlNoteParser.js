@@ -14,6 +14,10 @@ const {
   MusicXmlDocumentAdapterError,
   adaptParsedMusicXmlDocumentToNotes,
 } = require('./musicxmlDocumentAdapter');
+const {
+  createMusicXmlProcessingBudget,
+  enforceMusicXmlSemanticResourceLimits,
+} = require('./musicxmlSemanticResourceLimits');
 
 class MusicXmlNoteParserError extends Error {
   constructor(message, code, details = {}) {
@@ -26,8 +30,10 @@ class MusicXmlNoteParserError extends Error {
 
 function parseMusicXmlNotes(input, options = {}) {
   let parsedDocument;
+  let budget;
   try {
-    parsedDocument = parseParsedMusicXmlDocument(input, options);
+    budget = createMusicXmlProcessingBudget(options);
+    parsedDocument = parseParsedMusicXmlDocument(input, budget.limits);
   } catch (error) {
     if (error instanceof XmlSafetyError) {
       throw error;
@@ -39,8 +45,12 @@ function parseMusicXmlNotes(input, options = {}) {
   }
 
   try {
+    enforceMusicXmlSemanticResourceLimits(parsedDocument, budget);
     return adaptParsedMusicXmlDocumentToNotes(parsedDocument);
   } catch (error) {
+    if (error instanceof XmlSafetyError) {
+      throw error;
+    }
     if (!(error instanceof MusicXmlDocumentAdapterError)) {
       throw error;
     }
