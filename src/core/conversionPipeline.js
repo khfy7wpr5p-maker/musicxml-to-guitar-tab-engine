@@ -2,12 +2,13 @@
 
 const {
   CanonicalTabResultError,
+  createCanonicalTabResult,
 } = require('../tab/canonicalTabResult');
 const {
-  parseCanonicalTabResult,
-} = require('../parser/parseCanonicalTabResult');
+  createCanonicalMusicDocument,
+} = require('../music/canonicalMusicDocument');
 const {
-  preflightMusicXml,
+  inspectMusicXml,
 } = require('../validation/musicxmlPreflight');
 
 function isObject(value) {
@@ -49,7 +50,8 @@ function normalizeOptions(options) {
 
 function convertMusicXmlToCanonicalTab(input, options = {}) {
   const normalizedOptions = normalizeOptions(options);
-  const preflight = preflightMusicXml(input, normalizedOptions.parser);
+  const inspection = inspectMusicXml(input, normalizedOptions.parser);
+  const { preflight, parsedNotes } = inspection;
 
   if (!preflight.canProcess) {
     return Object.freeze({
@@ -58,7 +60,11 @@ function convertMusicXmlToCanonicalTab(input, options = {}) {
     });
   }
 
-  const canonicalTabResult = parseCanonicalTabResult(input, normalizedOptions);
+  const canonicalDocument = createCanonicalMusicDocument(parsedNotes);
+  const canonicalTabResult = createCanonicalTabResult(canonicalDocument, {
+    guitar: normalizedOptions.guitar,
+    costProfile: normalizedOptions.costProfile,
+  });
 
   return Object.freeze({
     preflight,
