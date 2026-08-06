@@ -233,7 +233,7 @@ test('unqualified MusicXML attributes cannot be shadowed by namespaced attribute
   }
 });
 
-test('deep MusicXML trees do not escape the structured parser error contract', () => {
+test('deep MusicXML trees fail through the structured resource-limit contract', () => {
   const {
     parseMusicXmlNotes,
   } = require('../src/parser/musicxmlNoteParser');
@@ -245,7 +245,12 @@ test('deep MusicXML trees do not escape the structured parser error contract', (
     () => parseMusicXmlNotes(xml),
     (error) => {
       assert.notEqual(error.name, 'RangeError');
-      assert.equal(error.code, 'UNSUPPORTED_POLYPHONY');
+      assert.equal(error.code, 'XML_RESOURCE_LIMIT_EXCEEDED');
+      assert.deepEqual(error.details, {
+        limit: 'maxDepth',
+        maximum: 128,
+        actual: 129,
+      });
       return true;
     },
   );
