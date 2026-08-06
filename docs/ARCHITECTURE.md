@@ -580,3 +580,34 @@ Parsed monophonic notes
 `convertMusicXmlToCanonicalTab()` validates conversion options before parsing, performs one semantic MusicXML parse, preserves PASS, WARNING and BLOCKED behavior, and feeds the same parsed notes into `CanonicalMusicDocument` and `CanonicalTabResult` creation. PASS, WARNING and BLOCKED public conversion paths therefore construct one `SaxesParser`; invalid conversion options construct none.
 
 Explicit XML depth, element, text, measure, event, deadline and cancellation ceilings remain Milestone 2C work. The common public error contract remains Milestone 2D work.
+
+## 21. Milestone 2C-1 central processing budget contract
+
+Milestone 2C begins with one internal, versioned source of truth for resource and processing defaults:
+
+```text
+src/core/processingBudget.js
+      ↓
+ProcessingBudget 1.0.0
+      ↓
+immutable validated limits
+```
+
+`createProcessingBudget(options)` accepts a plain object containing partial overrides, rejects unknown fields, and requires every limit to be a positive safe integer. Invalid configuration uses `ProcessingBudgetConfigurationError` with the stable code `INVALID_PROCESSING_BUDGET` and safe `field` and `value` details where applicable.
+
+The approved defaults are:
+
+| Limit | Default |
+|---|---:|
+| `maxBytes` | 5 MiB |
+| `maxDepth` | 128 |
+| `maxElements` | 100,000 |
+| `maxAttributes` | 200,000 |
+| `maxTextBytes` | 4 MiB |
+| `maxMeasures` | 2,000 |
+| `maxEvents` | 50,000 |
+| `maxProcessingMilliseconds` | 10,000 ms |
+
+The returned budget has the identity `ProcessingBudget 1.0.0` and is deeply immutable. The existing `maxBytes` option name is retained so later enforcement can converge without introducing a second byte-limit vocabulary.
+
+This sub-milestone defines only the central contract. It does not yet connect the budget to SAX callbacks, MusicXML measure/event projection, candidate generation, fingering optimization, preflight error classification, deadlines, or cancellation. It does not change package-root exports, canonical schemas, public conversion output, or supported musical features.
