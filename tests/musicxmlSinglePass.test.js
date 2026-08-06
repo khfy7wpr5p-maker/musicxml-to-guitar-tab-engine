@@ -242,7 +242,7 @@ test('deep MusicXML trees do not escape the structured parser error contract', (
   const xml = validScore.replace('<pitch>', `${nestedChord}<pitch>`);
 
   assert.throws(
-    () => parseMusicXmlNotes(xml),
+    () => parseMusicXmlNotes(xml, { maxDepth: depth + 32 }),
     (error) => {
       assert.notEqual(error.name, 'RangeError');
       assert.equal(error.code, 'UNSUPPORTED_POLYPHONY');
