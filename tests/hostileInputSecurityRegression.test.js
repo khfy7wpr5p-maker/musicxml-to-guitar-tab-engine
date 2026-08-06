@@ -32,7 +32,13 @@ function expectCode(operation, code, details = null) {
 function scoreWithMeasures(count) {
   const measures = Array.from(
     { length: count },
-    (_, index) => `<measure number="${index + 1}"/>`,
+    (_, index) => `
+    <measure number="${index + 1}">
+      ${index === 0
+        ? '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>'
+        : ''}
+      <note><rest/><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+    </measure>`,
   ).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
