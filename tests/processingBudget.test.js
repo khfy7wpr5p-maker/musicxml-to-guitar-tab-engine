@@ -32,7 +32,7 @@ test('defines the versioned default processing budget contract', () => {
   assert.deepEqual(budget.limits, DEFAULT_PROCESSING_LIMITS);
 });
 
-test('uses the approved central default limits', () => {
+test('uses the initial internal default limits', () => {
   assert.deepEqual(DEFAULT_PROCESSING_LIMITS, {
     maxBytes: 5 * 1024 * 1024,
     maxDepth: 128,
@@ -90,7 +90,16 @@ test('rejects unknown fields with stable details', () => {
 });
 
 test('rejects non-positive, fractional, unsafe and non-number limits', () => {
-  for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity, '128', null]) {
+  for (const value of [
+    0,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    Number.NaN,
+    Infinity,
+    '128',
+    null,
+  ]) {
     expectInvalidBudget(
       { maxDepth: value },
       { field: 'maxDepth', value },
