@@ -1,6 +1,9 @@
 'use strict';
 
 const {
+  resolveProcessingRuntime,
+} = require('../core/processingRuntime');
+const {
   MusicXmlValidationError,
 } = require('../validation/musicxmlValidation');
 const {
@@ -15,7 +18,6 @@ const {
   adaptParsedMusicXmlDocumentToNotes,
 } = require('./musicxmlDocumentAdapter');
 const {
-  createMusicXmlProcessingBudget,
   enforceMusicXmlSemanticResourceLimits,
 } = require('./musicxmlSemanticResourceLimits');
 
@@ -28,12 +30,13 @@ class MusicXmlNoteParserError extends Error {
   }
 }
 
-function parseMusicXmlNotes(input, options = {}) {
+function parseMusicXmlNotes(input, options = {}, runtime = null) {
   let parsedDocument;
-  let budget;
+  let processing;
   try {
-    budget = createMusicXmlProcessingBudget(options);
-    parsedDocument = parseParsedMusicXmlDocument(input, budget.limits);
+    processing = resolveProcessingRuntime(options, runtime);
+    processing.checkpoint('musicxml:start');
+    parsedDocument = parseParsedMusicXmlDocument(input, {}, processing);
   } catch (error) {
     if (error instanceof XmlSafetyError) {
       throw error;
@@ -45,8 +48,11 @@ function parseMusicXmlNotes(input, options = {}) {
   }
 
   try {
-    enforceMusicXmlSemanticResourceLimits(parsedDocument, budget);
-    return adaptParsedMusicXmlDocumentToNotes(parsedDocument);
+    enforceMusicXmlSemanticResourceLimits(parsedDocument, processing);
+    processing.checkpoint('musicxml:adapter:start');
+    const adapted = adaptParsedMusicXmlDocumentToNotes(parsedDocument);
+    processing.checkpoint('musicxml:adapter:complete');
+    return adapted;
   } catch (error) {
     if (error instanceof XmlSafetyError) {
       throw error;

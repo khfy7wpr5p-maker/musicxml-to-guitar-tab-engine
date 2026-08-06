@@ -2,9 +2,8 @@
 
 const { SaxesParser } = require('saxes');
 const {
-  ProcessingBudgetConfigurationError,
-  createProcessingBudget,
-} = require('../core/processingBudget');
+  resolveProcessingRuntime,
+} = require('../core/processingRuntime');
 const {
   XmlSafetyError,
   normalizeXmlInput,
@@ -66,21 +65,6 @@ function createAttributes(attributeValues) {
   }));
 }
 
-function createParserProcessingBudget(options) {
-  try {
-    return createProcessingBudget(options);
-  } catch (error) {
-    if (error instanceof ProcessingBudgetConfigurationError) {
-      throw new XmlSafetyError(
-        error.message,
-        'INVALID_CONFIGURATION',
-        Object.freeze({ ...error.details }),
-      );
-    }
-    throw error;
-  }
-}
-
 function resourceLimitExceeded(field, limit, observed) {
   const messages = {
     maxDepth: 'XML nesting depth exceeds the configured limit.',
@@ -102,10 +86,13 @@ function enforceLimit(field, limit, observed) {
   }
 }
 
-function parseParsedMusicXmlDocument(input, options = {}) {
-  const budget = createParserProcessingBudget(options);
-  const { limits } = budget;
+function parseParsedMusicXmlDocument(input, options = {}, runtime = null) {
+  const processing = resolveProcessingRuntime(options, runtime);
+  const { limits } = processing.budget;
+  processing.checkpoint('xml:start');
   const xml = normalizeXmlInput(input, { maxBytes: limits.maxBytes });
+  processing.checkpoint('xml:normalized');
+
   const parser = new SaxesParser({ xmlns: true, position: true });
   const stack = [];
   let root = null;
@@ -118,6 +105,7 @@ function parseParsedMusicXmlDocument(input, options = {}) {
   });
 
   parser.on('opentag', (tag) => {
+    processing.checkpoint('xml:open-tag');
     const depth = stack.length + 1;
     enforceLimit('maxDepth', limits.maxDepth, depth);
 
@@ -155,6 +143,7 @@ function parseParsedMusicXmlDocument(input, options = {}) {
   });
 
   function appendText(text) {
+    processing.checkpoint('xml:text');
     const nextTextBytes = textBytes + Buffer.byteLength(text, 'utf8');
     enforceLimit('maxTextBytes', limits.maxTextBytes, nextTextBytes);
     textBytes = nextTextBytes;
@@ -168,6 +157,7 @@ function parseParsedMusicXmlDocument(input, options = {}) {
   parser.on('cdata', appendText);
 
   parser.on('closetag', () => {
+    processing.checkpoint('xml:close-tag');
     stack.pop();
   });
 
@@ -180,6 +170,7 @@ function parseParsedMusicXmlDocument(input, options = {}) {
     throw new ParsedMusicXmlDocumentError('XML is not well formed.', 'INVALID_XML');
   }
 
+  processing.checkpoint('xml:complete');
   if (!root) {
     throw new ParsedMusicXmlDocumentError('XML is not well formed.', 'INVALID_XML');
   }

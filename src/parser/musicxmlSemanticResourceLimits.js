@@ -1,9 +1,9 @@
 'use strict';
 
 const {
-  ProcessingBudgetConfigurationError,
-  createProcessingBudget,
-} = require('../core/processingBudget');
+  createProcessingRuntime,
+  resolveProcessingRuntime,
+} = require('../core/processingRuntime');
 const {
   XmlSafetyError,
 } = require('../validation/xmlSafety');
@@ -17,18 +17,11 @@ const MUSICXML_SEMANTIC_RESOURCE_LIMIT_CODES = Object.freeze({
 });
 
 function createMusicXmlProcessingBudget(options = {}) {
-  try {
-    return createProcessingBudget(options);
-  } catch (error) {
-    if (error instanceof ProcessingBudgetConfigurationError) {
-      throw new XmlSafetyError(
-        error.message,
-        'INVALID_CONFIGURATION',
-        Object.freeze({ ...error.details }),
-      );
-    }
-    throw error;
-  }
+  return createProcessingRuntime(options).budget;
+}
+
+function createMusicXmlProcessingRuntime(options = {}, runtimeOptions = {}) {
+  return createProcessingRuntime(options, runtimeOptions);
 }
 
 function directChildren(node, name) {
@@ -61,9 +54,12 @@ function enforceLimit(field, limit, observed, location = {}) {
   }
 }
 
-function enforceMusicXmlSemanticResourceLimits(parsedDocument, budget) {
+function enforceMusicXmlSemanticResourceLimits(parsedDocument, runtime) {
+  const processing = resolveProcessingRuntime({}, runtime);
+  processing.checkpoint('semantic:start');
   const validation = validateParsedMusicXmlStructure(parsedDocument);
-  const { limits } = budget;
+  processing.checkpoint('semantic:structure');
+  const { limits } = processing.budget;
 
   enforceLimit(
     'maxMeasures',
@@ -77,6 +73,7 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, budget) {
 
   for (const measureNode of measureNodes) {
     const measure = getAttribute(measureNode, 'number') ?? null;
+    processing.checkpoint('semantic:measure', { measure });
     let eventIndex = 0;
 
     for (const child of measureNode.children) {
@@ -84,6 +81,7 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, budget) {
         continue;
       }
 
+      processing.checkpoint('semantic:event', { measure, eventIndex });
       eventCount += 1;
       enforceLimit(
         'maxEvents',
@@ -95,11 +93,13 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, budget) {
     }
   }
 
+  processing.checkpoint('semantic:complete');
   return validation;
 }
 
 module.exports = {
   MUSICXML_SEMANTIC_RESOURCE_LIMIT_CODES,
   createMusicXmlProcessingBudget,
+  createMusicXmlProcessingRuntime,
   enforceMusicXmlSemanticResourceLimits,
 };

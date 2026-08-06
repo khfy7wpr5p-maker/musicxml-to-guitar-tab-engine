@@ -53,7 +53,7 @@ function isKnownPreflightError(error) {
     || error instanceof MusicXmlNoteParserError;
 }
 
-function blockedReport(error) {
+function createBlockedPreflightReport(error) {
   return deepFreeze({
     status: PREFLIGHT_STATUS.BLOCKED,
     canProcess: false,
@@ -104,9 +104,9 @@ function createPreflightReport(parsed) {
   });
 }
 
-function inspectMusicXml(input, options = {}) {
+function inspectMusicXml(input, options = {}, runtime = null) {
   try {
-    const parsedNotes = parseMusicXmlNotes(input, options);
+    const parsedNotes = parseMusicXmlNotes(input, options, runtime);
     return Object.freeze({
       preflight: createPreflightReport(parsedNotes),
       parsedNotes,
@@ -114,7 +114,7 @@ function inspectMusicXml(input, options = {}) {
   } catch (error) {
     if (isKnownPreflightError(error)) {
       return Object.freeze({
-        preflight: blockedReport(error),
+        preflight: createBlockedPreflightReport(error),
         parsedNotes: null,
       });
     }
@@ -123,12 +123,13 @@ function inspectMusicXml(input, options = {}) {
   }
 }
 
-function preflightMusicXml(input, options = {}) {
-  return inspectMusicXml(input, options).preflight;
+function preflightMusicXml(input, options = {}, runtime = null) {
+  return inspectMusicXml(input, options, runtime).preflight;
 }
 
 module.exports = {
   PREFLIGHT_STATUS,
+  createBlockedPreflightReport,
   inspectMusicXml,
   preflightMusicXml,
 };
