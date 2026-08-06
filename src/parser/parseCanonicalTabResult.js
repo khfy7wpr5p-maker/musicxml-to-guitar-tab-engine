@@ -1,6 +1,9 @@
 'use strict';
 
 const {
+  resolveProcessingRuntime,
+} = require('../core/processingRuntime');
+const {
   CanonicalTabResultError,
   createCanonicalTabResult,
 } = require('../tab/canonicalTabResult');
@@ -45,16 +48,17 @@ function normalizeOptions(options) {
   };
 }
 
-function parseCanonicalTabResult(input, options = {}) {
+function parseCanonicalTabResult(input, options = {}, runtime = null) {
   const normalizedOptions = normalizeOptions(options);
-  const canonicalDocument = parseCanonicalMusicDocument(
-    input,
-    normalizedOptions.parser,
-  );
-  return createCanonicalTabResult(canonicalDocument, {
+  const processing = resolveProcessingRuntime(normalizedOptions.parser, runtime);
+  const canonicalDocument = parseCanonicalMusicDocument(input, {}, processing);
+  processing.checkpoint('canonical-tab-result:start');
+  const result = createCanonicalTabResult(canonicalDocument, {
     guitar: normalizedOptions.guitar,
     costProfile: normalizedOptions.costProfile,
   });
+  processing.checkpoint('canonical-tab-result:complete');
+  return result;
 }
 
 module.exports = {

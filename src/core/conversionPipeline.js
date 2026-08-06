@@ -1,6 +1,9 @@
 'use strict';
 
 const {
+  resolveProcessingRuntime,
+} = require('./processingRuntime');
+const {
   CanonicalTabResultError,
   createCanonicalTabResult,
 } = require('../tab/canonicalTabResult');
@@ -8,8 +11,12 @@ const {
   createCanonicalMusicDocument,
 } = require('../music/canonicalMusicDocument');
 const {
+  createBlockedPreflightReport,
   inspectMusicXml,
 } = require('../validation/musicxmlPreflight');
+const {
+  XmlSafetyError,
+} = require('../validation/xmlSafety');
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -48,9 +55,27 @@ function normalizeOptions(options) {
   };
 }
 
-function convertMusicXmlToCanonicalTab(input, options = {}) {
+function blockedConversion(error) {
+  return Object.freeze({
+    preflight: createBlockedPreflightReport(error),
+    canonicalTabResult: null,
+  });
+}
+
+function convertMusicXmlToCanonicalTab(input, options = {}, runtime = null) {
   const normalizedOptions = normalizeOptions(options);
-  const inspection = inspectMusicXml(input, normalizedOptions.parser);
+  let processing;
+
+  try {
+    processing = resolveProcessingRuntime(normalizedOptions.parser, runtime);
+  } catch (error) {
+    if (error instanceof XmlSafetyError) {
+      return blockedConversion(error);
+    }
+    throw error;
+  }
+
+  const inspection = inspectMusicXml(input, {}, processing);
   const { preflight, parsedNotes } = inspection;
 
   if (!preflight.canProcess) {
@@ -60,16 +85,27 @@ function convertMusicXmlToCanonicalTab(input, options = {}) {
     });
   }
 
-  const canonicalDocument = createCanonicalMusicDocument(parsedNotes);
-  const canonicalTabResult = createCanonicalTabResult(canonicalDocument, {
-    guitar: normalizedOptions.guitar,
-    costProfile: normalizedOptions.costProfile,
-  });
+  try {
+    processing.checkpoint('canonical-document:start');
+    const canonicalDocument = createCanonicalMusicDocument(parsedNotes);
+    processing.checkpoint('canonical-document:complete');
+    processing.checkpoint('canonical-tab-result:start');
+    const canonicalTabResult = createCanonicalTabResult(canonicalDocument, {
+      guitar: normalizedOptions.guitar,
+      costProfile: normalizedOptions.costProfile,
+    });
+    processing.checkpoint('canonical-tab-result:complete');
 
-  return Object.freeze({
-    preflight,
-    canonicalTabResult,
-  });
+    return Object.freeze({
+      preflight,
+      canonicalTabResult,
+    });
+  } catch (error) {
+    if (error instanceof XmlSafetyError) {
+      return blockedConversion(error);
+    }
+    throw error;
+  }
 }
 
 module.exports = {
