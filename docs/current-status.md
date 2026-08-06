@@ -73,6 +73,12 @@ Milestone 2A and 2B are merged:
 
 Milestone 2C remains mandatory because the engine does not yet centrally enforce the full set of depth, element, attribute, text, measure, event, deadline, and cancellation ceilings.
 
+### Milestone 2C-1 defines the budget but does not enforce it
+
+The internal `ProcessingBudget 1.0.0` contract centralizes immutable defaults for XML bytes, depth, elements, attributes, text bytes, measures, events, and processing duration. It validates partial overrides and rejects unknown or invalid values with `INVALID_PROCESSING_BUDGET`.
+
+This contract is not a package-root export and is not yet connected to XML parsing, semantic projection, candidate generation, optimization, preflight classification, deadlines, or cancellation. Milestone 2C remains incomplete until those enforcement steps are implemented and verified.
+
 ### Public errors remain distributed
 
 Existing layer-specific errors and stable codes remain in use. A common public `EngineError` envelope has not been implemented.
@@ -83,7 +89,7 @@ Existing layer-specific errors and stable codes remain in use. A common public `
 |---|---|---|---|
 | P0.1 | Canonical contract and documentation freeze | `DOCS_PR` | Runtime schema, validator, writer convergence, and audit are merged; this documentation pull request provides the AI entry path and verified status chain |
 | P0.2 | Single-pass MusicXML pipeline | `MERGED` | Milestone 2A and 2B are complete |
-| P0.3 | Central resource and processing limits | `PARTIAL` | Existing byte and XML safety checks remain; add central depth, element, attribute, text, measure, event, deadline, and cancellation limits with stable errors |
+| P0.3 | Central resource and processing limits | `PARTIAL` | `ProcessingBudget 1.0.0` centralizes validated immutable defaults; wire depth, element, attribute, text, measure, event, deadline, and cancellation enforcement with stable errors |
 | P0.4 | Unified public engine error contract | `NOT_STARTED` | Define stage, category, code, details, cause, and recoverability at the public boundary without breaking existing internal errors |
 | P1.1 | Complete public output API | `PARTIAL` | Export the three writers and selected error types through a controlled package-root surface |
 | P1.2 | Central guitar/tuning validation | `PARTIAL` | Consolidate tuning label/MIDI consistency and reuse one validated configuration across candidate generation, result validation, and writers |
@@ -98,7 +104,7 @@ The approved learning-system roadmap requires five foundation milestones before 
 | Milestone | Status | Evidence and gap |
 |---|---|---|
 | 1. Canonical Contract and Documentation Freeze | `DOCS_PR` | Runtime schema, validator, writer convergence, and audit are merged; the documentation chain becomes complete when the pull request containing this file is merged |
-| 2. Single-Pass Secure MusicXML Pipeline | `PARTIAL` | Milestone 2A and 2B are merged; Milestone 2C resource, deadline, and cancellation enforcement remains |
+| 2. Single-Pass Secure MusicXML Pipeline | `PARTIAL` | Milestone 2A and 2B are merged; Milestone 2C-1 defines the central budget contract, while resource, deadline, and cancellation enforcement remains |
 | 3. Complete Monophonic Public API | `PARTIAL` | Core conversion API exists; writer exports, common errors, central tuning validation, and wider corpus remain |
 | 4. Pedagogical Feature Architecture | `NOT_STARTED` | Explainable costs exist, but no versioned pedagogical feature-vector boundary exists |
 | 5. Teacher Feedback Contract Design | `NOT_STARTED` | No merged immutable teacher-feedback schema or validation contract exists |
