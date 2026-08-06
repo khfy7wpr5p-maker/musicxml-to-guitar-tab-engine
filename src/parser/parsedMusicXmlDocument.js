@@ -2,6 +2,9 @@
 
 const { SaxesParser } = require('saxes');
 const {
+  createProcessingBudget,
+} = require('../core/processingBudget');
+const {
   XmlSafetyError,
   normalizeXmlInput,
 } = require('../validation/xmlSafety');
@@ -13,7 +16,7 @@ class ParsedMusicXmlDocumentError extends Error {
     super(message);
     this.name = 'ParsedMusicXmlDocumentError';
     this.code = code;
-    this.details = details;
+    this.details = Object.freeze({ ...details });
   }
 }
 
@@ -59,17 +62,46 @@ function createAttributes(tag) {
   return attributes;
 }
 
+function resourceLimitError(limit, maximum, actual) {
+  return new ParsedMusicXmlDocumentError(
+    'XML exceeds the configured structural processing limit.',
+    'XML_RESOURCE_LIMIT_EXCEEDED',
+    { limit, maximum, actual },
+  );
+}
+
 function parseParsedMusicXmlDocument(input, options = {}) {
-  const xml = normalizeXmlInput(input, options);
+  const budget = createProcessingBudget(options);
+  const { limits } = budget;
+  const xml = normalizeXmlInput(input, { maxBytes: limits.maxBytes });
   const parser = new SaxesParser({ xmlns: true, position: true });
   const stack = [];
   let root = null;
+  let elementCount = 0;
+  let attributeCount = 0;
+  let textByteCount = 0;
 
   parser.on('error', (error) => {
     throw error;
   });
 
   parser.on('opentag', (tag) => {
+    const depth = stack.length + 1;
+    if (depth > limits.maxDepth) {
+      throw resourceLimitError('maxDepth', limits.maxDepth, depth);
+    }
+
+    const nextElementCount = elementCount + 1;
+    if (nextElementCount > limits.maxElements) {
+      throw resourceLimitError('maxElements', limits.maxElements, nextElementCount);
+    }
+
+    const tagAttributeCount = Object.keys(tag.attributes || {}).length;
+    const nextAttributeCount = attributeCount + tagAttributeCount;
+    if (nextAttributeCount > limits.maxAttributes) {
+      throw resourceLimitError('maxAttributes', limits.maxAttributes, nextAttributeCount);
+    }
+
     const node = {
       name: localName(tag),
       uri: tag.uri || '',
@@ -90,20 +122,25 @@ function parseParsedMusicXmlDocument(input, options = {}) {
       stack[stack.length - 1].children.push(node);
     }
 
+    elementCount = nextElementCount;
+    attributeCount = nextAttributeCount;
     stack.push(node);
   });
 
-  parser.on('text', (text) => {
-    if (stack.length > 0) {
-      stack[stack.length - 1].text += text;
+  function appendText(text) {
+    const nextTextByteCount = textByteCount + Buffer.byteLength(text, 'utf8');
+    if (nextTextByteCount > limits.maxTextBytes) {
+      throw resourceLimitError('maxTextBytes', limits.maxTextBytes, nextTextByteCount);
     }
-  });
 
-  parser.on('cdata', (text) => {
+    textByteCount = nextTextByteCount;
     if (stack.length > 0) {
       stack[stack.length - 1].text += text;
     }
-  });
+  }
+
+  parser.on('text', appendText);
+  parser.on('cdata', appendText);
 
   parser.on('closetag', () => {
     stack.pop();
