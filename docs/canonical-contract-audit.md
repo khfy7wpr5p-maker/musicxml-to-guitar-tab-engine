@@ -253,7 +253,7 @@ The preferred direction is to keep teacher feedback and operational conversion s
 - replace duplicated writer contract checks with the shared validator
 - retain writer-specific output validation
 - prove JSON and MusicXML outputs remain deterministic and unchanged
-- rebase the draft ASCII writer work onto the shared contract before review
+- update the draft ASCII writer work onto the shared contract before review
 
 ## 13. Acceptance criteria for this audit
 
@@ -264,3 +264,45 @@ This audit is complete when:
 - architecture documentation points to the actual implementation sources
 - future learning fields are identified as optional extension work, not current behavior
 - no source, test, dependency, lockfile, package entry point or public API is changed
+
+## 14. Milestone 1B implementation boundary
+
+The independently reviewed Milestone 1B branch adds the machine-verifiable and runtime enforcement layer for the frozen v1 contract:
+
+- `schemas/canonical-tab-result.v1.schema.json` defines the structural contract using JSON Schema Draft 2020-12.
+- `src/contracts/canonicalTabResultContract.js` provides the internal `validateCanonicalTabResult()` boundary and stable `CanonicalTabContractError` codes.
+- valid and unsupported-schema fixtures record reviewable contract examples.
+- contract tests cover JSON-safe data, exact v1 fields, deterministic identities, monophonic timing, pitch and tuning consistency, physical string/fret validity, fingering costs and the flattened warning index.
+- no runtime dependency, package-root export, writer refactor or result-shape change is introduced.
+
+The JSON Schema records structural constraints. Cross-field musical invariants remain the responsibility of the shared runtime validator. Existing writers keep their defensive validators until PR 1C migrates them to this shared boundary with byte-identical output tests.
+
+`CanonicalTabResult 1.0.0` remains unchanged. Future model, confidence and teacher-feedback fields remain outside v1 unless a separately reviewed versioned extension is approved.
+
+## 15. Milestone 1C writer convergence boundary
+
+The writer convergence branch makes `src/contracts/canonicalTabResultContract.js` the single canonical input-validation boundary for the JSON and MusicXML writers.
+
+- `canonicalTabJsonWriter.js` delegates exact-field, schema, JSON-safety, cyclic-reference and musical-invariant checks to `validateCanonicalTabResult()`.
+- `canonicalTabMusicXmlWriter.js` delegates the same canonical checks to the shared validator and retains only MusicXML output requirements: XML 1.0 character safety, escaping, parseable tuning pitch metadata and MusicXML beam-number limits.
+- writer-specific error classes and public error codes remain stable; shared contract `path` and `rule` details are preserved in adapted writer errors.
+- compact, pretty and trailing-newline behavior remains unchanged.
+- reviewed JSON and MusicXML golden outputs remain byte-identical.
+- no package-root export, public API, dependency, parser, optimizer, pipeline, schema or canonical result-shape change is introduced.
+
+After this convergence, writer modules are serializers rather than competing authorities for the `CanonicalTabResult 1.0.0` contract. The draft ASCII writer remains outside this branch and must be updated separately after PR 1C is reviewed and merged.
+
+## 16. Internal ASCII writer convergence boundary
+
+The draft ASCII writer is updated after Milestone 1C to use the same internal canonical validation boundary as the JSON and MusicXML writers.
+
+- `canonicalTabAsciiWriter.js` delegates all `CanonicalTabResult 1.0.0` structure, JSON-safety, musical-invariant, selected-position and cost checks to `validateCanonicalTabResult()`.
+- only ASCII-specific option validation and six-string text rendering remain inside the writer.
+- `CanonicalTabAsciiWriterError` and the existing ASCII error codes remain stable; shared contract `contractCode`, `path` and `rule` details are preserved in adapted errors.
+- the renderer uses only `selectedPosition`, preserves measure boundaries, represents rests and empty measures, aligns double-digit frets and optionally appends one trailing newline.
+- tests use contract-valid fixtures and verify that changing valid `alternativePositions` does not affect visible output.
+- loading the ASCII writer must not load candidate generation or fingering optimization modules.
+- the writer remains internal and is not exported from `src/index.js`; package-root exposure is deferred to the separately reviewed Milestone 3 public writer API.
+- no parser, optimizer, pipeline, schema, canonical result shape, package dependency or lockfile change is introduced.
+
+This update keeps PR #16 in draft until its new branch head has passed the complete Tests and MusicXML Compatibility workflows and has received separate approval for Ready-for-review.
