@@ -56,7 +56,7 @@ function parseCanonicalTabResult(input, options = {}, runtime = null) {
   const result = createCanonicalTabResult(canonicalDocument, {
     guitar: normalizedOptions.guitar,
     costProfile: normalizedOptions.costProfile,
-  });
+  }, processing);
   processing.checkpoint('canonical-tab-result:complete');
   return result;
 }
