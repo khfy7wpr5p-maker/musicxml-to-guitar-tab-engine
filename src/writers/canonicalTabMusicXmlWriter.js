@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const { parsePitchName, pitchToMidi, PitchError } = require('../music/pitch');
 const {
   CANONICAL_TAB_RESULT_VERSION,
@@ -30,12 +31,9 @@ const UNSUPPORTED_CONTRACT_RULES = new Set([
   'NON_PICKUP_MEASURE_DURATION_MISMATCH',
 ]);
 
-class CanonicalTabMusicXmlWriterError extends Error {
+class CanonicalTabMusicXmlWriterError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalTabMusicXmlWriterError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalTabMusicXmlWriterError');
   }
 }
 

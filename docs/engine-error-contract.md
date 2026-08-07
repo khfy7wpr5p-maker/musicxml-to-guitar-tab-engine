@@ -2,7 +2,7 @@
 
 ## Status
 
-Milestone 2D introduces a shared internal error base incrementally. 2D-1 covers the XML safety and parser-facing error boundary. 2D-2 extends the same internal base to guitar, fingering, and canonical TAB result errors without changing the package-root public API.
+Milestone 2D introduces a shared internal error base incrementally. 2D-1 covers the XML safety and parser-facing error boundary. 2D-2 extends the same internal base to guitar, fingering, and canonical TAB result errors. 2D-3 extends it to the canonical music model, canonical TAB contract validation, and the three canonical TAB writers without changing the package-root public API.
 
 ## Contract version
 
@@ -40,7 +40,20 @@ The following classes inherit from `EngineError` in 2D-2:
 - `CanonicalFingeringPipelineError`
 - `CanonicalTabResultError`
 
-No error code is renamed and no guitar, fingering, optimizer, or canonical TAB error is reclassified by this milestone. Fingering cost calculation, candidate generation, optimizer ordering and tie-breaking, runtime checkpoints, and canonical result generation remain unchanged.
+No error code is renamed and no guitar, fingering, optimizer, or canonical TAB result error is reclassified by 2D-2. Fingering cost calculation, candidate generation, optimizer ordering and tie-breaking, runtime checkpoints, and canonical result generation remain unchanged.
+
+## 2D-3 migrated errors
+
+The following classes inherit from `EngineError` in 2D-3:
+
+- `PitchError`
+- `CanonicalMusicDocumentError`
+- `CanonicalTabContractError`
+- `CanonicalTabAsciiWriterError`
+- `CanonicalTabJsonWriterError`
+- `CanonicalTabMusicXmlWriterError`
+
+No error code is renamed and no canonical music validation, contract validation, writer adaptation, JSON serialization, ASCII rendering, or MusicXML rendering behavior is reclassified by 2D-3. Existing writer-specific conversion of `CanonicalTabContractError` into writer-domain errors remains unchanged.
 
 ## Compatibility boundary
 
@@ -52,8 +65,9 @@ No error code is renamed and no guitar, fingering, optimizer, or canonical TAB e
 - Existing domain-specific error classes remain available from their current module paths.
 - `ProcessingBudgetConfigurationError.details` remains a frozen copy.
 - Other migrated error classes retain their existing direct `details` value behavior.
-- No new wrapping, retry, HTTP, UI, OMR, or serialization policy is introduced.
+- Canonical schemas, contract versions, writer output formats, writer options, and serialization policies are unchanged.
+- No new wrapping, retry, HTTP, UI, OMR, or external-service policy is introduced.
 
 ## Follow-up slices
 
-Later 2D slices may migrate canonical music-model, canonical contract, and writer error classes to the same base. Any decision to expose `EngineError` through the package-root public API is a separate compatibility gate and must not be implied by this internal convergence step.
+Remaining internal error classes outside this slice, including parser adapter, preflight, semantic resource-limit, and processing-runtime boundaries, may be evaluated separately before declaring 2D convergence complete. Any decision to expose `EngineError` through the package-root public API is a separate compatibility gate and must not be implied by this internal convergence work.

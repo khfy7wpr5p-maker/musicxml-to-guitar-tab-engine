@@ -1,13 +1,12 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
+
 const ROOT = 'canonicalTabResult';
 
-class CanonicalTabContractError extends Error {
+class CanonicalTabContractError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalTabContractError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalTabContractError');
   }
 }
 
