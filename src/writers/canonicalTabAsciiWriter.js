@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   CanonicalTabContractError,
   validateCanonicalTabResult,
@@ -8,12 +9,9 @@ const {
 const STRING_COUNT = 6;
 const MINIMUM_CELL_WIDTH = 3;
 
-class CanonicalTabAsciiWriterError extends Error {
+class CanonicalTabAsciiWriterError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalTabAsciiWriterError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalTabAsciiWriterError');
   }
 }
 
