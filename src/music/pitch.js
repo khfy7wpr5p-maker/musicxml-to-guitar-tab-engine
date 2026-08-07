@@ -1,5 +1,7 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
+
 const STEP_TO_SEMITONE = Object.freeze({
   C: 0,
   D: 2,
@@ -10,12 +12,9 @@ const STEP_TO_SEMITONE = Object.freeze({
   B: 11,
 });
 
-class PitchError extends Error {
+class PitchError extends EngineError {
   constructor(message, details = {}) {
-    super(message);
-    this.name = 'PitchError';
-    this.code = 'INVALID_PITCH';
-    this.details = details;
+    super(message, 'INVALID_PITCH', details, 'PitchError');
   }
 }
 
