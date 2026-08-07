@@ -1,16 +1,14 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   CanonicalTabContractError,
   validateCanonicalTabResult,
 } = require('../contracts/canonicalTabResultContract');
 
-class CanonicalTabJsonWriterError extends Error {
+class CanonicalTabJsonWriterError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalTabJsonWriterError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalTabJsonWriterError');
   }
 }
 
