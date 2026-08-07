@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const packageApi = require('..');
+const errorApi = require('../src/errors/engineError');
 const fretboardApi = require('../src/guitar/fretboard');
 const jsonWriterApi = require('../src/writers/canonicalTabJsonWriter');
 const asciiWriterApi = require('../src/writers/canonicalTabAsciiWriter');
@@ -51,23 +52,66 @@ test('package root exposes the three approved deterministic writer serializers',
   );
 });
 
-test('package root does not expose internal writer errors or EngineError', () => {
+test('package root exposes the narrow public engine-error detection boundary', () => {
+  assert.equal(
+    packageApi.ENGINE_ERROR_CONTRACT_VERSION,
+    errorApi.ENGINE_ERROR_CONTRACT_VERSION,
+  );
+  assert.equal(packageApi.ENGINE_ERROR_CONTRACT_VERSION, '1.0.0');
+  assert.equal(packageApi.isEngineError, errorApi.isEngineError);
+
+  const publicError = new packageApi.FretboardError('public error');
+  assert.equal(packageApi.isEngineError(publicError), true);
+  assert.equal(packageApi.isEngineError(new Error('native error')), false);
+  assert.equal(packageApi.isEngineError({
+    name: 'FretboardError',
+    code: 'INVALID_FRETBOARD_INPUT',
+    details: {},
+    message: 'spoofed',
+  }), false);
+});
+
+test('package root keeps internal error classes private', () => {
   for (const exportName of [
     'CanonicalTabJsonWriterError',
     'CanonicalTabAsciiWriterError',
     'CanonicalTabMusicXmlWriterError',
+    'GuitarConfigurationError',
+    'CanonicalTabResultError',
     'EngineError',
   ]) {
     assert.equal(Object.hasOwn(packageApi, exportName), false);
   }
 });
 
+test('public error detector recognizes errors thrown by public writer and conversion APIs', () => {
+  assert.throws(
+    () => packageApi.serializeCanonicalTabResult(null),
+    (error) => {
+      assert.equal(packageApi.isEngineError(error), true);
+      assert.equal(error.code, 'INVALID_CANONICAL_TAB_RESULT');
+      return true;
+    },
+  );
+
+  assert.throws(
+    () => packageApi.convertMusicXmlToCanonicalTab('', { unknown: true }),
+    (error) => {
+      assert.equal(packageApi.isEngineError(error), true);
+      assert.equal(error.code, 'INVALID_CANONICAL_TAB_OPTIONS');
+      return true;
+    },
+  );
+});
+
 test('package root export set is limited to the approved public surface', () => {
   assert.deepEqual(Object.keys(packageApi).sort(), [
+    'ENGINE_ERROR_CONTRACT_VERSION',
     'FretboardError',
     'PREFLIGHT_STATUS',
     'convertMusicXmlToCanonicalTab',
     'getPositionCandidates',
+    'isEngineError',
     'positionToMidi',
     'preflightMusicXml',
     'serializeCanonicalTabResult',

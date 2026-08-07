@@ -4,6 +4,10 @@ const {
   convertMusicXmlToCanonicalTab,
 } = require('./core/conversionPipeline');
 const {
+  ENGINE_ERROR_CONTRACT_VERSION,
+  isEngineError,
+} = require('./errors/engineError');
+const {
   FretboardError,
   getPositionCandidates,
   positionToMidi,
@@ -24,10 +28,12 @@ const {
 } = require('./writers/canonicalTabMusicXmlWriter');
 
 module.exports = {
+  ENGINE_ERROR_CONTRACT_VERSION,
   FretboardError,
   PREFLIGHT_STATUS,
   convertMusicXmlToCanonicalTab,
   getPositionCandidates,
+  isEngineError,
   positionToMidi,
   preflightMusicXml,
   serializeCanonicalTabResult,
