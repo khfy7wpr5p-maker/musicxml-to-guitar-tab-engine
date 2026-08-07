@@ -8,15 +8,15 @@ AI agents, coding assistants, and automated development tools must begin with [A
 
 The engine reads musical information from MusicXML, preserves supported musical meaning, calculates every physically valid guitar string/fret position, and selects a reproducible fingering path.
 
-Its authoritative output is `CanonicalTabResult 1.0.0`. Teachers can review the selected fingering and alternatives before downstream formats are generated. Writers must use the canonical selected positions and must not recalculate fingering.
+Its authoritative output is `CanonicalTabResult 1.0.0`. Teachers can review the selected fingering and alternatives before downstream formats are generated. Writers use canonical selected positions and must not recalculate fingering.
 
 This repository is an independent MusicXML-processing engine. It is not a PDF/OMR system, HTTP service, user interface, mobile application, or SesliTab integration repository.
 
 ## Current implementation status
 
-The current verified `main` baseline is `c0f954a876f171c2a9ac33a510522632dec80d67`.
+The verified pre-Milestone-3 `main` baseline is `73b04a9f18f6fbb3c3a2e2e584d09d25fc66f099`. That commit merged the documentation convergence after Milestones 2C and 2D.
 
-Merged capabilities include:
+Merged capabilities on that baseline include:
 
 - secure `.musicxml` and `.xml` input handling,
 - one-pass XML parsing and immutable internal parsed representation,
@@ -29,11 +29,17 @@ Merged capabilities include:
 - physically valid guitar candidate generation,
 - explainable deterministic fingering optimization,
 - machine-verifiable canonical schema and runtime validation,
-- internal JSON, TAB MusicXML, and ASCII TAB writers,
+- deterministic JSON, TAB MusicXML, and ASCII TAB writer implementations,
 - internal `EngineError 1.0.0` convergence across current domain errors,
 - GitHub Actions third-party action references pinned to immutable SHAs.
 
-The writers are internal modules and are not yet exported from the package root. `EngineError` is also internal and is not a package-root API promise.
+Milestone 3 is the active controlled package-surface change. Its branch `feature/public-writer-api-m3` proposes package-root access to the existing deterministic writer implementations through exactly three serializer functions:
+
+- `serializeCanonicalTabResult`
+- `serializeCanonicalTabResultToAscii`
+- `serializeCanonicalTabResultToMusicXml`
+
+Until the Milestone 3 pull request is merged, those three functions are branch-only and are not current `main` capabilities. Milestone 3 does not export `EngineError` or the three writer-specific error classes.
 
 Machine learning, automatic training, personalization, HTTP, UI, PDF, OMR, Audiveris, SesliTab, chords, polyphony, left-hand finger assignment, barre representation, multipart, multistaff, grace notes, and tuplets are not implemented.
 
@@ -155,13 +161,13 @@ Relevant modules and schema:
 
 Writers derive presentation formats from the approved canonical result. They do not regenerate candidates, rerun the optimizer, or replace selected string/fret positions.
 
-Merged internal writers:
+Writer modules:
 
 - `src/writers/canonicalTabJsonWriter.js`
 - `src/writers/canonicalTabMusicXmlWriter.js`
 - `src/writers/canonicalTabAsciiWriter.js`
 
-These writers are not yet package-root exports. Controlled public export is Milestone 3.
+Milestone 3 exposes only their serializer functions at the package root. Writer-specific error classes remain internal pending the separate public error-boundary compatibility audit.
 
 ### 8. Error boundary
 
@@ -178,7 +184,7 @@ Relevant modules:
 - `src/core/conversionPipeline.js`
 - `src/index.js`
 
-Current package-root exports:
+Verified pre-Milestone-3 package-root exports:
 
 - `convertMusicXmlToCanonicalTab`
 - `preflightMusicXml`
@@ -187,6 +193,14 @@ Current package-root exports:
 - `positionToMidi`
 - `validateMidi`
 - `FretboardError`
+
+Milestone 3 target additions:
+
+- `serializeCanonicalTabResult`
+- `serializeCanonicalTabResultToAscii`
+- `serializeCanonicalTabResultToMusicXml`
+
+No writer error class or `EngineError` is included in the Milestone 3 target export set.
 
 ## Core architectural rules
 
@@ -222,20 +236,19 @@ Current package-root exports:
 
 ## Approved controlled roadmap
 
-The safe sequence after the completed 2C and 2D foundations is:
+Documentation convergence is merged and historical Draft PR #24 has been closed without merge. G0.1 administrator-bypass hardening remains open because the connected GitHub write surface does not currently expose the required protection mutation.
 
-1. finish repository-governance hardening where the available GitHub setting surface permits it,
-2. converge authoritative documentation,
-3. audit and separately close superseded historical Draft PRs,
-4. Milestone 3: controlled public JSON, ASCII TAB, and TAB MusicXML writer API,
-5. public error-boundary compatibility audit,
-6. versioned `GuitarConfiguration 1.0`,
-7. immutable `OptimizerObservation 1.0.0`,
-8. deterministic `PedagogicalFeatureVector 1.0`,
-9. immutable `TeacherFeedback 1.0`,
-10. fixed teacher-verified fingering benchmark,
-11. learned candidate ranking v1 in shadow mode,
-12. controlled learned ranking only after separate offline/shadow evidence and approval.
+The controlled product sequence is:
+
+1. Milestone 3: controlled public JSON, ASCII TAB, and TAB MusicXML serializer API — active,
+2. public error-boundary compatibility audit,
+3. versioned `GuitarConfiguration 1.0`,
+4. immutable `OptimizerObservation 1.0.0`,
+5. deterministic `PedagogicalFeatureVector 1.0`,
+6. immutable `TeacherFeedback 1.0`,
+7. fixed teacher-verified fingering benchmark,
+8. learned candidate ranking v1 in shadow mode,
+9. controlled learned ranking only after separate offline/shadow evidence and approval.
 
 ### Future learned-ranking boundary
 
@@ -305,7 +318,7 @@ Any future PDF-to-MusicXML, service, or application integration must remain outs
 
 `main` is currently reported as protected with seven required CI checks. The latest read-only inspection reports required-check enforcement as `non_admins`, so administrator-bypass hardening remains open. No repository ruleset was returned by the current inspection.
 
-This governance issue is separate from package behavior. Repository-setting changes require their own explicit approval and verification.
+Historical Draft PR #24 is closed and was not merged. This governance history is separate from package behavior.
 
 ## Documentation
 
