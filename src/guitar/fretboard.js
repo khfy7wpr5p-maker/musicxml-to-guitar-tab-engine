@@ -1,16 +1,14 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   STANDARD_TUNING,
   createGuitarConfiguration,
 } = require('./tuning');
 
-class FretboardError extends Error {
+class FretboardError extends EngineError {
   constructor(message, code = 'INVALID_FRETBOARD_INPUT', details = {}) {
-    super(message);
-    this.name = 'FretboardError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'FretboardError');
   }
 }
 
