@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   resolveProcessingRuntime,
 } = require('../core/processingRuntime');
@@ -21,12 +22,9 @@ const {
   enforceMusicXmlSemanticResourceLimits,
 } = require('./musicxmlSemanticResourceLimits');
 
-class MusicXmlNoteParserError extends Error {
+class MusicXmlNoteParserError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'MusicXmlNoteParserError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'MusicXmlNoteParserError');
   }
 }
 

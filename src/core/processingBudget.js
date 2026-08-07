@@ -1,5 +1,7 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
+
 const PROCESSING_BUDGET_VERSION = '1.0.0';
 
 const DEFAULT_PROCESSING_LIMITS = Object.freeze({
@@ -13,12 +15,14 @@ const DEFAULT_PROCESSING_LIMITS = Object.freeze({
   maxProcessingMilliseconds: 10_000,
 });
 
-class ProcessingBudgetConfigurationError extends Error {
+class ProcessingBudgetConfigurationError extends EngineError {
   constructor(message, details = {}) {
-    super(message);
-    this.name = 'ProcessingBudgetConfigurationError';
-    this.code = 'INVALID_PROCESSING_BUDGET';
-    this.details = Object.freeze({ ...details });
+    super(
+      message,
+      'INVALID_PROCESSING_BUDGET',
+      Object.freeze({ ...details }),
+      'ProcessingBudgetConfigurationError',
+    );
   }
 }
 

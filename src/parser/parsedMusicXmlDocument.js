@@ -1,6 +1,7 @@
 'use strict';
 
 const { SaxesParser } = require('saxes');
+const { EngineError } = require('../errors/engineError');
 const {
   resolveProcessingRuntime,
 } = require('../core/processingRuntime');
@@ -18,12 +19,9 @@ const XML_RESOURCE_LIMIT_CODES = Object.freeze({
   maxTextBytes: 'XML_TEXT_LIMIT_EXCEEDED',
 });
 
-class ParsedMusicXmlDocumentError extends Error {
+class ParsedMusicXmlDocumentError extends EngineError {
   constructor(message, code = 'INVALID_XML', details = {}) {
-    super(message);
-    this.name = 'ParsedMusicXmlDocumentError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'ParsedMusicXmlDocumentError');
   }
 }
 

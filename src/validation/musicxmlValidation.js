@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const { XmlSafetyError } = require('./xmlSafety');
 const {
   ParsedMusicXmlDocumentError,
@@ -10,12 +11,9 @@ const {
   validateParsedMusicXmlStructure,
 } = require('../parser/musicxmlDocumentAdapter');
 
-class MusicXmlValidationError extends Error {
+class MusicXmlValidationError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'MusicXmlValidationError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'MusicXmlValidationError');
   }
 }
 
