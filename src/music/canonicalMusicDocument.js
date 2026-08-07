@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const { pitchToMidi, PitchError } = require('./pitch');
 
 const CANONICAL_MUSIC_DOCUMENT_VERSION = '1.0.0';
@@ -18,12 +19,9 @@ const BEAM_VALUES = new Set([
   'backward-hook',
 ]);
 
-class CanonicalMusicDocumentError extends Error {
+class CanonicalMusicDocumentError extends EngineError {
   constructor(message, code = 'INVALID_PARSER_OUTPUT', details = {}) {
-    super(message);
-    this.name = 'CanonicalMusicDocumentError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalMusicDocumentError');
   }
 }
 
