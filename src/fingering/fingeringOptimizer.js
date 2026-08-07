@@ -60,6 +60,12 @@ function isCostOverflowError(error) {
   );
 }
 
+function checkpoint(runtime, phase, location = {}) {
+  if (runtime !== null && runtime !== undefined) {
+    runtime.checkpoint(phase, location);
+  }
+}
+
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
     return value;
@@ -85,12 +91,14 @@ function comparePositions(a, b) {
   );
 }
 
-function validateCandidateLayers(candidateLayers, profile) {
+function validateCandidateLayers(candidateLayers, profile, runtime = null) {
   if (!Array.isArray(candidateLayers) || candidateLayers.length === 0) {
     throw invalidCandidates('candidateLayers must be a non-empty array.');
   }
 
   return Array.from(candidateLayers, (layer, layerIndex) => {
+    checkpoint(runtime, 'fingering:optimizer:validate-layer', { layerIndex });
+
     if (!Array.isArray(layer) || layer.length === 0) {
       throw invalidCandidates(
         'Every candidate layer must be a non-empty array.',
@@ -99,6 +107,11 @@ function validateCandidateLayers(candidateLayers, profile) {
     }
 
     return Array.from(layer, (position, candidateIndex) => {
+      checkpoint(runtime, 'fingering:optimizer:validate-candidate', {
+        layerIndex,
+        candidateIndex,
+      });
+
       if (!position || typeof position !== 'object' || Array.isArray(position)) {
         throw invalidCandidates(
           'Every candidate must be a position object.',
@@ -153,12 +166,17 @@ function compareStatePaths(a, b) {
   );
 }
 
-function assignPathRanks(states) {
+function assignPathRanks(states, runtime = null, layerIndex = null) {
   const orderedStates = [...states].sort(compareStatePaths);
   let pathRank = -1;
   let previousState = null;
 
-  for (const state of orderedStates) {
+  for (let stateIndex = 0; stateIndex < orderedStates.length; stateIndex += 1) {
+    checkpoint(runtime, 'fingering:optimizer:path-rank', {
+      layerIndex,
+      stateIndex,
+    });
+    const state = orderedStates[stateIndex];
     if (!previousState || compareStatePaths(previousState, state) !== 0) {
       pathRank += 1;
     }
@@ -213,13 +231,16 @@ function exceedsMovementLimits(previousPosition, nextPosition, profile) {
   );
 }
 
-function reconstructResult(bestState) {
+function reconstructResult(bestState, runtime = null) {
   const positions = [];
   const costs = [];
+  let pathIndex = 0;
 
   for (let state = bestState; state; state = state.previousState) {
+    checkpoint(runtime, 'fingering:optimizer:reconstruct', { pathIndex });
     positions.push(clonePosition(state.position));
     costs.push(state.cost);
+    pathIndex += 1;
   }
 
   positions.reverse();
@@ -232,7 +253,9 @@ function reconstructResult(bestState) {
   });
 }
 
-function optimizeFingering(candidateLayers, options = {}) {
+function optimizeFingering(candidateLayers, options = {}, runtime = null) {
+  checkpoint(runtime, 'fingering:optimizer:start');
+
   if (!options || typeof options !== 'object' || Array.isArray(options)) {
     throw invalidCandidates('options must be an object.');
   }
@@ -248,12 +271,17 @@ function optimizeFingering(candidateLayers, options = {}) {
     ? options.costProfile
     : {};
   const profile = createFingeringCostProfile(costProfile);
-  const layers = validateCandidateLayers(candidateLayers, profile);
+  const layers = validateCandidateLayers(candidateLayers, profile, runtime);
 
   let firstLayerSawOverflow = false;
   let states = [];
 
-  for (const { position } of layers[0]) {
+  for (let candidateIndex = 0; candidateIndex < layers[0].length; candidateIndex += 1) {
+    checkpoint(runtime, 'fingering:optimizer:first-layer-candidate', {
+      layerIndex: 0,
+      candidateIndex,
+    });
+    const { position } = layers[0][candidateIndex];
     let cost;
     try {
       cost = calculatePositionCost(position, profile);
@@ -281,16 +309,28 @@ function optimizeFingering(candidateLayers, options = {}) {
     throw noPlayableFingering({ layerIndex: 0 });
   }
 
-  assignPathRanks(states);
+  assignPathRanks(states, runtime, 0);
 
   for (let layerIndex = 1; layerIndex < layers.length; layerIndex += 1) {
+    checkpoint(runtime, 'fingering:optimizer:layer', { layerIndex });
     const nextStates = [];
     let layerSawOverflow = false;
 
-    for (const { position: nextPosition } of layers[layerIndex]) {
+    for (let candidateIndex = 0; candidateIndex < layers[layerIndex].length; candidateIndex += 1) {
+      checkpoint(runtime, 'fingering:optimizer:candidate', {
+        layerIndex,
+        candidateIndex,
+      });
+      const { position: nextPosition } = layers[layerIndex][candidateIndex];
       let best = null;
 
-      for (const previousState of states) {
+      for (let previousStateIndex = 0; previousStateIndex < states.length; previousStateIndex += 1) {
+        checkpoint(runtime, 'fingering:optimizer:transition', {
+          layerIndex,
+          candidateIndex,
+          previousStateIndex,
+        });
+        const previousState = states[previousStateIndex];
         if (exceedsMovementLimits(previousState.position, nextPosition, profile)) {
           continue;
         }
@@ -341,20 +381,25 @@ function optimizeFingering(candidateLayers, options = {}) {
       throw noPlayableFingering({ layerIndex });
     }
 
-    assignPathRanks(nextStates);
+    assignPathRanks(nextStates, runtime, layerIndex);
     states = nextStates;
   }
 
   let best = null;
-  for (const state of states) {
-    best = chooseBetterFinalState(best, state);
+  for (let finalStateIndex = 0; finalStateIndex < states.length; finalStateIndex += 1) {
+    checkpoint(runtime, 'fingering:optimizer:final-state', { finalStateIndex });
+    best = chooseBetterFinalState(best, states[finalStateIndex]);
   }
 
   if (!best) {
     throw noPlayableFingering({ layerIndex: 0 });
   }
 
-  return reconstructResult(best);
+  const result = reconstructResult(best, runtime);
+  checkpoint(runtime, 'fingering:optimizer:complete', {
+    layerCount: layers.length,
+  });
+  return result;
 }
 
 module.exports = {

@@ -38,6 +38,12 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function checkpoint(runtime, phase, location = {}) {
+  if (runtime !== null && runtime !== undefined) {
+    runtime.checkpoint(phase, location);
+  }
+}
+
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
     return value;
@@ -82,7 +88,9 @@ function requireNonEmptyString(value, field, details = {}) {
   return value;
 }
 
-function validateCanonicalMusicDocument(canonicalDocument) {
+function validateCanonicalMusicDocument(canonicalDocument, runtime = null) {
+  checkpoint(runtime, 'fingering:candidates:validate:start');
+
   if (!isObject(canonicalDocument)) {
     throw invalidCanonicalDocument('canonicalDocument must be an object.');
   }
@@ -126,6 +134,8 @@ function validateCanonicalMusicDocument(canonicalDocument) {
 
   const eventIds = new Set();
   for (let measureIndex = 0; measureIndex < canonicalDocument.measures.length; measureIndex += 1) {
+    checkpoint(runtime, 'fingering:candidates:validate-measure', { measureIndex });
+
     if (!(measureIndex in canonicalDocument.measures)) {
       throw invalidCanonicalDocument('canonicalDocument.measures must not be sparse.', {
         measureIndex,
@@ -149,6 +159,11 @@ function validateCanonicalMusicDocument(canonicalDocument) {
     }
 
     for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      checkpoint(runtime, 'fingering:candidates:validate-event', {
+        measureIndex,
+        eventIndex,
+      });
+
       if (!(eventIndex in measure.events)) {
         throw invalidCanonicalDocument('measure.events must not be sparse.', {
           measureIndex,
@@ -198,6 +213,9 @@ function validateCanonicalMusicDocument(canonicalDocument) {
     }
   }
 
+  checkpoint(runtime, 'fingering:candidates:validate:complete', {
+    measureCount: canonicalDocument.measureCount,
+  });
   return canonicalDocument;
 }
 
@@ -231,14 +249,27 @@ function createNoteReference(event, measure) {
   };
 }
 
-function buildCandidateLayers(canonicalDocument, options = {}) {
-  validateCanonicalMusicDocument(canonicalDocument);
+function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
+  checkpoint(runtime, 'fingering:candidates:start');
+  validateCanonicalMusicDocument(canonicalDocument, runtime);
   const guitarConfiguration = normalizeBuilderOptions(options);
   const notes = [];
   const candidateLayers = [];
 
   for (const measure of canonicalDocument.measures) {
+    checkpoint(runtime, 'fingering:candidates:measure', {
+      measureIndex: measure.measureIndex,
+      measureKey: measure.measureKey,
+    });
+
     for (const event of measure.events) {
+      checkpoint(runtime, 'fingering:candidates:event', {
+        measureIndex: measure.measureIndex,
+        measureKey: measure.measureKey,
+        eventIndex: event.eventIndex,
+        eventId: event.eventId,
+      });
+
       if (event.type === 'rest') {
         continue;
       }
@@ -267,6 +298,9 @@ function buildCandidateLayers(canonicalDocument, options = {}) {
     }
   }
 
+  checkpoint(runtime, 'fingering:candidates:complete', {
+    noteCount: notes.length,
+  });
   return deepFreeze({
     documentType: 'CanonicalFingeringCandidates',
     contractVersion: CANONICAL_FINGERING_CANDIDATES_VERSION,
