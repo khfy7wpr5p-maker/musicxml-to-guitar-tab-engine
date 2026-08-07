@@ -111,7 +111,7 @@ function createCompatibleCostProfile(costProfile, maximumFret) {
   });
 }
 
-function optimizeCandidateLayers(candidateLayers, costProfile) {
+function optimizeCandidateLayers(candidateLayers, costProfile, runtime = null) {
   if (candidateLayers.length === 0) {
     return {
       totalCost: 0,
@@ -119,7 +119,7 @@ function optimizeCandidateLayers(candidateLayers, costProfile) {
       costs: [],
     };
   }
-  return optimizeFingering(candidateLayers, { costProfile });
+  return optimizeFingering(candidateLayers, { costProfile }, runtime);
 }
 
 function samePosition(left, right) {
@@ -218,9 +218,13 @@ function createWarningIndex(measures) {
   return warnings;
 }
 
-function createCanonicalTabResult(canonicalDocument, options = {}) {
+function createCanonicalTabResult(canonicalDocument, options = {}, runtime = null) {
   const normalizedOptions = normalizeOptions(options);
-  const candidates = buildCandidateLayers(canonicalDocument, normalizedOptions.guitar);
+  const candidates = buildCandidateLayers(
+    canonicalDocument,
+    normalizedOptions.guitar,
+    runtime,
+  );
   const fingeringProfile = createCompatibleCostProfile(
     normalizedOptions.costProfile,
     candidates.guitarConfiguration.maximumFret,
@@ -228,6 +232,7 @@ function createCanonicalTabResult(canonicalDocument, options = {}) {
   const optimized = optimizeCandidateLayers(
     candidates.candidateLayers,
     fingeringProfile,
+    runtime,
   );
 
   if (
