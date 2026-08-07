@@ -24,6 +24,9 @@ const {
   MusicXmlNoteParserError,
 } = require('../src/parser/musicxmlNoteParser');
 const {
+  MusicXmlDocumentAdapterError,
+} = require('../src/parser/musicxmlDocumentAdapter');
+const {
   GuitarConfigurationError,
 } = require('../src/guitar/tuning');
 const {
@@ -228,6 +231,36 @@ test('2D-3 canonical model, contract and writer errors preserve metadata', () =>
     assert.equal(error.code, errorCase.code);
     assert.equal(error.details, details);
   }
+});
+
+test('2D-4 MusicXML adapter errors preserve metadata and phase behavior', () => {
+  const contentDetails = { marker: 'content' };
+  const contentError = new MusicXmlDocumentAdapterError(
+    'adapter content',
+    'INVALID_MUSICXML',
+    contentDetails,
+  );
+
+  assert.ok(contentError instanceof Error);
+  assert.ok(contentError instanceof EngineError);
+  assert.equal(contentError.name, 'MusicXmlDocumentAdapterError');
+  assert.equal(contentError.code, 'INVALID_MUSICXML');
+  assert.equal(contentError.details, contentDetails);
+  assert.equal(contentError.phase, 'content');
+
+  const structureDetails = { marker: 'structure' };
+  const structureError = new MusicXmlDocumentAdapterError(
+    'adapter structure',
+    'UNSUPPORTED_SCORE_FORMAT',
+    structureDetails,
+    'structure',
+  );
+
+  assert.ok(structureError instanceof EngineError);
+  assert.equal(structureError.name, 'MusicXmlDocumentAdapterError');
+  assert.equal(structureError.code, 'UNSUPPORTED_SCORE_FORMAT');
+  assert.equal(structureError.details, structureDetails);
+  assert.equal(structureError.phase, 'structure');
 });
 
 test('2D-2 preserves the existing package-root FretboardError export', () => {
