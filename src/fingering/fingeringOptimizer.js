@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   FingeringCostError,
   createFingeringCostProfile,
@@ -18,12 +19,9 @@ const COST_OVERFLOW_FIELDS = new Set([
   'transitionCostTotal',
 ]);
 
-class FingeringOptimizerError extends Error {
+class FingeringOptimizerError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'FingeringOptimizerError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'FingeringOptimizerError');
   }
 }
 
