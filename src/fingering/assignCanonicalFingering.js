@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   createFingeringCostProfile,
 } = require('./costModel');
@@ -8,12 +9,9 @@ const { buildCandidateLayers } = require('./candidateLayerBuilder');
 
 const CANONICAL_FINGERING_RESULT_VERSION = '1.0.0';
 
-class CanonicalFingeringPipelineError extends Error {
+class CanonicalFingeringPipelineError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalFingeringPipelineError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalFingeringPipelineError');
   }
 }
 
