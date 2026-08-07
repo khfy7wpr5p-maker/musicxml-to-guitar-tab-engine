@@ -2,7 +2,7 @@
 
 ## Status
 
-Milestone 2D introduces a shared internal error base incrementally. 2D-1 covers the XML safety and parser-facing error boundary. 2D-2 extends the same internal base to guitar, fingering, and canonical TAB result errors. 2D-3 extends it to the canonical music model, canonical TAB contract validation, and the three canonical TAB writers without changing the package-root public API.
+Milestone 2D introduces a shared internal error base incrementally. 2D-1 covers the XML safety and parser-facing error boundary. 2D-2 extends the same internal base to guitar, fingering, and canonical TAB result errors. 2D-3 extends it to the canonical music model, canonical TAB contract validation, and the three canonical TAB writers. 2D-4 completes the internal convergence by moving the remaining MusicXML document-adapter error class onto the same base without changing the package-root public API.
 
 ## Contract version
 
@@ -55,6 +55,16 @@ The following classes inherit from `EngineError` in 2D-3:
 
 No error code is renamed and no canonical music validation, contract validation, writer adaptation, JSON serialization, ASCII rendering, or MusicXML rendering behavior is reclassified by 2D-3. Existing writer-specific conversion of `CanonicalTabContractError` into writer-domain errors remains unchanged.
 
+## 2D-4 final convergence
+
+The remaining direct domain error class migrated in 2D-4 is:
+
+- `MusicXmlDocumentAdapterError`
+
+Its existing constructor signature, `name`, `code`, `details`, and `phase` metadata are preserved. The `phase` field remains `content` by default and continues to support the explicit `structure` value used by `MusicXmlNoteParser` to distinguish structural validation failures from note-content failures.
+
+The preflight, semantic resource-limit, and processing-runtime boundaries do not define additional direct `Error` subclasses that require migration. They already report failures through the migrated `XmlSafetyError`, `MusicXmlValidationError`, `MusicXmlNoteParserError`, or `ProcessingBudgetConfigurationError` contracts.
+
 ## Compatibility boundary
 
 2D remains intentionally internal:
@@ -65,9 +75,12 @@ No error code is renamed and no canonical music validation, contract validation,
 - Existing domain-specific error classes remain available from their current module paths.
 - `ProcessingBudgetConfigurationError.details` remains a frozen copy.
 - Other migrated error classes retain their existing direct `details` value behavior.
+- `MusicXmlDocumentAdapterError.phase` behavior is unchanged.
 - Canonical schemas, contract versions, writer output formats, writer options, and serialization policies are unchanged.
 - No new wrapping, retry, HTTP, UI, OMR, or external-service policy is introduced.
 
-## Follow-up slices
+## Convergence status
 
-Remaining internal error classes outside this slice, including parser adapter, preflight, semantic resource-limit, and processing-runtime boundaries, may be evaluated separately before declaring 2D convergence complete. Any decision to expose `EngineError` through the package-root public API is a separate compatibility gate and must not be implied by this internal convergence work.
+With 2D-4, the repository's current internal domain error classes are converged on `EngineError 1.0.0`. This does not make `EngineError` part of the package-root public API and does not authorize a future public export automatically.
+
+Any decision to expose `EngineError` through `src/index.js`, change error codes, alter wrapping behavior, or introduce a new external error policy is a separate compatibility gate.
