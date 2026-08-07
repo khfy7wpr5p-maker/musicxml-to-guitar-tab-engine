@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const { pitchToMidi, PitchError } = require('../music/pitch');
 
 const SUPPORTED_RHYTHM_TYPES = Object.freeze({
@@ -20,12 +21,9 @@ const MUSICXML_BEAM_VALUES = Object.freeze({
   'backward-hook': 'backward-hook',
 });
 
-class MusicXmlDocumentAdapterError extends Error {
+class MusicXmlDocumentAdapterError extends EngineError {
   constructor(message, code, details = {}, phase = 'content') {
-    super(message);
-    this.name = 'MusicXmlDocumentAdapterError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'MusicXmlDocumentAdapterError');
     this.phase = phase;
   }
 }
