@@ -1,14 +1,12 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const { createGuitarConfiguration } = require('./tuning');
 const { getPositionCandidates, positionToMidi, validateMidi } = require('./fretboard');
 
-class PlayabilityError extends Error {
+class PlayabilityError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'PlayabilityError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'PlayabilityError');
   }
 }
 
