@@ -11,7 +11,12 @@ class EngineError extends Error {
   }
 }
 
+function isEngineError(value) {
+  return value instanceof EngineError;
+}
+
 module.exports = {
   ENGINE_ERROR_CONTRACT_VERSION,
   EngineError,
+  isEngineError,
 };

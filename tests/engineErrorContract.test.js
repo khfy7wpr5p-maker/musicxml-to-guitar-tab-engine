@@ -7,6 +7,7 @@ const packageApi = require('../src');
 const {
   ENGINE_ERROR_CONTRACT_VERSION,
   EngineError,
+  isEngineError,
 } = require('../src/errors/engineError');
 const {
   ProcessingBudgetConfigurationError,
@@ -273,7 +274,23 @@ test('2D-2 preserves the existing package-root FretboardError export', () => {
   assert.equal(error.code, 'INVALID_FRETBOARD_INPUT');
 });
 
-test('2D convergence does not expand the package-root public API with EngineError', () => {
+test('PEB-1 exposes detection and contract version without exposing EngineError', () => {
+  const error = new packageApi.FretboardError('public fretboard error');
+
+  assert.equal(packageApi.ENGINE_ERROR_CONTRACT_VERSION, ENGINE_ERROR_CONTRACT_VERSION);
+  assert.equal(packageApi.isEngineError, isEngineError);
+  assert.equal(packageApi.isEngineError(error), true);
   assert.equal(Object.hasOwn(packageApi, 'EngineError'), false);
-  assert.equal(Object.hasOwn(packageApi, 'ENGINE_ERROR_CONTRACT_VERSION'), false);
+});
+
+test('PEB-1 detector rejects native errors and structurally similar plain values', () => {
+  assert.equal(isEngineError(new Error('native error')), false);
+  assert.equal(isEngineError(null), false);
+  assert.equal(isEngineError({}), false);
+  assert.equal(isEngineError({
+    name: 'FretboardError',
+    message: 'spoofed',
+    code: 'INVALID_FRETBOARD_INPUT',
+    details: {},
+  }), false);
 });
