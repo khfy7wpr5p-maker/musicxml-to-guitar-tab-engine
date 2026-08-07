@@ -1,12 +1,13 @@
 # Package and Verification Status
 
-This document records the package surface and strongest available verification evidence for the authoritative runtime baseline. It does not promote unmerged behavior to a current capability.
+This document records the package surface and strongest available verification evidence for the authoritative runtime baseline, plus the active Milestone 3 package-surface proposal. It does not promote unmerged behavior to a current `main` capability.
 
 ## Snapshot
 
 - Status date: 2026-08-07
-- Verified `main` runtime baseline: `c0f954a876f171c2a9ac33a510522632dec80d67`
-- Baseline change: Milestone 2D-4 final internal `EngineError 1.0.0` convergence
+- Verified pre-Milestone-3 `main` runtime baseline: `73b04a9f18f6fbb3c3a2e2e584d09d25fc66f099`
+- Baseline change: documentation convergence after Milestones 2C and 2D (PR #35)
+- Active Milestone 3 branch: `feature/public-writer-api-m3`
 - Package name: `musicxml-to-guitar-tab-engine`
 - Package version: `0.1.0`
 - Package state: private
@@ -19,7 +20,8 @@ This document records the package surface and strongest available verification e
 | Label | Meaning |
 |---|---|
 | `VERIFIED_ON_MAIN` | Present on the verified runtime baseline and backed by merged code plus relevant successful test evidence |
-| `IMPLEMENTED_NOT_PUBLIC` | Merged and tested internally, but not exported through the package root |
+| `IMPLEMENTED_NOT_PUBLIC` | Merged and tested internally, but not exported through the verified `main` package root |
+| `BRANCH_ONLY` | Implemented on the active milestone branch but not authoritative until merge |
 | `PARTIAL` | Some foundation exists, but the named package-level capability remains incomplete |
 | `NOT_IMPLEMENTED` | No merged implementation exists |
 | `EVIDENCE_LIMITED` | Implementation exists, but a named verification layer is unavailable or incomplete |
@@ -38,13 +40,15 @@ This document records the package surface and strongest available verification e
 | Runtime dependency | `saxes@6.0.0` |
 | License | `UNLICENSED` |
 
+Milestone 3 does not change `package.json`, `package-lock.json`, package version, dependency set, Node.js engine, or license metadata.
+
 This document is not a fresh dependency-vulnerability audit. Dependency security must be checked again when dependencies or lockfiles change and before any release decision.
 
-## Strongest current verification evidence
+## Strongest verified baseline evidence
 
-Milestone 2D-4 branch head `f4c41c129a9a6730263d85f1e797561802439a2e` completed the following pull-request workflows successfully before squash merge as `c0f954a876f171c2a9ac33a510522632dec80d67`:
+The documentation-convergence branch head `b8f2cb2bba8c5eb543766ca825d23c0391bebaf9` completed the following pull-request workflows successfully before squash merge as `73b04a9f18f6fbb3c3a2e2e584d09d25fc66f099`:
 
-### Tests #224
+### Tests #226
 
 | Runtime | Result |
 |---|---|
@@ -52,9 +56,7 @@ Milestone 2D-4 branch head `f4c41c129a9a6730263d85f1e797561802439a2e` completed 
 | Node.js 20 | Passed |
 | Node.js 22 | Passed |
 
-The workflow installs project dependencies and runs the repository test suite for each supported Node.js runtime.
-
-### MusicXML Compatibility #95
+### MusicXML Compatibility #96
 
 Successful jobs included:
 
@@ -64,11 +66,13 @@ Successful jobs included:
 - alphaTab browser renderer, cursor, and synthesizer diagnostic on Node.js 22,
 - MuseScore CLI availability diagnostic.
 
-Earlier writer milestones also recorded MuseScore and alphaTab evidence for the supported monophonic TAB MusicXML baseline.
+Earlier writer milestones separately recorded deterministic golden-output, MuseScore, and alphaTab evidence for the supported monophonic writer implementations.
 
-## Package-root public API
+Milestone 3 requires fresh pull-request CI on its exact final head because changing `src/index.js` changes the package-root contract even though writer implementations themselves are unchanged.
 
-The current `src/index.js` exports exactly these symbols:
+## Verified pre-Milestone-3 package-root public API
+
+The verified baseline `src/index.js` exports exactly these symbols:
 
 | Export | Status | Purpose |
 |---|---|---|
@@ -80,7 +84,26 @@ The current `src/index.js` exports exactly these symbols:
 | `validateMidi` | `VERIFIED_ON_MAIN` | Validates MIDI input for fretboard operations |
 | `FretboardError` | `VERIFIED_ON_MAIN` | Existing public fretboard error class preserved for compatibility; internally inherits from `EngineError` |
 
-No writer, shared canonical validator, parsed-document adapter, internal inspection helper, `GuitarConfiguration`, or `EngineError` is exported through the package root.
+No writer serializer, shared canonical validator, parsed-document adapter, internal inspection helper, `GuitarConfiguration`, writer error class, or `EngineError` is exported through the verified pre-Milestone-3 package root.
+
+## Milestone 3 target package-root additions
+
+The active branch adds only these three function exports:
+
+| Export | Branch status | Internal source |
+|---|---|---|
+| `serializeCanonicalTabResult` | `BRANCH_ONLY` | `src/writers/canonicalTabJsonWriter.js` |
+| `serializeCanonicalTabResultToAscii` | `BRANCH_ONLY` | `src/writers/canonicalTabAsciiWriter.js` |
+| `serializeCanonicalTabResultToMusicXml` | `BRANCH_ONLY` | `src/writers/canonicalTabMusicXmlWriter.js` |
+
+Each package-root export is the same function reference as the existing internal serializer. Milestone 3 does not add a wrapper, change options, reinterpret results, rerun optimization, or change writer errors.
+
+The package-root regression test locks the complete Milestone 3 target surface and explicitly verifies that these remain unexported:
+
+- `CanonicalTabJsonWriterError`
+- `CanonicalTabAsciiWriterError`
+- `CanonicalTabMusicXmlWriterError`
+- `EngineError`
 
 ## Internal module and capability status
 
@@ -106,12 +129,12 @@ No writer, shared canonical validator, parsed-document adapter, internal inspect
 | `CanonicalTabResult 1.0.0` | `VERIFIED_ON_MAIN` | Result invariants, immutability, warnings, costs, and selected/alternative positions |
 | Canonical JSON Schema | `VERIFIED_ON_MAIN` | `schemas/canonical-tab-result.v1.schema.json` and schema-reference tests |
 | Shared canonical validator | `VERIFIED_ON_MAIN` | Exact-field, JSON-safety, musical, physical, cost, and warning-index validation |
-| JSON writer | `IMPLEMENTED_NOT_PUBLIC` | Deterministic golden output, round-trip, safety, immutability, and shared-contract tests |
-| TAB MusicXML writer | `IMPLEMENTED_NOT_PUBLIC` | Deterministic writer tests plus MuseScore and alphaTab evidence |
-| ASCII TAB writer | `IMPLEMENTED_NOT_PUBLIC` | Six-string rendering, rests, measures, fret alignment, determinism, immutability, and shared-contract tests |
+| JSON writer implementation | `IMPLEMENTED_NOT_PUBLIC` on verified base | Deterministic golden output, round-trip, safety, immutability, and shared-contract tests |
+| TAB MusicXML writer implementation | `IMPLEMENTED_NOT_PUBLIC` on verified base | Deterministic writer tests plus MuseScore and alphaTab evidence |
+| ASCII TAB writer implementation | `IMPLEMENTED_NOT_PUBLIC` on verified base | Six-string rendering, rests, measures, fret alignment, determinism, immutability, and shared-contract tests |
+| Milestone 3 public serializer surface | `BRANCH_ONLY` | Direct package-root references to the three existing serializer functions plus export-boundary regression tests |
 | Internal `EngineError 1.0.0` | `IMPLEMENTED_NOT_PUBLIC` | Current domain errors converge on the shared internal base while preserving existing domain metadata |
-| Public writer API | `PARTIAL` | Writers exist and are tested internally but are not exported from `src/index.js` |
-| Public engine-error boundary | `NOT_IMPLEMENTED` | No package-root `EngineError` export or separately versioned external error envelope exists |
+| Public engine-error boundary | `NOT_IMPLEMENTED` | No package-root `EngineError` or writer-error export and no separately versioned external error envelope exists |
 | Versioned `GuitarConfiguration 1.0` | `PARTIAL` | Internal configuration foundation exists; stable public/versioned identity and stronger pitch/MIDI consistency remain future work |
 | Optimizer observation contract | `NOT_IMPLEMENTED` | Future immutable diagnostic/learning boundary only |
 | Pedagogical feature vector | `NOT_IMPLEMENTED` | Deterministic cost components exist but no versioned feature contract exists |
@@ -126,19 +149,31 @@ No writer, shared canonical validator, parsed-document adapter, internal inspect
 
 ## Output status
 
-| Output | Implementation | Package-root availability | Strongest evidence |
+| Output | Implementation | Verified base package-root availability | Milestone 3 target |
 |---|---|---|---|
-| Canonical JavaScript object | Merged | Public through conversion API | Full repository suite and current conversion tests |
-| JSON text | Merged internal writer | Not public | Golden, round-trip, shared-contract, and full-suite tests |
-| TAB MusicXML | Merged internal writer | Not public | Writer tests, MuseScore evidence, alphaTab import/SVG/browser checks |
-| ASCII TAB | Merged internal writer | Not public | Deterministic six-string writer and full-suite tests |
-| PDF | Not implemented | Not available | None |
+| Canonical JavaScript object | Merged | Public through conversion API | unchanged |
+| JSON text | Merged writer | Not public | `serializeCanonicalTabResult` |
+| TAB MusicXML | Merged writer | Not public | `serializeCanonicalTabResultToMusicXml` |
+| ASCII TAB | Merged writer | Not public | `serializeCanonicalTabResultToAscii` |
+| PDF | Not implemented | Not available | unchanged |
+
+## Writer public-boundary constraints
+
+Milestone 3 is export-only. It must preserve all existing writer behavior:
+
+- `CanonicalTabResult` remains authoritative.
+- Writers validate the shared canonical contract.
+- Writers use `selectedPosition` only for rendered fingering.
+- Writers do not generate candidates or invoke the optimizer.
+- Existing option names and defaults remain unchanged.
+- Existing writer error names, codes, and details remain unchanged internally.
+- Public error-class decisions are deferred.
 
 ## Error-contract status
 
-`src/errors/engineError.js` defines internal `EngineError 1.0.0`. Milestones 2D-1 through 2D-4 converged the repository's current domain error classes on that base without changing package-root exports.
+`src/errors/engineError.js` defines internal `EngineError 1.0.0`. Milestones 2D-1 through 2D-4 converged the repository's current domain error classes on that base without making `EngineError` a package-root API.
 
-This is not a public API promise. A future public error-boundary decision must separately evaluate exported classes, compatibility, external field guarantees, wrapping, causes, recoverability, and versioning.
+Milestone 3 does not change this decision. A future public error-boundary audit must separately evaluate exported classes, compatibility, external field guarantees, wrapping, causes, recoverability, and versioning.
 
 ## Guitar-configuration status
 
@@ -150,6 +185,15 @@ A future `GuitarConfiguration 1.0` milestone should strengthen and version this 
 
 Repository workflow action references were pinned to immutable full commit SHAs in SEC-CI-1. Workflow permissions and runtime matrices were preserved during that change. Any future action update must be reviewed as a dependency/supply-chain change rather than silently returning to mutable tags.
 
+## Repository governance status
+
+- `main` is reported as protected with seven required checks.
+- Required-check enforcement remains `non_admins`; administrator-bypass hardening is still open.
+- The latest read-only inspection returned no repository rulesets.
+- Historical Draft PR #24 was closed without merge after its 2C-2 work was verified as superseded on `main`.
+
+These are repository-governance facts, not package capabilities.
+
 ## Evidence limitations
 
 - Passing tests do not prove compatibility with every MusicXML producer.
@@ -157,17 +201,18 @@ Repository workflow action references were pinned to immutable full commit SHAs 
 - MuseScore and alphaTab evidence does not cover unsupported chords, polyphony, tuplets, grace notes, multipart, or multistaff scores.
 - No package release has been published because the package is private and `UNLICENSED`.
 - Pull-request CI validates the tested branch tree; merged `main` remains the authority for implemented behavior.
-- Branch protection and repository rulesets are governance settings, not package behavior, and are tracked separately in `docs/current-status.md`.
+- Milestone 3 must not be marked `VERIFIED_ON_MAIN` until its exact head passes required CI and the PR is separately approved and merged.
 
 ## Status governance
 
 1. Only merged behavior may be marked `VERIFIED_ON_MAIN` or `IMPLEMENTED_NOT_PUBLIC`.
-2. Record exact commits and workflow runs for material runtime claims.
-3. Re-run Node.js 18, 20, and 22 when runtime behavior, dependencies, entry points, or tests change.
-4. Re-run MusicXML compatibility checks when parser, canonical contracts, tuning, rhythm, selected-position, or writer behavior changes.
-5. Update this file when `package.json`, `package-lock.json`, `src/index.js`, schemas, dependencies, outputs, error surface, or CI evidence changes.
-6. Do not describe unavailable evidence as passed.
-7. Do not expose internal writers or `EngineError` merely because their implementations are stable; package-root changes require an explicit compatibility gate.
+2. Use `BRANCH_ONLY` for Milestone 3 until merge.
+3. Record exact commits and workflow runs for material runtime claims.
+4. Re-run Node.js 18, 20, and 22 when runtime behavior, dependencies, entry points, or tests change.
+5. Re-run MusicXML compatibility checks when parser, canonical contracts, tuning, rhythm, selected-position, writer behavior, or writer package exposure changes.
+6. Update this file when `package.json`, `package-lock.json`, `src/index.js`, schemas, dependencies, outputs, error surface, or CI evidence changes.
+7. Do not describe unavailable evidence as passed.
+8. Do not expose `EngineError` or writer error classes merely because their implementations are stable; those package-root changes require the separate public error-boundary gate.
 
 ## Reproduction commands
 
