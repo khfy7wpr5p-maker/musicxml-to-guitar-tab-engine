@@ -1,6 +1,6 @@
 # Runtime deadline and cancellation
 
-Milestone 2C-4 adds one internal `ProcessingRuntime 1.0.0` for cooperative runtime safety.
+Milestone 2C-4 adds one internal `ProcessingRuntime 1.0.0` for cooperative runtime safety. Milestone 2C-4.1 extends the same runtime into candidate generation and dynamic-programming optimizer loops without changing the runtime contract.
 
 ## Separation from ProcessingBudget
 
@@ -46,17 +46,19 @@ The same runtime is shared across one conversion call. Checkpoints occur at:
 - MusicXML structural and semantic measure/event scans;
 - semantic adapter boundaries;
 - canonical-document projection boundaries;
-- canonical TAB candidate/optimization/result boundaries.
+- canonical TAB result boundaries;
+- candidate-document validation and candidate generation for each measure and event;
+- optimizer candidate validation, first-layer evaluation, per-layer candidate and transition evaluation, path ranking, final-state selection and result reconstruction.
 
-Standalone preflight, direct canonical parsing and the public conversion pipeline use the same runtime model. Runtime failures are classified as `BLOCKED / safety`. Public conversion returns `canonicalTabResult: null` and never exposes a partial result.
+Standalone preflight, direct canonical parsing and the public conversion pipeline use the same runtime model. Runtime failures are classified as `BLOCKED / safety` by public conversion. Public conversion returns `canonicalTabResult: null` and never exposes a partial result.
 
 ## Cooperative, not preemptive
 
-The engine remains synchronous and deterministic. Milestone 2C-4 does not add workers, timers, races, promises or forced interruption. `AbortSignal` and deadline enforcement are cooperative: work stops at the next deterministic checkpoint. Long synchronous library calls are checked immediately before and after their phase, not forcibly interrupted from another thread.
+The engine remains synchronous and deterministic. Milestones 2C-4 and 2C-4.1 do not add workers, timers, races, promises or forced interruption. `AbortSignal` and deadline enforcement are cooperative: work stops at the next deterministic checkpoint. Candidate generation and dynamic-programming optimizer loops now contain internal checkpoints instead of relying only on the outer canonical TAB phase boundaries. Individual synchronous helper calls are checked from their surrounding deterministic loop checkpoints rather than forcibly interrupted from another thread.
 
 ## Preserved boundaries
 
-This milestone does not change:
+These milestones do not change:
 
 - supported MusicXML features;
 - XML, measure or event limits;
