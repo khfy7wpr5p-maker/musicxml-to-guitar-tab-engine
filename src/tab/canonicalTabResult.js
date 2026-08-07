@@ -1,6 +1,7 @@
 'use strict';
 
 const { version: ENGINE_VERSION } = require('../../package.json');
+const { EngineError } = require('../errors/engineError');
 const {
   ENGINE_NAME,
   CANONICAL_TAB_RESULT_VERSION,
@@ -9,12 +10,9 @@ const { createFingeringCostProfile } = require('../fingering/costModel');
 const { optimizeFingering } = require('../fingering/fingeringOptimizer');
 const { buildCandidateLayers } = require('../fingering/candidateLayerBuilder');
 
-class CanonicalTabResultError extends Error {
+class CanonicalTabResultError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CanonicalTabResultError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CanonicalTabResultError');
   }
 }
 

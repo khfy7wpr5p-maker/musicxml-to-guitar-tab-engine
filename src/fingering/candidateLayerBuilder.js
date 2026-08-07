@@ -1,5 +1,6 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
 const {
   CANONICAL_MUSIC_DOCUMENT_VERSION,
 } = require('../music/canonicalMusicDocument');
@@ -9,12 +10,9 @@ const { PlayabilityError } = require('../guitar/playability');
 
 const CANONICAL_FINGERING_CANDIDATES_VERSION = '1.0.0';
 
-class CandidateLayerBuilderError extends Error {
+class CandidateLayerBuilderError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'CandidateLayerBuilderError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'CandidateLayerBuilderError');
   }
 }
 

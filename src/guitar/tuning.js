@@ -1,5 +1,7 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
+
 const STANDARD_TUNING = Object.freeze([
   Object.freeze({ number: 6, pitch: 'E2', midi: 40 }),
   Object.freeze({ number: 5, pitch: 'A2', midi: 45 }),
@@ -14,12 +16,9 @@ const DEFAULT_FRET_RANGE = Object.freeze({
   maximumFret: 20,
 });
 
-class GuitarConfigurationError extends Error {
+class GuitarConfigurationError extends EngineError {
   constructor(message, details = {}) {
-    super(message);
-    this.name = 'GuitarConfigurationError';
-    this.code = 'INVALID_GUITAR_CONFIGURATION';
-    this.details = details;
+    super(message, 'INVALID_GUITAR_CONFIGURATION', details, 'GuitarConfigurationError');
   }
 }
 

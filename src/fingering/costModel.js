@@ -1,5 +1,7 @@
 'use strict';
 
+const { EngineError } = require('../errors/engineError');
+
 const DEFAULT_FINGERING_COST_PROFILE = Object.freeze({
   maximumFret: 20,
   fretMovementWeight: 1,
@@ -14,12 +16,9 @@ const DEFAULT_FINGERING_COST_PROFILE = Object.freeze({
   maximumStringMovement: null,
 });
 
-class FingeringCostError extends Error {
+class FingeringCostError extends EngineError {
   constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'FingeringCostError';
-    this.code = code;
-    this.details = details;
+    super(message, code, details, 'FingeringCostError');
   }
 }
 
