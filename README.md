@@ -14,33 +14,30 @@ This repository is an independent MusicXML-processing engine. It is not a PDF/OM
 
 ## Current implementation status
 
-The verified runtime baseline is a deterministic monophonic MusicXML-to-Guitar-TAB engine.
+The current verified `main` baseline is `c0f954a876f171c2a9ac33a510522632dec80d67`.
 
 Merged capabilities include:
 
 - secure `.musicxml` and `.xml` input handling,
 - one-pass XML parsing and immutable internal parsed representation,
 - one shared semantic parse across public preflight and conversion,
+- centralized processing budgets and XML/semantic resource ceilings,
+- deadline, monotonic-clock, and `AbortSignal` cancellation support,
+- runtime checkpoints through candidate generation and optimizer loops,
+- hostile-input and boundary regression coverage,
 - canonical music and TAB result contracts,
 - physically valid guitar candidate generation,
 - explainable deterministic fingering optimization,
 - machine-verifiable canonical schema and runtime validation,
-- internal JSON, TAB MusicXML, and ASCII TAB writers.
+- internal JSON, TAB MusicXML, and ASCII TAB writers,
+- internal `EngineError 1.0.0` convergence across current domain errors,
+- GitHub Actions third-party action references pinned to immutable SHAs.
 
-The writers are internal modules and are not yet exported from the package root. Machine learning, automatic training, personalization, HTTP, UI, PDF, OMR, Audiveris, SesliTab, chords, polyphony, multipart, multistaff, grace notes, and tuplets are not implemented.
+The writers are internal modules and are not yet exported from the package root. `EngineError` is also internal and is not a package-root API promise.
+
+Machine learning, automatic training, personalization, HTTP, UI, PDF, OMR, Audiveris, SesliTab, chords, polyphony, left-hand finger assignment, barre representation, multipart, multistaff, grace notes, and tuplets are not implemented.
 
 See [Current implementation status](docs/current-status.md) and [Package and verification status](docs/package-status.md) for exact evidence.
-
-## Design goals
-
-- Preserve supported pitch, rhythm, rests, measures, ties, beams, and source order.
-- Reject unsupported structures explicitly instead of silently losing musical data.
-- Never invent an unplayable string or fret position.
-- Produce deterministic results from the same input, configuration, profile, and engine version.
-- Separate XML parsing, musical normalization, guitar logic, optimization, contract validation, and output generation.
-- Preserve playable alternatives for teacher review.
-- Keep one selected position in one authoritative canonical result.
-- Allow a future learned scorer to rank only already-valid candidates.
 
 ## Processing pipeline
 
@@ -48,6 +45,8 @@ See [Current implementation status](docs/current-status.md) and [Package and ver
 MusicXML .musicxml / .xml
       ↓
 XML normalization and safety checks
+      ↓
+ProcessingBudget + runtime checkpoints
       ↓
 one SaxesParser pass
       ↓
@@ -70,18 +69,23 @@ ParsedMusicXmlDocument 1.0.0
            JSON / TAB MusicXML / ASCII writers
 ```
 
-For public conversion, PASS, WARNING, and BLOCKED paths construct one SAX parser. Invalid conversion options are rejected before parsing.
+For public conversion, PASS, WARNING, and BLOCKED paths share one semantic parse. Invalid conversion options are rejected before parsing.
 
 ## Architecture overview
 
-### 1. XML safety and input boundary
+### 1. XML safety and processing limits
 
-The input layer normalizes supported text or buffer input, enforces the current byte and XML-safety policy, and rejects malformed or unsafe declarations.
+The input layer normalizes supported text or buffer input, enforces encoding and XML-safety policy, and applies centralized resource ceilings during the existing SAX pass.
+
+Current limits include input bytes, XML depth, elements, attributes, UTF-8 text bytes, MusicXML measures, and semantic events. Cooperative deadline and cancellation checks continue through expensive candidate/optimizer loops.
 
 Relevant modules:
 
+- `src/core/processingBudget.js`
+- `src/core/processingRuntime.js`
 - `src/validation/xmlSafety.js`
 - `src/parser/parsedMusicXmlDocument.js`
+- `src/validation/musicxmlSemanticResourceLimits.js`
 
 ### 2. Parsed MusicXML and adapters
 
@@ -111,6 +115,8 @@ Relevant modules:
 
 The guitar layer owns tuning, fretboard calculations, playability checks, and generation of every valid string/fret candidate.
 
+A current immutable configuration foundation already validates six-string tuning and fret range. A future `GuitarConfiguration 1.0` milestone will version and strengthen this existing boundary rather than replace it.
+
 Relevant modules:
 
 - `src/guitar/tuning.js`
@@ -121,6 +127,8 @@ Relevant modules:
 ### 5. Fingering engine
 
 The fingering layer evaluates positions and transitions with an explainable cost model. A deterministic dynamic-programming optimizer selects a complete playable path with stable tie-breaking.
+
+Current deterministic cost components include fret movement, string movement, large-shift distance, high-fret distance, open-string preference, and same-position continuity. These are not yet a versioned pedagogical feature-vector contract.
 
 Relevant modules:
 
@@ -153,11 +161,17 @@ Merged internal writers:
 - `src/writers/canonicalTabMusicXmlWriter.js`
 - `src/writers/canonicalTabAsciiWriter.js`
 
-These writers are not yet package-root exports.
+These writers are not yet package-root exports. Controlled public export is Milestone 3.
 
-### 8. Application and public API boundary
+### 8. Error boundary
 
-The application layer validates conversion options, performs one shared MusicXML inspection, preserves preflight behavior, and creates the canonical result.
+`src/errors/engineError.js` defines internal `EngineError 1.0.0`. Milestones 2D-1 through 2D-4 converged the current domain error classes on this base while preserving existing names, codes, details, wrapping behavior, and adapter `phase` metadata.
+
+`EngineError` is not exported from `src/index.js`. Any public error surface requires a separate compatibility audit.
+
+### 9. Application and public API boundary
+
+The application layer validates conversion options, performs shared MusicXML inspection, preserves preflight behavior, and creates the canonical result.
 
 Relevant modules:
 
@@ -181,11 +195,14 @@ Current package-root exports:
 3. XML structural validation and musical semantic projection remain separate.
 4. The parser contains no guitar-position decision logic.
 5. Physical guitar validity is enforced before any future learned ranking.
-6. The optimizer does not depend on output, network, UI, PDF, OMR, Audiveris, or SesliTab layers.
+6. The optimizer remains deterministic for the same supported input, configuration, profile, and engine version.
 7. Unsupported notation produces explicit warnings or errors.
 8. Educational output requires teacher review.
-9. External systems connect only through explicit versioned adapters.
-10. Milestone 2C resource, deadline, and cancellation enforcement must precede untrusted remote ingestion or HTTP integration.
+9. Observations and teacher feedback remain outside immutable canonical musical results unless a separately versioned contract says otherwise.
+10. External systems connect only through explicit versioned adapters.
+11. Learned systems may score only deterministic, physically valid candidates.
+12. Learned systems may not create or alter MusicXML, pitch, strings, frets, timing, physical validation rules, or canonical objects directly.
+13. The deterministic cost profile remains the required fallback.
 
 ## Current supported musical scope
 
@@ -194,6 +211,7 @@ Current package-root exports:
 - one part, one staff, one voice
 - monophonic notes and rests
 - standard six-string tuning: E2 A2 D3 G3 B3 E4
+- validated custom six-string open MIDI tuning internally
 - frets 0–20 by default
 - whole, half, quarter, eighth, and 16th values
 - supported dotted values
@@ -202,16 +220,70 @@ Current package-root exports:
 - implicit pickup measures
 - explicit detection of unsupported notation and unplayable pitches
 
-## Next controlled milestones
+## Approved controlled roadmap
 
-1. Milestone 2C: central depth, element, attribute, text, measure, event, deadline, and cancellation limits.
-2. Milestone 2D: common public engine-error contract.
-3. Complete monophonic public output API for the three writers.
-4. Central guitar/tuning validation.
-5. Wider real-world and hostile-input fixture corpus.
-6. Versioned pedagogical feature extraction.
-7. Immutable teacher-feedback contract.
-8. Only then, offline learned candidate ranking with deterministic fallback, shadow evaluation, approval, and rollback.
+The safe sequence after the completed 2C and 2D foundations is:
+
+1. finish repository-governance hardening where the available GitHub setting surface permits it,
+2. converge authoritative documentation,
+3. audit and separately close superseded historical Draft PRs,
+4. Milestone 3: controlled public JSON, ASCII TAB, and TAB MusicXML writer API,
+5. public error-boundary compatibility audit,
+6. versioned `GuitarConfiguration 1.0`,
+7. immutable `OptimizerObservation 1.0.0`,
+8. deterministic `PedagogicalFeatureVector 1.0`,
+9. immutable `TeacherFeedback 1.0`,
+10. fixed teacher-verified fingering benchmark,
+11. learned candidate ranking v1 in shadow mode,
+12. controlled learned ranking only after separate offline/shadow evidence and approval.
+
+### Future learned-ranking boundary
+
+```text
+CanonicalMusicDocument
+        ↓
+Deterministic physical candidate generator
+        ↓
+Physical validator
+        ↓
+Deterministic pedagogical features
+        ↓
+Optional learned candidate scores
+        ↓
+Deterministic constrained optimizer
+        ↓
+CanonicalTabResult
+        ↓
+Teacher review
+```
+
+In shadow mode, learned scores cannot affect optimizer output. Controlled ranking may be considered only after benchmark evidence, versioning, explicit approval, deterministic fallback, and rollback design.
+
+## Long-term chord and barre expansion
+
+The approved long-term order is:
+
+```text
+Chord / Simultaneous Event Model
+        ↓
+Left-Hand Shape Contract
+        ↓
+Finger Assignment + Barre / Partial-Barre Representation
+        ↓
+Chord Candidate Generator
+        ↓
+Physical Playability Validator v2
+        ↓
+Deterministic Left-Hand Optimizer
+        ↓
+Pedagogical Feature Vector v2
+        ↓
+Chord Benchmark v2
+        ↓
+Learned Pedagogical Ranking v2
+```
+
+Barre is part of the physical left-hand representation, not merely output formatting.
 
 ## Project boundaries
 
@@ -229,21 +301,11 @@ It does not directly:
 
 Any future PDF-to-MusicXML, service, or application integration must remain outside the deterministic core behind explicit versioned contracts.
 
-## Future AI-assisted fingering boundary
+## Repository governance note
 
-```text
-Validated musical events
-      ↓
-Physically valid guitar candidates
-      ↓
-Learned candidate preference scores
-      ↓
-Deterministic constrained optimizer
-      ↓
-Teacher review and correction
-```
+`main` is currently reported as protected with seven required CI checks. The latest read-only inspection reports required-check enforcement as `non_admins`, so administrator-bypass hardening remains open. No repository ruleset was returned by the current inspection.
 
-A future model may rank only valid candidates. It may not create notes, invent positions, bypass tuning rules, change canonical timing, self-modify production code, or activate a model without offline evaluation, versioning, approval, shadow evidence, and rollback. The deterministic cost profile remains the required fallback.
+This governance issue is separate from package behavior. Repository-setting changes require their own explicit approval and verification.
 
 ## Documentation
 
@@ -252,12 +314,13 @@ Read in this order:
 1. [AI context — start here](AI_CONTEXT.md)
 2. [Current implementation status](docs/current-status.md)
 3. [Package and verification status](docs/package-status.md)
-4. [Architecture](docs/ARCHITECTURE.md)
-5. [Single-pass MusicXML safety boundary](docs/musicxml-single-pass-safety.md)
-6. [Canonical result contract audit](docs/canonical-contract-audit.md)
-7. [MVP specification](docs/MVP-SPEC.md)
-8. [MusicXML compatibility evidence](docs/musicxml-compatibility.md)
-9. [Deprecated data-contract draft](docs/DATA-CONTRACT.md)
+4. [EngineError contract](docs/engine-error-contract.md)
+5. [Architecture](docs/ARCHITECTURE.md)
+6. [Single-pass MusicXML safety boundary](docs/musicxml-single-pass-safety.md)
+7. [Canonical result contract audit](docs/canonical-contract-audit.md)
+8. [MVP specification](docs/MVP-SPEC.md)
+9. [MusicXML compatibility evidence](docs/musicxml-compatibility.md)
+10. [Deprecated data-contract draft](docs/DATA-CONTRACT.md)
 
 ## Development
 
