@@ -47,6 +47,24 @@ const {
 const {
   CanonicalTabResultError,
 } = require('../src/tab/canonicalTabResult');
+const {
+  PitchError,
+} = require('../src/music/pitch');
+const {
+  CanonicalMusicDocumentError,
+} = require('../src/music/canonicalMusicDocument');
+const {
+  CanonicalTabContractError,
+} = require('../src/contracts/canonicalTabContractCore');
+const {
+  CanonicalTabAsciiWriterError,
+} = require('../src/writers/canonicalTabAsciiWriter');
+const {
+  CanonicalTabJsonWriterError,
+} = require('../src/writers/canonicalTabJsonWriter');
+const {
+  CanonicalTabMusicXmlWriterError,
+} = require('../src/writers/canonicalTabMusicXmlWriter');
 
 const MIGRATED_ERROR_CASES = Object.freeze([
   Object.freeze({
@@ -114,6 +132,39 @@ const MIGRATED_2D2_ERROR_CASES = Object.freeze([
   }),
 ]);
 
+const MIGRATED_2D3_ERROR_CASES = Object.freeze([
+  Object.freeze({
+    name: 'PitchError',
+    create: (details) => new PitchError('pitch', details),
+    code: 'INVALID_PITCH',
+  }),
+  Object.freeze({
+    name: 'CanonicalMusicDocumentError',
+    create: (details) => new CanonicalMusicDocumentError('canonical music', 'INVALID_PARSER_OUTPUT', details),
+    code: 'INVALID_PARSER_OUTPUT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabContractError',
+    create: (details) => new CanonicalTabContractError('contract', 'INVALID_CANONICAL_TAB_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabAsciiWriterError',
+    create: (details) => new CanonicalTabAsciiWriterError('ascii writer', 'INVALID_CANONICAL_TAB_ASCII_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_ASCII_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabJsonWriterError',
+    create: (details) => new CanonicalTabJsonWriterError('json writer', 'INVALID_CANONICAL_TAB_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabMusicXmlWriterError',
+    create: (details) => new CanonicalTabMusicXmlWriterError('musicxml writer', 'INVALID_CANONICAL_TAB_MUSICXML_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
+  }),
+]);
+
 test('defines EngineError as a versioned internal base contract', () => {
   const details = { phase: 'test' };
   const error = new EngineError('engine failure', 'ENGINE_FAILURE', details);
@@ -155,6 +206,19 @@ test('processing budget errors preserve their fixed code and frozen copied detai
 
 test('2D-2 guitar, fingering and canonical TAB errors preserve metadata', () => {
   for (const errorCase of MIGRATED_2D2_ERROR_CASES) {
+    const details = { marker: errorCase.name };
+    const error = errorCase.create(details);
+
+    assert.ok(error instanceof Error, errorCase.name);
+    assert.ok(error instanceof EngineError, errorCase.name);
+    assert.equal(error.name, errorCase.name);
+    assert.equal(error.code, errorCase.code);
+    assert.equal(error.details, details);
+  }
+});
+
+test('2D-3 canonical model, contract and writer errors preserve metadata', () => {
+  for (const errorCase of MIGRATED_2D3_ERROR_CASES) {
     const details = { marker: errorCase.name };
     const error = errorCase.create(details);
 
