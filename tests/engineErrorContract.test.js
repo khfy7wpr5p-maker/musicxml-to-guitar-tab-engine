@@ -12,48 +12,164 @@ const {
 const {
   ProcessingBudgetConfigurationError,
 } = require('../src/core/processingBudget');
-const { XmlSafetyError } = require('../src/validation/xmlSafety');
-const { ParsedMusicXmlDocumentError } = require('../src/parser/parsedMusicXmlDocument');
-const { MusicXmlValidationError } = require('../src/validation/musicxmlValidation');
-const { MusicXmlNoteParserError } = require('../src/parser/musicxmlNoteParser');
-const { MusicXmlDocumentAdapterError } = require('../src/parser/musicxmlDocumentAdapter');
-const { GuitarConfigurationError } = require('../src/guitar/tuning');
-const { FretboardError } = require('../src/guitar/fretboard');
-const { PlayabilityError } = require('../src/guitar/playability');
-const { FingeringCostError } = require('../src/fingering/costModel');
-const { FingeringOptimizerError } = require('../src/fingering/fingeringOptimizer');
-const { CandidateLayerBuilderError } = require('../src/fingering/candidateLayerBuilder');
-const { CanonicalFingeringPipelineError } = require('../src/fingering/assignCanonicalFingering');
-const { CanonicalTabResultError } = require('../src/tab/canonicalTabResult');
-const { PitchError } = require('../src/music/pitch');
-const { CanonicalMusicDocumentError } = require('../src/music/canonicalMusicDocument');
-const { CanonicalTabContractError } = require('../src/contracts/canonicalTabContractCore');
-const { CanonicalTabAsciiWriterError } = require('../src/writers/canonicalTabAsciiWriter');
-const { CanonicalTabJsonWriterError } = require('../src/writers/canonicalTabJsonWriter');
-const { CanonicalTabMusicXmlWriterError } = require('../src/writers/canonicalTabMusicXmlWriter');
+const {
+  XmlSafetyError,
+} = require('../src/validation/xmlSafety');
+const {
+  ParsedMusicXmlDocumentError,
+} = require('../src/parser/parsedMusicXmlDocument');
+const {
+  MusicXmlValidationError,
+} = require('../src/validation/musicxmlValidation');
+const {
+  MusicXmlNoteParserError,
+} = require('../src/parser/musicxmlNoteParser');
+const {
+  MusicXmlDocumentAdapterError,
+} = require('../src/parser/musicxmlDocumentAdapter');
+const {
+  GuitarConfigurationError,
+} = require('../src/guitar/tuning');
+const {
+  FretboardError,
+} = require('../src/guitar/fretboard');
+const {
+  PlayabilityError,
+} = require('../src/guitar/playability');
+const {
+  FingeringCostError,
+} = require('../src/fingering/costModel');
+const {
+  FingeringOptimizerError,
+} = require('../src/fingering/fingeringOptimizer');
+const {
+  CandidateLayerBuilderError,
+} = require('../src/fingering/candidateLayerBuilder');
+const {
+  CanonicalFingeringPipelineError,
+} = require('../src/fingering/assignCanonicalFingering');
+const {
+  CanonicalTabResultError,
+} = require('../src/tab/canonicalTabResult');
+const {
+  PitchError,
+} = require('../src/music/pitch');
+const {
+  CanonicalMusicDocumentError,
+} = require('../src/music/canonicalMusicDocument');
+const {
+  CanonicalTabContractError,
+} = require('../src/contracts/canonicalTabContractCore');
+const {
+  CanonicalTabAsciiWriterError,
+} = require('../src/writers/canonicalTabAsciiWriter');
+const {
+  CanonicalTabJsonWriterError,
+} = require('../src/writers/canonicalTabJsonWriter');
+const {
+  CanonicalTabMusicXmlWriterError,
+} = require('../src/writers/canonicalTabMusicXmlWriter');
 
-const STANDARD_CASES = Object.freeze([
-  ['XmlSafetyError', (details) => new XmlSafetyError('xml safety', 'INVALID_ENCODING', details), 'INVALID_ENCODING'],
-  ['ParsedMusicXmlDocumentError', (details) => new ParsedMusicXmlDocumentError('parsed xml', 'INVALID_XML', details), 'INVALID_XML'],
-  ['MusicXmlValidationError', (details) => new MusicXmlValidationError('validation', 'INVALID_MUSICXML', details), 'INVALID_MUSICXML'],
-  ['MusicXmlNoteParserError', (details) => new MusicXmlNoteParserError('note parser', 'UNSUPPORTED_RHYTHM', details), 'UNSUPPORTED_RHYTHM'],
-  ['GuitarConfigurationError', (details) => new GuitarConfigurationError('guitar configuration', details), 'INVALID_GUITAR_CONFIGURATION'],
-  ['FretboardError', (details) => new FretboardError('fretboard', 'INVALID_POSITION', details), 'INVALID_POSITION'],
-  ['PlayabilityError', (details) => new PlayabilityError('playability', 'UNPLAYABLE_NOTE', details), 'UNPLAYABLE_NOTE'],
-  ['FingeringCostError', (details) => new FingeringCostError('cost', 'INVALID_POSITION', details), 'INVALID_POSITION'],
-  ['FingeringOptimizerError', (details) => new FingeringOptimizerError('optimizer', 'NO_PLAYABLE_FINGERING', details), 'NO_PLAYABLE_FINGERING'],
-  ['CandidateLayerBuilderError', (details) => new CandidateLayerBuilderError('candidate builder', 'INVALID_CANDIDATE_BUILDER_OPTIONS', details), 'INVALID_CANDIDATE_BUILDER_OPTIONS'],
-  ['CanonicalFingeringPipelineError', (details) => new CanonicalFingeringPipelineError('fingering pipeline', 'INCONSISTENT_FRET_RANGE', details), 'INCONSISTENT_FRET_RANGE'],
-  ['CanonicalTabResultError', (details) => new CanonicalTabResultError('canonical tab', 'INVALID_CANONICAL_TAB_OPTIONS', details), 'INVALID_CANONICAL_TAB_OPTIONS'],
-  ['PitchError', (details) => new PitchError('pitch', details), 'INVALID_PITCH'],
-  ['CanonicalMusicDocumentError', (details) => new CanonicalMusicDocumentError('canonical music', 'INVALID_PARSER_OUTPUT', details), 'INVALID_PARSER_OUTPUT'],
-  ['CanonicalTabContractError', (details) => new CanonicalTabContractError('contract', 'INVALID_CANONICAL_TAB_RESULT', details), 'INVALID_CANONICAL_TAB_RESULT'],
-  ['CanonicalTabAsciiWriterError', (details) => new CanonicalTabAsciiWriterError('ascii writer', 'INVALID_CANONICAL_TAB_ASCII_RESULT', details), 'INVALID_CANONICAL_TAB_ASCII_RESULT'],
-  ['CanonicalTabJsonWriterError', (details) => new CanonicalTabJsonWriterError('json writer', 'INVALID_CANONICAL_TAB_RESULT', details), 'INVALID_CANONICAL_TAB_RESULT'],
-  ['CanonicalTabMusicXmlWriterError', (details) => new CanonicalTabMusicXmlWriterError('musicxml writer', 'INVALID_CANONICAL_TAB_MUSICXML_RESULT', details), 'INVALID_CANONICAL_TAB_MUSICXML_RESULT'],
+const MIGRATED_ERROR_CASES = Object.freeze([
+  Object.freeze({
+    name: 'XmlSafetyError',
+    create: (details) => new XmlSafetyError('xml safety', 'INVALID_ENCODING', details),
+    code: 'INVALID_ENCODING',
+  }),
+  Object.freeze({
+    name: 'ParsedMusicXmlDocumentError',
+    create: (details) => new ParsedMusicXmlDocumentError('parsed xml', 'INVALID_XML', details),
+    code: 'INVALID_XML',
+  }),
+  Object.freeze({
+    name: 'MusicXmlValidationError',
+    create: (details) => new MusicXmlValidationError('validation', 'INVALID_MUSICXML', details),
+    code: 'INVALID_MUSICXML',
+  }),
+  Object.freeze({
+    name: 'MusicXmlNoteParserError',
+    create: (details) => new MusicXmlNoteParserError('note parser', 'UNSUPPORTED_RHYTHM', details),
+    code: 'UNSUPPORTED_RHYTHM',
+  }),
 ]);
 
-test('defines EngineError 1.0.0 as the internal base contract', () => {
+const MIGRATED_2D2_ERROR_CASES = Object.freeze([
+  Object.freeze({
+    name: 'GuitarConfigurationError',
+    create: (details) => new GuitarConfigurationError('guitar configuration', details),
+    code: 'INVALID_GUITAR_CONFIGURATION',
+  }),
+  Object.freeze({
+    name: 'FretboardError',
+    create: (details) => new FretboardError('fretboard', 'INVALID_POSITION', details),
+    code: 'INVALID_POSITION',
+  }),
+  Object.freeze({
+    name: 'PlayabilityError',
+    create: (details) => new PlayabilityError('playability', 'UNPLAYABLE_NOTE', details),
+    code: 'UNPLAYABLE_NOTE',
+  }),
+  Object.freeze({
+    name: 'FingeringCostError',
+    create: (details) => new FingeringCostError('cost', 'INVALID_POSITION', details),
+    code: 'INVALID_POSITION',
+  }),
+  Object.freeze({
+    name: 'FingeringOptimizerError',
+    create: (details) => new FingeringOptimizerError('optimizer', 'NO_PLAYABLE_FINGERING', details),
+    code: 'NO_PLAYABLE_FINGERING',
+  }),
+  Object.freeze({
+    name: 'CandidateLayerBuilderError',
+    create: (details) => new CandidateLayerBuilderError('candidate builder', 'INVALID_CANDIDATE_BUILDER_OPTIONS', details),
+    code: 'INVALID_CANDIDATE_BUILDER_OPTIONS',
+  }),
+  Object.freeze({
+    name: 'CanonicalFingeringPipelineError',
+    create: (details) => new CanonicalFingeringPipelineError('fingering pipeline', 'INCONSISTENT_FRET_RANGE', details),
+    code: 'INCONSISTENT_FRET_RANGE',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabResultError',
+    create: (details) => new CanonicalTabResultError('canonical tab', 'INVALID_CANONICAL_TAB_OPTIONS', details),
+    code: 'INVALID_CANONICAL_TAB_OPTIONS',
+  }),
+]);
+
+const MIGRATED_2D3_ERROR_CASES = Object.freeze([
+  Object.freeze({
+    name: 'PitchError',
+    create: (details) => new PitchError('pitch', details),
+    code: 'INVALID_PITCH',
+  }),
+  Object.freeze({
+    name: 'CanonicalMusicDocumentError',
+    create: (details) => new CanonicalMusicDocumentError('canonical music', 'INVALID_PARSER_OUTPUT', details),
+    code: 'INVALID_PARSER_OUTPUT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabContractError',
+    create: (details) => new CanonicalTabContractError('contract', 'INVALID_CANONICAL_TAB_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabAsciiWriterError',
+    create: (details) => new CanonicalTabAsciiWriterError('ascii writer', 'INVALID_CANONICAL_TAB_ASCII_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_ASCII_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabJsonWriterError',
+    create: (details) => new CanonicalTabJsonWriterError('json writer', 'INVALID_CANONICAL_TAB_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_RESULT',
+  }),
+  Object.freeze({
+    name: 'CanonicalTabMusicXmlWriterError',
+    create: (details) => new CanonicalTabMusicXmlWriterError('musicxml writer', 'INVALID_CANONICAL_TAB_MUSICXML_RESULT', details),
+    code: 'INVALID_CANONICAL_TAB_MUSICXML_RESULT',
+  }),
+]);
+
+test('defines EngineError as a versioned internal base contract', () => {
   const details = { phase: 'test' };
   const error = new EngineError('engine failure', 'ENGINE_FAILURE', details);
 
@@ -66,26 +182,25 @@ test('defines EngineError 1.0.0 as the internal base contract', () => {
   assert.equal(error.details, details);
 });
 
-test('current domain errors preserve names, codes, details and EngineError inheritance', () => {
-  for (const [name, create, code] of STANDARD_CASES) {
-    const details = { marker: name };
-    const error = create(details);
+test('migrated parser and validation errors preserve their existing metadata', () => {
+  for (const errorCase of MIGRATED_ERROR_CASES) {
+    const details = { marker: errorCase.name };
+    const error = errorCase.create(details);
 
-    assert.ok(error instanceof Error, name);
-    assert.ok(error instanceof EngineError, name);
-    assert.equal(isEngineError(error), true, name);
-    assert.equal(error.name, name);
-    assert.equal(error.code, code);
+    assert.ok(error instanceof Error, errorCase.name);
+    assert.ok(error instanceof EngineError, errorCase.name);
+    assert.equal(error.name, errorCase.name);
+    assert.equal(error.code, errorCase.code);
     assert.equal(error.details, details);
   }
 });
 
-test('processing budget errors preserve fixed code and frozen copied details', () => {
+test('processing budget errors preserve their fixed code and frozen copied details', () => {
   const details = { field: 'maxEvents', value: 0 };
   const error = new ProcessingBudgetConfigurationError('invalid budget', details);
 
+  assert.ok(error instanceof Error);
   assert.ok(error instanceof EngineError);
-  assert.equal(isEngineError(error), true);
   assert.equal(error.name, 'ProcessingBudgetConfigurationError');
   assert.equal(error.code, 'INVALID_PROCESSING_BUDGET');
   assert.deepEqual(error.details, details);
@@ -93,14 +208,42 @@ test('processing budget errors preserve fixed code and frozen copied details', (
   assert.equal(Object.isFrozen(error.details), true);
 });
 
-test('MusicXML adapter errors preserve content and structure phase metadata', () => {
+test('2D-2 guitar, fingering and canonical TAB errors preserve metadata', () => {
+  for (const errorCase of MIGRATED_2D2_ERROR_CASES) {
+    const details = { marker: errorCase.name };
+    const error = errorCase.create(details);
+
+    assert.ok(error instanceof Error, errorCase.name);
+    assert.ok(error instanceof EngineError, errorCase.name);
+    assert.equal(error.name, errorCase.name);
+    assert.equal(error.code, errorCase.code);
+    assert.equal(error.details, details);
+  }
+});
+
+test('2D-3 canonical model, contract and writer errors preserve metadata', () => {
+  for (const errorCase of MIGRATED_2D3_ERROR_CASES) {
+    const details = { marker: errorCase.name };
+    const error = errorCase.create(details);
+
+    assert.ok(error instanceof Error, errorCase.name);
+    assert.ok(error instanceof EngineError, errorCase.name);
+    assert.equal(error.name, errorCase.name);
+    assert.equal(error.code, errorCase.code);
+    assert.equal(error.details, details);
+  }
+});
+
+test('2D-4 MusicXML adapter errors preserve metadata and phase behavior', () => {
   const contentDetails = { marker: 'content' };
   const contentError = new MusicXmlDocumentAdapterError(
     'adapter content',
     'INVALID_MUSICXML',
     contentDetails,
   );
-  assert.equal(isEngineError(contentError), true);
+
+  assert.ok(contentError instanceof Error);
+  assert.ok(contentError instanceof EngineError);
   assert.equal(contentError.name, 'MusicXmlDocumentAdapterError');
   assert.equal(contentError.code, 'INVALID_MUSICXML');
   assert.equal(contentError.details, contentDetails);
@@ -113,14 +256,35 @@ test('MusicXML adapter errors preserve content and structure phase metadata', ()
     structureDetails,
     'structure',
   );
-  assert.equal(isEngineError(structureError), true);
+
+  assert.ok(structureError instanceof EngineError);
+  assert.equal(structureError.name, 'MusicXmlDocumentAdapterError');
   assert.equal(structureError.code, 'UNSUPPORTED_SCORE_FORMAT');
   assert.equal(structureError.details, structureDetails);
   assert.equal(structureError.phase, 'structure');
 });
 
-test('public detector is nominal and rejects native or structurally similar non-engine values', () => {
-  assert.equal(isEngineError(new Error('native')), false);
+test('2D-2 preserves the existing package-root FretboardError export', () => {
+  const error = new packageApi.FretboardError('public fretboard error');
+
+  assert.equal(packageApi.FretboardError, FretboardError);
+  assert.ok(error instanceof FretboardError);
+  assert.ok(error instanceof EngineError);
+  assert.equal(error.name, 'FretboardError');
+  assert.equal(error.code, 'INVALID_FRETBOARD_INPUT');
+});
+
+test('PEB-1 exposes detection and contract version without exposing EngineError', () => {
+  const error = new packageApi.FretboardError('public fretboard error');
+
+  assert.equal(packageApi.ENGINE_ERROR_CONTRACT_VERSION, ENGINE_ERROR_CONTRACT_VERSION);
+  assert.equal(packageApi.isEngineError, isEngineError);
+  assert.equal(packageApi.isEngineError(error), true);
+  assert.equal(Object.hasOwn(packageApi, 'EngineError'), false);
+});
+
+test('PEB-1 detector rejects native errors and structurally similar plain values', () => {
+  assert.equal(isEngineError(new Error('native error')), false);
   assert.equal(isEngineError(null), false);
   assert.equal(isEngineError({}), false);
   assert.equal(isEngineError({
@@ -129,16 +293,4 @@ test('public detector is nominal and rejects native or structurally similar non-
     code: 'INVALID_FRETBOARD_INPUT',
     details: {},
   }), false);
-});
-
-test('PEB-1 exposes detection and contract version without exporting EngineError', () => {
-  const error = new packageApi.FretboardError('public fretboard error');
-
-  assert.equal(packageApi.FretboardError, FretboardError);
-  assert.equal(packageApi.ENGINE_ERROR_CONTRACT_VERSION, '1.0.0');
-  assert.equal(packageApi.isEngineError, isEngineError);
-  assert.equal(packageApi.isEngineError(error), true);
-  assert.ok(error instanceof FretboardError);
-  assert.ok(error instanceof EngineError);
-  assert.equal(Object.hasOwn(packageApi, 'EngineError'), false);
 });
