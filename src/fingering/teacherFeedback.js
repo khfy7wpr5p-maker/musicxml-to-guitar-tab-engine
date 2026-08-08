@@ -4,6 +4,7 @@ const { EngineError } = require('../errors/engineError');
 const {
   OPTIMIZER_OBSERVATION_VERSION,
   createCandidateId,
+  validateOptimizerObservation,
 } = require('./optimizerObservation');
 const { PEDAGOGICAL_FEATURE_VECTOR_VERSION } = require('./pedagogicalFeatureVector');
 const { GUITAR_CONFIGURATION_VERSION } = require('../guitar/tuning');
@@ -34,18 +35,6 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-function isDenseArray(value) {
-  if (!Array.isArray(value)) {
-    return false;
-  }
-  for (let index = 0; index < value.length; index += 1) {
-    if (!Object.hasOwn(value, index)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 function assertNonEmptyString(value, field, maximumLength = 512) {
   if (typeof value !== 'string' || value.length === 0 || value.length > maximumLength) {
     throw new TeacherFeedbackError(`${field} must be a non-empty bounded string.`, { field });
@@ -61,22 +50,6 @@ function assertAllowedInputFields(input) {
       });
     }
   }
-}
-
-function getMaximumFret(observation) {
-  const configuration = observation.guitarConfiguration;
-  if (
-    !isPlainObject(configuration)
-    || configuration.contractVersion !== GUITAR_CONFIGURATION_VERSION
-    || !isPlainObject(configuration.value)
-    || !Number.isSafeInteger(configuration.value.maximumFret)
-    || configuration.value.maximumFret < 0
-  ) {
-    throw new TeacherFeedbackError(
-      'observation.guitarConfiguration must contain a supported maximum fret.',
-    );
-  }
-  return configuration.value.maximumFret;
 }
 
 function validateCandidateId(candidateId, field, maximumFret) {
@@ -116,113 +89,29 @@ function validateCandidateId(candidateId, field, maximumFret) {
 }
 
 function validateObservation(observation, eventId) {
-  if (!isPlainObject(observation)) {
-    throw new TeacherFeedbackError('observation must be an OptimizerObservation object.');
-  }
-  if (
-    observation.documentType !== 'OptimizerObservation'
-    || observation.contractVersion !== OPTIMIZER_OBSERVATION_VERSION
-  ) {
-    throw new TeacherFeedbackError('observation must use the supported OptimizerObservation contract.', {
-      documentType: observation.documentType,
-      contractVersion: observation.contractVersion,
-    });
-  }
-  if (
-    !Number.isSafeInteger(observation.noteCount)
-    || observation.noteCount < 0
-    || !isDenseArray(observation.decisions)
-    || observation.decisions.length !== observation.noteCount
-  ) {
-    throw new TeacherFeedbackError('observation decisions must match observation.noteCount.');
-  }
-
-  const maximumFret = getMaximumFret(observation);
-  const eventIds = new Set();
-  let matchedDecision = null;
-
-  for (let decisionIndex = 0; decisionIndex < observation.decisions.length; decisionIndex += 1) {
-    const observedDecision = observation.decisions[decisionIndex];
-    if (!isPlainObject(observedDecision)) {
-      throw new TeacherFeedbackError('Every observed decision must be an object.', { decisionIndex });
-    }
-    const observedEventId = assertNonEmptyString(
-      observedDecision.eventId,
-      `observation.decisions[${decisionIndex}].eventId`,
+  try {
+    validateOptimizerObservation(observation);
+  } catch (error) {
+    throw new TeacherFeedbackError(
+      'observation must be a complete valid OptimizerObservation.',
+      { observationErrorCode: error?.code ?? null },
     );
-    if (eventIds.has(observedEventId)) {
-      throw new TeacherFeedbackError('observation decision eventId values must be unique.', {
-        eventId: observedEventId,
-      });
-    }
-    eventIds.add(observedEventId);
-
-    if (!isDenseArray(observedDecision.candidates) || observedDecision.candidates.length === 0) {
-      throw new TeacherFeedbackError('Every observed decision must contain a dense candidate list.', {
-        decisionIndex,
-      });
-    }
-
-    const candidateIds = new Set();
-    for (let candidateIndex = 0; candidateIndex < observedDecision.candidates.length; candidateIndex += 1) {
-      const candidate = observedDecision.candidates[candidateIndex];
-      if (!isPlainObject(candidate)) {
-        throw new TeacherFeedbackError('Every observed candidate must be an object.', {
-          decisionIndex,
-          candidateIndex,
-        });
-      }
-      const parsedCandidate = validateCandidateId(
-        candidate.candidateId,
-        `observation.decisions[${decisionIndex}].candidates[${candidateIndex}].candidateId`,
-        maximumFret,
-      );
-      if (parsedCandidate.eventId !== observedEventId) {
-        throw new TeacherFeedbackError('Observed candidate identity must match its decision eventId.', {
-          decisionIndex,
-          candidateIndex,
-        });
-      }
-      if (candidateIds.has(parsedCandidate.candidateId)) {
-        throw new TeacherFeedbackError('Observed candidate identities must be unique per decision.', {
-          decisionIndex,
-          candidateId: parsedCandidate.candidateId,
-        });
-      }
-      candidateIds.add(parsedCandidate.candidateId);
-    }
-
-    const selectedCandidate = validateCandidateId(
-      observedDecision.selectedCandidateId,
-      `observation.decisions[${decisionIndex}].selectedCandidateId`,
-      maximumFret,
-    );
-    if (
-      selectedCandidate.eventId !== observedEventId
-      || !candidateIds.has(selectedCandidate.candidateId)
-    ) {
-      throw new TeacherFeedbackError(
-        'Observed selected candidate must belong to its decision candidate set.',
-        { decisionIndex },
-      );
-    }
-
-    if (observedEventId === eventId) {
-      matchedDecision = {
-        selectedCandidateId: selectedCandidate.candidateId,
-        candidateIds,
-        maximumFret,
-      };
-    }
   }
 
-  if (matchedDecision === null) {
+  const matchedDecision = observation.decisions.find((decision) => decision.eventId === eventId);
+  if (!matchedDecision) {
     throw new TeacherFeedbackError('eventId must identify a decision in the supplied observation.', {
       eventId,
     });
   }
 
-  return matchedDecision;
+  return {
+    selectedCandidateId: matchedDecision.selectedCandidateId,
+    candidateIds: new Set(
+      matchedDecision.candidates.map((candidate) => candidate.candidateId),
+    ),
+    maximumFret: observation.guitarConfiguration.value.maximumFret,
+  };
 }
 
 function createTeacherFeedback(input) {

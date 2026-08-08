@@ -1,7 +1,11 @@
 'use strict';
 
 const { EngineError } = require('../errors/engineError');
-const { GUITAR_CONFIGURATION_VERSION } = require('../guitar/tuning');
+const {
+  GUITAR_CONFIGURATION_VERSION,
+  validateFretRange,
+  validateTuning,
+} = require('../guitar/tuning');
 const {
   CANONICAL_FINGERING_CANDIDATES_VERSION,
 } = require('./candidateLayerBuilder');
@@ -258,6 +262,213 @@ function validateObservedCost(cost, noteIndex) {
   return cost;
 }
 
+function validateObservedGuitarConfiguration(guitarConfiguration) {
+  if (!isObject(guitarConfiguration)) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration.value must be an object.',
+    );
+  }
+  if (!isDenseArray(guitarConfiguration.tuning) || guitarConfiguration.tuning.length !== 6) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration.tuning must contain six dense string entries.',
+    );
+  }
+
+  let normalizedTuning;
+  try {
+    validateFretRange({
+      minimumFret: guitarConfiguration.minimumFret,
+      maximumFret: guitarConfiguration.maximumFret,
+    });
+    normalizedTuning = validateTuning(guitarConfiguration.tuning);
+  } catch (error) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration must be a valid GuitarConfiguration.',
+      { guitarConfigurationErrorCode: error?.code ?? null },
+    );
+  }
+
+  for (let tuningIndex = 0; tuningIndex < normalizedTuning.length; tuningIndex += 1) {
+    const actual = guitarConfiguration.tuning[tuningIndex];
+    const normalized = normalizedTuning[tuningIndex];
+    if (
+      !isObject(actual)
+      || actual.number !== normalized.number
+      || actual.midi !== normalized.midi
+      || actual.pitch !== normalized.pitch
+    ) {
+      throw new OptimizerObservationError(
+        'observation.guitarConfiguration.tuning must use canonical string order and values.',
+        { tuningIndex },
+      );
+    }
+  }
+
+  return guitarConfiguration;
+}
+
+function validateOptimizerObservation(observation) {
+  if (!isObject(observation)) {
+    throw new OptimizerObservationError('observation must be an object.');
+  }
+  if (observation.documentType !== 'OptimizerObservation') {
+    throw new OptimizerObservationError(
+      'observation.documentType must be OptimizerObservation.',
+      { documentType: observation.documentType },
+    );
+  }
+  if (observation.contractVersion !== OPTIMIZER_OBSERVATION_VERSION) {
+    throw new OptimizerObservationError('observation.contractVersion is not supported.', {
+      expectedContractVersion: OPTIMIZER_OBSERVATION_VERSION,
+      actualContractVersion: observation.contractVersion,
+    });
+  }
+  if (observation.candidateContractVersion !== CANONICAL_FINGERING_CANDIDATES_VERSION) {
+    throw new OptimizerObservationError('observation.candidateContractVersion is not supported.', {
+      expectedCandidateContractVersion: CANONICAL_FINGERING_CANDIDATES_VERSION,
+      actualCandidateContractVersion: observation.candidateContractVersion,
+    });
+  }
+  if (
+    !isObject(observation.optimizer)
+    || observation.optimizer.name !== 'deterministic-dynamic-programming'
+    || observation.optimizer.version !== FINGERING_OPTIMIZER_VERSION
+  ) {
+    throw new OptimizerObservationError('observation.optimizer metadata is not supported.');
+  }
+  if (
+    !isObject(observation.guitarConfiguration)
+    || observation.guitarConfiguration.contractVersion !== GUITAR_CONFIGURATION_VERSION
+  ) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration must use the supported contract.',
+    );
+  }
+
+  const guitarConfiguration = validateObservedGuitarConfiguration(
+    observation.guitarConfiguration.value,
+  );
+
+  if (typeof observation.partId !== 'string' || observation.partId.length === 0) {
+    throw new OptimizerObservationError('observation.partId must be a non-empty string.');
+  }
+  if (
+    !Number.isSafeInteger(observation.noteCount)
+    || observation.noteCount < 0
+    || !isDenseArray(observation.decisions)
+    || observation.decisions.length !== observation.noteCount
+  ) {
+    throw new OptimizerObservationError(
+      'observation decisions must be dense and match observation.noteCount.',
+    );
+  }
+  if (!Number.isFinite(observation.totalCost) || observation.totalCost < 0) {
+    throw new OptimizerObservationError(
+      'observation.totalCost must be a finite non-negative number.',
+      { totalCost: observation.totalCost },
+    );
+  }
+
+  const maximumFret = guitarConfiguration.maximumFret;
+  const eventIds = new Set();
+  let observedTotalCost = 0;
+
+  for (let decisionIndex = 0; decisionIndex < observation.decisions.length; decisionIndex += 1) {
+    const decision = observation.decisions[decisionIndex];
+    if (!isObject(decision)) {
+      throw new OptimizerObservationError('Every observation decision must be an object.', {
+        decisionIndex,
+      });
+    }
+    if (decision.decisionIndex !== decisionIndex) {
+      throw new OptimizerObservationError(
+        'observation decisionIndex must match its array position.',
+        { decisionIndex, actualDecisionIndex: decision.decisionIndex },
+      );
+    }
+    if (typeof decision.eventId !== 'string' || decision.eventId.length === 0) {
+      throw new OptimizerObservationError('Every observation decision must contain eventId.', {
+        decisionIndex,
+      });
+    }
+    if (eventIds.has(decision.eventId)) {
+      throw new OptimizerObservationError('observation decision eventId values must be unique.', {
+        decisionIndex,
+        eventId: decision.eventId,
+      });
+    }
+    eventIds.add(decision.eventId);
+    if (typeof decision.measureKey !== 'string' || decision.measureKey.length === 0) {
+      throw new OptimizerObservationError('Every observation decision must contain measureKey.', {
+        decisionIndex,
+      });
+    }
+    if (!Number.isSafeInteger(decision.eventIndex) || decision.eventIndex < 0) {
+      throw new OptimizerObservationError(
+        'Every observation decision eventIndex must be a non-negative integer.',
+        { decisionIndex },
+      );
+    }
+    if (!isDenseArray(decision.candidates) || decision.candidates.length === 0) {
+      throw new OptimizerObservationError(
+        'Every observation decision must contain a dense non-empty candidate list.',
+        { decisionIndex },
+      );
+    }
+
+    const candidateIds = new Set();
+    for (let candidateIndex = 0; candidateIndex < decision.candidates.length; candidateIndex += 1) {
+      const candidate = decision.candidates[candidateIndex];
+      if (!isObject(candidate) || candidate.candidateIndex !== candidateIndex) {
+        throw new OptimizerObservationError(
+          'Observed candidateIndex must match its array position.',
+          { decisionIndex, candidateIndex },
+        );
+      }
+      validatePosition(candidate.position, 'candidate.position', maximumFret);
+      const expectedCandidateId = createCandidateId(decision.eventId, candidate.position);
+      if (candidate.candidateId !== expectedCandidateId || candidateIds.has(candidate.candidateId)) {
+        throw new OptimizerObservationError(
+          'Observed candidate identity must be canonical and unique for its position.',
+          { decisionIndex, candidateIndex },
+        );
+      }
+      candidateIds.add(candidate.candidateId);
+    }
+
+    validatePosition(decision.selectedPosition, 'selectedPosition', maximumFret);
+    const expectedSelectedCandidateId = createCandidateId(
+      decision.eventId,
+      decision.selectedPosition,
+    );
+    if (
+      decision.selectedCandidateId !== expectedSelectedCandidateId
+      || !candidateIds.has(decision.selectedCandidateId)
+    ) {
+      throw new OptimizerObservationError(
+        'Observed selected candidate must match selectedPosition and belong to its candidate set.',
+        { decisionIndex },
+      );
+    }
+
+    const cost = validateObservedCost(decision.cost, decisionIndex);
+    clonePlainData(cost);
+    observedTotalCost += cost.total;
+  }
+
+  if (!Number.isFinite(observedTotalCost) || observedTotalCost !== observation.totalCost) {
+    throw new OptimizerObservationError(
+      'observation.totalCost must equal the sum of observed decision costs.',
+      {
+        totalCost: observation.totalCost,
+        observedTotalCost,
+      },
+    );
+  }
+
+  return observation;
+}
+
 function createOptimizerObservation(candidateSet, optimizerResult) {
   validateCandidateSet(candidateSet);
   validateOptimizerResult(optimizerResult, candidateSet.noteCount);
@@ -324,7 +535,7 @@ function createOptimizerObservation(candidateSet, optimizerResult) {
     );
   }
 
-  return deepFreeze({
+  const observation = {
     documentType: 'OptimizerObservation',
     contractVersion: OPTIMIZER_OBSERVATION_VERSION,
     candidateContractVersion: CANONICAL_FINGERING_CANDIDATES_VERSION,
@@ -340,12 +551,16 @@ function createOptimizerObservation(candidateSet, optimizerResult) {
     noteCount: candidateSet.noteCount,
     totalCost: optimizerResult.totalCost,
     decisions,
-  });
+  };
+
+  validateOptimizerObservation(observation);
+  return deepFreeze(observation);
 }
 
 module.exports = {
   OPTIMIZER_OBSERVATION_VERSION,
   OptimizerObservationError,
   createCandidateId,
+  validateOptimizerObservation,
   createOptimizerObservation,
 };
