@@ -173,7 +173,7 @@ The three historical OptimizerObservation P2 review threads on PR #42 and the tw
 
 S1 full observation validation merged in PR #56. S2 observation content-digest binding merged in PR #58. S3 observation admission/provenance contract merged in PR #60. S3.1 authoritative/atomic admission adapter contract merged in PR #61.
 
-After S3/S3.1 documentation convergence, the next safe product/research sequence is:
+With S3/S3.1 documented, the next safe product/research sequence is:
 
 1. perform a separate read-only scope/threat-model review for a deterministic fixed teacher-verified fingering benchmark v1;
 2. if approved, build only fixed reviewed benchmark artifacts and their versioned benchmark contract without treating S3.1 as deployed production persistence;
