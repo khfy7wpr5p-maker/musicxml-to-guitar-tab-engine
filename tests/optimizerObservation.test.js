@@ -146,6 +146,47 @@ test('rejects non-finite observed costs fail-closed', () => {
   );
 });
 
+test('rejects incomplete or malformed optimizer cost shape fail-closed', async (t) => {
+  const cases = [
+    ['missing isPlayable', 0, (cost) => { delete cost.isPlayable; }],
+    ['non-boolean isPlayable', 0, (cost) => { cost.isPlayable = 'true'; }],
+    ['missing reasons', 0, (cost) => { delete cost.reasons; }],
+    ['sparse reasons', 0, (cost) => { cost.reasons = new Array(1); }],
+    ['non-string reason', 0, (cost) => { cost.reasons = [123]; }],
+    ['missing breakdown', 0, (cost) => { delete cost.breakdown; }],
+    ['missing first-layer breakdown field', 0, (cost) => {
+      delete cost.breakdown.highFretCost;
+    }],
+    ['non-finite first-layer breakdown field', 0, (cost) => {
+      cost.breakdown.highFretCost = Number.POSITIVE_INFINITY;
+    }],
+    ['missing transition breakdown field', 1, (cost) => {
+      delete cost.breakdown.fretMovementCost;
+    }],
+    ['non-boolean transition samePosition', 1, (cost) => {
+      cost.breakdown.samePosition = 0;
+    }],
+  ];
+
+  for (const [name, noteIndex, mutateCost] of cases) {
+    await t.test(name, () => {
+      const { candidates, optimized: productionResult } = buildObservedFixture();
+      const optimized = cloneOptimizerResult(productionResult);
+      assert.ok(optimized.costs.length > noteIndex);
+      mutateCost(optimized.costs[noteIndex]);
+
+      assert.throws(
+        () => createOptimizerObservation(candidates, optimized),
+        (error) => {
+          assert.ok(error instanceof OptimizerObservationError);
+          assert.equal(error.code, 'INVALID_OPTIMIZER_OBSERVATION_INPUT');
+          return true;
+        },
+      );
+    });
+  }
+});
+
 test('rejects cyclic observed metadata instead of recursing indefinitely', () => {
   const { candidates, optimized } = buildObservedFixture();
   const forged = cloneOptimizerResult(optimized);

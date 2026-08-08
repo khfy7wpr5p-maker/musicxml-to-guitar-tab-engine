@@ -11,6 +11,23 @@ const {
 
 const OPTIMIZER_OBSERVATION_VERSION = '1.0.0';
 const MAX_OBSERVED_METADATA_DEPTH = 100;
+const POSITION_COST_BREAKDOWN_FIELDS = Object.freeze([
+  'highFretDistance',
+  'highFretCost',
+  'openStringPreferenceCost',
+]);
+const TRANSITION_COST_BREAKDOWN_FIELDS = Object.freeze([
+  'fretMovement',
+  'fretMovementCost',
+  'stringMovement',
+  'stringMovementCost',
+  'largeShiftDistance',
+  'largeShiftCost',
+  'highFretDistance',
+  'highFretCost',
+  'openStringPreferenceCost',
+  'samePositionPreferenceCost',
+]);
 
 class OptimizerObservationError extends EngineError {
   constructor(message, details = {}) {
@@ -186,6 +203,55 @@ function validateOptimizerResult(optimizerResult, noteCount) {
   return optimizerResult;
 }
 
+function validateObservedCost(cost, noteIndex) {
+  if (!isObject(cost) || !Number.isFinite(cost.total) || cost.total < 0) {
+    throw new OptimizerObservationError('Observed optimizer cost must be finite and non-negative.', {
+      noteIndex,
+    });
+  }
+  if (typeof cost.isPlayable !== 'boolean') {
+    throw new OptimizerObservationError('Observed optimizer cost.isPlayable must be boolean.', {
+      noteIndex,
+    });
+  }
+  if (
+    !isDenseArray(cost.reasons)
+    || cost.reasons.some((reason) => typeof reason !== 'string' || reason.length === 0)
+  ) {
+    throw new OptimizerObservationError(
+      'Observed optimizer cost.reasons must be a dense array of non-empty strings.',
+      { noteIndex },
+    );
+  }
+  if (!isObject(cost.breakdown)) {
+    throw new OptimizerObservationError('Observed optimizer cost.breakdown must be an object.', {
+      noteIndex,
+    });
+  }
+
+  const requiredNumberFields = noteIndex === 0
+    ? POSITION_COST_BREAKDOWN_FIELDS
+    : TRANSITION_COST_BREAKDOWN_FIELDS;
+  for (const field of requiredNumberFields) {
+    const value = cost.breakdown[field];
+    if (!Number.isFinite(value) || value < 0) {
+      throw new OptimizerObservationError(
+        `Observed optimizer cost.breakdown.${field} must be finite and non-negative.`,
+        { noteIndex, field },
+      );
+    }
+  }
+
+  if (noteIndex > 0 && typeof cost.breakdown.samePosition !== 'boolean') {
+    throw new OptimizerObservationError(
+      'Observed optimizer transition cost.breakdown.samePosition must be boolean.',
+      { noteIndex },
+    );
+  }
+
+  return cost;
+}
+
 function createOptimizerObservation(candidateSet, optimizerResult) {
   validateCandidateSet(candidateSet);
   validateOptimizerResult(optimizerResult, candidateSet.noteCount);
@@ -225,12 +291,7 @@ function createOptimizerObservation(candidateSet, optimizerResult) {
       );
     }
 
-    const cost = optimizerResult.costs[noteIndex];
-    if (!isObject(cost) || !Number.isFinite(cost.total) || cost.total < 0) {
-      throw new OptimizerObservationError('Observed optimizer cost must be finite and non-negative.', {
-        noteIndex,
-      });
-    }
+    const cost = validateObservedCost(optimizerResult.costs[noteIndex], noteIndex);
 
     return {
       decisionIndex: noteIndex,
