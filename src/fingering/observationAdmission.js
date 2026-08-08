@@ -2,26 +2,15 @@
 
 const { EngineError } = require('../errors/engineError');
 const {
-  OPTIMIZER_OBSERVATION_VERSION,
-} = require('./optimizerObservation');
-const {
-  OPTIMIZER_OBSERVATION_DIGEST_VERSION,
   validateOptimizerObservationDigest,
   verifyOptimizerObservationDigest,
 } = require('./optimizerObservationDigest');
-const {
-  CANONICAL_FINGERING_CANDIDATES_VERSION,
-} = require('./candidateLayerBuilder');
-const {
-  FINGERING_OPTIMIZER_VERSION,
-} = require('./fingeringOptimizer');
-const {
-  GUITAR_CONFIGURATION_VERSION,
-} = require('../guitar/tuning');
 const packageMetadata = require('../../package.json');
 
 const OBSERVATION_ADMISSION_CONTRACT_VERSION = '1.0.0';
 const MAX_ADMISSION_IDENTIFIER_LENGTH = 512;
+const MAX_ADMISSION_METADATA_LENGTH = 512;
+const MAX_ADMISSION_HISTORY_ENTRIES = 10000;
 const EXPECTED_RECORD_FIELDS = Object.freeze([
   'admissionDomainId',
   'admissionId',
@@ -105,23 +94,37 @@ function assertExactKeys(value, expectedKeys, field) {
   return value;
 }
 
-function assertBoundedIdentifier(value, field) {
+function assertBoundedString(value, field, maximumLength = MAX_ADMISSION_IDENTIFIER_LENGTH) {
   if (
     typeof value !== 'string'
     || value.length === 0
-    || value.length > MAX_ADMISSION_IDENTIFIER_LENGTH
+    || value.length > maximumLength
   ) {
-    throw new ObservationAdmissionError(`${field} must be a non-empty bounded opaque string.`, {
+    throw new ObservationAdmissionError(`${field} must be a non-empty bounded string.`, {
       field,
-      maximumLength: MAX_ADMISSION_IDENTIFIER_LENGTH,
+      maximumLength,
     });
   }
   return value;
 }
 
+function assertBoundedIdentifier(value, field) {
+  return assertBoundedString(value, field, MAX_ADMISSION_IDENTIFIER_LENGTH);
+}
+
+function assertMetadataString(value, field) {
+  return assertBoundedString(value, field, MAX_ADMISSION_METADATA_LENGTH);
+}
+
 function assertDenseHistory(history) {
   if (!Array.isArray(history)) {
     throw new ObservationAdmissionError('existingAdmissions must be an explicit dense array.');
+  }
+  if (history.length > MAX_ADMISSION_HISTORY_ENTRIES) {
+    throw new ObservationAdmissionError('Admission history exceeds the configured entry limit.', {
+      maximumEntries: MAX_ADMISSION_HISTORY_ENTRIES,
+      actualEntries: history.length,
+    });
   }
   for (const key of Reflect.ownKeys(history)) {
     if (typeof key !== 'string') {
@@ -149,31 +152,23 @@ function assertDenseHistory(history) {
   return history;
 }
 
-function assertCurrentProducer(producer) {
+function validateHistoricalProducer(producer) {
   assertExactKeys(producer, EXPECTED_PRODUCER_FIELDS, 'existingAdmission.producer');
   assertBoundedIdentifier(producer.producerId, 'existingAdmission.producer.producerId');
   assertBoundedIdentifier(producer.runId, 'existingAdmission.producer.runId');
-  if (
-    producer.packageName !== packageMetadata.name
-    || producer.packageVersion !== packageMetadata.version
-  ) {
+  if (producer.packageName !== packageMetadata.name) {
     throw new ObservationAdmissionError(
-      'existing admission producer package metadata is not supported by this contract.',
+      'existing admission producer packageName does not belong to this engine.',
     );
   }
+  assertMetadataString(producer.packageVersion, 'existingAdmission.producer.packageVersion');
   return producer;
 }
 
-function assertCurrentOptimizer(optimizer) {
+function validateHistoricalOptimizer(optimizer) {
   assertExactKeys(optimizer, EXPECTED_OPTIMIZER_FIELDS, 'existingAdmission.optimizer');
-  if (
-    optimizer.name !== 'deterministic-dynamic-programming'
-    || optimizer.version !== FINGERING_OPTIMIZER_VERSION
-  ) {
-    throw new ObservationAdmissionError(
-      'existing admission optimizer metadata is not supported by this contract.',
-    );
-  }
+  assertMetadataString(optimizer.name, 'existingAdmission.optimizer.name');
+  assertMetadataString(optimizer.version, 'existingAdmission.optimizer.version');
   return optimizer;
 }
 
@@ -202,20 +197,29 @@ function validateObservationAdmissionRecord(record, expectedDomainId = null) {
       observationErrorCode: error?.code ?? null,
     });
   }
-  assertCurrentProducer(record.producer);
-  assertCurrentOptimizer(record.optimizer);
+  validateHistoricalProducer(record.producer);
+  validateHistoricalOptimizer(record.optimizer);
 
-  if (record.optimizerObservationVersion !== OPTIMIZER_OBSERVATION_VERSION) {
-    throw new ObservationAdmissionError('existing admission observation version is not supported.');
-  }
-  if (record.optimizerObservationDigestVersion !== OPTIMIZER_OBSERVATION_DIGEST_VERSION) {
-    throw new ObservationAdmissionError('existing admission digest version is not supported.');
-  }
-  if (record.candidateContractVersion !== CANONICAL_FINGERING_CANDIDATES_VERSION) {
-    throw new ObservationAdmissionError('existing admission candidate contract is not supported.');
-  }
-  if (record.guitarConfigurationVersion !== GUITAR_CONFIGURATION_VERSION) {
-    throw new ObservationAdmissionError('existing admission guitar configuration is not supported.');
+  assertMetadataString(
+    record.optimizerObservationVersion,
+    'existingAdmission.optimizerObservationVersion',
+  );
+  assertMetadataString(
+    record.optimizerObservationDigestVersion,
+    'existingAdmission.optimizerObservationDigestVersion',
+  );
+  assertMetadataString(
+    record.candidateContractVersion,
+    'existingAdmission.candidateContractVersion',
+  );
+  assertMetadataString(
+    record.guitarConfigurationVersion,
+    'existingAdmission.guitarConfigurationVersion',
+  );
+  if (record.optimizerObservationDigestVersion !== record.observationDigest.contractVersion) {
+    throw new ObservationAdmissionError(
+      'existing admission digest version must match its observationDigest contractVersion.',
+    );
   }
 
   return record;
@@ -236,12 +240,77 @@ function assertAllowedInput(input) {
   return input;
 }
 
-function sameDigest(left, right) {
-  return (
-    left.contractVersion === right.contractVersion
-    && left.algorithm === right.algorithm
-    && left.value === right.value
-  );
+function digestKey(digest) {
+  return JSON.stringify([digest.contractVersion, digest.algorithm, digest.value]);
+}
+
+function producerRunKey(producerId, runId) {
+  return JSON.stringify([producerId, runId]);
+}
+
+function validateAdmissionHistory(history, admissionDomainId) {
+  const denseHistory = assertDenseHistory(history);
+  const admissionIds = new Set();
+  const observations = new Map();
+  const producerRuns = new Map();
+  const digests = new Map();
+
+  for (let index = 0; index < denseHistory.length; index += 1) {
+    const record = validateObservationAdmissionRecord(denseHistory[index], admissionDomainId);
+    const recordDigestKey = digestKey(record.observationDigest);
+    const recordRunKey = producerRunKey(record.producer.producerId, record.producer.runId);
+
+    if (admissionIds.has(record.admissionId)) {
+      throw new ObservationAdmissionError(
+        'Admission history contains a duplicate admissionId.',
+        { admissionId: record.admissionId, index },
+      );
+    }
+    if (observations.has(record.observationId)) {
+      const priorDigestKey = observations.get(record.observationId);
+      throw new ObservationAdmissionError(
+        priorDigestKey === recordDigestKey
+          ? 'Admission history contains an observation replay/duplicate.'
+          : 'Admission history contains an observation identity collision.',
+        { observationId: record.observationId, index },
+      );
+    }
+    if (producerRuns.has(recordRunKey)) {
+      const priorDigestKey = producerRuns.get(recordRunKey);
+      throw new ObservationAdmissionError(
+        priorDigestKey === recordDigestKey
+          ? 'Admission history contains a producer run replay/duplicate.'
+          : 'Admission history contains a producer run collision.',
+        {
+          producerId: record.producer.producerId,
+          runId: record.producer.runId,
+          index,
+        },
+      );
+    }
+    if (digests.has(recordDigestKey)) {
+      throw new ObservationAdmissionError(
+        'Admission history contains duplicate observation content.',
+        {
+          observationId: record.observationId,
+          existingObservationId: digests.get(recordDigestKey),
+          index,
+        },
+      );
+    }
+
+    admissionIds.add(record.admissionId);
+    observations.set(record.observationId, recordDigestKey);
+    producerRuns.set(recordRunKey, recordDigestKey);
+    digests.set(recordDigestKey, record.observationId);
+  }
+
+  return {
+    admissionIds,
+    observations,
+    producerRuns,
+    digests,
+  };
 }
 
 function deepFreeze(value) {
@@ -266,7 +335,6 @@ function createObservationAdmissionRecord(input) {
   const producerId = assertBoundedIdentifier(input.producerId, 'producerId');
   const runId = assertBoundedIdentifier(input.runId, 'runId');
   const observationId = assertBoundedIdentifier(input.observationId, 'observationId');
-  const existingAdmissions = assertDenseHistory(input.existingAdmissions);
 
   let verifiedDigest;
   try {
@@ -281,52 +349,46 @@ function createObservationAdmissionRecord(input) {
     );
   }
 
-  for (let index = 0; index < existingAdmissions.length; index += 1) {
-    const existing = validateObservationAdmissionRecord(
-      existingAdmissions[index],
-      admissionDomainId,
-    );
+  const history = validateAdmissionHistory(input.existingAdmissions, admissionDomainId);
+  const verifiedDigestKey = digestKey(verifiedDigest);
+  const currentRunKey = producerRunKey(producerId, runId);
 
-    if (existing.admissionId === admissionId) {
-      throw new ObservationAdmissionError('admissionId is already present in the admission domain.', {
-        admissionId,
+  if (history.admissionIds.has(admissionId)) {
+    throw new ObservationAdmissionError('admissionId is already present in the admission domain.', {
+      admissionId,
+    });
+  }
+
+  if (history.observations.has(observationId)) {
+    if (history.observations.get(observationId) === verifiedDigestKey) {
+      throw new ObservationAdmissionError('Observation replay: this observation is already admitted.', {
+        observationId,
       });
     }
+    throw new ObservationAdmissionError(
+      'Observation identity collision: observationId is already bound to different content.',
+      { observationId },
+    );
+  }
 
-    if (existing.observationId === observationId) {
-      if (sameDigest(existing.observationDigest, verifiedDigest)) {
-        throw new ObservationAdmissionError('Observation replay: this observation is already admitted.', {
-          observationId,
-        });
-      }
+  if (history.producerRuns.has(currentRunKey)) {
+    if (history.producerRuns.get(currentRunKey) === verifiedDigestKey) {
       throw new ObservationAdmissionError(
-        'Observation identity collision: observationId is already bound to different content.',
-        { observationId },
-      );
-    }
-
-    if (
-      existing.producer.producerId === producerId
-      && existing.producer.runId === runId
-    ) {
-      if (sameDigest(existing.observationDigest, verifiedDigest)) {
-        throw new ObservationAdmissionError(
-          'Producer run replay: this producer/run content is already admitted.',
-          { producerId, runId },
-        );
-      }
-      throw new ObservationAdmissionError(
-        'Producer run collision: producerId and runId are already bound to different content.',
+        'Producer run replay: this producer/run content is already admitted.',
         { producerId, runId },
       );
     }
+    throw new ObservationAdmissionError(
+      'Producer run collision: producerId and runId are already bound to different content.',
+      { producerId, runId },
+    );
+  }
 
-    if (sameDigest(existing.observationDigest, verifiedDigest)) {
-      throw new ObservationAdmissionError(
-        'Duplicate observation content is already admitted under another observation identity.',
-        { observationId, existingObservationId: existing.observationId },
-      );
-    }
+  if (history.digests.has(verifiedDigestKey)) {
+    throw new ObservationAdmissionError(
+      'Duplicate observation content is already admitted under another observation identity.',
+      { observationId, existingObservationId: history.digests.get(verifiedDigestKey) },
+    );
   }
 
   return deepFreeze({
@@ -353,6 +415,7 @@ function createObservationAdmissionRecord(input) {
 module.exports = {
   OBSERVATION_ADMISSION_CONTRACT_VERSION,
   MAX_ADMISSION_IDENTIFIER_LENGTH,
+  MAX_ADMISSION_HISTORY_ENTRIES,
   ObservationAdmissionError,
   validateObservationAdmissionRecord,
   createObservationAdmissionRecord,
