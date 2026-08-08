@@ -29,6 +29,7 @@ const EXPECTED_PRODUCER_FIELDS = Object.freeze([
   'packageName',
   'packageVersion',
   'producerId',
+  'producerRevisionId',
   'runId',
 ]);
 const EXPECTED_OPTIMIZER_FIELDS = Object.freeze(['name', 'version']);
@@ -36,6 +37,7 @@ const ALLOWED_INPUT_FIELDS = new Set([
   'admissionId',
   'admissionDomainId',
   'producerId',
+  'producerRevisionId',
   'runId',
   'observationId',
   'observation',
@@ -155,6 +157,10 @@ function assertDenseHistory(history) {
 function validateHistoricalProducer(producer) {
   assertExactKeys(producer, EXPECTED_PRODUCER_FIELDS, 'existingAdmission.producer');
   assertBoundedIdentifier(producer.producerId, 'existingAdmission.producer.producerId');
+  assertBoundedIdentifier(
+    producer.producerRevisionId,
+    'existingAdmission.producer.producerRevisionId',
+  );
   assertBoundedIdentifier(producer.runId, 'existingAdmission.producer.runId');
   if (producer.packageName !== packageMetadata.name) {
     throw new ObservationAdmissionError(
@@ -333,6 +339,10 @@ function createObservationAdmissionRecord(input) {
     'admissionDomainId',
   );
   const producerId = assertBoundedIdentifier(input.producerId, 'producerId');
+  const producerRevisionId = assertBoundedIdentifier(
+    input.producerRevisionId,
+    'producerRevisionId',
+  );
   const runId = assertBoundedIdentifier(input.runId, 'runId');
   const observationId = assertBoundedIdentifier(input.observationId, 'observationId');
 
@@ -400,6 +410,7 @@ function createObservationAdmissionRecord(input) {
     observationDigest: { ...verifiedDigest },
     producer: {
       producerId,
+      producerRevisionId,
       runId,
       packageName: packageMetadata.name,
       packageVersion: packageMetadata.version,
