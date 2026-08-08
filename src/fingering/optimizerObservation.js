@@ -26,16 +26,28 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function clonePlainData(value) {
+function clonePlainData(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  if (seen.has(value)) {
+    throw new OptimizerObservationError('Observed metadata must not contain cycles.');
+  }
+  seen.add(value);
+
+  let cloned;
   if (Array.isArray(value)) {
-    return Array.from(value, clonePlainData);
-  }
-  if (isObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [key, clonePlainData(nested)]),
+    cloned = Array.from(value, (nested) => clonePlainData(nested, seen));
+  } else if (isObject(value)) {
+    cloned = Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, clonePlainData(nested, seen)]),
     );
+  } else {
+    cloned = value;
   }
-  return value;
+
+  seen.delete(value);
+  return cloned;
 }
 
 function deepFreeze(value) {
