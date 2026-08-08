@@ -6,7 +6,7 @@ AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md)
 
 ## Current state
 
-Verified runtime `main`: `5ba727a778aceb3b70342b82ae027d6ac2bacd43`.
+Verified runtime `main`: `0d8e2258540ca11ff51cd508e4c1c482250ca201`.
 
 Current merged capabilities include:
 
@@ -25,13 +25,14 @@ Current merged capabilities include:
 - bounded iterative validation for untrusted `CanonicalTabResult` object graphs,
 - internal versioned `GuitarConfiguration 1.0.0`,
 - internal `Integration Contract v1` metadata and non-authority boundary,
-- internal `OptimizerObservation 1.0.0`, `PedagogicalFeatureVector 1.0.0`, and `TeacherFeedback 1.0.0` foundations.
+- internal `OptimizerObservation 1.0.0`, `PedagogicalFeatureVector 1.0.0`, and `TeacherFeedback 1.0.0` foundations,
+- merged OptimizerObservation Step 1 and Step 2.1–2.4 integrity hardening.
 
 `EngineError` itself and internal writer/domain error subclasses are not package-root exports.
 
-The three observation/research foundations are not package-root exports and are not wired into normal conversion. `OptimizerObservation` Step 1 hardening (bounded metadata traversal and sparse-array rejection) is merged; Step 2 cost-shape/playability/aggregate-consistency hardening and the documented `TeacherFeedback` dataset-admission gates are still required before benchmark or research use.
+The three observation/research foundations are not package-root exports and are not wired into normal conversion. OptimizerObservation now has merged hostile-data, required cost-shape, selected-playability, aggregate-consistency, and negative-regression hardening. Broader benchmark/research use remains blocked by the separate `TeacherFeedback` observation/candidate binding, dataset-admission, and privacy/consent gates.
 
-Fresh GitHub-hosted validation on verified `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b` passed the full repository suite on Node.js 18/20/22; the Node.js 22 job reported 283/283 tests passed and `npm ci --ignore-scripts` reported 0 vulnerabilities. The merged tree also passed the exact-head PR #46 MusicXML Compatibility workflow, including alphaTab browser/import/SVG/synth and MuseScore diagnostic jobs; no separate post-merge `main` compatibility run is claimed. The older PEB-1 billing-block note is historical and is no longer the strongest current CI evidence.
+Fresh merge-post GitHub-hosted **Tests #297** on verified `main` passed on Node.js 18/20/22. The exact head of PR #51 passed MusicXML Compatibility on the same tree later merged as current `main`, including alphaTab import/SVG/browser/synth and MuseScore diagnostic jobs. No separate post-merge `main` Compatibility run is claimed.
 
 ## Processing pipeline
 
@@ -111,13 +112,14 @@ Current package-root exports include:
 | Stage | Verified state on the runtime snapshot |
 |---|---|
 | Milestones 2A-2D, SEC-CI-1, Public Writer API | Merged |
-| Documentation convergence | This four-document snapshot |
+| Documentation convergence | Current status set + OptimizerObservation contract synchronized with Step 2 closure |
 | `GuitarConfiguration 1.0.0` | Internal contract merged |
 | `Integration Contract v1` | Internal boundary metadata and documentation merged |
-| `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1 hardening merged; Step 2 cost-shape/playability/aggregate consistency required before downstream use |
+| `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1 and Step 2.1–2.4 hardening merged; not pipeline-wired |
+| Historical PR #42 observation P2 threads | Runtime findings addressed; GitHub thread-resolution bookkeeping still pending |
 | `PedagogicalFeatureVector 1.0.0` | Internal deterministic foundation merged; not pipeline-wired |
-| `TeacherFeedback 1.0.0` | Internal foundation merged; observation binding and dataset admission still blocked |
-| Deterministic teacher-verified benchmark | Not started; blocked by observation/feedback hardening |
+| `TeacherFeedback 1.0.0` | Internal foundation merged; exact observation/candidate binding and dataset admission still blocked |
+| Deterministic teacher-verified benchmark | Not started; blocked by feedback hardening |
 | Benchmark evaluation harness | Not started |
 | Learned ranking v1, shadow mode | Not started and blocked |
 | Feedback-to-research-dataset pipeline | Not started; requires separate privacy/consent and admission contracts |
