@@ -21,7 +21,7 @@ This document records the verified runtime state of the authoritative `main` bra
 - `ObservationAdmissionAtomicAdapter 1.0.0`: `FOUNDATION` — S3.1 authoritative-snapshot + revision-token compare-and-commit coordination boundary merged in PR #61; internal only
 - Historical PR #42 OptimizerObservation P2 threads: `RESOLVED`
 - Historical PR #44 TeacherFeedback P2 threads: `RESOLVED`
-- Documentation convergence through S3/S3.1: `IN_PROGRESS` in the current docs-only change
+- Documentation convergence through S3/S3.1: `DOCUMENTED`
 - G0.1 administrator enforcement: `GOVERNANCE_OPEN`
 
 ## Status labels
@@ -31,7 +31,6 @@ This document records the verified runtime state of the authoritative `main` bra
 | `MERGED` | Implemented and present on `main` |
 | `FOUNDATION` | Internal versioned foundation exists but is not integrated into normal conversion |
 | `DOCUMENTED` | The authoritative status documents describe the verified runtime snapshot |
-| `IN_PROGRESS` | Documentation or bookkeeping convergence is being updated without changing runtime behavior |
 | `PARTIAL` | Foundation exists but named capability is incomplete |
 | `NOT_STARTED` | No approved merged implementation exists |
 | `BLOCKED` | Work must not begin until prerequisites/evidence are complete |
@@ -172,7 +171,7 @@ Passing tests verify the merged S1/S2/S3/S3.1/TeacherFeedback boundaries exercis
 
 ## Approved next safe implementation order
 
-This docs-only change is converging the authoritative status set through S3/S3.1. After it is merged, the next gates are:
+This snapshot documents the authoritative runtime through S3/S3.1. The next gates are:
 
 | Order | Work item | Status |
 |---:|---|---|
