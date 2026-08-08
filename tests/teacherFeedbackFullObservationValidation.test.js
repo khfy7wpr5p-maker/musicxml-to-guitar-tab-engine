@@ -17,6 +17,9 @@ const {
   validateOptimizerObservation,
 } = require('../src/fingering/optimizerObservation');
 const {
+  createOptimizerObservationDigest,
+} = require('../src/fingering/optimizerObservationDigest');
+const {
   TeacherFeedbackError,
   createTeacherFeedback,
 } = require('../src/fingering/teacherFeedback');
@@ -42,11 +45,13 @@ function buildFixture() {
 }
 
 const fixture = buildFixture();
+const fixtureDigest = createOptimizerObservationDigest(fixture.observation);
 
 function baseFeedbackInput(observation = fixture.observation) {
   return {
     observation,
     observationId: 'observation:full-validation:1',
+    observationDigest: fixtureDigest,
     eventId: fixture.decision.eventId,
     optimizerSelectedCandidateId: fixture.decision.selectedCandidateId,
     decision: 'accept',

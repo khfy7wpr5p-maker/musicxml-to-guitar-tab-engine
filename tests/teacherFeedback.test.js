@@ -22,6 +22,9 @@ const {
   createOptimizerObservation,
 } = require('../src/fingering/optimizerObservation');
 const {
+  createOptimizerObservationDigest,
+} = require('../src/fingering/optimizerObservationDigest');
+const {
   parseCanonicalMusicDocument,
 } = require('../src/parser/parseCanonicalMusicDocument');
 
@@ -56,11 +59,13 @@ function buildFeedbackFixture() {
 }
 
 const fixture = buildFeedbackFixture();
+const fixtureDigest = createOptimizerObservationDigest(fixture.observation);
 
 function baseInput(overrides = {}) {
   return {
     observation: fixture.observation,
     observationId: 'observation:test-score:1',
+    observationDigest: fixtureDigest,
     eventId: fixture.observedDecision.eventId,
     optimizerSelectedCandidateId: fixture.observedDecision.selectedCandidateId,
     decision: 'accept',
@@ -84,12 +89,14 @@ function findUnobservedCandidateId() {
   throw new Error('fixture must have at least one non-member canonical candidate identity');
 }
 
-test('records immutable acceptance bound to an observation identity', () => {
+test('records immutable acceptance bound to an observation identity and content digest', () => {
   const feedback = createTeacherFeedback(baseInput({ reason: 'Appropriate for this exercise.' }));
 
   assert.equal(feedback.documentType, 'TeacherFeedback');
   assert.equal(feedback.contractVersion, TEACHER_FEEDBACK_CONTRACT_VERSION);
   assert.equal(feedback.observationId, 'observation:test-score:1');
+  assert.deepEqual(feedback.observationDigest, fixtureDigest);
+  assert.equal(Object.isFrozen(feedback.observationDigest), true);
   assert.equal(feedback.teacherSelectedCandidateId, fixture.observedDecision.selectedCandidateId);
   assert.equal(feedback.decision, 'accept');
   assert.equal(feedback.optimizerObservationVersion, '1.0.0');
