@@ -178,21 +178,20 @@ The historical PEB-1 hosted jobs did not execute because of the then-current bil
 - Passing tests do not prove compatibility with every MusicXML producer.
 - MuseScore/alphaTab evidence applies only to supported fixtures and scope.
 - OptimizerObservation integrity hardening does not close the materially separate TeacherFeedback identity/membership/consent gates.
-- The three historical OptimizerObservation P2 review threads on PR #42 remain unresolved in GitHub thread state even though their runtime findings are addressed by merged Step 1 and Step 2.1–2.4 work.
+- The three historical OptimizerObservation P2 review threads on PR #42 are resolved; their runtime findings are addressed by merged Step 1 and Step 2.1–2.4 work. Thread resolution was repository bookkeeping only and did not change runtime behavior.
 - No package release is claimed; package metadata remains `private: true` and `UNLICENSED`.
 
 ## Approved next package-level sequence
 
 The four-file status set and OptimizerObservation contract are converged through the verified runtime commit. The next package-level sequence is:
 
-1. resolve the three historical OptimizerObservation P2 review threads on PR #42 using merged evidence
-2. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and separate consent/privacy semantics
-3. create the deterministic teacher-verified benchmark
-4. implement the benchmark evaluation harness
-5. evaluate learned ranking in shadow mode only
-6. build a separately versioned teacher-feedback research-dataset pipeline
-7. require an evaluation gate against the deterministic baseline
-8. allow controlled learned ranking only after separate evidence/approval
+1. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and separate consent/privacy semantics
+2. create the deterministic teacher-verified benchmark
+3. implement the benchmark evaluation harness
+4. evaluate learned ranking in shadow mode only
+5. build a separately versioned teacher-feedback research-dataset pipeline
+6. require an evaluation gate against the deterministic baseline
+7. allow controlled learned ranking only after separate evidence/approval
 
 ## Reproduction commands
 
