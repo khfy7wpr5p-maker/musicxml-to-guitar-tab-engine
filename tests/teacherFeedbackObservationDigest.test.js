@@ -144,6 +144,27 @@ test('digest includes accepted copied optimizer metadata', () => {
   assert.notDeepEqual(createOptimizerObservationDigest(augmented), fixtureDigest);
 });
 
+test('rejects non-enumerable or symbol observation content instead of omitting it from the digest', () => {
+  const hidden = structuredClone(fixture.observation);
+  Object.defineProperty(hidden, 'hiddenProvenance', {
+    value: 'must-not-be-digest-invisible',
+    enumerable: false,
+  });
+  assert.doesNotThrow(() => validateOptimizerObservation(hidden));
+  assert.throws(
+    () => createOptimizerObservationDigest(hidden),
+    OptimizerObservationError,
+  );
+
+  const symbolContent = structuredClone(fixture.observation);
+  symbolContent[Symbol('hidden-provenance')] = 'must-not-be-digest-invisible';
+  assert.doesNotThrow(() => validateOptimizerObservation(symbolContent));
+  assert.throws(
+    () => createOptimizerObservationDigest(symbolContent),
+    OptimizerObservationError,
+  );
+});
+
 test('observation digest helpers remain internal package details', () => {
   const packageApi = require('..');
   assert.equal(Object.hasOwn(packageApi, 'createOptimizerObservationDigest'), false);
