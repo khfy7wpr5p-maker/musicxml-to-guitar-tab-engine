@@ -40,12 +40,7 @@ function cloneOptimizerResult(optimized) {
   };
 }
 
-test('rejects optimizer totalCost that disagrees with per-decision cost totals', () => {
-  const { candidates, optimized: productionResult } = buildObservedFixture();
-  const optimized = cloneOptimizerResult(productionResult);
-
-  optimized.totalCost += 1;
-
+function assertAggregateMismatchRejected(candidates, optimized) {
   assert.throws(
     () => createOptimizerObservation(candidates, optimized),
     (error) => {
@@ -55,4 +50,22 @@ test('rejects optimizer totalCost that disagrees with per-decision cost totals',
       return true;
     },
   );
+}
+
+test('rejects forged optimizer totalCost that disagrees with decision totals', () => {
+  const { candidates, optimized: productionResult } = buildObservedFixture();
+  const optimized = cloneOptimizerResult(productionResult);
+
+  optimized.totalCost += 1;
+
+  assertAggregateMismatchRejected(candidates, optimized);
+});
+
+test('rejects forged decision cost total that disagrees with optimizer totalCost', () => {
+  const { candidates, optimized: productionResult } = buildObservedFixture();
+  const optimized = cloneOptimizerResult(productionResult);
+
+  optimized.costs[0].total += 1;
+
+  assertAggregateMismatchRejected(candidates, optimized);
 });
