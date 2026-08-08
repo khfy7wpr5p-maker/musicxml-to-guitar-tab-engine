@@ -11,6 +11,7 @@ This document defines the internal observation contract for the deterministic fi
 - Step 1 hostile-data hardening: merged
 - Step 2 cost-shape/playability/aggregate-consistency hardening: merged
 - Step 2.4 negative-regression completeness: merged
+- S1 reusable full-observation validation: merged
 - Public package-root export: not part of this milestone
 - Normal conversion-pipeline wiring: not implemented
 
@@ -29,6 +30,7 @@ The observation layer may:
 - copy the existing cost breakdown,
 - validate the required selected-cost shape and selected-playability invariants,
 - validate aggregate selected-path cost consistency,
+- validate a complete supported `OptimizerObservation 1.0.0` through the reusable internal `validateOptimizerObservation()` boundary,
 - record optimizer and configuration versions,
 - preserve event/measure references,
 - provide immutable data for later analysis.
@@ -43,7 +45,8 @@ The observation layer may not:
 - change optimizer tie-breaking,
 - replace `CanonicalTabResult`,
 - write back into canonical music or optimizer state,
-- bypass teacher review or validators.
+- bypass teacher review or validators,
+- prove cryptographic provenance or bind an observation to a historical run by itself.
 
 ## Candidate identity
 
@@ -99,6 +102,33 @@ OptimizerObservation
 
 The `cost` object is copied from the existing deterministic optimizer result. The observation layer does not rerun or replace the cost model; it validates the copied record before admitting it into an observation.
 
+## Reusable full-observation validation
+
+S1 introduces one reusable internal `validateOptimizerObservation(observation)` boundary. The same validator is used:
+
+- by `createOptimizerObservation()` after constructing the complete observation and before deep-freezing/returning it, and
+- by `TeacherFeedback` before accepting feedback bound to a supplied observation.
+
+The validator rejects unsupported or forged observation content fail-closed. For the current `1.0.0` contract it verifies:
+
+- `documentType`, observation contract version, candidate contract version, optimizer name/version, and guitar-configuration contract version;
+- a valid six-string `GuitarConfiguration` value with valid fret range;
+- dense six-entry tuning with canonical string order and exact normalized `number`, `midi`, and `pitch` values, including pitch↔MIDI consistency;
+- non-empty `partId`;
+- non-negative `noteCount`, a dense `decisions` array, and exact decision-count agreement;
+- finite non-negative top-level `totalCost`;
+- `decisionIndex` equal to the decision's array position;
+- non-empty unique `eventId` values, non-empty `measureKey`, and non-negative integer `eventIndex`;
+- dense non-empty candidate lists;
+- `candidateIndex` equal to the candidate's array position;
+- candidate positions inside guitar string/fret bounds;
+- canonical, unique candidate IDs derived from the decision event and candidate position;
+- canonical selected-position identity and exact selected-candidate membership;
+- complete selected-cost shape, selected playability, empty rejection reasons, and required finite/non-negative breakdown values;
+- exact aggregate equality between the sum of decision cost totals and observation `totalCost`.
+
+The validator checks the supported observation's structure and internal semantics. It does **not** cryptographically prove that a valid observation object was emitted by one particular historical optimizer execution. Content-digest/provenance binding requires a separate versioned security gate.
+
 ## Decision trace semantics
 
 For each note event, the observation contains the complete physically valid candidate layer supplied to the optimizer and identifies exactly one selected candidate. The selected position must already exist in that layer. A forged or inconsistent optimizer result fails closed with `INVALID_OPTIMIZER_OBSERVATION_INPUT`.
@@ -143,17 +173,24 @@ Extra copied optimizer metadata may remain present, subject to the hostile-data 
 
 `optimizerResult.totalCost` must be finite and non-negative. After every selected decision cost has been validated, the observation builder sums each selected `decision.cost.total`. The resulting aggregate must equal `optimizerResult.totalCost` exactly.
 
+The reusable S1 validator independently applies the same aggregate rule to a supplied complete observation: the sum of observed decision costs must equal `observation.totalCost` exactly.
+
 A forged top-level total or a forged individual selected-decision total therefore fails closed with `INVALID_OPTIMIZER_OBSERVATION_INPUT`.
 
-This check verifies internal consistency of the supplied deterministic optimizer result. It does not authorize the observation layer to recompute optimizer decisions, run the cost model, or alter a selected cost.
+These checks verify internal consistency of the supplied deterministic optimizer result/observation. They do not authorize the observation layer to recompute optimizer decisions, run the cost model, or alter a selected cost.
 
 ## Immutability and hostile-data handling
 
-Produced observations are deeply frozen. The builder rejects:
+Produced observations are deeply frozen. The builder/shared validator rejects:
 
-- unsupported candidate contract versions,
+- unsupported observation, candidate, optimizer, or guitar-configuration contract metadata,
+- invalid or non-canonical six-string tuning semantics/order,
+- pitch/MIDI disagreement in observed tuning,
 - count/length mismatches,
 - invalid string/fret values,
+- duplicate event identities,
+- incorrect decision/candidate array-index identities,
+- malformed, duplicate, or position-inconsistent candidate identities,
 - selected positions outside candidate membership,
 - negative or non-finite total/cost values,
 - incomplete or malformed required selected-cost records,
@@ -164,14 +201,15 @@ Produced observations are deeply frozen. The builder rejects:
 - sparse `candidateSet.notes`, `candidateSet.candidateLayers`,
   `optimizerResult.positions`, or `optimizerResult.costs` arrays,
 - sparse individual arrays nested within `candidateSet.candidateLayers`,
-- sparse `cost.reasons` arrays.
+- sparse observation `decisions`, candidate lists, or `cost.reasons` arrays.
 
 Metadata cloning accepts a maximum nesting depth of exactly 100 object/array edges;
 depth 101 fails closed with `INVALID_OPTIMIZER_OBSERVATION_INPUT`. Cycle and depth
 rejection prevent recursive observation cloning from becoming an uncontrolled
 stack/resource path. Deep freezing uses an iterative traversal, so accepted metadata
 does not reintroduce a recursive call-stack failure. Sparse arrays are rejected before
-iteration so holes cannot bypass note, candidate, position, cost, or reason validation.
+iteration so holes cannot bypass note, candidate, position, cost, reason, decision, or
+candidate-index validation.
 
 ## Regression boundary
 
@@ -184,7 +222,14 @@ Merged negative regression coverage independently protects the principal observa
 - `isPlayable: false` even when `reasons` is empty,
 - a selected playable cost carrying rejection reasons,
 - forged top-level aggregate cost,
-- forged per-decision selected cost.
+- forged per-decision selected cost,
+- a minimal/partial `OptimizerObservation` lookalike,
+- forged optimizer or candidate-contract metadata,
+- malformed selected position or selected candidate identity/membership,
+- forged candidate indices/position identities,
+- malformed guitar configuration/tuning,
+- pitch↔MIDI disagreement,
+- non-canonical tuning string order.
 
 This test coverage is a regression boundary, not a claim that every future optimizer metadata field is independently enumerated by this contract.
 
@@ -194,6 +239,8 @@ This test coverage is a regression boundary, not a claim that every future optim
 
 `OPTIMIZER_OBSERVATION_VERSION` identifies the observation data contract. Adding/removing/renaming required observation fields requires compatibility review and an appropriate contract-version change.
 
+A future cryptographic/content-digest provenance field is not implicitly part of `1.0.0`; it requires a separately approved compatibility/versioning decision.
+
 ## Public API boundary
 
 The following remain internal in this milestone:
@@ -202,6 +249,7 @@ The following remain internal in this milestone:
 - `OPTIMIZER_OBSERVATION_VERSION`
 - `OptimizerObservationError`
 - `createCandidateId`
+- `validateOptimizerObservation`
 - `createOptimizerObservation`
 
 The package-root API is unchanged. Integration Contract v1 therefore remains the external authority boundary.
@@ -210,9 +258,9 @@ The package-root API is unchanged. Integration Contract v1 therefore remains the
 
 This foundation is deliberately **not wired into the conversion pipeline** yet. Normal MusicXML → `CanonicalTabResult` behavior remains unchanged and does not allocate an observation object.
 
-Step 1 and Step 2 observation-integrity hardening being complete does not make the broader benchmark/research pipeline active. `TeacherFeedback` observation/candidate binding, dataset admission, and separate privacy/consent boundaries remain prerequisites before feedback-backed research data can be admitted.
+Step 1, Step 2.1–2.4, and S1 observation-integrity hardening being complete do not make the broader benchmark/research pipeline active. TeacherFeedback exact observation/candidate binding and shared full-observation admission are merged, but cryptographic/content-digest provenance, dataset admission, persistence/global identity, and separate privacy/consent boundaries remain prerequisites before feedback-backed research data can be admitted.
 
-A later, separately approved step may define how observations are requested or captured without changing the authoritative deterministic result.
+A later, separately approved step may define how observations are requested, persisted, content-addressed, or captured without changing the authoritative deterministic result.
 
 ## Relationship to later learning stages
 
