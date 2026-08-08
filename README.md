@@ -6,7 +6,7 @@ AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md)
 
 ## Current state
 
-Verified runtime `main`: `0d8e2258540ca11ff51cd508e4c1c482250ca201`.
+Verified runtime `main`: `24c22141cede5d3fa0ea945ffd4bbdf6897a62f3`.
 
 Current merged capabilities include:
 
@@ -26,13 +26,14 @@ Current merged capabilities include:
 - internal versioned `GuitarConfiguration 1.0.0`,
 - internal `Integration Contract v1` metadata and non-authority boundary,
 - internal `OptimizerObservation 1.0.0`, `PedagogicalFeatureVector 1.0.0`, and `TeacherFeedback 1.0.0` foundations,
-- merged OptimizerObservation Step 1 and Step 2.1–2.4 integrity hardening.
+- merged OptimizerObservation Step 1 and Step 2.1–2.4 integrity hardening,
+- merged TeacherFeedback exact-observation binding, canonical-candidate validation, exact candidate membership, and consent/privacy separation hardening.
 
 `EngineError` itself and internal writer/domain error subclasses are not package-root exports.
 
-The three observation/research foundations are not package-root exports and are not wired into normal conversion. OptimizerObservation now has merged hostile-data, required cost-shape, selected-playability, aggregate-consistency, and negative-regression hardening. Broader benchmark/research use remains blocked by the separate `TeacherFeedback` observation/candidate binding, dataset-admission, and privacy/consent gates.
+The three observation/research foundations are not package-root exports and are not wired into normal conversion. OptimizerObservation has merged hostile-data, required cost-shape, selected-playability, aggregate-consistency, and negative-regression hardening. TeacherFeedback now requires a bounded opaque observation identity, validates against the supplied `OptimizerObservation`, enforces canonical candidate identity and exact observed-candidate membership, and rejects unsupported consent/personal-metadata fields. Broader benchmark/research use remains blocked by persistence/dataset-admission rules and any separately approved consent/privacy or lawful-use record required for secondary data use.
 
-Fresh merge-post GitHub-hosted **Tests #297** on verified `main` passed on Node.js 18/20/22. The exact head of PR #51 passed MusicXML Compatibility on the same tree later merged as current `main`, including alphaTab import/SVG/browser/synth and MuseScore diagnostic jobs. No separate post-merge `main` Compatibility run is claimed.
+Fresh merge-post GitHub-hosted **Tests #305** on verified `main` passed on Node.js 18/20/22. The exact head of PR #54 passed **MusicXML Compatibility #155** on the same tree later merged as current `main`, including alphaTab import/SVG/browser/synth and MuseScore diagnostic jobs. No separate post-merge `main` Compatibility run is claimed.
 
 ## Processing pipeline
 
@@ -112,17 +113,18 @@ Current package-root exports include:
 | Stage | Verified state on the runtime snapshot |
 |---|---|
 | Milestones 2A-2D, SEC-CI-1, Public Writer API | Merged |
-| Documentation convergence | Current status set + OptimizerObservation contract synchronized with Step 2 closure |
+| Documentation convergence | Current status set synchronized through TeacherFeedback hardening/thread closure |
 | `GuitarConfiguration 1.0.0` | Internal contract merged |
 | `Integration Contract v1` | Internal boundary metadata and documentation merged |
 | `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1 and Step 2.1–2.4 hardening merged; not pipeline-wired |
 | Historical PR #42 observation P2 threads | Runtime findings addressed; all three historical review threads resolved |
 | `PedagogicalFeatureVector 1.0.0` | Internal deterministic foundation merged; not pipeline-wired |
-| `TeacherFeedback 1.0.0` | Internal foundation merged; exact observation/candidate binding and dataset admission still blocked |
-| Deterministic teacher-verified benchmark | Not started; blocked by feedback hardening |
+| `TeacherFeedback 1.0.0` | Internal foundation merged; exact observation/candidate binding and consent/privacy separation hardening merged; not pipeline-wired |
+| Historical PR #44 TeacherFeedback P2 threads | Both historical review threads resolved after merged runtime/regression verification |
+| Deterministic teacher-verified benchmark | Not started; next separately approved product gate |
 | Benchmark evaluation harness | Not started |
 | Learned ranking v1, shadow mode | Not started and blocked |
-| Feedback-to-research-dataset pipeline | Not started; requires separate privacy/consent and admission contracts |
+| Feedback-to-research-dataset pipeline | Not started; requires separate persistence/admission plus privacy/consent or lawful-use contracts |
 | Learned-ranking evaluation gate | Not started |
 | Controlled learned-ranking opt-in | Long-term; requires separate evidence and approval |
 

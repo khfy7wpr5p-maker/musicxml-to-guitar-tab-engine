@@ -5,7 +5,7 @@ This document records the verified runtime state of the authoritative `main` bra
 ## Snapshot
 
 - Status date: 2026-08-08
-- Verified runtime `main`: `0d8e2258540ca11ff51cd508e4c1c482250ca201`
+- Verified runtime `main`: `24c22141cede5d3fa0ea945ffd4bbdf6897a62f3`
 - Package version: `0.1.0`
 - Canonical result: `CanonicalTabResult 1.0.0`
 - Internal error contract: `EngineError 1.0.0`
@@ -15,7 +15,9 @@ This document records the verified runtime state of the authoritative `main` bra
 - `Integration Contract v1`: `MERGED`
 - `OptimizerObservation 1.0.0`: `FOUNDATION` — Step 1 and Step 2.1–2.4 hardening merged; not pipeline-wired
 - `PedagogicalFeatureVector 1.0.0`: `FOUNDATION`
-- `TeacherFeedback 1.0.0`: `HARDENING_REQUIRED`
+- `TeacherFeedback 1.0.0`: `FOUNDATION` — exact observation/candidate binding and consent/privacy separation hardening merged; not pipeline-wired
+- Historical PR #42 OptimizerObservation P2 threads: `RESOLVED`
+- Historical PR #44 TeacherFeedback P2 threads: `RESOLVED`
 - Documentation convergence through this snapshot: `DOCUMENTED`
 - G0.1 administrator enforcement: `GOVERNANCE_OPEN`
 
@@ -25,12 +27,12 @@ This document records the verified runtime state of the authoritative `main` bra
 |---|---|
 | `MERGED` | Implemented and present on `main` |
 | `FOUNDATION` | Internal versioned foundation exists but is not integrated into normal conversion |
-| `HARDENING_REQUIRED` | Foundation is merged but must not feed benchmark/research data until named validation gaps close |
 | `DOCUMENTED` | The authoritative status documents describe the verified runtime snapshot |
 | `PARTIAL` | Foundation exists but named capability is incomplete |
 | `NOT_STARTED` | No approved merged implementation exists |
 | `BLOCKED` | Work must not begin until prerequisites/evidence are complete |
 | `GOVERNANCE_OPEN` | Repository/process issue remains unresolved |
+| `RESOLVED` | Historical review/bookkeeping item has been closed against merged evidence |
 
 ## Completed security and architecture milestones
 
@@ -59,6 +61,7 @@ This document records the verified runtime state of the authoritative `main` bra
 | OptimizerObservation Step 2.2 | `MERGED` | Selected cost must be playable and carry no rejection reasons |
 | OptimizerObservation Step 2.3 | `MERGED` | Aggregate selected-path cost must equal the sum of decision costs |
 | OptimizerObservation Step 2.4 | `MERGED` | Independent negative regressions protect playability and negative-cost boundaries |
+| TeacherFeedback hardening | `MERGED` | Bounded observation identity, exact supplied-observation binding, complete canonical candidate validation, exact same-event membership, and consent/personal-metadata field separation |
 
 ## Merged observation/research foundations
 
@@ -66,7 +69,7 @@ This document records the verified runtime state of the authoritative `main` bra
 |---|---|---|
 | `OptimizerObservation 1.0.0` | `FOUNDATION` | Internal and not pipeline-wired; Step 1 and Step 2.1–2.4 observation-integrity hardening is merged |
 | `PedagogicalFeatureVector 1.0.0` | `FOUNDATION` | Internal deterministic descriptive features; not optimizer input or pedagogical truth |
-| `TeacherFeedback 1.0.0` | `HARDENING_REQUIRED` | Internal and not pipeline-wired; exact observation/candidate binding, dataset admission, and separate consent/privacy semantics remain blocked |
+| `TeacherFeedback 1.0.0` | `FOUNDATION` | Internal and not pipeline-wired; exact supplied-observation/candidate binding and consent/privacy separation hardening are merged; persistence, global observation-ID registry, and benchmark/dataset admission remain separate |
 
 ## Current merged runtime capabilities
 
@@ -91,6 +94,7 @@ This document records the verified runtime state of the authoritative `main` bra
 | Internal error convergence | `MERGED` | Domain errors inherit from internal `EngineError 1.0.0` |
 | Public error detection | `MERGED` | `ENGINE_ERROR_CONTRACT_VERSION` + `isEngineError(value)` |
 | OptimizerObservation integrity | `MERGED` | Dense hostile-data handling, complete selected-cost shape, selected playability, aggregate consistency, and independent negative regression coverage |
+| TeacherFeedback integrity | `MERGED` | Observation-bound optimizer selection, canonical candidate grammar/bounds, exact override membership, bounded observation identity, and unsupported-field rejection |
 
 ## Public package-root API
 
@@ -133,15 +137,15 @@ Three internal versioned foundations now exist, but no learning system is active
 
 - `OptimizerObservation 1.0.0` records candidate membership, selected identity, existing selected-cost data, and version references without changing optimization. Step 1 and Step 2.1–2.4 hardening are merged.
 - `PedagogicalFeatureVector 1.0.0` deterministically describes movement/continuity properties without selecting fingering.
-- `TeacherFeedback 1.0.0` records accept/override/reject plus an optional bounded reason without mutating canonical output.
+- `TeacherFeedback 1.0.0` records accept/override/reject plus an optional bounded reason without mutating canonical output. It now validates against the supplied `OptimizerObservation`, stores a bounded opaque `observationId`, requires the optimizer candidate to equal the observation's selected candidate, validates the full canonical candidate identity, and permits overrides only to exact same-event observed candidates.
 
 Before any feedback-backed benchmark or research dataset use:
 
 1. OptimizerObservation observation-integrity hardening is complete for the current 1.0.0 boundary: sparse arrays/cycles/deep metadata fail closed; required selected-cost shape is enforced; selected costs must be playable with no rejection reasons; aggregate/per-decision selected costs must agree; independent negative regressions cover these rules.
-2. Feedback must identify the exact source observation, validate complete candidate identities, and enforce membership in that observation's candidate set.
-3. Teacher feedback and optional free-text reasons must remain separate from any research/training consent or lawful-use record.
+2. TeacherFeedback exact supplied-observation/candidate binding is complete for the current 1.0.0 boundary, including complete candidate identity validation and exact override membership.
+3. TeacherFeedback rejects unsupported consent/personal-metadata fields and must not be treated as consent. Any real research/training admission must use separately approved persistence/admission and consent/privacy or lawful-use records outside TeacherFeedback.
 
-Traceability: [PR #42](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/42) retains the three historical P2 observation-integrity findings, and all three review threads are now resolved after merged Step 1 and Step 2.1–2.4 runtime/regression evidence was verified. The resolution was repository bookkeeping only. [PR #44](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/44) retains two unresolved P2 feedback-identity threads that remain materially open.
+Traceability: [PR #42](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/42) retains the three historical P2 observation-integrity findings; all three review threads are resolved after merged runtime/regression evidence. [PR #44](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/44) retains the two historical TeacherFeedback P2 findings; both review threads are resolved after PR #54 merged and merge-post verification succeeded. Thread resolution was repository bookkeeping only.
 
 The deterministic benchmark, evaluation harness, dataset pipeline, learned ranker, model training, and controlled opt-in are not implemented.
 
@@ -156,9 +160,9 @@ The deterministic benchmark, evaluation harness, dataset pipeline, learned ranke
 
 ## Verification evidence and limitation
 
-Fresh merge-post GitHub-hosted Tests #297 on verified runtime `main` `0d8e2258540ca11ff51cd508e4c1c482250ca201` completed successfully on Node.js 18, 20, and 22.
+Fresh merge-post GitHub-hosted Tests #305 on verified runtime `main` `24c22141cede5d3fa0ea945ffd4bbdf6897a62f3` completed successfully on Node.js 18, 20, and 22.
 
-The exact head of PR #51 (`885896363e8f292790b35acd3bc4a89a1007287b`) passed GitHub-hosted MusicXML Compatibility on the same tree later merged as current `main`:
+The exact head of PR #54 (`51f39ad9e763b55a5bcba29dfa53d713907f57bb`) passed GitHub-hosted MusicXML Compatibility #155 on the same tree later merged as current `main`:
 
 - complete repository tests plus alphaTab import and SVG render on Node.js 18, 20, and 22
 - alphaTab browser renderer/cursor and synthesizer diagnostic on Node.js 22
@@ -168,7 +172,7 @@ No separate post-merge `main` MusicXML Compatibility run is claimed.
 
 The earlier PEB-1 hosted jobs were blocked by billing/spending limits and remain historical non-evidence for that old head. Fresh later CI succeeded, so that old operational limitation is not a current blanket CI blocker.
 
-The current Step 2.4 regression closure adds independent failure cases for `isPlayable: false` with empty reasons and for negative selected-cost/first-position/transition breakdown values. Passing tests do not close the remaining `TeacherFeedback` identity/membership/consent gates.
+Passing tests verify the current merged TeacherFeedback boundary exercised by the repository suite; they do not create persistence, global observation-ID uniqueness, dataset admission, a consent/lawful-use registry, or a teacher benchmark.
 
 ## Approved next safe implementation order
 
@@ -176,13 +180,12 @@ This documentation snapshot is `DOCUMENTED`. The next gates are:
 
 | Order | Work item | Status |
 |---:|---|---|
-| 1 | `TeacherFeedback 1.0.0` exact observation/candidate binding plus separate consent/privacy semantics | `READY` for separate approval |
-| 2 | Deterministic teacher-verified fingering benchmark v1 | `BLOCKED` |
-| 3 | Benchmark evaluation harness | `NOT_STARTED` |
-| 4 | Learned ranking v1 — shadow mode | `BLOCKED` |
-| 5 | Teacher feedback to versioned research-dataset pipeline | `BLOCKED` |
-| 6 | Learned-ranking evaluation gate against deterministic baseline | `BLOCKED` |
-| 7 | Learned ranking v1 — controlled opt-in | `BLOCKED` |
+| 1 | Deterministic teacher-verified fingering benchmark v1 with separately approved provenance/data-admission constraints | `READY` for separate approval |
+| 2 | Benchmark evaluation harness | `NOT_STARTED` |
+| 3 | Learned ranking v1 — shadow mode | `BLOCKED` |
+| 4 | Teacher feedback to versioned research-dataset pipeline with explicit persistence/admission and consent/privacy or lawful-use records | `BLOCKED` |
+| 5 | Learned-ranking evaluation gate against deterministic baseline | `BLOCKED` |
+| 6 | Learned ranking v1 — controlled opt-in | `BLOCKED` |
 
 G0.1 administrator-bypass hardening remains a parallel governance task.
 
@@ -204,8 +207,9 @@ G0.1 administrator-bypass hardening remains a parallel governance task.
 - public writer/domain error class exports
 - public GuitarConfiguration/Integration/observation/feature/feedback exports
 - observation/feature/feedback integration into normal conversion
-- TeacherFeedback exact observation/candidate binding and feedback dataset-admission boundary
-- teacher-feedback persistence or privacy/consent contract
+- TeacherFeedback persistence or global observation-ID uniqueness registry
+- feedback benchmark/dataset admission infrastructure
+- separately versioned research/training consent/privacy or lawful-use record
 - teacher benchmark
 - benchmark evaluation harness and research-dataset pipeline
 - learned ranking/training/model registry

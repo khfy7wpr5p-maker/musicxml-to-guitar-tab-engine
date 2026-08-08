@@ -94,7 +94,7 @@ The contract MUST NOT:
 - bypass the physical validator;
 - train or activate a learned ranker by itself.
 
-Exact candidate membership is now enforced inside the TeacherFeedback runtime boundary by validating against the supplied `OptimizerObservation`. This does not wire feedback into normal conversion or authorize benchmark/dataset admission by itself.
+Exact candidate membership is enforced inside the TeacherFeedback runtime boundary by validating against the supplied `OptimizerObservation`. This does not wire feedback into normal conversion or authorize benchmark/dataset admission by itself.
 
 ## Consent and privacy separation
 
@@ -114,4 +114,6 @@ V1 contains no teacher name, email, account identifier, student identifier, scor
 
 The module remains internal and is not exported from the package-root public API or wired into normal conversion.
 
-This hardening closes the runtime gaps behind the two historical PR #44 P2 findings: observation identity/exact binding and complete canonical candidate validation. GitHub review-thread resolution remains separate repository bookkeeping after the hardening is merged and verified.
+The runtime gaps behind the two historical PR #44 P2 findings are closed by the merged TeacherFeedback hardening: observation identity/exact supplied-observation binding and complete canonical candidate validation with exact same-event membership. Both PR #44 review threads are now resolved after merged runtime/regression evidence and merge-post Tests #305 were verified. Review-thread resolution was repository bookkeeping only and did not change runtime behavior.
+
+Persistence, global observation-ID uniqueness, benchmark/dataset admission, and separately versioned consent/privacy or lawful-use records remain outside this contract and are not implemented by this module.
