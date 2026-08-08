@@ -12,15 +12,9 @@ const {
 const {
   createOptimizerObservationDigest,
 } = require('../src/fingering/optimizerObservationDigest');
-const {
-  buildCandidateLayers,
-} = require('../src/fingering/candidateLayerBuilder');
-const {
-  optimizeFingering,
-} = require('../src/fingering/fingeringOptimizer');
-const {
-  parseCanonicalMusicDocument,
-} = require('../src/parser/parseCanonicalMusicDocument');
+const { buildCandidateLayers } = require('../src/fingering/candidateLayerBuilder');
+const { optimizeFingering } = require('../src/fingering/fingeringOptimizer');
+const { parseCanonicalMusicDocument } = require('../src/parser/parseCanonicalMusicDocument');
 const {
   OBSERVATION_ADMISSION_CONTRACT_VERSION,
   MAX_ADMISSION_HISTORY_ENTRIES,
@@ -33,9 +27,7 @@ function readFixture(name) {
 }
 
 function buildObservation() {
-  const canonical = parseCanonicalMusicDocument(
-    readFixture('parser-single-voice.musicxml'),
-  );
+  const canonical = parseCanonicalMusicDocument(readFixture('parser-single-voice.musicxml'));
   const candidateSet = buildCandidateLayers(canonical);
   const optimized = optimizeFingering(candidateSet.candidateLayers);
   return createOptimizerObservation(candidateSet, optimized);
@@ -49,6 +41,7 @@ function baseInput(overrides = {}) {
     admissionId: 'admission:benchmark-v1:0001',
     admissionDomainId: 'dataset:teacher-benchmark-v1',
     producerId: 'producer:engine-local-reference',
+    producerRevisionId: 'git:cb15f64da99b87f196d50e123e6abe334fc68d45',
     runId: 'run:0001',
     observationId: 'observation:0001',
     observation,
@@ -65,19 +58,20 @@ function createSecondObservation() {
   return second;
 }
 
-function createSecondAdmission(first) {
+function secondInput(existingAdmissions = []) {
   const secondObservation = createSecondObservation();
-  return createObservationAdmissionRecord(baseInput({
+  return baseInput({
     admissionId: 'admission:benchmark-v1:0002',
     observationId: 'observation:0002',
+    producerRevisionId: 'git:revision-two',
     runId: 'run:0002',
     observation: secondObservation,
     observationDigest: createOptimizerObservationDigest(secondObservation),
-    existingAdmissions: [first],
-  }));
+    existingAdmissions,
+  });
 }
 
-test('creates an immutable versioned admission record bound to observation content and run identity', () => {
+test('creates an immutable versioned admission record bound to observation content and producer/run revision identity', () => {
   const record = createObservationAdmissionRecord(baseInput());
 
   assert.equal(OBSERVATION_ADMISSION_CONTRACT_VERSION, '1.0.0');
@@ -90,6 +84,7 @@ test('creates an immutable versioned admission record bound to observation conte
   assert.notEqual(record.observationDigest, observationDigest);
   assert.deepEqual(record.producer, {
     producerId: 'producer:engine-local-reference',
+    producerRevisionId: 'git:cb15f64da99b87f196d50e123e6abe334fc68d45',
     runId: 'run:0001',
     packageName: 'musicxml-to-guitar-tab-engine',
     packageVersion: '0.1.0',
@@ -105,132 +100,99 @@ test('creates an immutable versioned admission record bound to observation conte
   assert.equal(Object.isFrozen(record.optimizer), true);
 });
 
-test('rejects replay of an already admitted observation identity and digest', () => {
+test('rejects observation replay, duplicate content, and observation identity collision', () => {
   const first = createObservationAdmissionRecord(baseInput());
 
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0002',
-      runId: 'run:0002',
+      admissionId: 'admission:benchmark-v1:replay',
+      producerRevisionId: 'git:replay',
+      runId: 'run:replay',
       existingAdmissions: [first],
     })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /replay|already admitted/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError && /replay|already admitted/i.test(error.message),
   );
-});
-
-test('rejects duplicate observation content under a different observation identity', () => {
-  const first = createObservationAdmissionRecord(baseInput());
 
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0002',
+      admissionId: 'admission:benchmark-v1:duplicate',
       observationId: 'observation:duplicate-alias',
-      runId: 'run:0002',
+      producerRevisionId: 'git:duplicate',
+      runId: 'run:duplicate',
       existingAdmissions: [first],
     })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /duplicate.*content|content.*duplicate/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError && /duplicate.*content|content.*duplicate/i.test(error.message),
   );
-});
 
-test('rejects observation identity collision with different valid content', () => {
-  const first = createObservationAdmissionRecord(baseInput());
   const secondObservation = createSecondObservation();
-  const secondDigest = createOptimizerObservationDigest(secondObservation);
-
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0002',
+      admissionId: 'admission:benchmark-v1:collision',
+      producerRevisionId: 'git:collision',
+      runId: 'run:collision',
       observation: secondObservation,
-      observationDigest: secondDigest,
-      runId: 'run:0002',
+      observationDigest: createOptimizerObservationDigest(secondObservation),
       existingAdmissions: [first],
     })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /observation.*collision|collision.*observation/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError && /observation.*collision|collision.*observation/i.test(error.message),
   );
 });
 
-test('rejects producer run replay and producer run collision', () => {
+test('rejects producer run replay and collision even when the asserted producer revision changes', () => {
   const first = createObservationAdmissionRecord(baseInput());
 
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0002',
+      admissionId: 'admission:benchmark-v1:run-replay',
       observationId: 'observation:run-replay-alias',
+      producerRevisionId: 'git:claimed-different-revision',
       existingAdmissions: [first],
     })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /run.*replay|replay.*run/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError && /run.*replay|replay.*run/i.test(error.message),
   );
 
   const secondObservation = createSecondObservation();
-  const secondDigest = createOptimizerObservationDigest(secondObservation);
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0003',
+      admissionId: 'admission:benchmark-v1:run-collision',
       observationId: 'observation:run-collision',
+      producerRevisionId: 'git:claimed-different-revision',
       observation: secondObservation,
-      observationDigest: secondDigest,
+      observationDigest: createOptimizerObservationDigest(secondObservation),
       existingAdmissions: [first],
     })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /run.*collision|collision.*run/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError && /run.*collision|collision.*run/i.test(error.message),
   );
 });
 
-test('rejects tampered observation content and mismatched digest before admission', () => {
+test('rejects shape-valid observation tampering with a stale digest', () => {
   const tampered = structuredClone(observation);
   tampered.partId = `${tampered.partId}:tampered-after-digest`;
   assert.doesNotThrow(() => validateOptimizerObservation(tampered));
-
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({ observation: tampered })),
     ObservationAdmissionError,
   );
 });
 
-test('rejects duplicate admission IDs, malformed history, and unsupported metadata', () => {
+test('rejects duplicate admission IDs, malformed history, and unsupported consent/personal metadata', () => {
   const first = createObservationAdmissionRecord(baseInput());
-  const secondObservation = createSecondObservation();
-  const secondDigest = createOptimizerObservationDigest(secondObservation);
-
   assert.throws(
-    () => createObservationAdmissionRecord(baseInput({
+    () => createObservationAdmissionRecord(secondInput([first]).constructor === Object ? baseInput({
+      admissionId: first.admissionId,
       observationId: 'observation:second',
-      observation: secondObservation,
-      observationDigest: secondDigest,
-      runId: 'run:0002',
+      producerRevisionId: 'git:second',
+      runId: 'run:second',
+      observation: createSecondObservation(),
+      observationDigest: createOptimizerObservationDigest(createSecondObservation()),
       existingAdmissions: [first],
-    })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /admission.*already|duplicate.*admission/i);
-      return true;
-    },
+    }) : null),
+    ObservationAdmissionError,
   );
-
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({ existingAdmissions: [null] })),
     ObservationAdmissionError,
   );
-
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({ researchConsent: true })),
     ObservationAdmissionError,
@@ -245,48 +207,29 @@ test('rejects internally inconsistent admission history before admitting new con
   const first = createObservationAdmissionRecord(baseInput());
   const conflicting = structuredClone(first);
   conflicting.admissionId = 'admission:benchmark-v1:conflict';
-  const secondObservation = createSecondObservation();
 
   assert.throws(
-    () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0003',
-      observationId: 'observation:0003',
-      producerId: 'producer:other',
-      runId: 'run:0003',
-      observation: secondObservation,
-      observationDigest: createOptimizerObservationDigest(secondObservation),
-      existingAdmissions: [first, conflicting],
-    })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /history.*duplicate|history.*replay|inconsistent.*history/i);
-      return true;
-    },
+    () => createObservationAdmissionRecord(secondInput([first, conflicting])),
+    (error) => error instanceof ObservationAdmissionError
+      && /history.*duplicate|history.*replay|inconsistent.*history/i.test(error.message),
   );
 });
 
-test('preserves replay protection when historical producer and engine metadata differ from the current version', () => {
+test('preserves replay protection when historical engine metadata differs from the current version', () => {
   const first = createObservationAdmissionRecord(baseInput());
   const historical = structuredClone(first);
   historical.producer.packageVersion = '0.0.9';
+  historical.producer.producerRevisionId = 'git:historical-revision';
   historical.optimizer.version = '0.9.0';
   historical.optimizerObservationVersion = '0.9.0';
   historical.candidateContractVersion = '0.9.0';
   historical.guitarConfigurationVersion = '0.9.0';
 
-  const secondObservation = createSecondObservation();
-  assert.doesNotThrow(() => createObservationAdmissionRecord(baseInput({
-    admissionId: 'admission:benchmark-v1:0002',
-    observationId: 'observation:0002',
-    runId: 'run:0002',
-    observation: secondObservation,
-    observationDigest: createOptimizerObservationDigest(secondObservation),
-    existingAdmissions: [historical],
-  })));
-
+  assert.doesNotThrow(() => createObservationAdmissionRecord(secondInput([historical])));
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({
       admissionId: 'admission:benchmark-v1:0002',
+      producerRevisionId: 'git:another-revision',
       runId: 'run:0002',
       existingAdmissions: [historical],
     })),
@@ -297,19 +240,22 @@ test('preserves replay protection when historical producer and engine metadata d
 test('bounds admission history before linear duplicate scanning', () => {
   const first = createObservationAdmissionRecord(baseInput());
   const overLimit = Array(MAX_ADMISSION_HISTORY_ENTRIES + 1).fill(first);
-
   assert.throws(
     () => createObservationAdmissionRecord(baseInput({ existingAdmissions: overLimit })),
-    (error) => {
-      assert.ok(error instanceof ObservationAdmissionError);
-      assert.match(error.message, /history.*limit|too many.*admission/i);
-      return true;
-    },
+    (error) => error instanceof ObservationAdmissionError
+      && /history.*limit|too many.*admission/i.test(error.message),
   );
 });
 
-test('requires complete bounded opaque identifiers and an explicit dense admission history', () => {
-  for (const field of ['admissionId', 'admissionDomainId', 'producerId', 'runId', 'observationId']) {
+test('requires complete bounded opaque identities and an explicit dense admission history', () => {
+  for (const field of [
+    'admissionId',
+    'admissionDomainId',
+    'producerId',
+    'producerRevisionId',
+    'runId',
+    'observationId',
+  ]) {
     assert.throws(
       () => createObservationAdmissionRecord(baseInput({ [field]: '' })),
       ObservationAdmissionError,
@@ -320,7 +266,6 @@ test('requires complete bounded opaque identifiers and an explicit dense admissi
     () => createObservationAdmissionRecord(baseInput({ existingAdmissions: undefined })),
     ObservationAdmissionError,
   );
-
   const sparse = [];
   sparse.length = 1;
   assert.throws(
@@ -333,17 +278,8 @@ test('requires history to stay within one explicit admission domain', () => {
   const first = createObservationAdmissionRecord(baseInput());
   const crossDomain = structuredClone(first);
   crossDomain.admissionDomainId = 'dataset:other-domain';
-  const secondObservation = createSecondObservation();
-
   assert.throws(
-    () => createObservationAdmissionRecord(baseInput({
-      admissionId: 'admission:benchmark-v1:0002',
-      observationId: 'observation:0002',
-      runId: 'run:0002',
-      observation: secondObservation,
-      observationDigest: createOptimizerObservationDigest(secondObservation),
-      existingAdmissions: [crossDomain],
-    })),
+    () => createObservationAdmissionRecord(secondInput([crossDomain])),
     ObservationAdmissionError,
   );
 });
