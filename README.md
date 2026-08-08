@@ -123,7 +123,7 @@ Current package-root exports include:
 | Stage | Verified state on the runtime snapshot |
 |---|---|
 | Milestones 2A-2D, SEC-CI-1, Public Writer API | Merged |
-| Documentation convergence | S3/S3.1 status synchronization in progress in the current docs-only change |
+| Documentation convergence | S3/S3.1 runtime state documented in the authoritative status set |
 | `GuitarConfiguration 1.0.0` | Internal contract merged |
 | `Integration Contract v1` | Internal boundary metadata and documentation merged |
 | `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1, Step 2.1–2.4 and S1 reusable full validation merged; not pipeline-wired |
@@ -136,7 +136,7 @@ Current package-root exports include:
 | S3 observation provenance / dataset-admission contract | Merged in PR #60 as internal `ObservationAdmission 1.0.0` foundation |
 | S3.1 authoritative/atomic admission adapter contract | Merged in PR #61 as internal `ObservationAdmissionAtomicAdapter 1.0.0` boundary |
 | Concrete durable production admission store | Not implemented; requires separate provider-specific implementation/review |
-| Deterministic teacher-verified benchmark | Not started; may be evaluated as a separate fixed-artifact gate after documentation convergence, without treating S3.1 as deployed persistence |
+| Deterministic teacher-verified benchmark | Not started; may be evaluated as a separate fixed-artifact gate without treating S3.1 as deployed persistence |
 | Benchmark evaluation harness | Not started |
 | Learned ranking v1, shadow mode | Not started and blocked |
 | Feedback-to-research-dataset pipeline | Not started; requires concrete durable admission/persistence plus privacy/consent or lawful-use controls |
