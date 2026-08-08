@@ -4,18 +4,22 @@ const { EngineError } = require('../errors/engineError');
 const {
   OPTIMIZER_OBSERVATION_VERSION,
   createCandidateId,
-  validateOptimizerObservation,
 } = require('./optimizerObservation');
+const {
+  OPTIMIZER_OBSERVATION_DIGEST_VERSION,
+  verifyOptimizerObservationDigest,
+} = require('./optimizerObservationDigest');
 const { PEDAGOGICAL_FEATURE_VECTOR_VERSION } = require('./pedagogicalFeatureVector');
 const { GUITAR_CONFIGURATION_VERSION } = require('../guitar/tuning');
 
-const TEACHER_FEEDBACK_CONTRACT_VERSION = '1.0.0';
+const TEACHER_FEEDBACK_CONTRACT_VERSION = '1.1.0';
 const FEEDBACK_DECISIONS = Object.freeze(['accept', 'override', 'reject']);
 const MAX_REASON_LENGTH = 1000;
 const MAX_OBSERVATION_ID_LENGTH = 512;
 const ALLOWED_INPUT_FIELDS = new Set([
   'observation',
   'observationId',
+  'observationDigest',
   'eventId',
   'optimizerSelectedCandidateId',
   'decision',
@@ -88,12 +92,18 @@ function validateCandidateId(candidateId, field, maximumFret) {
   return { candidateId, eventId, string, fret };
 }
 
-function validateObservation(observation, eventId) {
+function validateObservation(observation, observationDigest, eventId) {
+  let verifiedDigest;
   try {
-    validateOptimizerObservation(observation);
+    verifiedDigest = verifyOptimizerObservationDigest(observation, observationDigest);
   } catch (error) {
+    const isDigestFailure = (
+      error?.details?.digestContractVersion === OPTIMIZER_OBSERVATION_DIGEST_VERSION
+    );
     throw new TeacherFeedbackError(
-      'observation must be a complete valid OptimizerObservation.',
+      isDigestFailure
+        ? 'observationDigest must be valid and match the supplied observation.'
+        : 'observation must be a complete valid OptimizerObservation.',
       { observationErrorCode: error?.code ?? null },
     );
   }
@@ -106,6 +116,7 @@ function validateObservation(observation, eventId) {
   }
 
   return {
+    observationDigest: verifiedDigest,
     selectedCandidateId: matchedDecision.selectedCandidateId,
     candidateIds: new Set(
       matchedDecision.candidates.map((candidate) => candidate.candidateId),
@@ -126,7 +137,11 @@ function createTeacherFeedback(input) {
     MAX_OBSERVATION_ID_LENGTH,
   );
   const eventId = assertNonEmptyString(input.eventId, 'eventId');
-  const observedDecision = validateObservation(input.observation, eventId);
+  const observedDecision = validateObservation(
+    input.observation,
+    input.observationDigest,
+    eventId,
+  );
   const optimizerSelectedCandidate = validateCandidateId(
     input.optimizerSelectedCandidateId,
     'optimizerSelectedCandidateId',
@@ -196,6 +211,7 @@ function createTeacherFeedback(input) {
     documentType: 'TeacherFeedback',
     contractVersion: TEACHER_FEEDBACK_CONTRACT_VERSION,
     observationId,
+    observationDigest: Object.freeze({ ...observedDecision.observationDigest }),
     eventId,
     optimizerSelectedCandidateId,
     decision,
