@@ -131,7 +131,7 @@ Three internal versioned foundations now exist, but no learning system is active
 
 Before any benchmark or research dataset use:
 
-1. Observation input must reject sparse arrays, reconcile aggregate/per-decision costs, require complete playable cost records, and bound metadata traversal.
+1. `OptimizerObservation` Step 1 is complete: sparse arrays are rejected and metadata traversal is bounded. Step 2 must reconcile aggregate/per-decision costs and require complete playable cost records.
 2. Feedback must identify the exact source observation, validate complete candidate identities, and enforce membership in that observation's candidate set.
 3. Teacher feedback and optional free-text reasons must remain separate from any research/training consent or lawful-use record.
 
@@ -150,20 +150,23 @@ The deterministic benchmark, evaluation harness, dataset pipeline, learned ranke
 
 ## Verification evidence and limitation
 
-Fresh local validation on verified runtime `main` `5ba727a778aceb3b70342b82ae027d6ac2bacd43` produced:
+Fresh GitHub-hosted validation on verified runtime `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b` produced:
 
-- `npm test`: 275/275 passed
+- full repository suite passed on Node.js 18, 20, and 22
+- Node.js 22: 283/283 tests passed
+- `npm ci --ignore-scripts`: 0 vulnerabilities
 
-The exact head of PR #44, whose runtime tree was merged as `5ba727a`, produced successful GitHub-hosted runs for:
+The exact head of PR #46 passed GitHub-hosted MusicXML Compatibility on the same tree later merged as `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`:
 
-- Tests on Node.js 18, 20, and 22
 - complete repository tests plus alphaTab import and SVG render on Node.js 18, 20, and 22
 - alphaTab browser renderer/cursor and synthesizer diagnostic on Node.js 22
 - MuseScore CLI availability diagnostic
 
+No separate post-merge `main` MusicXML Compatibility run is claimed.
+
 The earlier PEB-1 hosted jobs were blocked by billing/spending limits and remain historical non-evidence for that old head. Fresh later CI succeeded, so that old operational limitation is not a current blanket CI blocker.
 
-Passing tests do not close the recorded observation/feedback data-integrity gaps because the current suites do not cover those hostile cases.
+PR #46 regression tests now cover sparse-array rejection and bounded metadata traversal. Passing tests do not close the remaining Step 2 cost-shape/playability/aggregate-consistency gaps or the recorded `TeacherFeedback` identity/membership gaps.
 
 ## Approved next safe implementation order
 
@@ -171,7 +174,7 @@ This four-file documentation snapshot is `DOCUMENTED`. The next implementation g
 
 | Order | Work item | Status |
 |---:|---|---|
-| 1 | `OptimizerObservation 1.0.0` hardening + negative tests | `HARDENING_REQUIRED` |
+|     1 | `OptimizerObservation 1.0.0` Step 2 cost-shape/playability/aggregate consistency + negative tests | `READY` |
 | 2 | `TeacherFeedback 1.0.0` observation/candidate binding and consent separation | `BLOCKED` |
 | 3 | Deterministic teacher-verified fingering benchmark v1 | `BLOCKED` |
 | 4 | Benchmark evaluation harness | `NOT_STARTED` |
