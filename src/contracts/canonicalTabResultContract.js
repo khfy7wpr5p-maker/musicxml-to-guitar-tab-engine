@@ -258,7 +258,7 @@ function warningIndex(value, expected) {
 }
 
 function validateCanonicalTabResult(value) {
-  validateJsonGraph(value, ROOT, new WeakSet(), new WeakSet());
+  validateJsonGraph(value, ROOT);
   object(value, ROOT);
   if (value.documentType !== 'CanonicalTabResult') {
     invalid(`${ROOT}.documentType`, 'DOCUMENT_TYPE_MISMATCH');
