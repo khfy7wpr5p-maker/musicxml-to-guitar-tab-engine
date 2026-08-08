@@ -129,26 +129,45 @@ function validateStore(store) {
   if (store === null || (typeof store !== 'object' && typeof store !== 'function')) {
     throw new ObservationAdmissionAtomicAdapterError('Atomic admission store must be an object.');
   }
-  if (store.contractVersion !== OBSERVATION_ADMISSION_ATOMIC_ADAPTER_CONTRACT_VERSION) {
+
+  let contractVersion;
+  let readAdmissionDomainSnapshot;
+  let compareAndCommitAdmission;
+  try {
+    contractVersion = store.contractVersion;
+    readAdmissionDomainSnapshot = store.readAdmissionDomainSnapshot;
+    compareAndCommitAdmission = store.compareAndCommitAdmission;
+  } catch (error) {
+    throw new ObservationAdmissionAtomicAdapterError(
+      'Atomic admission store contract properties could not be read safely.',
+      { storeErrorName: error && typeof error.name === 'string' ? error.name : null },
+    );
+  }
+
+  if (contractVersion !== OBSERVATION_ADMISSION_ATOMIC_ADAPTER_CONTRACT_VERSION) {
     throw new ObservationAdmissionAtomicAdapterError(
       'Atomic admission store contractVersion is not supported.',
       {
         expectedContractVersion: OBSERVATION_ADMISSION_ATOMIC_ADAPTER_CONTRACT_VERSION,
-        actualContractVersion: store.contractVersion ?? null,
+        actualContractVersion: contractVersion ?? null,
       },
     );
   }
-  if (typeof store.readAdmissionDomainSnapshot !== 'function') {
+  if (typeof readAdmissionDomainSnapshot !== 'function') {
     throw new ObservationAdmissionAtomicAdapterError(
       'Atomic admission store must implement readAdmissionDomainSnapshot().',
     );
   }
-  if (typeof store.compareAndCommitAdmission !== 'function') {
+  if (typeof compareAndCommitAdmission !== 'function') {
     throw new ObservationAdmissionAtomicAdapterError(
       'Atomic admission store must implement compareAndCommitAdmission().',
     );
   }
-  return store;
+
+  return Object.freeze({
+    readAdmissionDomainSnapshot,
+    compareAndCommitAdmission,
+  });
 }
 
 function validateAtomicInput(input) {
@@ -233,13 +252,13 @@ function commitOutcomeUnknown(message, error = null) {
 }
 
 async function commitObservationAdmissionAtomically(store, input) {
-  validateStore(store);
+  const storeMethods = validateStore(store);
   validateAtomicInput(input);
 
   const admissionDomainId = input.admissionDomainId;
   let snapshot;
   try {
-    snapshot = await store.readAdmissionDomainSnapshot(admissionDomainId);
+    snapshot = await storeMethods.readAdmissionDomainSnapshot.call(store, admissionDomainId);
   } catch (error) {
     throw new ObservationAdmissionAtomicAdapterError(
       'Atomic admission store failed while reading the authoritative domain snapshot.',
@@ -258,7 +277,7 @@ async function commitObservationAdmissionAtomically(store, input) {
 
   let commitResult;
   try {
-    commitResult = await store.compareAndCommitAdmission({
+    commitResult = await storeMethods.compareAndCommitAdmission.call(store, {
       admissionDomainId,
       expectedRevisionToken: snapshot.revisionToken,
       record,
