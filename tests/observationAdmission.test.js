@@ -23,6 +23,7 @@ const {
 } = require('../src/parser/parseCanonicalMusicDocument');
 const {
   OBSERVATION_ADMISSION_CONTRACT_VERSION,
+  MAX_ADMISSION_HISTORY_ENTRIES,
   ObservationAdmissionError,
   createObservationAdmissionRecord,
 } = require('../src/fingering/observationAdmission');
@@ -62,6 +63,18 @@ function createSecondObservation() {
   second.partId = `${second.partId}:second-run`;
   assert.doesNotThrow(() => validateOptimizerObservation(second));
   return second;
+}
+
+function createSecondAdmission(first) {
+  const secondObservation = createSecondObservation();
+  return createObservationAdmissionRecord(baseInput({
+    admissionId: 'admission:benchmark-v1:0002',
+    observationId: 'observation:0002',
+    runId: 'run:0002',
+    observation: secondObservation,
+    observationDigest: createOptimizerObservationDigest(secondObservation),
+    existingAdmissions: [first],
+  }));
 }
 
 test('creates an immutable versioned admission record bound to observation content and run identity', () => {
@@ -228,6 +241,73 @@ test('rejects duplicate admission IDs, malformed history, and unsupported metada
   );
 });
 
+test('rejects internally inconsistent admission history before admitting new content', () => {
+  const first = createObservationAdmissionRecord(baseInput());
+  const conflicting = structuredClone(first);
+  conflicting.admissionId = 'admission:benchmark-v1:conflict';
+  const secondObservation = createSecondObservation();
+
+  assert.throws(
+    () => createObservationAdmissionRecord(baseInput({
+      admissionId: 'admission:benchmark-v1:0003',
+      observationId: 'observation:0003',
+      producerId: 'producer:other',
+      runId: 'run:0003',
+      observation: secondObservation,
+      observationDigest: createOptimizerObservationDigest(secondObservation),
+      existingAdmissions: [first, conflicting],
+    })),
+    (error) => {
+      assert.ok(error instanceof ObservationAdmissionError);
+      assert.match(error.message, /history.*duplicate|history.*replay|inconsistent.*history/i);
+      return true;
+    },
+  );
+});
+
+test('preserves replay protection when historical producer and engine metadata differ from the current version', () => {
+  const first = createObservationAdmissionRecord(baseInput());
+  const historical = structuredClone(first);
+  historical.producer.packageVersion = '0.0.9';
+  historical.optimizer.version = '0.9.0';
+  historical.optimizerObservationVersion = '0.9.0';
+  historical.candidateContractVersion = '0.9.0';
+  historical.guitarConfigurationVersion = '0.9.0';
+
+  const secondObservation = createSecondObservation();
+  assert.doesNotThrow(() => createObservationAdmissionRecord(baseInput({
+    admissionId: 'admission:benchmark-v1:0002',
+    observationId: 'observation:0002',
+    runId: 'run:0002',
+    observation: secondObservation,
+    observationDigest: createOptimizerObservationDigest(secondObservation),
+    existingAdmissions: [historical],
+  })));
+
+  assert.throws(
+    () => createObservationAdmissionRecord(baseInput({
+      admissionId: 'admission:benchmark-v1:0002',
+      runId: 'run:0002',
+      existingAdmissions: [historical],
+    })),
+    ObservationAdmissionError,
+  );
+});
+
+test('bounds admission history before linear duplicate scanning', () => {
+  const first = createObservationAdmissionRecord(baseInput());
+  const overLimit = Array(MAX_ADMISSION_HISTORY_ENTRIES + 1).fill(first);
+
+  assert.throws(
+    () => createObservationAdmissionRecord(baseInput({ existingAdmissions: overLimit })),
+    (error) => {
+      assert.ok(error instanceof ObservationAdmissionError);
+      assert.match(error.message, /history.*limit|too many.*admission/i);
+      return true;
+    },
+  );
+});
+
 test('requires complete bounded opaque identifiers and an explicit dense admission history', () => {
   for (const field of ['admissionId', 'admissionDomainId', 'producerId', 'runId', 'observationId']) {
     assert.throws(
@@ -249,8 +329,28 @@ test('requires complete bounded opaque identifiers and an explicit dense admissi
   );
 });
 
+test('requires history to stay within one explicit admission domain', () => {
+  const first = createObservationAdmissionRecord(baseInput());
+  const crossDomain = structuredClone(first);
+  crossDomain.admissionDomainId = 'dataset:other-domain';
+  const secondObservation = createSecondObservation();
+
+  assert.throws(
+    () => createObservationAdmissionRecord(baseInput({
+      admissionId: 'admission:benchmark-v1:0002',
+      observationId: 'observation:0002',
+      runId: 'run:0002',
+      observation: secondObservation,
+      observationDigest: createOptimizerObservationDigest(secondObservation),
+      existingAdmissions: [crossDomain],
+    })),
+    ObservationAdmissionError,
+  );
+});
+
 test('admission APIs remain internal package details', () => {
   const packageApi = require('..');
   assert.equal(Object.hasOwn(packageApi, 'createObservationAdmissionRecord'), false);
   assert.equal(Object.hasOwn(packageApi, 'OBSERVATION_ADMISSION_CONTRACT_VERSION'), false);
+  assert.equal(Object.hasOwn(packageApi, 'MAX_ADMISSION_HISTORY_ENTRIES'), false);
 });
