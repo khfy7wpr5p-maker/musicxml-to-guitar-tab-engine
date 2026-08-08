@@ -6,7 +6,7 @@ This file is the required starting point for AI agents, coding assistants, revie
 
 - Last verified: 2026-08-08
 - Authoritative branch: `main`
-- Verified runtime main commit: `316ce430c7721b2736721d6dff4a1eea3daedb03`
+- Verified runtime main commit: `312261cb374d1959c993530b10c42d32ab8c3caf`
 - Package version: `0.1.0`
 - Canonical result contract: `CanonicalTabResult 1.0.0`
 - Internal error contract: `EngineError 1.0.0`
@@ -15,13 +15,14 @@ This file is the required starting point for AI agents, coding assistants, revie
 - PEB-1 public error detection boundary: merged
 - `GuitarConfiguration 1.0.0`: internal contract merged
 - `Integration Contract v1`: internal metadata/non-authority boundary merged
-- `OptimizerObservation 1.0.0`: internal foundation merged; Step 1, Step 2.1–2.4, and S1 reusable full-observation validation merged; not pipeline-wired
+- `OptimizerObservation 1.0.0`: internal foundation merged; Step 1, Step 2.1–2.4, S1 reusable full-observation validation, and S2 content-digest support merged; not pipeline-wired
+- `OptimizerObservationDigest 1.0.0`: internal SHA-256 content-integrity contract merged
 - `PedagogicalFeatureVector 1.0.0`: internal foundation merged; not pipeline-wired
-- `TeacherFeedback 1.0.0`: internal foundation merged; exact observation/candidate binding, shared full-observation validation, and consent/privacy separation hardening merged; not pipeline-wired
+- `TeacherFeedback 1.1.0`: internal foundation merged; exact observation/candidate binding, shared full-observation validation, required observation content-digest binding, and consent/privacy separation hardening merged; not pipeline-wired
 - Historical PR #42 OptimizerObservation P2 threads: all resolved
 - Historical PR #44 TeacherFeedback P2 threads: both resolved
 - Governance note: administrator-bypass hardening remains open from the latest recorded settings inspection.
-- Verification note: merge-post GitHub-hosted Tests #311 passed on current `main` for Node.js 18/20/22. The exact head of PR #56 (`28d362390c8191546e014713c7b6992c87900615`) passed Tests #310 and MusicXML Compatibility #159. Compatibility import/SVG, renderer/cursor, and MuseScore jobs succeeded; the non-blocking alphaTab synth diagnostic reported a pre-existing `Maximum call stack size exceeded` readiness failure and remains a separate P3 diagnostic issue. No separate post-merge `main` Compatibility run is claimed.
+- Verification note: merge-post GitHub-hosted Tests #321 passed on current `main` for Node.js 18/20/22. The exact head of PR #58 (`085613708e7369ee57b5868ff6499bb39775d5b5`) passed Tests #320 and MusicXML Compatibility #167. Compatibility import/SVG, renderer/cursor, and MuseScore jobs succeeded; the non-blocking alphaTab synth diagnostic still reported the pre-existing `Maximum call stack size exceeded` readiness failure and remains a separate P3 diagnostic issue. No separate post-merge `main` Compatibility run is claimed.
 
 If `main` moves beyond this snapshot, inspect the new tree, open pull requests, and current CI evidence before treating this file as current.
 
@@ -88,9 +89,11 @@ The current `main` includes:
 - OptimizerObservation Step 1 hostile-data hardening and Step 2.1–2.4 cost-shape, selected-playability, aggregate-consistency, and negative-regression closure
 - S1 reusable `validateOptimizerObservation()` boundary validating supported optimizer/candidate/configuration metadata, canonical tuning semantics/order, dense decisions, unique event identity, candidate index/position/ID consistency, selected-position membership, selected-cost shape/playability, and aggregate total consistency
 - `createOptimizerObservation()` validates the completed observation through the shared S1 validator before freezing it
+- internal `OptimizerObservationDigest 1.0.0` using domain-separated SHA-256 over a canonicalized, fully validated observation
+- digest canonicalization rejects unsupported/non-finite values, cycles, excessive depth, sparse/custom arrays, symbols, accessors, non-enumerable data, and other content that could escape the fingerprint
 - internal deterministic `PedagogicalFeatureVector 1.0.0` foundation
-- internal immutable `TeacherFeedback 1.0.0` foundation
-- TeacherFeedback hardening requiring a bounded opaque `observationId`, validation through the shared full `OptimizerObservation` validator, exact optimizer-selection binding, complete canonical candidate identity validation, exact same-event candidate membership for overrides, and fail-closed rejection of unsupported consent/personal-metadata fields
+- internal immutable `TeacherFeedback 1.1.0` foundation
+- TeacherFeedback hardening requiring a bounded opaque `observationId`, validation through the shared full `OptimizerObservation` validator, a required matching `observationDigest`, exact optimizer-selection binding, complete canonical candidate identity validation, exact same-event candidate membership for overrides, and fail-closed rejection of unsupported consent/personal-metadata fields
 
 Package-root writer serializers are:
 
@@ -98,7 +101,7 @@ Package-root writer serializers are:
 - `serializeCanonicalTabResultToAscii`
 - `serializeCanonicalTabResultToMusicXml`
 
-`EngineError` itself and internal writer/domain error subclasses remain intentionally private.
+`EngineError` itself and internal writer/domain error subclasses remain intentionally private. Observation, digest, feature-vector, and feedback APIs also remain internal.
 
 ## Not implemented
 
@@ -109,9 +112,9 @@ Do not claim that the following exist:
 - a public serialized error envelope
 - public `GuitarConfiguration` constructor/version export
 - public `Integration Contract v1` metadata export or transport protocol
-- package-root observation, feature-vector, or teacher-feedback APIs
+- package-root observation, digest, feature-vector, or teacher-feedback APIs
 - observation/feature/feedback integration into normal conversion
-- cryptographic observation provenance or a content-digest binding between observations and feedback
+- a digital signature, trusted-producer attestation, or external authenticity proof for an observation
 - TeacherFeedback persistence or a repository-wide/global observation-ID uniqueness registry
 - benchmark/dataset admission infrastructure for teacher feedback
 - a separately versioned consent/privacy or lawful-use record for research/training admission
@@ -139,13 +142,15 @@ Do not claim that the following exist:
 12. Learned components may not create or alter MusicXML notes, pitch, strings, frets, timing, physical rules, validators, or canonical objects directly.
 13. The deterministic cost profile remains the required fallback.
 14. A teacher decision is not consent for research, training, or reuse of the optional free-text reason; those require a separate approved privacy/consent or lawful-use boundary.
+15. An observation content digest is an integrity fingerprint, not a signature or proof of trusted producer identity.
 
 ## Foundation readiness limits
 
 The merged internal foundations must not be described as a complete benchmark/research system:
 
-- `OptimizerObservation 1.0.0` is not wired into conversion. Its Step 1 hostile-data protections and Step 2.1–2.4 selected-cost integrity/regression hardening are merged. S1 adds one reusable internal full-observation validator shared by observation production and TeacherFeedback admission. It validates supported observation/optimizer/candidate/configuration versions, canonical six-string tuning semantics and order, dense decision/candidate structure, unique event IDs, array-index identity, canonical candidate IDs and positions, selected candidate membership, required playable cost shape, and aggregate selected cost. It still does not provide cryptographic provenance or prove that a valid-looking observation originated from a particular historical run.
-- `TeacherFeedback 1.0.0` is not wired into conversion. It requires a supported observation for runtime validation, stores a bounded opaque `observationId`, runs the supplied observation through the shared full validator, binds the optimizer candidate to the exact observed selection, validates complete canonical candidate identities and guitar bounds, and requires overrides to be members of the exact same-event observed candidate layer. The module does not provide cryptographic observation provenance, persistence, a global identity registry, benchmark/dataset admission, or consent/lawful-use records.
+- `OptimizerObservation 1.0.0` is not wired into conversion. Its Step 1 hostile-data protections and Step 2.1–2.4 selected-cost integrity/regression hardening are merged. S1 provides one reusable internal full-observation validator shared by observation production and TeacherFeedback admission.
+- `OptimizerObservationDigest 1.0.0` deterministically fingerprints a fully validated observation with domain-separated SHA-256 and canonical key ordering. It detects content changes relative to a supplied digest. It is not a digital signature, trusted-producer attestation, persistence record, or proof that an observation originated from one particular historical optimizer run.
+- `TeacherFeedback 1.1.0` is not wired into conversion. It requires a supported observation, bounded opaque `observationId`, and matching `observationDigest`; it binds the optimizer candidate to the exact observed selection, validates complete canonical candidate identities and guitar bounds, and requires overrides to be members of the exact same-event observed candidate layer. The module does not provide persistence, a global identity registry, dataset admission, or consent/lawful-use records.
 - `PedagogicalFeatureVector 1.0.0` is deterministic and immutable, but remains descriptive foundation data rather than pedagogical truth or an optimizer input.
 - Optional teacher reasons are bounded free text. Callers must not place personal data in them, and the record must not be treated as research/training consent.
 
@@ -153,14 +158,14 @@ The merged internal foundations must not be described as a complete benchmark/re
 
 G0.1 administrator-bypass hardening remains an open parallel governance task.
 
-The authoritative status set is converged through the verified runtime commit above. The OptimizerObservation and TeacherFeedback versioned contracts document their currently merged validation boundaries.
-
 The three historical OptimizerObservation P2 review threads on PR #42 and the two historical TeacherFeedback P2 review threads on PR #44 are resolved using merged runtime/regression evidence. Thread resolution was repository bookkeeping only and did not change runtime behavior.
+
+S1 full observation validation merged in PR #56. S2 observation content-digest binding merged in PR #58.
 
 The next safe security/product sequence is:
 
-1. separately approve S2 observation content-digest/provenance binding so feedback and later benchmark records can bind to exact observation content without granting new optimizer authority,
-2. create the deterministic teacher-verified fingering benchmark v1 under separately approved provenance/data-admission constraints,
+1. separately approve S3 observation provenance / dataset-admission contract work, keeping persistence, authenticity, and consent/lawful-use authority outside TeacherFeedback,
+2. create the deterministic teacher-verified fingering benchmark v1 only after the S3 admission boundary is sufficiently specified and verified,
 3. implement the benchmark evaluation harness,
 4. evaluate learned candidate ranking v1 in shadow mode only,
 5. build a separately versioned teacher-feedback-to-research-dataset pipeline with explicit persistence/admission and consent/privacy or lawful-use records,
@@ -184,10 +189,11 @@ Long-term chord work must first introduce simultaneous-event and left-hand-shape
 9. Open changes as Draft PRs and do not mark Ready or merge without explicit approval.
 10. Do not infer that public detection authorizes public `EngineError` or domain error classes.
 11. Do not infer that future learned-ranking approval authorizes candidate generation, validator bypass, or canonical mutation.
+12. Do not infer that S2 digest equality authorizes trust in producer identity or dataset admission.
 
 ## Repository governance note
 
-Workflow files use immutable action SHAs and `contents: read`. The latest recorded settings inspection left administrator-bypass hardening open. This documentation convergence does not modify or reconfigure repository governance.
+Workflow files use immutable action SHAs and `contents: read`. The latest recorded settings inspection left administrator-bypass hardening open. Documentation convergence does not modify or reconfigure repository governance.
 
 ## Documentation maintenance
 
