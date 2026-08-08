@@ -85,7 +85,7 @@ The following remain intentionally internal:
 | Canonical result graph resource limits | `VERIFIED_ON_MAIN` |
 | Internal `GuitarConfiguration 1.0.0` | `VERIFIED_ON_MAIN` |
 | Internal `Integration Contract v1` metadata | `VERIFIED_ON_MAIN` |
-| Internal `OptimizerObservation 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
+| Internal `OptimizerObservation 1.0.0` | `VERIFIED_ON_MAIN` |
 | OptimizerObservation Step 1 hostile-data hardening | `VERIFIED_ON_MAIN` |
 | OptimizerObservation Step 2.1 cost shape | `VERIFIED_ON_MAIN` |
 | OptimizerObservation Step 2.2 selected playability | `VERIFIED_ON_MAIN` |
