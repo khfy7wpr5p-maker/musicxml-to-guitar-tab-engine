@@ -10,6 +10,7 @@ const {
 } = require('./fingeringOptimizer');
 
 const OPTIMIZER_OBSERVATION_VERSION = '1.0.0';
+const MAX_OBSERVED_METADATA_DEPTH = 100;
 
 class OptimizerObservationError extends EngineError {
   constructor(message, details = {}) {
@@ -26,9 +27,15 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function clonePlainData(value, seen = new WeakSet()) {
+function clonePlainData(value, seen = new WeakSet(), depth = 0) {
   if (!value || typeof value !== 'object') {
     return value;
+  }
+  if (depth > MAX_OBSERVED_METADATA_DEPTH) {
+    throw new OptimizerObservationError(
+      `Observed metadata must not exceed ${MAX_OBSERVED_METADATA_DEPTH} levels of nesting.`,
+      { maximumDepth: MAX_OBSERVED_METADATA_DEPTH },
+    );
   }
   if (seen.has(value)) {
     throw new OptimizerObservationError('Observed metadata must not contain cycles.');
@@ -37,10 +44,13 @@ function clonePlainData(value, seen = new WeakSet()) {
 
   let cloned;
   if (Array.isArray(value)) {
-    cloned = Array.from(value, (nested) => clonePlainData(nested, seen));
+    cloned = Array.from(value, (nested) => clonePlainData(nested, seen, depth + 1));
   } else if (isObject(value)) {
     cloned = Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [key, clonePlainData(nested, seen)]),
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        clonePlainData(nested, seen, depth + 1),
+      ]),
     );
   } else {
     cloned = value;
@@ -51,14 +61,30 @@ function clonePlainData(value, seen = new WeakSet()) {
 }
 
 function deepFreeze(value) {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
-    return value;
-  }
-  Object.freeze(value);
-  for (const nested of Object.values(value)) {
-    deepFreeze(nested);
+  const pending = [value];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || typeof current !== 'object' || Object.isFrozen(current)) {
+      continue;
+    }
+    Object.freeze(current);
+    for (const nested of Object.values(current)) {
+      pending.push(nested);
+    }
   }
   return value;
+}
+
+function isDenseArray(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function validatePosition(position, field, maximumFret) {
@@ -117,8 +143,8 @@ function validateCandidateSet(candidateSet) {
     throw new OptimizerObservationError('candidateSet.noteCount must be a non-negative integer.');
   }
   if (
-    !Array.isArray(candidateSet.notes)
-    || !Array.isArray(candidateSet.candidateLayers)
+    !isDenseArray(candidateSet.notes)
+    || !isDenseArray(candidateSet.candidateLayers)
     || candidateSet.notes.length !== candidateSet.noteCount
     || candidateSet.candidateLayers.length !== candidateSet.noteCount
   ) {
@@ -142,8 +168,8 @@ function validateOptimizerResult(optimizerResult, noteCount) {
     throw new OptimizerObservationError('optimizerResult must be an object.');
   }
   if (
-    !Array.isArray(optimizerResult.positions)
-    || !Array.isArray(optimizerResult.costs)
+    !isDenseArray(optimizerResult.positions)
+    || !isDenseArray(optimizerResult.costs)
     || optimizerResult.positions.length !== noteCount
     || optimizerResult.costs.length !== noteCount
   ) {
@@ -172,7 +198,7 @@ function createOptimizerObservation(candidateSet, optimizerResult) {
       });
     }
     const layer = candidateSet.candidateLayers[noteIndex];
-    if (!Array.isArray(layer) || layer.length === 0) {
+    if (!isDenseArray(layer) || layer.length === 0) {
       throw new OptimizerObservationError('Every observed candidate layer must be non-empty.', {
         noteIndex,
       });

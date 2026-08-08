@@ -38,6 +38,24 @@ function buildObservedFixture() {
   return { candidates, optimized };
 }
 
+function cloneOptimizerResult(optimized) {
+  return {
+    totalCost: optimized.totalCost,
+    positions: optimized.positions.map((position) => ({ ...position })),
+    costs: optimized.costs.map((cost) => structuredClone(cost)),
+  };
+}
+
+function nestedMetadata(depth) {
+  const root = {};
+  let current = root;
+  for (let level = 0; level < depth; level += 1) {
+    current.nested = {};
+    current = current.nested;
+  }
+  return root;
+}
+
 test('defines stable internal optimizer and observation versions', () => {
   assert.equal(FINGERING_OPTIMIZER_VERSION, '1.0.0');
   assert.equal(OPTIMIZER_OBSERVATION_VERSION, '1.0.0');
@@ -130,11 +148,7 @@ test('rejects non-finite observed costs fail-closed', () => {
 
 test('rejects cyclic observed metadata instead of recursing indefinitely', () => {
   const { candidates, optimized } = buildObservedFixture();
-  const forged = {
-    totalCost: optimized.totalCost,
-    positions: optimized.positions.map((position) => ({ ...position })),
-    costs: optimized.costs.map((cost) => structuredClone(cost)),
-  };
+  const forged = cloneOptimizerResult(optimized);
   forged.costs[0].cycle = forged.costs[0];
 
   assert.throws(
@@ -146,6 +160,69 @@ test('rejects cyclic observed metadata instead of recursing indefinitely', () =>
       return true;
     },
   );
+});
+
+test('accepts observed metadata at the maximum nesting depth', () => {
+  const { candidates, optimized } = buildObservedFixture();
+  const forged = cloneOptimizerResult(optimized);
+  forged.costs[0].metadata = nestedMetadata(99);
+
+  const observation = createOptimizerObservation(candidates, forged);
+
+  assert.deepEqual(observation.decisions[0].cost.metadata, forged.costs[0].metadata);
+  assert.ok(Object.isFrozen(observation.decisions[0].cost.metadata));
+});
+
+test('rejects deep acyclic observed metadata beyond the maximum nesting depth', () => {
+  const { candidates, optimized } = buildObservedFixture();
+  const forged = cloneOptimizerResult(optimized);
+  forged.costs[0].metadata = nestedMetadata(100);
+
+  assert.throws(
+    () => createOptimizerObservation(candidates, forged),
+    (error) => {
+      assert.ok(error instanceof OptimizerObservationError);
+      assert.equal(error.code, 'INVALID_OPTIMIZER_OBSERVATION_INPUT');
+      assert.match(error.message, /100 levels of nesting/i);
+      assert.notEqual(error.name, 'RangeError');
+      return true;
+    },
+  );
+});
+
+test('rejects sparse observation input arrays fail-closed', async (t) => {
+  const cases = [
+    ['candidateSet.notes', ({ candidates }) => { delete candidates.notes[0]; }],
+    ['candidateSet.candidateLayers', ({ candidates }) => {
+      delete candidates.candidateLayers[0];
+    }],
+    ['a nested candidate layer', ({ candidates }) => {
+      delete candidates.candidateLayers[0][0];
+    }],
+    ['optimizerResult.positions', ({ optimized }) => { delete optimized.positions[0]; }],
+    ['optimizerResult.costs', ({ optimized }) => { delete optimized.costs[0]; }],
+  ];
+
+  for (const [name, makeSparse] of cases) {
+    await t.test(name, () => {
+      const {
+        candidates: productionCandidates,
+        optimized: productionResult,
+      } = buildObservedFixture();
+      const candidates = structuredClone(productionCandidates);
+      const optimized = cloneOptimizerResult(productionResult);
+      makeSparse({ candidates, optimized });
+
+      assert.throws(
+        () => createOptimizerObservation(candidates, optimized),
+        (error) => {
+          assert.ok(error instanceof OptimizerObservationError);
+          assert.equal(error.code, 'INVALID_OPTIMIZER_OBSERVATION_INPUT');
+          return true;
+        },
+      );
+    });
+  }
 });
 
 test('keeps observation APIs out of the package-root public surface', () => {

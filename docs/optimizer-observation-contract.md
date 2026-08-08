@@ -108,9 +108,18 @@ Produced observations are deeply frozen. The builder rejects:
 - invalid string/fret values,
 - selected positions outside candidate membership,
 - negative or non-finite total/cost values,
-- cyclic metadata graphs.
+- cyclic metadata graphs,
+- observed metadata nested more than 100 object/array edges below a copied metadata root,
+- sparse `candidateSet.notes`, `candidateSet.candidateLayers`,
+  `optimizerResult.positions`, or `optimizerResult.costs` arrays,
+- sparse individual arrays nested within `candidateSet.candidateLayers`.
 
-Cycle rejection is fail-closed to prevent recursive observation cloning from becoming an uncontrolled stack/resource path.
+Metadata cloning accepts a maximum nesting depth of exactly 100 object/array edges;
+depth 101 fails closed with `INVALID_OPTIMIZER_OBSERVATION_INPUT`. Cycle and depth
+rejection prevent recursive observation cloning from becoming an uncontrolled
+stack/resource path. Deep freezing uses an iterative traversal, so accepted metadata
+does not reintroduce a recursive call-stack failure. Sparse arrays are rejected before
+iteration so holes cannot bypass note, candidate, position, or cost validation.
 
 ## Versioning rule
 
