@@ -148,9 +148,9 @@ G0.1 administrator-bypass hardening remains an open parallel governance task.
 
 The four-file status set is converged through the verified runtime commit above; the OptimizerObservation versioned contract also documents the merged Step 1/Step 2 integrity boundary.
 
-The next safe repository bookkeeping gate is to resolve the three historical OptimizerObservation P2 review threads on PR #42 using the merged regression/runtime evidence. Thread resolution must not be treated as a code change.
+The three historical OptimizerObservation P2 review threads on PR #42 are resolved using the merged Step 1 and Step 2.1–2.4 runtime/regression evidence. This was repository bookkeeping only and did not change runtime behavior.
 
-After that bookkeeping gate, the next safe product sequence is:
+The next safe product sequence is:
 
 1. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and define a separate privacy/consent boundary,
 2. create the deterministic teacher-verified fingering benchmark,
