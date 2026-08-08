@@ -223,6 +223,12 @@ function validateObservedCost(cost, noteIndex) {
       { noteIndex },
     );
   }
+  if (cost.isPlayable !== true || cost.reasons.length !== 0) {
+    throw new OptimizerObservationError(
+      'Selected optimizer cost must be playable and contain no rejection reasons.',
+      { noteIndex, isPlayable: cost.isPlayable, reasons: cost.reasons },
+    );
+  }
   if (!isObject(cost.breakdown)) {
     throw new OptimizerObservationError('Observed optimizer cost.breakdown must be an object.', {
       noteIndex,
