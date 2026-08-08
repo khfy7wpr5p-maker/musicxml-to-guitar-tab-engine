@@ -5,10 +5,10 @@ This document records the current package surface and strongest available verifi
 ## Snapshot
 
 - Status date: 2026-08-08
-- Verified runtime `main`: `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`
+- Verified runtime `main`: `0d8e2258540ca11ff51cd508e4c1c482250ca201`
 - Package name: `musicxml-to-guitar-tab-engine`
 - Package version: `0.1.0`
-- Package state: private
+- Package state: private package metadata (`private: true`); repository visibility is separate
 - License metadata: `UNLICENSED`
 - Node.js engine: `>=18`
 - CI runtime targets: Node.js 18, 20, 22
@@ -55,6 +55,7 @@ The following remain intentionally internal:
 - `CanonicalTabAsciiWriterError`
 - `CanonicalTabMusicXmlWriterError`
 - parser/validation/optimizer/canonical-model domain error subclasses
+- OptimizerObservation, PedagogicalFeatureVector, and TeacherFeedback APIs
 
 ## Package capability status
 
@@ -84,7 +85,12 @@ The following remain intentionally internal:
 | Canonical result graph resource limits | `VERIFIED_ON_MAIN` |
 | Internal `GuitarConfiguration 1.0.0` | `VERIFIED_ON_MAIN` |
 | Internal `Integration Contract v1` metadata | `VERIFIED_ON_MAIN` |
-| Internal `OptimizerObservation 1.0.0` | `FOUNDATION_STEP2_REQUIRED` |
+| Internal `OptimizerObservation 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
+| OptimizerObservation Step 1 hostile-data hardening | `VERIFIED_ON_MAIN` |
+| OptimizerObservation Step 2.1 cost shape | `VERIFIED_ON_MAIN` |
+| OptimizerObservation Step 2.2 selected playability | `VERIFIED_ON_MAIN` |
+| OptimizerObservation Step 2.3 aggregate consistency | `VERIFIED_ON_MAIN` |
+| OptimizerObservation Step 2.4 regression completeness | `VERIFIED_ON_MAIN` |
 | Internal `PedagogicalFeatureVector 1.0.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
 | Internal `TeacherFeedback 1.0.0` | `FOUNDATION_HARDENING_REQUIRED` |
 | Fixed teacher benchmark | `NOT_IMPLEMENTED` |
@@ -136,7 +142,9 @@ The following modules are merged but remain internal and are not loaded by the n
 
 They do not change candidate generation, physical validation, deterministic optimization, `CanonicalTabResult`, or writer output.
 
-They are not benchmark/dataset-ready. OptimizerObservation Step 1 hardening is merged: sparse arrays are rejected and metadata traversal is bounded. Step 2 must reconcile aggregate costs and require complete playable cost records. Feedback admission must bind each record to a unique observation, validate full candidate identities, and verify exact candidate membership. Teacher feedback is not research/training consent, and optional reasons must not be treated as consent or a safe place for personal data.
+OptimizerObservation Step 1 and Step 2.1–2.4 hardening are merged. The observation builder now rejects sparse/cyclic/over-depth hostile data, incomplete selected-cost shape, negative/non-finite selected costs and required breakdown values, unplayable selected costs, selected costs carrying rejection reasons, and aggregate/per-decision selected-cost inconsistency. Independent negative regression cases protect the key selected-playability and negative-cost invariants.
+
+This does **not** make the broader benchmark/research pipeline ready. Feedback admission must still bind each record to a unique observation, validate complete candidate identities, verify exact candidate membership, and keep teacher feedback separate from research/training consent and lawful-use records.
 
 ## Verification evidence
 
@@ -146,13 +154,9 @@ Milestone 3 exact-head pull-request CI passed before merge and provided package-
 
 ### Current runtime snapshot
 
-Fresh GitHub-hosted validation on `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`:
+Fresh merge-post GitHub-hosted Tests #297 on `main` `0d8e2258540ca11ff51cd508e4c1c482250ca201` completed successfully on Node.js 18, 20, and 22.
 
-- full repository suite passed on Node.js 18, 20, and 22
-- Node.js 22: `283/283` tests passed
-- `npm ci --ignore-scripts`: 0 vulnerabilities
-
-The exact head of PR #46 passed MusicXML Compatibility on the same tree later merged as `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`:
+The exact head of PR #51 (`885896363e8f292790b35acd3bc4a89a1007287b`) passed MusicXML Compatibility on the same tree later merged as current `main`:
 
 - complete repository tests plus alphaTab import and SVG render on Node.js 18, 20, and 22
 - alphaTab browser renderer/cursor and synthesizer diagnostic on Node.js 22
@@ -165,22 +169,23 @@ The historical PEB-1 hosted jobs did not execute because of the then-current bil
 ## CI supply-chain and governance
 
 - Third-party workflow actions are pinned to immutable full commit SHAs.
-- The latest recorded settings inspection reported `non_admins`, leaving administrator-bypass hardening open.
-- The latest recorded settings inspection found no second repository-ruleset layer.
+- `main` remains protected with the recorded required status contexts.
+- The latest settings inspection still reports required-check enforcement at `non_admins`, leaving administrator-bypass hardening open.
 - This documentation update does not alter repository settings.
 
 ## Evidence limitations
 
 - Passing tests do not prove compatibility with every MusicXML producer.
 - MuseScore/alphaTab evidence applies only to supported fixtures and scope.
-- PR #46 tests cover sparse-array rejection and bounded metadata traversal. Green CI does not close the remaining OptimizerObservation Step 2 cost-shape/playability/aggregate-consistency gaps or the TeacherFeedback identity/membership gates.
-- No package release has been published because the package is private and `UNLICENSED`.
+- OptimizerObservation integrity hardening does not close the materially separate TeacherFeedback identity/membership/consent gates.
+- The three historical OptimizerObservation P2 review threads on PR #42 remain unresolved in GitHub thread state even though their runtime findings are addressed by merged Step 1 and Step 2.1–2.4 work.
+- No package release is claimed; package metadata remains `private: true` and `UNLICENSED`.
 
 ## Approved next package-level sequence
 
-This four-file status set is the documentation-convergence snapshot through the verified runtime commit. The next package-level sequence is:
+The four-file status set and OptimizerObservation contract are converged through the verified runtime commit. The next package-level sequence is:
 
-1. complete `OptimizerObservation 1.0.0` Step 2 cost-shape, playability, and aggregate-consistency hardening with negative regression tests
+1. resolve the three historical OptimizerObservation P2 review threads on PR #42 using merged evidence
 2. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and separate consent/privacy semantics
 3. create the deterministic teacher-verified benchmark
 4. implement the benchmark evaluation harness
