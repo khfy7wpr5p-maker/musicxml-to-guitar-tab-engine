@@ -6,7 +6,7 @@ AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md)
 
 ## Current state
 
-Authoritative `main`: `e60426d841981011518ec04435f93b3e8a7d71b2`.
+Verified runtime `main`: `5ba727a778aceb3b70342b82ae027d6ac2bacd43`.
 
 Current merged capabilities include:
 
@@ -21,11 +21,17 @@ Current merged capabilities include:
 - deterministic cost model and dynamic-programming optimizer,
 - public deterministic JSON, ASCII TAB, and TAB MusicXML serializers,
 - internal `EngineError 1.0.0` convergence,
-- public `ENGINE_ERROR_CONTRACT_VERSION` and `isEngineError(value)` detection boundary.
+- public `ENGINE_ERROR_CONTRACT_VERSION` and `isEngineError(value)` detection boundary,
+- bounded iterative validation for untrusted `CanonicalTabResult` object graphs,
+- internal versioned `GuitarConfiguration 1.0.0`,
+- internal `Integration Contract v1` metadata and non-authority boundary,
+- internal `OptimizerObservation 1.0.0`, `PedagogicalFeatureVector 1.0.0`, and `TeacherFeedback 1.0.0` foundations.
 
 `EngineError` itself and internal writer/domain error subclasses are not package-root exports.
 
-PEB-1 local validation passed 241/241 repository tests and 17/17 focused tests. GitHub-hosted PEB-1 jobs did not execute because GitHub reported billing/spending-limit restrictions; those jobs are not successful CI evidence.
+The three observation/research foundations are not package-root exports and are not wired into normal conversion. `OptimizerObservation` and `TeacherFeedback` still require the documented hardening and dataset-admission gates before benchmark or research use.
+
+Fresh validation for the verified runtime commit passed 275/275 local tests. The exact-head pull-request workflows for the latest merged runtime foundation passed Tests on Node.js 18/20/22 and MusicXML Compatibility, including alphaTab browser/import/SVG/synth and MuseScore diagnostic jobs. The older PEB-1 billing-block note is historical and is no longer the strongest current CI evidence.
 
 ## Processing pipeline
 
@@ -51,6 +57,8 @@ shared canonical validator
 JSON / ASCII TAB / TAB MusicXML
 ```
 
+`OptimizerObservation`, `PedagogicalFeatureVector`, and `TeacherFeedback` remain downstream, internal foundations. They do not currently run in this pipeline or change `CanonicalTabResult`.
+
 ## Architectural rules
 
 1. `CanonicalTabResult` is the single authoritative downstream TAB source.
@@ -63,6 +71,7 @@ JSON / ASCII TAB / TAB MusicXML
 8. External systems connect through explicit versioned contracts/adapters.
 9. Learned systems may score only already-generated, physically valid candidates.
 10. Learned systems may not mutate MusicXML, pitch, strings, frets, physical rules, validators, or canonical objects directly.
+11. Teacher feedback is non-authoritative observation data; it is not consent for research, training, or reuse of free-text reasons.
 
 ## Public package API
 
@@ -99,17 +108,23 @@ Current package-root exports include:
 
 ## Approved controlled roadmap
 
-1. documentation convergence after Milestone 3 + PEB-1
-2. `GuitarConfiguration 1.0`
-3. `Integration Contract v1`
-4. `OptimizerObservation 1.0.0`
-5. `PedagogicalFeatureVector 1.0`
-6. `TeacherFeedback 1.0`
-7. deterministic teacher-verified fingering benchmark
-8. learned candidate ranking v1 — shadow mode
-9. controlled learned ranking only after separate evidence and approval
+| Stage | Verified state on the runtime snapshot |
+|---|---|
+| Milestones 2A-2D, SEC-CI-1, Public Writer API | Merged |
+| Documentation convergence | This four-document snapshot |
+| `GuitarConfiguration 1.0.0` | Internal contract merged |
+| `Integration Contract v1` | Internal boundary metadata and documentation merged |
+| `OptimizerObservation 1.0.0` | Internal foundation merged; hardening required before downstream use |
+| `PedagogicalFeatureVector 1.0.0` | Internal deterministic foundation merged; not pipeline-wired |
+| `TeacherFeedback 1.0.0` | Internal foundation merged; observation binding and dataset admission still blocked |
+| Deterministic teacher-verified benchmark | Not started; blocked by observation/feedback hardening |
+| Benchmark evaluation harness | Not started |
+| Learned ranking v1, shadow mode | Not started and blocked |
+| Feedback-to-research-dataset pipeline | Not started; requires separate privacy/consent and admission contracts |
+| Learned-ranking evaluation gate | Not started |
+| Controlled learned-ranking opt-in | Long-term; requires separate evidence and approval |
 
-`Integration Contract v1` will define the stable boundary between this deterministic core and external systems. It must not move HTTP, UI, PDF/OMR, Audiveris, SesliTab, or application-specific logic into the core engine.
+`Integration Contract v1` defines a boundary, not a transport or application implementation. It does not move HTTP, UI, PDF/OMR, Audiveris, SesliTab, or application-specific logic into the core engine.
 
 ## Long-term chord/barre sequence
 
@@ -149,7 +164,7 @@ This repository does not directly implement:
 
 ## Governance
 
-`main` is protected with seven required checks, but current required-check enforcement reports `non_admins`; administrator-bypass hardening remains open. GitHub Actions billing/spending-limit restrictions also currently limit fresh hosted CI evidence for the latest PEB-1 merge.
+Third-party workflow actions are pinned to immutable SHAs and workflow permissions are read-only (`contents: read`). Administrator-bypass hardening remains an open governance task from the latest recorded settings inspection. This documentation-only update does not change repository settings.
 
 ## Documentation
 
@@ -158,6 +173,11 @@ This repository does not directly implement:
 3. [Package and verification status](docs/package-status.md)
 4. [EngineError contract](docs/engine-error-contract.md)
 5. [Architecture](docs/ARCHITECTURE.md)
+6. [GuitarConfiguration contract](docs/guitar-configuration-contract.md)
+7. [Integration Contract v1](docs/integration-contract-v1.md)
+8. [OptimizerObservation contract](docs/optimizer-observation-contract.md)
+9. [Pedagogical feature-vector contract](docs/pedagogical-feature-vector-contract.md)
+10. [Teacher-feedback contract](docs/teacher-feedback-contract.md)
 
 ## Development
 
