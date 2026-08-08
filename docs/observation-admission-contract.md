@@ -18,6 +18,7 @@ A successful admission record contains exactly:
 - the verified `OptimizerObservationDigest 1.0.0`
 - producer metadata:
   - bounded opaque `producerId`
+  - bounded opaque `producerRevisionId`
   - bounded opaque `runId`
   - engine package name
   - engine package version at admission time
@@ -26,6 +27,8 @@ A successful admission record contains exactly:
 - candidate contract version
 - optimizer name/version
 - GuitarConfiguration contract version
+
+`producerRevisionId` exists because package version alone may not identify one exact source/build revision. An integrating admission system may use a Git commit identity, release/artifact digest, or another reviewed opaque revision identifier. The core does not decide which external revision namespace is authoritative.
 
 The returned record and its nested objects are deeply frozen.
 
@@ -54,6 +57,8 @@ Within that domain:
 - one `producerId + runId` pair must not be admitted twice;
 - one `producerId + runId` pair must never bind to two different observation digests.
 
+Changing only `producerRevisionId` does not make reuse of the same `producerId + runId` legal. A run identity collision/replay remains fail-closed across asserted revision changes.
+
 These rules distinguish replay/duplicate conditions from identity/run collisions and reject both fail-closed.
 
 ## Existing admission history
@@ -69,7 +74,7 @@ The runtime:
 - verifies that the history is internally consistent before comparing the new record;
 - rejects duplicate admission IDs, observation replay/collision, producer-run replay/collision, and duplicate observation content already present inside the supplied history.
 
-Historical records are not required to carry today's exact package, optimizer, observation, candidate, or guitar-configuration version strings. Those version references are retained as bounded historical metadata so a future engine version does not silently discard older admission records from replay checking. The history record's digest-version reference must still agree with its embedded digest contract version, and the embedded digest must be valid under the digest contract supported by this `ObservationAdmission 1.0.0` implementation.
+Historical records are not required to carry today's exact package, producer-revision, optimizer, observation, candidate, or guitar-configuration version strings. Those references are retained as bounded historical metadata so a future engine version does not silently discard older admission records from replay checking. The history record's digest-version reference must still agree with its embedded digest contract version, and the embedded digest must be valid under the digest contract supported by this `ObservationAdmission 1.0.0` implementation.
 
 ## Critical authority boundary
 
@@ -88,21 +93,21 @@ A real persistence/admission adapter MUST therefore provide a complete authorita
 
 This limitation keeps persistence and concurrency authority outside the core deterministic engine instead of pretending that an in-memory helper provides storage guarantees.
 
-## Producer and run provenance boundary
+## Producer, revision, and run provenance boundary
 
-`producerId` and `runId` are bounded opaque identities asserted by the integrating admission system. The record binds those assertions to the observation digest within the supplied admission history.
+`producerId`, `producerRevisionId`, and `runId` are bounded opaque identities asserted by the integrating admission system. The record binds those assertions to the observation digest within the supplied admission history.
 
-The core module does **not** verify a digital signature, certificate, hardware identity, KMS key, remote attestation, Git commit signature, or external producer registry.
+The core module does **not** verify a digital signature, certificate, hardware identity, KMS key, remote attestation, Git commit signature, artifact-signing chain, or external producer/revision registry.
 
-Therefore `producerId + runId` binding means:
+Therefore the binding means:
 
-> "this admission record states that this producer/run identity was associated with this exact observation digest"
+> "this admission record states that this producer, asserted revision, and run identity were associated with this exact observation digest"
 
 It does **not** mean:
 
-> "the engine cryptographically proved who produced this observation or which historical process executed it."
+> "the engine cryptographically proved who produced this observation, that the claimed revision is authentic, or which historical process executed it."
 
-Trusted-producer authenticity, if ever required, must be a separately approved external/versioned boundary.
+Trusted-producer/revision authenticity, if ever required, must be a separately approved external/versioned boundary.
 
 ## Record-integrity boundary
 
@@ -114,7 +119,7 @@ A persistence layer that must detect unauthorized mutation of admission metadata
 
 The admission input uses an allowlist. Consent/personal fields such as research consent or teacher identifiers are rejected rather than silently copied into the admission record.
 
-Opaque identifiers must not be populated with personal information.
+Opaque identifiers, including producer/revision/run identities, must not be populated with personal information.
 
 `ObservationAdmission 1.0.0` is not:
 
@@ -139,7 +144,7 @@ The contract MUST NOT:
 - expose new package-root APIs;
 - persist records by itself;
 - treat a digest as a digital signature;
-- treat producer/run IDs as authenticated identity by themselves;
+- treat producer/revision/run IDs as authenticated identity by themselves;
 - authorize benchmark inclusion merely because admission validation succeeds;
 - train or activate a learned ranker.
 
@@ -154,10 +159,11 @@ It is not wired into normal MusicXML → Guitar TAB conversion and does not affe
 S3 regression coverage includes:
 
 - successful immutable record creation from a real OptimizerObservation and digest;
+- required producer revision identity;
 - observation replay rejection;
 - duplicate observation-content rejection under another identity;
 - observation-ID collision with different valid content;
-- producer/run replay rejection;
+- producer/run replay rejection even across an asserted revision change;
 - producer/run collision with different valid content;
 - shape-valid observation tampering with a stale digest;
 - duplicate admission-ID rejection;
