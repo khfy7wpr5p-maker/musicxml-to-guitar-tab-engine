@@ -29,9 +29,9 @@ Current merged capabilities include:
 
 `EngineError` itself and internal writer/domain error subclasses are not package-root exports.
 
-The three observation/research foundations are not package-root exports and are not wired into normal conversion. `OptimizerObservation` and `TeacherFeedback` still require the documented hardening and dataset-admission gates before benchmark or research use.
+The three observation/research foundations are not package-root exports and are not wired into normal conversion. `OptimizerObservation` Step 1 hardening (bounded metadata traversal and sparse-array rejection) is merged; Step 2 cost-shape/playability/aggregate-consistency hardening and the documented `TeacherFeedback` dataset-admission gates are still required before benchmark or research use.
 
-Fresh validation for the verified runtime commit passed 275/275 local tests. The exact-head pull-request workflows for the latest merged runtime foundation passed Tests on Node.js 18/20/22 and MusicXML Compatibility, including alphaTab browser/import/SVG/synth and MuseScore diagnostic jobs. The older PEB-1 billing-block note is historical and is no longer the strongest current CI evidence.
+Fresh GitHub-hosted validation on verified `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b` passed the full repository suite on Node.js 18/20/22; the Node.js 22 job reported 283/283 tests passed and `npm ci --ignore-scripts` reported 0 vulnerabilities. The merged tree also passed the exact-head PR #46 MusicXML Compatibility workflow, including alphaTab browser/import/SVG/synth and MuseScore diagnostic jobs; no separate post-merge `main` compatibility run is claimed. The older PEB-1 billing-block note is historical and is no longer the strongest current CI evidence.
 
 ## Processing pipeline
 
@@ -114,7 +114,7 @@ Current package-root exports include:
 | Documentation convergence | This four-document snapshot |
 | `GuitarConfiguration 1.0.0` | Internal contract merged |
 | `Integration Contract v1` | Internal boundary metadata and documentation merged |
-| `OptimizerObservation 1.0.0` | Internal foundation merged; hardening required before downstream use |
+| `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1 hardening merged; Step 2 cost-shape/playability/aggregate consistency required before downstream use |
 | `PedagogicalFeatureVector 1.0.0` | Internal deterministic foundation merged; not pipeline-wired |
 | `TeacherFeedback 1.0.0` | Internal foundation merged; observation binding and dataset admission still blocked |
 | Deterministic teacher-verified benchmark | Not started; blocked by observation/feedback hardening |

@@ -5,7 +5,7 @@ This document records the current package surface and strongest available verifi
 ## Snapshot
 
 - Status date: 2026-08-08
-- Verified runtime `main`: `5ba727a778aceb3b70342b82ae027d6ac2bacd43`
+- Verified runtime `main`: `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`
 - Package name: `musicxml-to-guitar-tab-engine`
 - Package version: `0.1.0`
 - Package state: private
@@ -84,7 +84,7 @@ The following remain intentionally internal:
 | Canonical result graph resource limits | `VERIFIED_ON_MAIN` |
 | Internal `GuitarConfiguration 1.0.0` | `VERIFIED_ON_MAIN` |
 | Internal `Integration Contract v1` metadata | `VERIFIED_ON_MAIN` |
-| Internal `OptimizerObservation 1.0.0` | `FOUNDATION_HARDENING_REQUIRED` |
+| Internal `OptimizerObservation 1.0.0` | `FOUNDATION_STEP2_REQUIRED` |
 | Internal `PedagogicalFeatureVector 1.0.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
 | Internal `TeacherFeedback 1.0.0` | `FOUNDATION_HARDENING_REQUIRED` |
 | Fixed teacher benchmark | `NOT_IMPLEMENTED` |
@@ -136,7 +136,7 @@ The following modules are merged but remain internal and are not loaded by the n
 
 They do not change candidate generation, physical validation, deterministic optimization, `CanonicalTabResult`, or writer output.
 
-They are not benchmark/dataset-ready. Observation hardening must reject sparse arrays, reconcile aggregate costs, require complete playable cost records, and bound metadata traversal. Feedback admission must bind each record to a unique observation, validate full candidate identities, and verify exact candidate membership. Teacher feedback is not research/training consent, and optional reasons must not be treated as consent or a safe place for personal data.
+They are not benchmark/dataset-ready. OptimizerObservation Step 1 hardening is merged: sparse arrays are rejected and metadata traversal is bounded. Step 2 must reconcile aggregate costs and require complete playable cost records. Feedback admission must bind each record to a unique observation, validate full candidate identities, and verify exact candidate membership. Teacher feedback is not research/training consent, and optional reasons must not be treated as consent or a safe place for personal data.
 
 ## Verification evidence
 
@@ -146,16 +146,19 @@ Milestone 3 exact-head pull-request CI passed before merge and provided package-
 
 ### Current runtime snapshot
 
-Fresh local validation on `5ba727a778aceb3b70342b82ae027d6ac2bacd43`:
+Fresh GitHub-hosted validation on `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`:
 
-- full repository tests: `275/275` passed
+- full repository suite passed on Node.js 18, 20, and 22
+- Node.js 22: `283/283` tests passed
+- `npm ci --ignore-scripts`: 0 vulnerabilities
 
-The exact head of PR #44, whose runtime tree was merged as `5ba727a`, passed:
+The exact head of PR #46 passed MusicXML Compatibility on the same tree later merged as `main` `502a395bc17e5e6b1e5752a90af811d16d4f5d7b`:
 
-- Tests on Node.js 18, 20, and 22
-- complete tests plus alphaTab import and SVG render on Node.js 18, 20, and 22
+- complete repository tests plus alphaTab import and SVG render on Node.js 18, 20, and 22
 - alphaTab browser renderer/cursor and synthesizer diagnostic on Node.js 22
 - MuseScore CLI availability diagnostic
+
+No separate post-merge `main` MusicXML Compatibility run is claimed.
 
 The historical PEB-1 hosted jobs did not execute because of the then-current billing/spending-limit restriction. Those old jobs remain non-evidence for that head, but later fresh hosted workflows succeeded.
 
@@ -170,14 +173,14 @@ The historical PEB-1 hosted jobs did not execute because of the then-current bil
 
 - Passing tests do not prove compatibility with every MusicXML producer.
 - MuseScore/alphaTab evidence applies only to supported fixtures and scope.
-- Current tests do not cover the recorded hostile observation/feedback cases, so green CI does not close those hardening gates.
+- PR #46 tests cover sparse-array rejection and bounded metadata traversal. Green CI does not close the remaining OptimizerObservation Step 2 cost-shape/playability/aggregate-consistency gaps or the TeacherFeedback identity/membership gates.
 - No package release has been published because the package is private and `UNLICENSED`.
 
 ## Approved next package-level sequence
 
 This four-file status set is the documentation-convergence snapshot through the verified runtime commit. The next package-level sequence is:
 
-1. harden `OptimizerObservation 1.0.0` with negative regression tests
+1. complete `OptimizerObservation 1.0.0` Step 2 cost-shape, playability, and aggregate-consistency hardening with negative regression tests
 2. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and separate consent/privacy semantics
 3. create the deterministic teacher-verified benchmark
 4. implement the benchmark evaluation harness

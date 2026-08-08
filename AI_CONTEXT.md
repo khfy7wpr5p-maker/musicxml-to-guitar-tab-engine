@@ -136,7 +136,7 @@ Do not claim that the following exist:
 
 The merged internal foundations must not be described as benchmark- or research-ready:
 
-- `OptimizerObservation 1.0.0` is not wired into conversion. Before downstream use it must reject sparse arrays, reconcile aggregate and per-decision costs, require complete playable cost records, and bound metadata traversal.
+- `OptimizerObservation 1.0.0` is not wired into conversion. Step 1 hardening is merged: sparse arrays are rejected and metadata traversal is bounded. Before downstream use, Step 2 must reconcile aggregate and per-decision costs and require complete playable cost records.
 - `TeacherFeedback 1.0.0` is not bound to a unique source observation, validates candidate identity only partially, and delegates exact observed-candidate membership to a future admission layer.
 - `PedagogicalFeatureVector 1.0.0` is deterministic and immutable, but remains descriptive foundation data rather than pedagogical truth or an optimizer input.
 - Optional teacher reasons are bounded free text. Callers must not place personal data in them, and the record must not be treated as research/training consent.
@@ -147,7 +147,7 @@ G0.1 administrator-bypass hardening remains an open parallel governance task.
 
 This four-file status set is the documentation-convergence snapshot through the verified runtime commit. The next safe product sequence is:
 
-1. harden `OptimizerObservation 1.0.0` and add negative regression tests,
+1. complete `OptimizerObservation 1.0.0` Step 2 cost-shape, playability, and aggregate-consistency hardening with negative regression tests,
 2. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and define a separate privacy/consent boundary,
 3. create the deterministic teacher-verified fingering benchmark,
 4. implement the benchmark evaluation harness,
