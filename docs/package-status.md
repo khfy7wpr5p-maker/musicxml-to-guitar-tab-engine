@@ -5,7 +5,7 @@ This document records the current package surface and strongest available verifi
 ## Snapshot
 
 - Status date: 2026-08-08
-- Verified runtime `main`: `316ce430c7721b2736721d6dff4a1eea3daedb03`
+- Verified runtime `main`: `312261cb374d1959c993530b10c42d32ab8c3caf`
 - Package name: `musicxml-to-guitar-tab-engine`
 - Package version: `0.1.0`
 - Package state: private package metadata (`private: true`); repository visibility is separate
@@ -55,7 +55,7 @@ The following remain intentionally internal:
 - `CanonicalTabAsciiWriterError`
 - `CanonicalTabMusicXmlWriterError`
 - parser/validation/optimizer/canonical-model domain error subclasses
-- OptimizerObservation, PedagogicalFeatureVector, and TeacherFeedback APIs
+- OptimizerObservation, OptimizerObservationDigest, PedagogicalFeatureVector, and TeacherFeedback APIs
 
 ## Package capability status
 
@@ -92,12 +92,15 @@ The following remain intentionally internal:
 | OptimizerObservation Step 2.3 aggregate consistency | `VERIFIED_ON_MAIN` |
 | OptimizerObservation Step 2.4 regression completeness | `VERIFIED_ON_MAIN` |
 | S1 reusable full OptimizerObservation validation | `VERIFIED_ON_MAIN` |
+| Internal `OptimizerObservationDigest 1.0.0` | `VERIFIED_ON_MAIN` |
+| S2 observation content-digest binding | `VERIFIED_ON_MAIN` |
 | Internal `PedagogicalFeatureVector 1.0.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
-| Internal `TeacherFeedback 1.0.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
+| Internal `TeacherFeedback 1.1.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
 | TeacherFeedback exact observation/candidate hardening | `VERIFIED_ON_MAIN` |
 | TeacherFeedback shared full-observation admission | `VERIFIED_ON_MAIN` |
+| TeacherFeedback required digest verification | `VERIFIED_ON_MAIN` |
 | Historical PR #44 TeacherFeedback P2 threads | `RESOLVED` |
-| Observation content-digest/provenance binding | `NOT_IMPLEMENTED` |
+| Trusted-producer authenticity / provenance admission | `NOT_IMPLEMENTED` |
 | Fixed teacher benchmark | `NOT_IMPLEMENTED` |
 | Benchmark evaluation harness | `NOT_IMPLEMENTED` |
 | Teacher-feedback research dataset pipeline | `NOT_IMPLEMENTED` |
@@ -137,39 +140,36 @@ Internal `GuitarConfiguration 1.0.0` is merged and consumed by candidate generat
 
 It does not expose new package-root APIs or add HTTP, transport, serialized error envelopes, UI, OMR, SesliTab, persistence, or application logic.
 
-## Observation, feature, and feedback foundation status
+## Observation, digest, feature, and feedback foundation status
 
 The following modules are merged but remain internal and are not loaded by the normal package-root conversion path:
 
 - `OptimizerObservation 1.0.0`
+- `OptimizerObservationDigest 1.0.0`
 - `PedagogicalFeatureVector 1.0.0`
-- `TeacherFeedback 1.0.0`
+- `TeacherFeedback 1.1.0`
 
 They do not change candidate generation, physical validation, deterministic optimization, `CanonicalTabResult`, or writer output.
 
-OptimizerObservation Step 1 and Step 2.1–2.4 hardening are merged. S1 adds the reusable internal `validateOptimizerObservation()` boundary. It validates supported observation, candidate, optimizer, and guitar-configuration versions; canonical six-string tuning semantics/order; dense decisions and candidates; unique event identities; decision/candidate array-index identity; canonical candidate position/ID consistency; selected-position membership; selected playable-cost shape; and aggregate selected cost. `createOptimizerObservation()` validates its completed observation through this same boundary before returning the deeply frozen record.
+OptimizerObservation Step 1 and Step 2.1–2.4 hardening are merged. S1 adds the reusable internal `validateOptimizerObservation()` boundary. It validates supported observation, candidate, optimizer, and guitar-configuration versions; canonical six-string tuning semantics/order; dense decisions and candidates; unique event identities; decision/candidate array-index identity; canonical candidate position/ID consistency; selected-position membership; selected playable-cost shape; and aggregate selected cost.
 
-TeacherFeedback hardening is also merged. The feedback boundary now requires a bounded opaque `observationId`, runs the supplied supported observation through the shared full validator, requires the feedback optimizer candidate to equal the observation's selected candidate, validates the complete canonical candidate grammar and guitar bounds, requires override candidates to belong to the exact same-event observed candidate set, and rejects unsupported fields so consent/personal metadata cannot be silently folded into the TeacherFeedback record.
+S2 adds `OptimizerObservationDigest 1.0.0`. It validates the complete observation first, then computes a domain-separated SHA-256 fingerprint using deterministic canonical serialization. The canonicalizer rejects cycles, excessive depth, unsupported/non-finite values, sparse/custom arrays, symbols, accessors, non-enumerable data, and non-plain objects so content cannot be silently excluded from the digest.
 
-This does **not** create cryptographic provenance. A valid observation object is fully checked against the supported contract, but the package does not yet provide a content digest or cryptographic binding that proves the object came from one particular historical optimizer run. Persistence, a global observation-ID uniqueness registry, benchmark/dataset admission, and separately versioned consent/privacy or lawful-use records for secondary data use also remain outside these foundations.
+TeacherFeedback 1.1.0 requires a bounded opaque `observationId`, a complete valid observation, and a matching `observationDigest`. The runtime recomputes the digest and fails closed on mismatch before event-specific feedback checks. The verified digest is copied into the frozen feedback record. Exact candidate grammar/bounds, optimizer-selected candidate equality, and exact same-event override membership remain enforced.
+
+This establishes observation **content integrity relative to the supplied digest**, not trusted-producer authenticity. A party able to construct another valid observation can compute a matching digest for that other observation. The package does not provide a digital signature, producer attestation, persistence receipt, global observation-ID registry, benchmark/dataset admission, or separately versioned consent/privacy or lawful-use record.
 
 ## Verification evidence
 
-### Milestone 3
-
-Milestone 3 exact-head pull-request CI passed before merge and provided package-root regression evidence for the three public writer serializers.
-
 ### Current runtime snapshot
 
-Fresh merge-post GitHub-hosted Tests #311 on `main` `316ce430c7721b2736721d6dff4a1eea3daedb03` completed successfully on Node.js 18, 20, and 22.
+Fresh merge-post GitHub-hosted Tests #321 on `main` `312261cb374d1959c993530b10c42d32ab8c3caf` completed successfully on Node.js 18, 20, and 22.
 
-The exact head of PR #56 (`28d362390c8191546e014713c7b6992c87900615`) passed GitHub-hosted Tests #310 and MusicXML Compatibility #159. Compatibility verified complete repository tests plus alphaTab import/SVG on Node.js 18/20/22, the browser renderer/cursor job, and MuseScore availability.
+The exact head of PR #58 (`085613708e7369ee57b5868ff6499bb39775d5b5`) passed GitHub-hosted Tests #320 and MusicXML Compatibility #167. Compatibility verified complete repository tests plus alphaTab import/SVG on Node.js 18/20/22, the browser renderer/cursor job, and MuseScore availability.
 
-The alphaTab synthesizer diagnostic within Compatibility #159 is intentionally non-blocking and reported `Maximum call stack size exceeded` followed by readiness timeout. The same diagnostic failure occurred on an earlier S1 head before the final tuning-validation commits, so it is recorded as a separate P3 compatibility diagnostic rather than an S1 regression. The workflow overall completed successfully.
+The alphaTab synthesizer diagnostic within Compatibility #167 is intentionally non-blocking and continued to report `Maximum call stack size exceeded` followed by readiness timeout. It remains a separate P3 compatibility diagnostic rather than an S2 regression. The workflow overall completed successfully.
 
 No separate post-merge `main` MusicXML Compatibility run is claimed.
-
-The historical PEB-1 hosted jobs did not execute because of the then-current billing/spending-limit restriction. Those old jobs remain non-evidence for that head, but later fresh hosted workflows succeeded.
 
 ## CI supply-chain and governance
 
@@ -183,17 +183,17 @@ The historical PEB-1 hosted jobs did not execute because of the then-current bil
 - Passing tests do not prove compatibility with every MusicXML producer.
 - MuseScore/alphaTab evidence applies only to supported fixtures and scope.
 - The non-blocking synth diagnostic failure is not represented as a passing synthesizer compatibility result.
-- Full S1 observation validation does not create cryptographic/content-digest provenance, persistence, global observation-ID uniqueness, benchmark/dataset admission, consent/lawful-use records, or a research dataset pipeline.
+- S2 digest equality does not prove producer identity, historical-run authenticity, persistence, global observation-ID uniqueness, dataset admission, consent/lawful-use authorization, or a research dataset pipeline.
 - The three historical OptimizerObservation P2 review threads on PR #42 are resolved; their runtime findings are addressed by merged Step 1 and Step 2.1–2.4 work.
 - The two historical TeacherFeedback P2 review threads on PR #44 are resolved; their runtime findings are addressed by merged PR #54 hardening. Thread resolution was repository bookkeeping only and did not change runtime behavior.
 - No package release is claimed; package metadata remains `private: true` and `UNLICENSED`.
 
 ## Approved next package-level sequence
 
-The authoritative status set and applicable versioned contracts are converged through the verified runtime commit. The next package-level sequence is:
+The next package-level sequence is:
 
-1. separately approve S2 observation content-digest/provenance binding
-2. create the deterministic teacher-verified fingering benchmark v1 under separately approved provenance/data-admission constraints
+1. separately approve S3 observation provenance / dataset-admission contract work, keeping trusted-producer, persistence, and consent/lawful-use authority outside TeacherFeedback
+2. create the deterministic teacher-verified fingering benchmark v1 only after sufficient S3 provenance/admission constraints are verified
 3. implement the benchmark evaluation harness
 4. evaluate learned ranking in shadow mode only
 5. build a separately versioned teacher-feedback research-dataset pipeline with explicit persistence/admission and consent/privacy or lawful-use records
