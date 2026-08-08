@@ -146,6 +146,21 @@ test('rejects non-finite observed costs fail-closed', () => {
   );
 });
 
+test('rejects negative observed cost totals fail-closed', () => {
+  const { candidates, optimized: productionResult } = buildObservedFixture();
+  const optimized = cloneOptimizerResult(productionResult);
+  optimized.costs[0].total = -1;
+
+  assert.throws(
+    () => createOptimizerObservation(candidates, optimized),
+    (error) => {
+      assert.ok(error instanceof OptimizerObservationError);
+      assert.equal(error.code, 'INVALID_OPTIMIZER_OBSERVATION_INPUT');
+      return true;
+    },
+  );
+});
+
 test('rejects incomplete or malformed optimizer cost shape fail-closed', async (t) => {
   const cases = [
     ['missing isPlayable', 0, (cost) => { delete cost.isPlayable; }],
@@ -160,8 +175,14 @@ test('rejects incomplete or malformed optimizer cost shape fail-closed', async (
     ['non-finite first-layer breakdown field', 0, (cost) => {
       cost.breakdown.highFretCost = Number.POSITIVE_INFINITY;
     }],
+    ['negative first-layer breakdown field', 0, (cost) => {
+      cost.breakdown.highFretCost = -1;
+    }],
     ['missing transition breakdown field', 1, (cost) => {
       delete cost.breakdown.fretMovementCost;
+    }],
+    ['negative transition breakdown field', 1, (cost) => {
+      cost.breakdown.fretMovementCost = -1;
     }],
     ['non-boolean transition samePosition', 1, (cost) => {
       cost.breakdown.samePosition = 0;

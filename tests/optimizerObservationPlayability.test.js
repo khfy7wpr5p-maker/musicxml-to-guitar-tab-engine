@@ -52,12 +52,12 @@ function assertInvalidObservation(fn) {
   );
 }
 
-test('rejects a selected optimizer cost marked unplayable', () => {
+test('rejects a selected optimizer cost marked unplayable even without rejection reasons', () => {
   const { candidates, optimized: productionResult } = buildObservedFixture();
   const optimized = cloneOptimizerResult(productionResult);
 
   optimized.costs[0].isPlayable = false;
-  optimized.costs[0].reasons = ['FORGED_UNPLAYABLE_SELECTION'];
+  optimized.costs[0].reasons = [];
 
   assertInvalidObservation(() => createOptimizerObservation(candidates, optimized));
 });
