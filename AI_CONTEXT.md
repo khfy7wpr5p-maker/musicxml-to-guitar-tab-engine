@@ -6,7 +6,7 @@ This file is the required starting point for AI agents, coding assistants, revie
 
 - Last verified: 2026-08-08
 - Authoritative branch: `main`
-- Verified runtime main commit: `0d8e2258540ca11ff51cd508e4c1c482250ca201`
+- Verified runtime main commit: `24c22141cede5d3fa0ea945ffd4bbdf6897a62f3`
 - Package version: `0.1.0`
 - Canonical result contract: `CanonicalTabResult 1.0.0`
 - Internal error contract: `EngineError 1.0.0`
@@ -17,9 +17,11 @@ This file is the required starting point for AI agents, coding assistants, revie
 - `Integration Contract v1`: internal metadata/non-authority boundary merged
 - `OptimizerObservation 1.0.0`: internal foundation merged; Step 1 and Step 2.1–2.4 integrity hardening merged; not pipeline-wired
 - `PedagogicalFeatureVector 1.0.0`: internal foundation merged; not pipeline-wired
-- `TeacherFeedback 1.0.0`: internal foundation merged; observation/candidate binding and dataset admission still blocked
+- `TeacherFeedback 1.0.0`: internal foundation merged; exact observation/candidate binding and consent/privacy separation hardening merged; not pipeline-wired
+- Historical PR #42 OptimizerObservation P2 threads: all resolved
+- Historical PR #44 TeacherFeedback P2 threads: both resolved
 - Governance note: administrator-bypass hardening remains open from the latest recorded settings inspection.
-- Verification note: merge-post GitHub-hosted Tests #297 passed on current `main` for Node.js 18/20/22. The exact head of PR #51 passed MusicXML Compatibility on the same tree later merged as current `main`, including alphaTab import/SVG/browser/synth and MuseScore diagnostic jobs. No separate post-merge `main` Compatibility run is claimed.
+- Verification note: merge-post GitHub-hosted Tests #305 passed on current `main` for Node.js 18/20/22. The exact head of PR #54 passed MusicXML Compatibility #155 on the same tree later merged as current `main`, including alphaTab import/SVG/browser/synth and MuseScore diagnostic jobs. No separate post-merge `main` Compatibility run is claimed.
 
 If `main` moves beyond this snapshot, inspect the new tree, open pull requests, and current CI evidence before treating this file as current.
 
@@ -86,6 +88,7 @@ The current `main` includes:
 - OptimizerObservation Step 1 hostile-data hardening and Step 2.1–2.4 cost-shape, selected-playability, aggregate-consistency, and negative-regression closure
 - internal deterministic `PedagogicalFeatureVector 1.0.0` foundation
 - internal immutable `TeacherFeedback 1.0.0` foundation
+- TeacherFeedback hardening requiring a bounded opaque `observationId`, validation against an actual supported `OptimizerObservation`, exact optimizer-selection binding, complete canonical candidate identity validation, exact same-event candidate membership for overrides, and fail-closed rejection of unsupported consent/personal-metadata fields
 
 Package-root writer serializers are:
 
@@ -106,9 +109,10 @@ Do not claim that the following exist:
 - public `Integration Contract v1` metadata export or transport protocol
 - package-root observation, feature-vector, or teacher-feedback APIs
 - observation/feature/feedback integration into normal conversion
-- teacher-feedback persistence, unique observation identity binding, or exact-candidate membership enforcement
-- a privacy/consent contract for research or training use of teacher feedback
-- a feedback-backed research dataset admission pipeline
+- TeacherFeedback persistence or a repository-wide/global observation-ID uniqueness registry
+- benchmark/dataset admission infrastructure for teacher feedback
+- a separately versioned consent/privacy or lawful-use record for research/training admission
+- a feedback-backed research dataset pipeline
 - deterministic teacher-verified fingering benchmark
 - learned candidate ranking or model training
 - production HTTP server, UI, PWA, mobile application
@@ -131,14 +135,14 @@ Do not claim that the following exist:
 11. Learned components may score only deterministic, physically validated candidates.
 12. Learned components may not create or alter MusicXML notes, pitch, strings, frets, timing, physical rules, validators, or canonical objects directly.
 13. The deterministic cost profile remains the required fallback.
-14. A teacher decision is not consent for research, training, or reuse of the optional free-text reason; those require a separate approved privacy/consent boundary.
+14. A teacher decision is not consent for research, training, or reuse of the optional free-text reason; those require a separate approved privacy/consent or lawful-use boundary.
 
 ## Foundation readiness limits
 
 The merged internal foundations must not be described as a complete benchmark/research system:
 
-- `OptimizerObservation 1.0.0` is not wired into conversion. Its Step 1 hostile-data protections and Step 2.1–2.4 selected-cost integrity/regression hardening are merged. It now rejects malformed selected-cost shape, unplayable selected costs, rejection reasons on selected costs, negative/non-finite cost values, aggregate/per-decision cost inconsistency, sparse arrays, cycles, and over-depth copied metadata. Broader benchmark/research admission is still blocked by downstream feedback identity, membership, consent/privacy, and dataset-admission work.
-- `TeacherFeedback 1.0.0` is not bound to a unique source observation, validates candidate identity only partially, and delegates exact observed-candidate membership to a future admission layer.
+- `OptimizerObservation 1.0.0` is not wired into conversion. Its Step 1 hostile-data protections and Step 2.1–2.4 selected-cost integrity/regression hardening are merged. It rejects malformed selected-cost shape, unplayable selected costs, rejection reasons on selected costs, negative/non-finite cost values, aggregate/per-decision cost inconsistency, sparse arrays, cycles, and over-depth copied metadata.
+- `TeacherFeedback 1.0.0` is not wired into conversion. It now requires an actual supported observation for runtime validation, stores a bounded opaque `observationId`, binds the optimizer candidate to the exact observed selection, validates complete canonical candidate identities and guitar bounds, and requires overrides to be members of the exact same-event observed candidate layer. The module does not provide persistence, a global identity registry, benchmark/dataset admission, or consent/lawful-use records.
 - `PedagogicalFeatureVector 1.0.0` is deterministic and immutable, but remains descriptive foundation data rather than pedagogical truth or an optimizer input.
 - Optional teacher reasons are bounded free text. Callers must not place personal data in them, and the record must not be treated as research/training consent.
 
@@ -146,19 +150,18 @@ The merged internal foundations must not be described as a complete benchmark/re
 
 G0.1 administrator-bypass hardening remains an open parallel governance task.
 
-The four-file status set is converged through the verified runtime commit above; the OptimizerObservation versioned contract also documents the merged Step 1/Step 2 integrity boundary.
+The authoritative status set is converged through the verified runtime commit above. The OptimizerObservation and TeacherFeedback versioned contracts document their currently merged validation boundaries.
 
-The three historical OptimizerObservation P2 review threads on PR #42 are resolved using the merged Step 1 and Step 2.1–2.4 runtime/regression evidence. This was repository bookkeeping only and did not change runtime behavior.
+The three historical OptimizerObservation P2 review threads on PR #42 and the two historical TeacherFeedback P2 review threads on PR #44 are resolved using merged runtime/regression evidence. Thread resolution was repository bookkeeping only and did not change runtime behavior.
 
 The next safe product sequence is:
 
-1. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and define a separate privacy/consent boundary,
-2. create the deterministic teacher-verified fingering benchmark,
-3. implement the benchmark evaluation harness,
-4. evaluate learned candidate ranking v1 in shadow mode only,
-5. build a separately versioned teacher-feedback-to-research-dataset pipeline,
-6. require a learned-ranking evaluation gate against the deterministic baseline,
-7. allow controlled learned ranking only after separate evidence and approval.
+1. create the deterministic teacher-verified fingering benchmark v1 under separately approved provenance/data-admission constraints,
+2. implement the benchmark evaluation harness,
+3. evaluate learned candidate ranking v1 in shadow mode only,
+4. build a separately versioned teacher-feedback-to-research-dataset pipeline with explicit persistence/admission and consent/privacy or lawful-use records,
+5. require a learned-ranking evaluation gate against the deterministic baseline,
+6. allow controlled learned ranking only after separate evidence and approval.
 
 `Integration Contract v1` is already merged as an internal boundary contract. It does not introduce HTTP, UI, OMR, SesliTab, transport, persistence, or application logic into the core.
 
@@ -191,6 +194,6 @@ Update these files together when material status changes:
 - `docs/package-status.md`
 - `README.md`
 
-Update the applicable versioned contract document when a merged hardening step changes the documented validation boundary.
+Update the applicable versioned contract document when a merged hardening step changes the documented validation boundary or its review/bookkeeping status.
 
 Only merged behavior may be described as current capability.
