@@ -130,6 +130,20 @@ test('commits one S3 admission through a versioned atomic compare-and-commit sto
   assert.equal(Object.isFrozen(result.record), true);
 });
 
+test('re-reads authoritative history and rejects a replay before a second commit call', async () => {
+  const store = new ReferenceAtomicStore();
+  await commitObservationAdmissionAtomically(store, baseInput());
+
+  await assert.rejects(
+    () => commitObservationAdmissionAtomically(store, baseInput()),
+    (error) => error && error.code === 'INVALID_OBSERVATION_ADMISSION',
+  );
+
+  assert.equal(store.readCalls, 2);
+  assert.equal(store.commitCalls, 1);
+  assert.equal(store.admissions.length, 1);
+});
+
 test('rejects a stale snapshot with conflict and does not overwrite the concurrent winner', async () => {
   const store = new ReferenceAtomicStore({
     beforeCompare(current) {
@@ -245,6 +259,25 @@ test('treats malformed post-commit responses and non-advancing committed revisio
   assert.equal(nonAdvancingStore.admissions.length, 1);
 });
 
+test('pins validated store methods so an async snapshot read cannot redirect the commit method', async () => {
+  const store = new ReferenceAtomicStore();
+  const originalRead = store.readAdmissionDomainSnapshot;
+  store.readAdmissionDomainSnapshot = async function readAndAttemptMethodSwap(admissionDomainId) {
+    const snapshot = await originalRead.call(this, admissionDomainId);
+    this.compareAndCommitAdmission = async () => {
+      throw new Error('redirected compare-and-commit must not be invoked');
+    };
+    return snapshot;
+  };
+
+  const result = await commitObservationAdmissionAtomically(store, baseInput());
+
+  assert.equal(result.committedRevisionToken, 'revision:1');
+  assert.equal(store.readCalls, 1);
+  assert.equal(store.commitCalls, 1);
+  assert.equal(store.admissions.length, 1);
+});
+
 test('does not let callers inject history, consent metadata, or invalid store contracts into the atomic path', async () => {
   const store = new ReferenceAtomicStore();
   await assert.rejects(
@@ -262,6 +295,17 @@ test('does not let callers inject history, consent metadata, or invalid store co
   invalidStore.contractVersion = '2.0.0';
   await assert.rejects(
     () => commitObservationAdmissionAtomically(invalidStore, baseInput()),
+    ObservationAdmissionAtomicAdapterError,
+  );
+
+  const throwingGetterStore = {};
+  Object.defineProperty(throwingGetterStore, 'contractVersion', {
+    get() {
+      throw new TypeError('simulated hostile store getter');
+    },
+  });
+  await assert.rejects(
+    () => commitObservationAdmissionAtomically(throwingGetterStore, baseInput()),
     ObservationAdmissionAtomicAdapterError,
   );
 });
