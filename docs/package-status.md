@@ -226,7 +226,7 @@ No separate post-merge `main` MusicXML Compatibility run is claimed.
 - Third-party workflow actions are pinned to immutable full commit SHAs.
 - `main` remains protected with the recorded required status contexts.
 - The latest branch-protection inspection reports required-check enforcement at `non_admins`, leaving administrator-bypass hardening open.
-- This documentation convergence does not alter repository settings.
+- Documentation convergence does not alter repository settings.
 
 ## Evidence limitations
 
@@ -241,7 +241,7 @@ No separate post-merge `main` MusicXML Compatibility run is claimed.
 
 ## Approved next package-level sequence
 
-After this S3/S3.1 documentation convergence is merged, the next safe package-level sequence is:
+With S3/S3.1 documented, the next safe package-level sequence is:
 
 1. perform a separate read-only scope/threat-model review for a deterministic fixed teacher-verified fingering benchmark v1;
 2. only after separate approval, create fixed reviewed benchmark artifacts and a versioned benchmark contract without pretending S3.1 is deployed production persistence;
