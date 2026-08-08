@@ -177,16 +177,19 @@ test('rejects shape-valid observation tampering with a stale digest', () => {
 
 test('rejects duplicate admission IDs, malformed history, and unsupported consent/personal metadata', () => {
   const first = createObservationAdmissionRecord(baseInput());
+  const secondObservation = createSecondObservation();
+  const duplicateAdmissionInput = baseInput({
+    admissionId: first.admissionId,
+    observationId: 'observation:second',
+    producerRevisionId: 'git:second',
+    runId: 'run:second',
+    observation: secondObservation,
+    observationDigest: createOptimizerObservationDigest(secondObservation),
+    existingAdmissions: [first],
+  });
+
   assert.throws(
-    () => createObservationAdmissionRecord(secondInput([first]).constructor === Object ? baseInput({
-      admissionId: first.admissionId,
-      observationId: 'observation:second',
-      producerRevisionId: 'git:second',
-      runId: 'run:second',
-      observation: createSecondObservation(),
-      observationDigest: createOptimizerObservationDigest(createSecondObservation()),
-      existingAdmissions: [first],
-    }) : null),
+    () => createObservationAdmissionRecord(duplicateAdmissionInput),
     ObservationAdmissionError,
   );
   assert.throws(
