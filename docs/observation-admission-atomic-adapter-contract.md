@@ -18,6 +18,8 @@ An integrating store must expose:
 
 The core does not accept caller-supplied `existingAdmissions` through this S3.1 path.
 
+The adapter resolves and validates the required store methods before the asynchronous snapshot read begins, then uses those validated method references for the whole attempt. A store cannot redirect the later compare-and-commit step merely by replacing a method while the snapshot read is in flight. Store contract-property access failures are normalized to the adapter error boundary.
+
 ### Authoritative snapshot
 
 `readAdmissionDomainSnapshot()` must return exactly:
@@ -30,7 +32,7 @@ The core does not accept caller-supplied `existingAdmissions` through this S3.1 
 
 The revision token is opaque to the core. The store is responsible for ensuring that it changes whenever the admission domain changes in a way relevant to compare-and-commit.
 
-The adapter validates the snapshot shape and then passes the snapshot admissions into the existing S3 fail-closed history validator when creating the candidate admission record.
+The adapter validates the snapshot shape and then passes the snapshot admissions into the existing S3 fail-closed history validator when creating the candidate admission record. A repeated admission therefore re-reads authoritative history and can be rejected before a second compare-and-commit call.
 
 ### Compare-and-commit
 
@@ -134,12 +136,15 @@ S3.1 regression coverage includes:
 
 - successful atomic commit from an authoritative empty snapshot;
 - revision-token advancement;
+- authoritative re-read and replay rejection before a second commit call;
 - stale-snapshot conflict without overwrite;
 - explicit caller retry only after a proven no-write conflict and fresh re-read;
 - no automatic retry after an ambiguous post-commit exception;
 - malformed and cross-domain snapshot rejection before commit;
 - malformed post-commit result treated as outcome unknown;
 - non-advancing successful revision treated as outcome unknown;
+- store-method pinning across the asynchronous snapshot boundary;
+- hostile store contract-property access normalized fail-closed;
 - caller-supplied history and consent/personal metadata rejection;
 - incompatible store-contract rejection;
 - package-root non-export regression.
