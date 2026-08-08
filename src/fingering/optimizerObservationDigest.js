@@ -32,6 +32,45 @@ function digestError(message, details = {}) {
   });
 }
 
+function assertCanonicalObjectKeys(value) {
+  const ownKeys = Reflect.ownKeys(value);
+  for (const key of ownKeys) {
+    if (typeof key !== 'string') {
+      throw digestError('OptimizerObservation digest objects must not contain symbol properties.');
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+      throw digestError(
+        'OptimizerObservation digest objects must contain only enumerable data properties.',
+        { key },
+      );
+    }
+  }
+  return ownKeys.sort();
+}
+
+function assertCanonicalArrayKeys(value) {
+  const ownKeys = Reflect.ownKeys(value);
+  for (const key of ownKeys) {
+    if (typeof key !== 'string') {
+      throw digestError('OptimizerObservation digest arrays must not contain symbol properties.');
+    }
+    if (key === 'length') continue;
+    if (!/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length) {
+      throw digestError('OptimizerObservation digest arrays must not contain custom properties.', {
+        key,
+      });
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+      throw digestError(
+        'OptimizerObservation digest arrays must contain only enumerable data elements.',
+        { key },
+      );
+    }
+  }
+}
+
 function writeCanonicalJson(hash, value, seen = new WeakSet(), depth = 0) {
   if (depth > MAX_DIGEST_CANONICAL_DEPTH) {
     throw digestError('OptimizerObservation digest input exceeds the canonical depth limit.', {
@@ -72,24 +111,14 @@ function writeCanonicalJson(hash, value, seen = new WeakSet(), depth = 0) {
   seen.add(value);
 
   if (Array.isArray(value)) {
-    if (Object.getOwnPropertySymbols(value).length > 0) {
-      throw digestError('OptimizerObservation digest arrays must not contain symbol properties.');
-    }
-    for (const key of Object.keys(value)) {
-      if (!/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length) {
-        throw digestError('OptimizerObservation digest arrays must not contain custom properties.', {
-          key,
-        });
-      }
-    }
-
+    assertCanonicalArrayKeys(value);
     hash.update('[');
     for (let index = 0; index < value.length; index += 1) {
       if (!Object.hasOwn(value, index)) {
         throw digestError('OptimizerObservation digest arrays must be dense.', { index });
       }
       const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-      if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
+      if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
         throw digestError('OptimizerObservation digest arrays must not contain accessors.', {
           index,
         });
@@ -105,16 +134,13 @@ function writeCanonicalJson(hash, value, seen = new WeakSet(), depth = 0) {
   if (!isPlainObject(value)) {
     throw digestError('OptimizerObservation digest objects must be plain objects.');
   }
-  if (Object.getOwnPropertySymbols(value).length > 0) {
-    throw digestError('OptimizerObservation digest objects must not contain symbol properties.');
-  }
 
-  const keys = Object.keys(value).sort();
+  const keys = assertCanonicalObjectKeys(value);
   hash.update('{');
   for (let index = 0; index < keys.length; index += 1) {
     const key = keys[index];
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
       throw digestError('OptimizerObservation digest objects must not contain accessors.', {
         key,
       });
@@ -132,11 +158,7 @@ function validateOptimizerObservationDigest(digest) {
   if (!isPlainObject(digest)) {
     throw digestError('observationDigest must be a plain object.');
   }
-  if (Object.getOwnPropertySymbols(digest).length > 0) {
-    throw digestError('observationDigest must not contain symbol properties.');
-  }
-
-  const keys = Object.keys(digest).sort();
+  const keys = assertCanonicalObjectKeys(digest);
   const expectedKeys = ['algorithm', 'contractVersion', 'value'];
   if (
     keys.length !== expectedKeys.length
