@@ -4,17 +4,22 @@ This file is the required starting point for AI agents, coding assistants, revie
 
 ## Verified snapshot
 
-- Last verified: 2026-08-07
+- Last verified: 2026-08-08
 - Authoritative branch: `main`
-- Verified main commit: `e60426d841981011518ec04435f93b3e8a7d71b2`
+- Verified runtime main commit: `5ba727a778aceb3b70342b82ae027d6ac2bacd43`
 - Package version: `0.1.0`
 - Canonical result contract: `CanonicalTabResult 1.0.0`
 - Internal error contract: `EngineError 1.0.0`
 - Public error detection boundary: `PEB-1`
 - Milestone 3 public writer API: merged
 - PEB-1 public error detection boundary: merged
-- Governance note: `main` is protected with seven required checks, but required-check enforcement remains `non_admins`; administrator-bypass hardening is still open.
-- CI evidence note: PEB-1 local validation passed (`241/241` repository tests, focused `17/17` error/public-API tests, `git diff --check`, and `npm pack --dry-run`), but GitHub-hosted PR jobs did not start because of account billing/spending-limit restrictions. Do not describe those hosted jobs as passed.
+- `GuitarConfiguration 1.0.0`: internal contract merged
+- `Integration Contract v1`: internal metadata/non-authority boundary merged
+- `OptimizerObservation 1.0.0`: internal foundation merged; hardening required
+- `PedagogicalFeatureVector 1.0.0`: internal foundation merged; not pipeline-wired
+- `TeacherFeedback 1.0.0`: internal foundation merged; dataset admission blocked
+- Governance note: administrator-bypass hardening remains open from the latest recorded settings inspection.
+- Verification note: the verified runtime commit passed 275/275 local tests. The latest merged runtime foundation's exact-head PR workflows passed Tests on Node.js 18/20/22 and MusicXML Compatibility, including alphaTab and MuseScore diagnostic jobs.
 
 If `main` moves beyond this snapshot, inspect the new tree, open pull requests, and current CI evidence before treating this file as current.
 
@@ -41,12 +46,14 @@ When sources disagree, use this order:
 1. Merged source code, tests, package metadata, schemas, and workflows on `main`
 2. `schemas/canonical-tab-result.v1.schema.json`
 3. `src/contracts/canonicalTabResultContract.js` and related contract modules
-4. `docs/engine-error-contract.md`
-5. `docs/canonical-contract-audit.md`
-6. `docs/current-status.md`
-7. `docs/package-status.md`
-8. `README.md`
-9. architecture and MVP documents
+4. `docs/integration-contract-v1.md`
+5. the applicable versioned contract document under `docs/`
+6. `docs/engine-error-contract.md`
+7. `docs/canonical-contract-audit.md`
+8. `docs/current-status.md`
+9. `docs/package-status.md`
+10. `README.md`
+11. architecture and MVP documents
 
 Open pull requests, feature branches, issue descriptions, and planned documentation are not implemented capabilities until merged into `main`.
 
@@ -72,6 +79,12 @@ The current `main` includes:
 - public `ENGINE_ERROR_CONTRACT_VERSION` and `isEngineError(value)` detection boundary
 - public `FretboardError` preserved for backward compatibility
 - GitHub Actions third-party action references pinned to immutable commit SHAs
+- bounded iterative `CanonicalTabResult` object-graph validation
+- internal immutable `GuitarConfiguration 1.0.0`
+- internal `Integration Contract v1` metadata and explicit integration non-authorities
+- internal immutable `OptimizerObservation 1.0.0` foundation and deterministic optimizer/candidate identities
+- internal deterministic `PedagogicalFeatureVector 1.0.0` foundation
+- internal immutable `TeacherFeedback 1.0.0` foundation
 
 Package-root writer serializers are:
 
@@ -88,11 +101,13 @@ Do not claim that the following exist:
 - package-root `EngineError` class export
 - package-root writer error-class exports
 - a public serialized error envelope
-- versioned public `GuitarConfiguration 1.0`
-- `Integration Contract v1`
-- optimizer observation contract
-- pedagogical feature-vector contract
-- teacher-feedback persistence or contract
+- public `GuitarConfiguration` constructor/version export
+- public `Integration Contract v1` metadata export or transport protocol
+- package-root observation, feature-vector, or teacher-feedback APIs
+- observation/feature/feedback integration into normal conversion
+- hardened benchmark/dataset admission for observation and teacher-feedback records
+- teacher-feedback persistence, observation identity binding, or exact-candidate membership enforcement
+- a privacy/consent contract for research or training use of teacher feedback
 - deterministic teacher-verified fingering benchmark
 - learned candidate ranking or model training
 - production HTTP server, UI, PWA, mobile application
@@ -115,24 +130,33 @@ Do not claim that the following exist:
 11. Learned components may score only deterministic, physically validated candidates.
 12. Learned components may not create or alter MusicXML notes, pitch, strings, frets, timing, physical rules, validators, or canonical objects directly.
 13. The deterministic cost profile remains the required fallback.
+14. A teacher decision is not consent for research, training, or reuse of the optional free-text reason; those require a separate approved privacy/consent boundary.
+
+## Foundation readiness limits
+
+The merged internal foundations must not be described as benchmark- or research-ready:
+
+- `OptimizerObservation 1.0.0` is not wired into conversion. Before downstream use it must reject sparse arrays, reconcile aggregate and per-decision costs, require complete playable cost records, and bound metadata traversal.
+- `TeacherFeedback 1.0.0` is not bound to a unique source observation, validates candidate identity only partially, and delegates exact observed-candidate membership to a future admission layer.
+- `PedagogicalFeatureVector 1.0.0` is deterministic and immutable, but remains descriptive foundation data rather than pedagogical truth or an optimizer input.
+- Optional teacher reasons are bounded free text. Callers must not place personal data in them, and the record must not be treated as research/training consent.
 
 ## Approved controlled roadmap
 
-G0.1 administrator-bypass hardening remains an open governance task.
+G0.1 administrator-bypass hardening remains an open parallel governance task.
 
-The controlled product sequence is:
+This four-file status set is the documentation-convergence snapshot through the verified runtime commit. The next safe product sequence is:
 
-1. documentation convergence after Milestone 3 and PEB-1,
-2. `GuitarConfiguration 1.0`,
-3. `Integration Contract v1`,
-4. `OptimizerObservation 1.0.0`,
-5. deterministic `PedagogicalFeatureVector 1.0`,
-6. immutable `TeacherFeedback 1.0`,
-7. deterministic teacher-verified fingering benchmark,
-8. learned candidate ranking v1 in shadow mode,
-9. controlled learned ranking only after separate evidence and approval.
+1. harden `OptimizerObservation 1.0.0` and add negative regression tests,
+2. bind `TeacherFeedback 1.0.0` to an exact observation/candidate set and define a separate privacy/consent boundary,
+3. create the deterministic teacher-verified fingering benchmark,
+4. implement the benchmark evaluation harness,
+5. evaluate learned candidate ranking v1 in shadow mode only,
+6. build a separately versioned teacher-feedback-to-research-dataset pipeline,
+7. require a learned-ranking evaluation gate against the deterministic baseline,
+8. allow controlled learned ranking only after separate evidence and approval.
 
-`Integration Contract v1` must define the stable boundary between this deterministic engine and external systems without introducing HTTP, UI, OMR, SesliTab, or application logic into the core. It should cover supported input/output contracts, public error detection/versioning, compatibility expectations, configuration/version references, and explicit non-authorities of integrations.
+`Integration Contract v1` is already merged as an internal boundary contract. It does not introduce HTTP, UI, OMR, SesliTab, transport, persistence, or application logic into the core.
 
 Long-term chord work must first introduce simultaneous-event and left-hand-shape contracts, then finger/barre representation, chord candidate generation, physical playability validation v2, deterministic left-hand optimization, pedagogical features v2, benchmark v2, and only then learned pedagogical ranking v2.
 
@@ -152,7 +176,7 @@ Long-term chord work must first introduce simultaneous-event and left-hand-shape
 
 ## Repository governance note
 
-`main` is protected with seven required checks, but enforcement remains `non_admins`. No repository ruleset currently provides a second enforcement layer. Administrator-bypass hardening remains open.
+Workflow files use immutable action SHAs and `contents: read`. The latest recorded settings inspection left administrator-bypass hardening open. This documentation convergence does not modify or reconfigure repository governance.
 
 ## Documentation maintenance
 
