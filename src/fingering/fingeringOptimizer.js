@@ -8,6 +8,8 @@ const {
   calculateTransitionCost,
 } = require('./costModel');
 
+const FINGERING_OPTIMIZER_VERSION = '1.0.0';
+
 const COST_OVERFLOW_FIELDS = new Set([
   'highFretCost',
   'openStringPreferenceCost',
@@ -401,6 +403,7 @@ function optimizeFingering(candidateLayers, options = {}, runtime = null) {
 }
 
 module.exports = {
+  FINGERING_OPTIMIZER_VERSION,
   FingeringOptimizerError,
   optimizeFingering,
 };
