@@ -116,7 +116,7 @@ Current package-root exports include:
 | `GuitarConfiguration 1.0.0` | Internal contract merged |
 | `Integration Contract v1` | Internal boundary metadata and documentation merged |
 | `OptimizerObservation 1.0.0` | Internal foundation merged; Step 1 and Step 2.1–2.4 hardening merged; not pipeline-wired |
-| Historical PR #42 observation P2 threads | Runtime findings addressed; GitHub thread-resolution bookkeeping still pending |
+| Historical PR #42 observation P2 threads | Runtime findings addressed; all three historical review threads resolved |
 | `PedagogicalFeatureVector 1.0.0` | Internal deterministic foundation merged; not pipeline-wired |
 | `TeacherFeedback 1.0.0` | Internal foundation merged; exact observation/candidate binding and dataset admission still blocked |
 | Deterministic teacher-verified benchmark | Not started; blocked by feedback hardening |
