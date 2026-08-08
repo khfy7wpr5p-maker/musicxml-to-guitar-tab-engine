@@ -27,7 +27,7 @@ The observation layer may:
 - identify every physical candidate deterministically,
 - record the selected candidate,
 - copy the existing cost breakdown,
-- validate that the copied selected-cost record is structurally and semantically consistent with a deterministic optimizer result,
+- validate the required selected-cost shape and selected-playability invariants,
 - validate aggregate selected-path cost consistency,
 - record optimizer and configuration versions,
 - preserve event/measure references,
