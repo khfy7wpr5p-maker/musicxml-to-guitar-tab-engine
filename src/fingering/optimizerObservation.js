@@ -311,6 +311,19 @@ function createOptimizerObservation(candidateSet, optimizerResult) {
     };
   });
 
+  const observedTotalCost = decisions.reduce((total, decision) => (
+    total + decision.cost.total
+  ), 0);
+  if (!Number.isFinite(observedTotalCost) || observedTotalCost !== optimizerResult.totalCost) {
+    throw new OptimizerObservationError(
+      'optimizerResult.totalCost must equal the sum of observed decision costs.',
+      {
+        totalCost: optimizerResult.totalCost,
+        observedTotalCost,
+      },
+    );
+  }
+
   return deepFreeze({
     documentType: 'OptimizerObservation',
     contractVersion: OPTIMIZER_OBSERVATION_VERSION,
