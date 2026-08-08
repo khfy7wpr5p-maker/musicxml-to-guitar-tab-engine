@@ -1,6 +1,10 @@
 'use strict';
 
 const { EngineError } = require('../errors/engineError');
+const { pitchNameToMidi } = require('../music/pitch');
+
+const GUITAR_CONFIGURATION_VERSION = '1.0.0';
+const GUITAR_STRING_COUNT = 6;
 
 const STANDARD_TUNING = Object.freeze([
   Object.freeze({ number: 6, pitch: 'E2', midi: 40 }),
@@ -47,18 +51,59 @@ function validateFretRange({ minimumFret = 0, maximumFret = 20 } = {}) {
   return { minimumFret, maximumFret };
 }
 
+function normalizePitch(entry) {
+  if (entry.pitch === undefined || entry.pitch === null) {
+    return null;
+  }
+
+  if (typeof entry.pitch !== 'string' || entry.pitch.trim().length === 0) {
+    throw new GuitarConfigurationError('Open-string pitch names must be non-empty strings when provided.', {
+      entry,
+    });
+  }
+
+  let pitchMidi;
+  try {
+    pitchMidi = pitchNameToMidi(entry.pitch);
+  } catch (error) {
+    throw new GuitarConfigurationError('Open-string pitch names must be valid scientific pitch names.', {
+      entry,
+      pitch: entry.pitch,
+    });
+  }
+
+  if (pitchMidi !== entry.midi) {
+    throw new GuitarConfigurationError('Open-string pitch and MIDI values must describe the same pitch.', {
+      string: entry.number,
+      pitch: entry.pitch,
+      midi: entry.midi,
+      pitchMidi,
+    });
+  }
+
+  return entry.pitch.trim();
+}
+
 function validateTuning(tuning = STANDARD_TUNING) {
-  if (!Array.isArray(tuning) || tuning.length !== 6) {
-    throw new GuitarConfigurationError('A six-string tuning must define exactly six strings.');
+  if (!Array.isArray(tuning) || tuning.length !== GUITAR_STRING_COUNT) {
+    throw new GuitarConfigurationError(
+      `A six-string tuning must define exactly ${GUITAR_STRING_COUNT} strings.`,
+    );
   }
 
   const seenNumbers = new Set();
 
   const normalized = tuning.map((entry) => {
-    if (!entry || !Number.isInteger(entry.number) || entry.number < 1 || entry.number > 6) {
-      throw new GuitarConfigurationError('String number must be an integer from 1 to 6.', {
-        entry,
-      });
+    if (
+      !entry
+      || !Number.isInteger(entry.number)
+      || entry.number < 1
+      || entry.number > GUITAR_STRING_COUNT
+    ) {
+      throw new GuitarConfigurationError(
+        `String number must be an integer from 1 to ${GUITAR_STRING_COUNT}.`,
+        { entry },
+      );
     }
 
     if (seenNumbers.has(entry.number)) {
@@ -76,7 +121,7 @@ function validateTuning(tuning = STANDARD_TUNING) {
 
     return {
       number: entry.number,
-      pitch: typeof entry.pitch === 'string' ? entry.pitch : null,
+      pitch: normalizePitch(entry),
       midi: entry.midi,
     };
   });
@@ -97,6 +142,8 @@ function createGuitarConfiguration(options = {}) {
 }
 
 module.exports = {
+  GUITAR_CONFIGURATION_VERSION,
+  GUITAR_STRING_COUNT,
   STANDARD_TUNING,
   DEFAULT_FRET_RANGE,
   GuitarConfigurationError,
