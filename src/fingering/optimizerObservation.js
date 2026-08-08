@@ -1,7 +1,11 @@
 'use strict';
 
 const { EngineError } = require('../errors/engineError');
-const { GUITAR_CONFIGURATION_VERSION } = require('../guitar/tuning');
+const {
+  GUITAR_CONFIGURATION_VERSION,
+  validateFretRange,
+  validateTuning,
+} = require('../guitar/tuning');
 const {
   CANONICAL_FINGERING_CANDIDATES_VERSION,
 } = require('./candidateLayerBuilder');
@@ -258,6 +262,51 @@ function validateObservedCost(cost, noteIndex) {
   return cost;
 }
 
+function validateObservedGuitarConfiguration(guitarConfiguration) {
+  if (!isObject(guitarConfiguration)) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration.value must be an object.',
+    );
+  }
+  if (!isDenseArray(guitarConfiguration.tuning) || guitarConfiguration.tuning.length !== 6) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration.tuning must contain six dense string entries.',
+    );
+  }
+
+  let normalizedTuning;
+  try {
+    validateFretRange({
+      minimumFret: guitarConfiguration.minimumFret,
+      maximumFret: guitarConfiguration.maximumFret,
+    });
+    normalizedTuning = validateTuning(guitarConfiguration.tuning);
+  } catch (error) {
+    throw new OptimizerObservationError(
+      'observation.guitarConfiguration must be a valid GuitarConfiguration.',
+      { guitarConfigurationErrorCode: error?.code ?? null },
+    );
+  }
+
+  for (let tuningIndex = 0; tuningIndex < normalizedTuning.length; tuningIndex += 1) {
+    const actual = guitarConfiguration.tuning[tuningIndex];
+    const normalized = normalizedTuning[tuningIndex];
+    if (
+      !isObject(actual)
+      || actual.number !== normalized.number
+      || actual.midi !== normalized.midi
+      || actual.pitch !== normalized.pitch
+    ) {
+      throw new OptimizerObservationError(
+        'observation.guitarConfiguration.tuning must use canonical string order and values.',
+        { tuningIndex },
+      );
+    }
+  }
+
+  return guitarConfiguration;
+}
+
 function validateOptimizerObservation(observation) {
   if (!isObject(observation)) {
     throw new OptimizerObservationError('observation must be an object.');
@@ -290,50 +339,15 @@ function validateOptimizerObservation(observation) {
   if (
     !isObject(observation.guitarConfiguration)
     || observation.guitarConfiguration.contractVersion !== GUITAR_CONFIGURATION_VERSION
-    || !isObject(observation.guitarConfiguration.value)
   ) {
     throw new OptimizerObservationError(
       'observation.guitarConfiguration must use the supported contract.',
     );
   }
 
-  const guitarConfiguration = observation.guitarConfiguration.value;
-  if (
-    !Number.isSafeInteger(guitarConfiguration.minimumFret)
-    || !Number.isSafeInteger(guitarConfiguration.maximumFret)
-    || guitarConfiguration.minimumFret < 0
-    || guitarConfiguration.maximumFret < guitarConfiguration.minimumFret
-  ) {
-    throw new OptimizerObservationError(
-      'observation.guitarConfiguration fret limits are invalid.',
-    );
-  }
-  if (!isDenseArray(guitarConfiguration.tuning) || guitarConfiguration.tuning.length !== 6) {
-    throw new OptimizerObservationError(
-      'observation.guitarConfiguration.tuning must contain six dense string entries.',
-    );
-  }
-  const seenStrings = new Set();
-  for (let tuningIndex = 0; tuningIndex < guitarConfiguration.tuning.length; tuningIndex += 1) {
-    const entry = guitarConfiguration.tuning[tuningIndex];
-    if (
-      !isObject(entry)
-      || !Number.isSafeInteger(entry.number)
-      || entry.number < 1
-      || entry.number > 6
-      || seenStrings.has(entry.number)
-      || !Number.isSafeInteger(entry.midi)
-      || entry.midi < 0
-      || entry.midi > 127
-      || (entry.pitch !== null && (typeof entry.pitch !== 'string' || entry.pitch.length === 0))
-    ) {
-      throw new OptimizerObservationError(
-        'observation.guitarConfiguration.tuning contains an invalid string entry.',
-        { tuningIndex },
-      );
-    }
-    seenStrings.add(entry.number);
-  }
+  const guitarConfiguration = validateObservedGuitarConfiguration(
+    observation.guitarConfiguration.value,
+  );
 
   if (typeof observation.partId !== 'string' || observation.partId.length === 0) {
     throw new OptimizerObservationError('observation.partId must be a non-empty string.');
