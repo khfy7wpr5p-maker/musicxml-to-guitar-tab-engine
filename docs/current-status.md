@@ -141,7 +141,7 @@ Before any feedback-backed benchmark or research dataset use:
 2. Feedback must identify the exact source observation, validate complete candidate identities, and enforce membership in that observation's candidate set.
 3. Teacher feedback and optional free-text reasons must remain separate from any research/training consent or lawful-use record.
 
-Traceability: [PR #42](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/42) still contains three unresolved historical P2 observation-integrity review threads. Their runtime findings are addressed by merged Step 1 and Step 2.1–2.4 work; resolving the GitHub thread state remains separate repository bookkeeping. [PR #44](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/44) retains two unresolved P2 feedback-identity threads that remain materially open.
+Traceability: [PR #42](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/42) retains the three historical P2 observation-integrity findings, and all three review threads are now resolved after merged Step 1 and Step 2.1–2.4 runtime/regression evidence was verified. The resolution was repository bookkeeping only. [PR #44](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/44) retains two unresolved P2 feedback-identity threads that remain materially open.
 
 The deterministic benchmark, evaluation harness, dataset pipeline, learned ranker, model training, and controlled opt-in are not implemented.
 
@@ -176,14 +176,13 @@ This documentation snapshot is `DOCUMENTED`. The next gates are:
 
 | Order | Work item | Status |
 |---:|---|---|
-| 1 | Resolve the three historical OptimizerObservation P2 review threads on PR #42 using merged evidence | `READY` |
-| 2 | `TeacherFeedback 1.0.0` exact observation/candidate binding plus separate consent/privacy semantics | `BLOCKED` until observation bookkeeping closure |
-| 3 | Deterministic teacher-verified fingering benchmark v1 | `BLOCKED` |
-| 4 | Benchmark evaluation harness | `NOT_STARTED` |
-| 5 | Learned ranking v1 — shadow mode | `BLOCKED` |
-| 6 | Teacher feedback to versioned research-dataset pipeline | `BLOCKED` |
-| 7 | Learned-ranking evaluation gate against deterministic baseline | `BLOCKED` |
-| 8 | Learned ranking v1 — controlled opt-in | `BLOCKED` |
+| 1 | `TeacherFeedback 1.0.0` exact observation/candidate binding plus separate consent/privacy semantics | `READY` for separate approval |
+| 2 | Deterministic teacher-verified fingering benchmark v1 | `BLOCKED` |
+| 3 | Benchmark evaluation harness | `NOT_STARTED` |
+| 4 | Learned ranking v1 — shadow mode | `BLOCKED` |
+| 5 | Teacher feedback to versioned research-dataset pipeline | `BLOCKED` |
+| 6 | Learned-ranking evaluation gate against deterministic baseline | `BLOCKED` |
+| 7 | Learned ranking v1 — controlled opt-in | `BLOCKED` |
 
 G0.1 administrator-bypass hardening remains a parallel governance task.
 
