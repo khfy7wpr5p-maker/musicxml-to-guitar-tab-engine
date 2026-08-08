@@ -116,8 +116,16 @@ test('rejects forged full-observation invariants fail-closed', async (t) => {
     ['aggregate total', (observation) => {
       observation.totalCost += 1;
     }],
-    ['guitar configuration', (observation) => {
+    ['guitar configuration shape', (observation) => {
       observation.guitarConfiguration.value.tuning.pop();
+    }],
+    ['guitar pitch and MIDI disagreement', (observation) => {
+      const entry = observation.guitarConfiguration.value.tuning[0];
+      entry.pitch = entry.pitch === 'E4' ? 'F4' : 'E4';
+    }],
+    ['non-canonical guitar string order', (observation) => {
+      const tuning = observation.guitarConfiguration.value.tuning;
+      [tuning[0], tuning[1]] = [tuning[1], tuning[0]];
     }],
   ];
 
