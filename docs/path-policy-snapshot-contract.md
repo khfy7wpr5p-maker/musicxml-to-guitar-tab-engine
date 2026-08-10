@@ -14,11 +14,20 @@ This document defines the internal LR-S1B.1 path-policy snapshot and content-dig
 - `CanonicalTabResult 1.0.0`: unchanged
 - Production optimizer authority: unchanged
 
+### 2026-08-10 convergence note
+
+LR-S1B.1 remains unchanged. The original text below described LR-S1B.2 as a later gate; that companion work is now merged in two separately versioned contracts:
+
+- LR-S1B.2a — `OptimizerPathPolicyReplay 1.0.0`
+- LR-S1B.2b — `OptimizerPathPolicyBinding 1.0.0` + binding digest
+
+LR-S1B.1 still provides only strict policy snapshot/content integrity. Semantic replay and immutable verified association belong to those later companion contracts. None of the three contracts establishes trusted historical producer authenticity or learned production authority.
+
 ## Purpose
 
 LR-S1B.1 makes one exact normalized deterministic fingering cost profile representable as a strict immutable internal data record and binds that record to a domain-separated content digest.
 
-This closes only the **policy snapshot/content-integrity** part of the path-policy provenance gap. It does not yet prove that a particular `OptimizerObservation` was produced under that policy. Observation-to-policy semantic binding remains LR-S1B.2.
+This closes only the **policy snapshot/content-integrity** part of the path-policy provenance gap. It does not by itself prove that a particular `OptimizerObservation` was produced under that policy. Observation-to-policy semantic compatibility is addressed separately by merged LR-S1B.2a, and the verified immutable association record is addressed by merged LR-S1B.2b.
 
 ## Snapshot shape
 
@@ -102,23 +111,24 @@ LR-S1B.1 does not:
 
 The current LR-S0/LR-S1A `authority: "none"` boundary remains unchanged.
 
-## Relationship to LR-S1B.2
+## Relationship to LR-S1B.2a and LR-S1B.2b
 
-LR-S1B.2 is a separate security gate. Its intended responsibility is to bind a validated `OptimizerObservationDigest` to an exact LR-S1B.1 path-policy snapshot/digest and then perform deterministic semantic replay checks over the observation candidate layers.
+Merged LR-S1B.2a binds a validated observation/digest to an exact LR-S1B.1 policy snapshot/digest for deterministic semantic replay. It verifies, among other things:
 
-At minimum, that later gate must verify that:
+- exact valid observation digest;
+- exact valid policy snapshot/digest;
+- current deterministic optimizer identity/version;
+- `maximumFret` agreement;
+- hard movement-limit compatibility;
+- replay of the observed candidate layers under the bound policy;
+- exact selected path/cost compatibility.
 
-- the observation digest is exact and valid,
-- optimizer identity/version is explicitly bound,
-- the complete path-policy snapshot/digest is exact and valid,
-- the deterministic optimizer reproduces the observed selected path under the bound policy,
-- selected cost records are compatible with recomputation under that policy,
-- hard movement limits are satisfied by the bound path.
+Merged LR-S1B.2b creates an immutable `OptimizerPathPolicyBinding` record and domain-separated binding digest only after LR-S1B.2a succeeds.
 
-Even successful semantic replay does not by itself prove historical producer authenticity. Different policies can sometimes produce the same path on a particular input. Cryptographic producer/run authenticity therefore remains a distinct later security problem.
+Even together, these contracts do not prove historical producer authenticity. Different policies can sometimes produce the same path on a particular input, and content digests are not signatures. Cryptographic trusted-producer/run authenticity remains a distinct future security problem.
 
 ## Compatibility rule
 
-LR-S1B.1 is additive internal infrastructure. Existing observation, feedback, admission, benchmark, shadow-ranking, canonical-result, writer, conversion, and package-root contracts remain unchanged.
+LR-S1B.1 is additive internal infrastructure. Existing observation, feedback, admission, benchmark, shadow-ranking, canonical-result, writer, conversion and package-root contracts remain unchanged.
 
-Any future change that gives learned ranking authority over canonical output requires separately approved gates beyond LR-S1B.1 and LR-S1B.2.
+Any future change that gives learned ranking authority over canonical output requires separately approved data-governance, evaluation, shadow-first and production opt-in gates beyond the current LR-S1B integrity foundations.
