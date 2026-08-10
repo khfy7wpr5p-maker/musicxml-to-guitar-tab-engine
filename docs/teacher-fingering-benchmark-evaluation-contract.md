@@ -52,6 +52,8 @@ The internal entry point accepts exactly:
 
 The order and `caseId` must exactly match `benchmark.cases`. Each `sourceText` is verified against the corresponding B1 SHA-256 before conversion. Missing, extra, sparse, reordered, accessor-backed, proxy or unknown-field inputs fail closed.
 
+B2 also requires the supplied benchmark/source boundary arrays to use the native `Array.prototype`. Array subclasses and altered prototype dispatch are rejected before the B1 validator or evaluation logic can invoke inherited array methods. This prevents caller-controlled `map`, `some`, `filter`, `reduce`, or similar overrides from redirecting validation or evaluation.
+
 The B2 module performs no filesystem or network loading. Repository fixtures are loaded only by tests or another explicitly authorized caller and supplied as source text.
 
 ## Conversion baseline
@@ -115,7 +117,7 @@ Malformed B2 inputs, B1 integrity failures, source-order violations, source SHA 
 
 `INVALID_TEACHER_FINGERING_BENCHMARK_EVALUATION`
 
-Underlying engine/B1 codes may be copied into bounded structured `causeCode` details, but native or hostile accessor/proxy exceptions are not allowed to escape the evaluation contract.
+Underlying engine/B1 codes may be copied into bounded structured `causeCode` details, but native or hostile accessor/proxy/prototype-dispatch exceptions are not allowed to escape the evaluation contract.
 
 ## Determinism and immutability
 
