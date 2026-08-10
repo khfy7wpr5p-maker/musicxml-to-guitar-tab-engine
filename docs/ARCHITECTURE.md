@@ -410,6 +410,41 @@ Semantic round-trip must compare musical meaning, not XML bytes. Minimum compari
 
 Before process execution is productionized, the adapter requires a separate security contract covering executable discovery/version, no-shell invocation, fixed arguments, path isolation, temp cleanup, timeout/termination, bounded stdout/stderr/output, concurrency and fail-closed error handling.
 
+### 14.1 Preserved renderer / PDF / external-process security requirements
+
+Documentation convergence must not weaken the earlier renderer/process safety requirements. Any future MuseScore or other external renderer adapter must preserve all of the following unless a separately approved security review replaces a requirement with an equal or stronger control:
+
+- renderer discovery must resolve an explicitly approved executable and supported version; never accept a user-supplied executable path as authority;
+- invoke the renderer without a shell and with a fixed, allowlisted argument shape; user-controlled command fragments, flags or environment-driven command injection are forbidden;
+- external renderer execution must have no network requirement and should run with network access disabled where the deployment model permits it;
+- each conversion must use an isolated job-owned temporary directory; do not inspect unrelated directories, follow arbitrary paths, or share writable temporary storage with SesliTab, ScoreMosaic, Audiveris or another service;
+- reject path traversal and unsafe symlink/file-replacement conditions before reading, writing, deleting or publishing derived files;
+- never overwrite the original MusicXML input or any caller-owned artifact; renderer output is always a new derived artifact;
+- cleanup may delete only files/directories created for the current renderer job and must execute on success, failure and timeout paths;
+- enforce a hard process timeout, terminate the entire spawned process tree when required, and apply bounded concurrency; deployments that require hard CPU/memory ceilings must enforce them at the OS/container/worker boundary rather than assuming Node process APIs provide complete resource isolation;
+- bound captured stdout/stderr and generated output size so a renderer cannot create unbounded memory/disk growth;
+- a reported PDF success must correspond to a non-empty file that passes basic PDF validation, including the expected `%PDF-` signature and configured size/type ceilings, before the artifact is exposed to an application, download or share boundary;
+- missing renderer, spawn failure, timeout, invalid/empty PDF, output-path mismatch and cleanup failure must produce explicit fail-closed adapter errors; they must never silently substitute a different artifact;
+- renderer/PDF failure must not destroy or invalidate an already valid deterministic core result, JSON, ASCII TAB or TAB MusicXML output;
+- error reporting must avoid leaking secrets, credentials, unrestricted environment data, arbitrary filesystem contents or unnecessary internal command details;
+- renderer/tool versions and third-party workflow/actions used to validate this boundary must remain explicitly reviewed and pinned/controlled according to repository supply-chain policy;
+- production deployment should isolate external rendering in a separately bounded worker/service when stronger process or filesystem isolation is required, with no shared writable mount, secrets or deployment authority inherited from SesliTab, ScoreMosaic, Audiveris or unrelated services.
+
+Required security/negative-test coverage for a future renderer gate includes, at minimum:
+
+- missing executable;
+- unsupported executable/version;
+- attempted argument/path injection;
+- traversal/symlink escape;
+- process timeout/termination;
+- excessive stdout/stderr or oversized output;
+- empty output;
+- invalid PDF signature/content;
+- unrelated-file preservation and current-job-only cleanup;
+- proof that core MusicXML/TAB outputs survive renderer failure.
+
+These are architecture requirements only. Their presence in this document does not make MuseScore execution or PDF generation a current runtime capability.
+
 ## 15. Teacher review architecture
 
 ### 15.1 Teacher Fingering Correction
