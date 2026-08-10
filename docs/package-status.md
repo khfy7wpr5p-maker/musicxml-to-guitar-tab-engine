@@ -1,11 +1,11 @@
 # Package and Verification Status
 
-This document records the current package surface and strongest available verification evidence for authoritative `main`.
+This document records the current package surface and strongest available verification evidence for the authoritative runtime implementation baseline.
 
 ## Snapshot
 
-- Status date: 2026-08-08
-- Verified runtime `main`: `0446c6dec12ed688806c38494e46faa9aa578ca1`
+- Status date: 2026-08-10
+- Verified runtime implementation baseline: `750f2a0923fc47df5883dc460d0769bb172c30e2`
 - Package name: `musicxml-to-guitar-tab-engine`
 - Package version: `0.1.0`
 - Package state: private package metadata (`private: true`); repository visibility is separate
@@ -13,6 +13,10 @@ This document records the current package surface and strongest available verifi
 - Node.js engine: `>=18`
 - CI runtime targets: Node.js 18, 20, 22
 - Runtime dependency: `saxes@6.0.0`
+- B1 benchmark: `TeacherFingeringBenchmark 1.0.0`, internal, fixed, teacher-approved
+- B2 harness: `TeacherFingeringBenchmarkEvaluation 1.0.0`, internal, deterministic evaluation-only
+
+The runtime baseline SHA names the implementation state containing B1+B2. A later docs-only merge may advance `main` without changing runtime behavior.
 
 ## Package metadata
 
@@ -58,6 +62,8 @@ The following remain intentionally internal:
 - `TeacherFeedback`
 - `ObservationAdmission`
 - `ObservationAdmissionAtomicAdapter`
+- `TeacherFingeringBenchmark`
+- `TeacherFingeringBenchmarkEvaluation`
 
 ## Package capability status
 
@@ -88,31 +94,80 @@ The following remain intentionally internal:
 | Internal `GuitarConfiguration 1.0.0` | `VERIFIED_ON_MAIN` |
 | Internal `Integration Contract v1` metadata | `VERIFIED_ON_MAIN` |
 | Internal `OptimizerObservation 1.0.0` | `VERIFIED_ON_MAIN` |
-| OptimizerObservation Step 1 hostile-data hardening | `VERIFIED_ON_MAIN` |
-| OptimizerObservation Step 2.1 cost shape | `VERIFIED_ON_MAIN` |
-| OptimizerObservation Step 2.2 selected playability | `VERIFIED_ON_MAIN` |
-| OptimizerObservation Step 2.3 aggregate consistency | `VERIFIED_ON_MAIN` |
-| OptimizerObservation Step 2.4 regression completeness | `VERIFIED_ON_MAIN` |
+| OptimizerObservation Step 1 + 2.1–2.4 hardening | `VERIFIED_ON_MAIN` |
 | S1 reusable full OptimizerObservation validation | `VERIFIED_ON_MAIN` |
 | Internal `OptimizerObservationDigest 1.0.0` | `VERIFIED_ON_MAIN` |
 | S2 observation content-digest binding | `VERIFIED_ON_MAIN` |
 | Internal `PedagogicalFeatureVector 1.0.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
 | Internal `TeacherFeedback 1.1.0` | `FOUNDATION_NOT_PIPELINE_WIRED` |
-| TeacherFeedback exact observation/candidate hardening | `VERIFIED_ON_MAIN` |
-| TeacherFeedback shared full-observation admission | `VERIFIED_ON_MAIN` |
-| TeacherFeedback required digest verification | `VERIFIED_ON_MAIN` |
+| TeacherFeedback exact observation/candidate/digest hardening | `VERIFIED_ON_MAIN` |
 | Internal `ObservationAdmission 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
 | S3 admission identity/replay/collision boundary | `VERIFIED_ON_MAIN` |
 | Internal `ObservationAdmissionAtomicAdapter 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
 | S3.1 authoritative snapshot + compare-and-commit orchestration | `VERIFIED_ON_MAIN` |
+| Internal `TeacherFingeringBenchmark 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
+| B1 fixed teacher-approved benchmark artifacts | `VERIFIED_ON_MAIN` |
+| Internal `TeacherFingeringBenchmarkEvaluation 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
+| B2 deterministic benchmark evaluation harness | `VERIFIED_ON_MAIN` |
 | Concrete production durable/atomic admission store | `NOT_IMPLEMENTED` |
 | Cryptographic trusted-producer/revision/run authentication | `NOT_IMPLEMENTED` |
-| Fixed teacher benchmark | `NOT_IMPLEMENTED` |
-| Benchmark evaluation harness | `NOT_IMPLEMENTED` |
-| Teacher-feedback research dataset pipeline | `NOT_IMPLEMENTED` |
-| Separately versioned consent/privacy or lawful-use boundary | `NOT_IMPLEMENTED` |
+| Live TeacherFeedback research dataset pipeline | `NOT_IMPLEMENTED` |
+| Versioned consent/privacy or lawful-use research boundary | `NOT_IMPLEMENTED` |
 | Learned ranking/training pipeline | `NOT_IMPLEMENTED` |
+| Learned ranking shadow implementation | `NOT_IMPLEMENTED` |
 | HTTP/UI/PDF/OMR/SesliTab integrations | `NOT_IMPLEMENTED` in this repository |
+
+## B1 fixed benchmark package status
+
+`TeacherFingeringBenchmark 1.0.0` is internal evaluation infrastructure and is not exported from `src/index.js`.
+
+Initial fixed artifact:
+
+- benchmark ID: `teacher-fingering-v1`
+- benchmark version: `1.0.0`
+- review status: `teacher-approved`
+- 8 self-authored monophonic MusicXML cases
+- 32 teacher-approved event labels
+- SHA-256 source binding for exact fixture content
+- accepted event-local positions plus optional preferred event-local position
+- no live TeacherFeedback, personal data, mutable URL source, or training authority
+
+Teacher approval binds one exact reviewed artifact/version. Fixture/label/config/case changes require a new review/version cycle. Event-local accepted positions do not establish a teacher-approved complete fingering path.
+
+## B2 evaluation package status
+
+`TeacherFingeringBenchmarkEvaluation 1.0.0` is internal and measurement-only.
+
+It validates teacher approval and exact fixed sources, runs the existing deterministic conversion pipeline, aligns exact event identities, and emits an immutable deterministic report. It does not change optimizer behavior or package-root API.
+
+Current baseline:
+
+| Metric | Count |
+|---|---:|
+| Benchmark cases | 8 |
+| Benchmark events | 32 |
+| Evaluated cases | 8 |
+| Evaluated events | 32 |
+| Unevaluated events | 0 |
+| Acceptable matches | 32 |
+| Preferred-eligible events | 28 |
+| Preferred matches | 26 |
+| Case passes | 8 |
+| Candidate-coverage failures | 0 |
+| Blocked conversions | 0 |
+
+Security boundaries include:
+
+- exact source SHA-256 verification before conversion,
+- no silent case/event denominator removal,
+- blocked cases remain denominator failures,
+- exact successful-conversion event identity/order requirement,
+- structured fail-closed hostile input handling,
+- rejection of array subclasses/altered prototype-dispatch boundaries,
+- no filesystem/network loading or caller loader/callback authority,
+- no writes/persistence/training/model-selection authority.
+
+The B1 fixed evaluation set must not be used as training data and then reused as independent evidence.
 
 ## Output status
 
@@ -135,123 +190,69 @@ PEB-1 exposes only:
 - `ENGINE_ERROR_CONTRACT_VERSION`
 - `isEngineError(value)`
 
-The base class itself remains private. `isEngineError` is nominal (`instanceof` based), intended for errors caught directly from the installed package. It is not a serialized-error detector and does not authorize trusting arbitrary lookalike objects.
+The base class remains private. `isEngineError` is nominal (`instanceof` based), intended for errors caught directly from the installed package. It is not a serialized-error detector and does not authorize trusting arbitrary lookalike objects.
 
-## Guitar-configuration status
+## Observation, feedback, admission, benchmark, and evaluation boundaries
 
-Internal `GuitarConfiguration 1.0.0` is merged and consumed by candidate generation. It provides immutable normalized tuning/fret data, validates six unique strings and MIDI/fret bounds, and rejects supplied pitch/MIDI disagreement. Its version, constructor, and error class remain internal.
+The observation/digest/feedback/admission foundations remain internal and do not change deterministic conversion. S1 validates complete supported observations; S2 fingerprints them; TeacherFeedback binds exact observed candidate choices; S3 validates admission-domain replay/collision conditions; S3.1 defines authoritative-snapshot + compare-and-commit orchestration.
 
-## Integration Contract v1 status
+None of S2/S3/S3.1 establishes cryptographic producer identity or research/training authorization. No concrete production durable admission provider exists.
 
-`Integration Contract v1` is merged as internal version metadata plus a documented authority/non-authority boundary. It references the existing public package entry points and current canonical, error, guitar-configuration, and processing-safety contracts.
-
-It does not expose new package-root APIs or add HTTP, transport, serialized error envelopes, UI, OMR, SesliTab, persistence, or application logic.
-
-## Observation, feedback, admission, and atomic-adapter foundation status
-
-The following modules are merged but remain internal and are not loaded by the normal package-root conversion path:
-
-- `OptimizerObservation 1.0.0`
-- `OptimizerObservationDigest 1.0.0`
-- `PedagogicalFeatureVector 1.0.0`
-- `TeacherFeedback 1.1.0`
-- `ObservationAdmission 1.0.0`
-- `ObservationAdmissionAtomicAdapter 1.0.0`
-
-They do not change candidate generation, physical validation, deterministic optimization, `CanonicalTabResult`, or writer output.
-
-### S1/S2 observation and TeacherFeedback boundary
-
-S1 provides the reusable internal `validateOptimizerObservation()` boundary. It validates supported observation, candidate, optimizer, and guitar-configuration versions; canonical six-string tuning semantics/order; dense decisions and candidates; unique event identities; decision/candidate array-index identity; canonical candidate position/ID consistency; selected-position membership; selected playable-cost shape; and aggregate selected cost.
-
-S2 adds `OptimizerObservationDigest 1.0.0`. It validates the complete observation first, then computes a domain-separated SHA-256 fingerprint using deterministic canonical serialization. The canonicalizer rejects cycles, excessive depth, unsupported/non-finite values, sparse/custom arrays, symbols, accessors, non-enumerable data, and non-plain objects so content cannot be silently excluded from the digest.
-
-TeacherFeedback 1.1.0 requires a bounded opaque `observationId`, a complete valid observation, and a matching `observationDigest`. The runtime recomputes the digest and fails closed on mismatch before event-specific feedback checks. Exact candidate grammar/bounds, optimizer-selected candidate equality, and exact same-event override membership remain enforced.
-
-This establishes observation content integrity relative to the supplied digest, not trusted-producer authenticity.
-
-### S3 ObservationAdmission boundary
-
-`ObservationAdmission 1.0.0` binds a fully verified observation/digest to exactly one admission domain and bounded opaque:
-
-- `admissionId`
-- `observationId`
-- `producerId`
-- `producerRevisionId`
-- `runId`
-- engine/package, observation, digest, candidate, optimizer, and GuitarConfiguration version references
-
-Within one admission domain, the S3 validator rejects duplicate admission IDs, observation replay, observation-ID/content collision, duplicate content under another observation ID, producer/run replay, producer/run collision, malformed/cross-domain history, internally inconsistent history, and histories above the 10,000-entry bound.
-
-S3 does not authenticate the producer/revision/run assertions. The pure record helper can validate only the history it is given and cannot prove that history is complete, authoritative, fresh, durable, or committed atomically.
-
-### S3.1 ObservationAdmissionAtomicAdapter boundary
-
-`ObservationAdmissionAtomicAdapter 1.0.0` removes caller-supplied `existingAdmissions` from the commit path. A store must provide:
-
-- `readAdmissionDomainSnapshot(admissionDomainId)` returning complete authoritative history plus an opaque `revisionToken`
-- `compareAndCommitAdmission(...)` performing one revision-token compare-and-commit operation
-
-The adapter validates and pins the store methods before the asynchronous read, validates the authoritative snapshot, creates the S3 record against that history, and sends the exact snapshot token to compare-and-commit.
-
-Security behavior:
-
-- stale snapshot → structured conflict and no write by that attempt under the store contract;
-- explicit retry is allowed only after a proven no-write conflict and requires a fresh authoritative read;
-- commit exception, malformed post-commit result, wrong-domain result, or non-advancing revision → `OBSERVATION_ADMISSION_COMMIT_OUTCOME_UNKNOWN`;
-- ambiguous outcomes are never automatically retried;
-- caller-supplied history and consent/personal metadata are rejected from this path.
-
-S3.1 is a **store contract/orchestration boundary**, not a concrete production database/filesystem/cloud provider. The JavaScript core cannot independently prove that a store implementation is actually durable, complete, fresh, or atomic.
+B1/B2 are separate fixed evaluation infrastructure. They do not make TeacherFeedback a dataset, do not grant consent/lawful-use authority, and do not activate learned ranking.
 
 ## Verification evidence
 
-### Current runtime snapshot
+### Current runtime implementation baseline
 
-Fresh merge-post GitHub-hosted **Tests #340** on `main` `0446c6dec12ed688806c38494e46faa9aa578ca1` completed successfully on Node.js 18, 20, and 22.
+Fresh merge-post GitHub-hosted **Tests #406** on `750f2a0923fc47df5883dc460d0769bb172c30e2` completed successfully on Node.js 18, 20, and 22.
 
-The Node.js 22 job recorded:
+Node.js 22 recorded:
 
-- **349 tests**
-- **349 pass**
+- **379 tests**
+- **379 pass**
 - **0 fail**
 - npm audit: **0 vulnerabilities**
 
-The exact head of PR #61 (`664d0c42b65a1add184d438bda641e695de7eed0`) passed GitHub-hosted **Tests #339** and **MusicXML Compatibility #183** before merge.
+The exact head of PR #64 (`2a8727c17332f74f473d7769dd8e926faabfe472`) passed GitHub-hosted **Tests #405** and **MusicXML Compatibility #246** before merge.
 
 No separate post-merge `main` MusicXML Compatibility run is claimed.
+
+Traceability:
+
+- PR #63 merged B1 `TeacherFingeringBenchmark 1.0.0`
+- PR #64 merged B2 `TeacherFingeringBenchmarkEvaluation 1.0.0`
 
 ## CI supply-chain and governance
 
 - Third-party workflow actions are pinned to immutable full commit SHAs.
-- `main` remains protected with the recorded required status contexts.
-- The latest branch-protection inspection reports required-check enforcement at `non_admins`, leaving administrator-bypass hardening open.
+- `main` remains protected with recorded required status contexts.
+- Required-check enforcement remains recorded at `non_admins`, leaving administrator-bypass hardening open.
 - Documentation convergence does not alter repository settings.
 
 ## Evidence limitations
 
 - Passing tests do not prove compatibility with every MusicXML producer.
-- MuseScore/alphaTab evidence applies only to supported fixtures and scope.
-- S2 digest equality does not prove producer identity or historical-run authenticity.
-- S3 admission records bind bounded producer/revision/run assertions but do not cryptographically authenticate them.
-- S3 pure-history validation does not prove the caller supplied complete authoritative history.
-- S3.1 requires authoritative/durable/atomic store behavior by contract, but the core cannot prove an arbitrary external provider actually supplies it.
-- S3/S3.1 admission success is not benchmark, research, training, consent, privacy, or lawful-use authorization.
+- MuseScore/alphaTab evidence applies only to supported fixtures/scope.
+- S2 digest equality does not prove producer identity.
+- S3/S3.1 do not cryptographically authenticate producer/revision/run assertions.
+- S3.1 store guarantees remain external-provider obligations; no production provider exists here.
+- B1 event-local labels do not establish path-level pedagogical truth.
+- B1/B2 completion does not authorize training, live data collection, privacy/consent processing, or production learned selection.
+- The fixed B1 benchmark must remain independent evaluation evidence.
 - No package release is claimed; package metadata remains `private: true` and `UNLICENSED`.
 
 ## Approved next package-level sequence
 
-With S3/S3.1 documented, the next safe package-level sequence is:
+With B1+B2 merged, the next safe package-level sequence is:
 
-1. perform a separate read-only scope/threat-model review for a deterministic fixed teacher-verified fingering benchmark v1;
-2. only after separate approval, create fixed reviewed benchmark artifacts and a versioned benchmark contract without pretending S3.1 is deployed production persistence;
-3. implement a benchmark evaluation harness as a separate gate;
-4. evaluate learned ranking in shadow mode only after deterministic benchmark evidence exists;
-5. before any live/mutable teacher-feedback research dataset, implement and independently review a concrete durable/atomic admission provider;
-6. add a separately versioned privacy/consent or lawful-use boundary for research/training admission;
-7. build the live research-dataset pipeline only after durable admission and lawful-use controls exist;
-8. require an evaluation gate against the deterministic baseline;
-9. allow controlled learned ranking only after separate evidence/approval.
+1. **read-only scope/threat-model review for Learned Ranking v1 — shadow mode**;
+2. only after separate approval, implement a minimal internal shadow ranker that scores existing physically valid candidates without changing deterministic selection;
+3. compare shadow output against B1/B2 evidence while keeping production output deterministic;
+4. require an independent learned-ranking evaluation gate before any opt-in proposal;
+5. before any live/mutable TeacherFeedback research dataset, implement/review a concrete durable/atomic admission provider;
+6. add a separately versioned privacy/consent or lawful-use boundary;
+7. build a live research/training dataset pipeline only after durable admission + lawful-use controls;
+8. permit controlled learned-ranking opt-in only after separate evidence and approval.
 
 G0.1 administrator-bypass hardening remains a parallel governance task.
 
