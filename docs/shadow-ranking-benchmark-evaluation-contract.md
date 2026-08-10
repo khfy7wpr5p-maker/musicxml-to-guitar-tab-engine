@@ -13,6 +13,16 @@ This document defines the internal LR-S1A measurement-only benchmark evaluation 
 - Package-root public API: unchanged
 - Production optimizer authority: unchanged
 
+### 2026-08-10 convergence note
+
+LR-S1A remains a fixed-B1/default-policy measurement contract and is unchanged. The document originally described general path-policy binding as a future LR-S1B gate. That companion work is now merged:
+
+- LR-S1B.1 — strict `FingeringPathPolicySnapshot 1.0.0` + digest
+- LR-S1B.2a — `OptimizerPathPolicyReplay 1.0.0`
+- LR-S1B.2b — `OptimizerPathPolicyBinding 1.0.0` + binding digest
+
+Those later contracts do not change LR-S1A's `pathPolicy.scope: "fixed-b1-default"` or `pathPolicy.generalizedProvenance: false`; they provide separate policy-aware integrity/replay/binding evidence for future consumers. None of them authorize learned production selection or trusted historical producer identity.
+
 ## Purpose
 
 LR-S1A measures the existing LR-S0 shadow ranking output against the fixed teacher-approved B1 benchmark while preserving the deterministic B2 baseline as the authoritative conversion result.
@@ -88,11 +98,11 @@ The report explicitly records:
 - `pathPolicy.scope: "fixed-b1-default"`
 - `pathPolicy.generalizedProvenance: false`
 
-This is intentionally not a general path-policy provenance solution.
+This remains intentionally **not** a general path-policy provenance solution.
 
-`OptimizerObservation 1.0.0` still does not persist every caller-supplied cost-profile setting. Therefore LR-S1A does not claim that a shadow path is policy-equivalent for arbitrary caller-supplied profiles, especially custom `maximumFretMovement` or `maximumStringMovement` caps.
+`OptimizerObservation 1.0.0` does not itself persist every caller-supplied cost-profile setting. Therefore LR-S1A does not claim that a shadow path is policy-equivalent for arbitrary caller-supplied profiles, especially custom `maximumFretMovement` or `maximumStringMovement` caps.
 
-General path-policy binding remains the separately gated LR-S1B milestone.
+General path-policy integrity/replay/binding is now provided by the separate merged LR-S1B.1 / LR-S1B.2a / LR-S1B.2b companion contracts. LR-S1A itself remains fixed-scope and does not embed those records.
 
 ## Baseline alignment invariant
 
@@ -144,4 +154,4 @@ The evaluator accepts source/model records as data. It adds no filesystem, netwo
 
 LR-S1A is internal measurement infrastructure. Normal MusicXML conversion, `CanonicalTabResult 1.0.0`, writers, package-root exports, deterministic optimizer selection, B1/B2 artifacts, and LR-S0 `authority: "none"` semantics remain unchanged.
 
-Any future production influence is a separate architecture milestone and remains blocked pending, at minimum, LR-S1B path-policy provenance binding plus separately approved learned-model data/evaluation/opt-in gates.
+Any future production influence remains a separate architecture milestone and is still blocked pending separately approved learned-model data, privacy/lawful-use, independent evaluation, shadow-first and opt-in production gates. The fact that LR-S1B policy companions are now merged does not by itself authorize production learned selection.
