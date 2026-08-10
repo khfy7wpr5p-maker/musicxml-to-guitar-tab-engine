@@ -345,3 +345,15 @@ test('rejects tie markers on rest events', () => {
   model.measures[0].events[4].tieStart = true;
   expectInvalid(model);
 });
+
+test('rejects non-enumerable array index properties fail closed', () => {
+  const model = validModel();
+  const firstEvent = model.measures[0].events[0];
+  Object.defineProperty(model.measures[0].events, '0', {
+    value: firstEvent,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  expectInvalid(model);
+});
