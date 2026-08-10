@@ -206,8 +206,8 @@ TeacherFingeringBenchmark MUST NOT:
 - infer whole-path teacher approval from event-local accepted-position labels;
 - implement B2 evaluation scoring.
 
-## B2 readiness
+## B2 status
 
-B2 Evaluation Harness may begin only after the fixed B1 manifest is explicitly teacher-approved and B1 has passed its required regression/CI/merge gates.
+B2 `TeacherFingeringBenchmarkEvaluation 1.0.0` has been implemented and merged separately after the fixed B1 manifest became `teacher-approved` and B1 passed its regression/CI/merge gates.
 
-A future B2 harness should consume only approved fixed artifacts, use the existing deterministic conversion pipeline, report all cases without silent skip, and remain separate from optimizer authority.
+The merged B2 harness consumes only approved fixed artifacts, uses the existing deterministic conversion pipeline, reports all cases without silent skip, and remains separate from optimizer authority.
