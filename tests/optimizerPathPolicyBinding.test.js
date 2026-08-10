@@ -188,17 +188,23 @@ test('fails closed on stale observation or path-policy digests before binding cr
   );
 });
 
-test('rejects optimizer identity/version substitution even with a fresh observation digest', () => {
+test('rejects optimizer identity/version substitution before a binding can be created', () => {
   const fixture = buildFixture();
   const observation = structuredClone(fixture.observation);
   observation.optimizer.version = '9.9.9';
-  const observationDigest = createOptimizerObservationDigest(observation);
+
+  assert.throws(
+    () => createOptimizerObservationDigest(observation),
+    (error) => {
+      assert.equal(error?.code, 'INVALID_OPTIMIZER_OBSERVATION_INPUT');
+      return true;
+    },
+  );
 
   assert.throws(
     () => createOptimizerPathPolicyBinding({
       ...fixture,
       observation,
-      observationDigest,
     }),
     assertBindingError,
   );
@@ -230,23 +236,32 @@ test('creates a deterministic domain-separated SHA-256 binding digest', () => {
   assert.deepEqual(verifyOptimizerPathPolicyBindingDigest(binding, first), first);
 });
 
-test('binding digest changes when the bound observation, policy, optimizer, note count, or replay scope changes', () => {
+test('binding digest binds stored references and replay scope while rejecting invalid optimizer metadata', () => {
   const first = createBindingFixture();
   const second = createBindingFixture({ fretMovementWeight: 2 });
   assert.notEqual(first.bindingDigest.value, second.bindingDigest.value);
 
-  for (const mutate of [
-    (binding) => { binding.observationDigest.value = '0'.repeat(64); },
-    (binding) => { binding.optimizer.version = '9.9.9'; },
-    (binding) => { binding.noteCount = 0; binding.semanticReplay.scope = 'empty-observation'; },
-  ]) {
-    const binding = structuredClone(first.binding);
-    mutate(binding);
-    assert.notEqual(
-      createOptimizerPathPolicyBindingDigest(binding).value,
-      first.bindingDigest.value,
-    );
-  }
+  const changedObservationReference = structuredClone(first.binding);
+  changedObservationReference.observationDigest = structuredClone(second.binding.observationDigest);
+  assert.notEqual(
+    createOptimizerPathPolicyBindingDigest(changedObservationReference).value,
+    first.bindingDigest.value,
+  );
+
+  const changedReplayScope = structuredClone(first.binding);
+  changedReplayScope.noteCount = 0;
+  changedReplayScope.semanticReplay.scope = 'empty-observation';
+  assert.notEqual(
+    createOptimizerPathPolicyBindingDigest(changedReplayScope).value,
+    first.bindingDigest.value,
+  );
+
+  const invalidOptimizer = structuredClone(first.binding);
+  invalidOptimizer.optimizer.version = '9.9.9';
+  assert.throws(
+    () => createOptimizerPathPolicyBindingDigest(invalidOptimizer),
+    assertBindingError,
+  );
 });
 
 test('rejects stale binding digests and association swaps', () => {
