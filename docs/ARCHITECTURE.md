@@ -611,3 +611,149 @@ The approved defaults are:
 The returned budget has the identity `ProcessingBudget 1.0.0` and is deeply immutable. The existing `maxBytes` option name is retained so later enforcement can converge without introducing a second byte-limit vocabulary.
 
 This sub-milestone defines only the central contract. It does not yet connect the budget to SAX callbacks, MusicXML measure/event projection, candidate generation, fingering optimization, preflight error classification, deadlines, or cancellation. It does not change package-root exports, canonical schemas, public conversion output, or supported musical features.
+
+## 22. PA-0 — Parallel Polyphonic Guitar Arrangement Architecture
+
+PA-0 is documentation and architecture planning only. It does not add runtime support for chords, multiple voices, multiple staves, barre, or polyphonic conversion.
+
+The architectural objective is to preserve the current deterministic monophonic path while adding a separately versioned future arrangement path for piano-like MusicXML.
+
+### 22.1 Protected current path
+
+The current public path remains:
+
+```text
+MusicXML
+  ↓
+XML safety + ProcessingBudget
+  ↓
+ParsedMusicXmlDocument 1.0.0
+  ↓
+current monophonic structural/semantic projection
+  ↓
+CanonicalMusicDocument
+  ↓
+physical guitar candidates
+  ↓
+deterministic cost model + DP optimizer
+  ↓
+CanonicalTabResult 1.0.0
+  ↓
+JSON / ASCII TAB / TAB MusicXML
+```
+
+Current fail-closed monophonic rejection rules remain compatibility requirements. Chords, multiple voices, multiple staves, and multipart scores must not become accepted on this public path merely by removing or weakening existing `UNSUPPORTED_*` checks.
+
+### 22.2 Planned parallel branching point
+
+`ParsedMusicXmlDocument 1.0.0` is the planned branch point because it is already an immutable bounded XML representation produced after XML safety/resource enforcement and before guitar fingering authority.
+
+```text
+                         MusicXML
+                            │
+                            ▼
+               XML Safety + ProcessingBudget
+                            │
+                            ▼
+              ParsedMusicXmlDocument 1.0.0
+                            │
+               ┌────────────┴────────────┐
+               │                         │
+               ▼                         ▼
+       existing monophonic        future polyphonic
+           projection                projection
+               │                         │
+               ▼                         ▼
+     CanonicalMusicDocument      PolyphonicSourceModel
+               │                         │
+               │                         ▼
+               │               GuitarArrangementPlan
+               │                         │
+               │                         ▼
+               │             Guitar-Compatible Score
+               │                         │
+               │                         ▼
+               │              Chord / Left-Hand Model
+               │                         │
+               │                         ▼
+               │              Playability Validator v2
+               │                         │
+               └───────────────┐         │
+                               ▼         ▼
+                          reviewed TAB-result gate
+```
+
+The new projection must be independent from the current monophonic semantic projection. Early PA work must not modify `convertMusicXmlToCanonicalTab()` or change its public behavior.
+
+### 22.3 Initial future source scope
+
+The early polyphonic foundation should target a narrow piano-like source scope:
+
+- MusicXML `score-partwise`,
+- one selected source part,
+- one or two staves,
+- multiple voices,
+- simultaneous/chord note events,
+- rests and supported rhythmic timing,
+- stable source identity/location for projected events.
+
+Arbitrary multipart/orchestral reduction, grace-note semantics, tuplets beyond separately reviewed support, compressed `.mxl`, and production AI arrangement authority remain separate later gates.
+
+### 22.4 Source truth versus arrangement truth
+
+Original MusicXML remains immutable source truth.
+
+A future guitar arrangement may need explicit musical transformations including note omission, octave displacement, voice redistribution, chord reduction, revoicing, and arpeggiation. These are arrangement decisions, not parser truth and not fingering side effects.
+
+A future `GuitarArrangementPlan` must bind every transformation to source events and record the transformation explicitly. Planned conceptual decision classes include `PRESERVED`, `OMITTED`, `OCTAVE_DISPLACED`, `VOICE_REDISTRIBUTED`, `CHORD_REDUCED`, `REVOICED`, and `ARPEGGIATED`. Exact schemas are deferred to a later contract gate.
+
+### 22.5 Canonical compatibility boundary
+
+`CanonicalTabResult 1.0.0` remains unchanged during the early PA gates.
+
+Chord/polyphonic fields must not be inserted into v1 solely to avoid versioning. A future PA-10 compatibility review must decide whether a backward-compatible bridge is sufficient or whether a separately versioned chord-aware canonical result is required.
+
+### 22.6 Learned-system boundary
+
+Current LR-S0 remains an internal shadow-only ranking path over already-generated physically valid monophonic candidates. It has no arrangement authority.
+
+Future arrangement AI must be a separate shadow-first domain and may rank only separately validated arrangement alternatives after approved data/provenance/lawful-use/privacy/model-lifecycle/evaluation gates. It may not mutate the original MusicXML artifact, bypass source validation, fabricate source notes or physical guitar positions, bypass physical validation, or silently modify canonical output.
+
+### 22.7 PA safe gates
+
+| Gate | Scope | Authority |
+|---|---|---|
+| `PA-0` | Documentation + architecture planning | none |
+| `PA-1` | `PolyphonicSourceModel 1.0` contract | internal only |
+| `PA-2` | Parallel polyphonic projection | internal only |
+| `PA-3` | Simultaneous-event / chord contract | internal only |
+| `PA-4` | Arrangement-decision + provenance contract | internal only |
+| `PA-5` | Deterministic melody/bass/voice analysis | internal only |
+| `PA-6` | Deterministic reduction / octave rules | internal only |
+| `PA-7` | Guitar chord/voicing candidates | internal only |
+| `PA-8` | Left-hand shape, finger assignment, barre/partial-barre | internal only |
+| `PA-9` | Physical Playability Validator v2 | internal only |
+| `PA-10` | Canonical result compatibility review | separate architecture approval |
+| `PA-11` | Teacher-approved arrangement benchmark | evaluation only |
+| `PA-12` | Internal polyphonic E2E + monophonic compatibility | no public activation |
+| `PA-13` | Public arrangement API review | separate public-contract approval |
+| `PA-14` | ScoreMosaic/SesliTab adapter integration | external adapter only |
+
+### 22.8 High-risk controls
+
+The current monophonic projection, `convertMusicXmlToCanonicalTab()`, `CanonicalMusicDocument`, `CanonicalTabResult 1.0.0`, deterministic monophonic optimizer, physical guitar validation, writers, and package-root API are protected high-risk boundaries.
+
+Before any separately approved high-risk integration change, require:
+
+1. exact current-main baseline identification,
+2. focused feature tests,
+3. negative/fail-closed security tests,
+4. full regression suite,
+5. monophonic E2E compatibility evidence,
+6. deterministic-output comparison where applicable,
+7. GitHub-hosted required CI,
+8. separate approval before merge.
+
+If existing supported monophonic inputs change unexpectedly, the gate fails.
+
+The detailed PA-0 contract is maintained in [`polyphonic-guitar-arrangement-foundation.md`](./polyphonic-guitar-arrangement-foundation.md).

@@ -6,9 +6,9 @@ AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md)
 
 ## Current state
 
-Verified runtime implementation baseline: `750f2a0923fc47df5883dc460d0769bb172c30e2`.
+Authoritative `main` head reviewed for PA-0: `3044fc960461334047ae03da4d8bc472479d01e9`.
 
-This SHA is the merged B2 runtime baseline. A later documentation-only merge may advance `main` without changing runtime behavior.
+This merge contains LR-S0 Shadow Ranking Foundation v1 from PR #66. The exact PR head `7355004692b14994e69c13ceae75262ceadc6090` passed GitHub-hosted Tests #421 and MusicXML Compatibility #260; Node.js 22 recorded 385/385 tests passing and npm audit reported 0 vulnerabilities. No separate post-merge `main` workflow run is claimed here.
 
 Current merged capabilities include:
 
@@ -33,26 +33,14 @@ Current merged capabilities include:
 - merged S3 `ObservationAdmission 1.0.0` admission/provenance foundation,
 - merged S3.1 `ObservationAdmissionAtomicAdapter 1.0.0` authoritative-snapshot plus revision-token compare-and-commit coordination boundary,
 - merged B1 `TeacherFingeringBenchmark 1.0.0` fixed teacher-approved benchmark,
-- merged B2 `TeacherFingeringBenchmarkEvaluation 1.0.0` deterministic evaluation harness.
+- merged B2 `TeacherFingeringBenchmarkEvaluation 1.0.0` deterministic evaluation harness,
+- merged LR-S0 internal `ShadowRankingReport 1.0.0` / `ShadowRankingModel 1.0.0` foundation with mandatory `mode: "shadow"` and `authority: "none"`.
 
-The B1 benchmark contains **8 self-authored fixed MusicXML cases / 32 teacher-approved note events**. Fixture bytes are SHA-256 bound and the labels distinguish teacher-acceptable positions from an optional preferred position. These labels are event-local and do not claim that every combination is a teacher-approved whole-piece fingering path.
+The B1 benchmark contains **8 self-authored fixed MusicXML cases / 32 teacher-approved note events**. The B2 deterministic baseline is **32/32 acceptable**, **26/28 preferred**, **8/8 case passes**, **0 candidate-coverage failures**, and **0 blocked conversions**.
 
-The B2 harness evaluates only the fixed teacher-approved B1 artifacts against the existing deterministic conversion pipeline. The current baseline is:
+B1/B2 remain evaluation infrastructure rather than training data. LR-S0 uses a hand-authored synthetic reference model; it is not a trained model, does not use B1 as training data, and cannot change normal conversion or `CanonicalTabResult`.
 
-- **32 / 32 acceptable matches**,
-- **28 preferred-eligible events**,
-- **26 / 28 preferred matches**,
-- **8 / 8 case passes**,
-- **0 candidate-coverage failures**,
-- **0 blocked conversions**.
-
-B1/B2 are internal evaluation infrastructure. They do not change optimizer authority, package-root APIs, or normal conversion output. The fixed benchmark is evaluation evidence, not a live TeacherFeedback dataset and not a training dataset.
-
-S2 digest equality is an integrity fingerprint, not a digital signature or trusted-producer attestation. S3/S3.1 are contract/orchestration foundations, not a production persistence implementation. Consent/privacy or lawful-use authorization remains separate.
-
-Fresh merge-post GitHub-hosted **Tests #406** on runtime baseline `750f2a0923fc47df5883dc460d0769bb172c30e2` passed on Node.js 18/20/22. The Node.js 22 job recorded **379/379 tests passing**, **0 failures**, and npm audit reported **0 vulnerabilities**. The exact head of PR #64 (`2a8727c17332f74f473d7769dd8e926faabfe472`) passed **Tests #405** and **MusicXML Compatibility #246** before merge. No separate post-merge `main` Compatibility run is claimed.
-
-## Processing pipeline
+## Current public processing pipeline
 
 ```text
 MusicXML
@@ -76,35 +64,29 @@ shared canonical validator
 JSON / ASCII TAB / TAB MusicXML
 ```
 
-`OptimizerObservation`, `OptimizerObservationDigest`, `PedagogicalFeatureVector`, `TeacherFeedback`, `ObservationAdmission`, `ObservationAdmissionAtomicAdapter`, `TeacherFingeringBenchmark`, and `TeacherFingeringBenchmarkEvaluation` remain downstream/internal capabilities. They are not package-root conversion authorities and do not change `CanonicalTabResult`.
+`OptimizerObservation`, `OptimizerObservationDigest`, `PedagogicalFeatureVector`, `TeacherFeedback`, `ObservationAdmission`, `ObservationAdmissionAtomicAdapter`, benchmark/evaluation components, and LR-S0 shadow-ranking components remain downstream/internal. They are not package-root conversion authorities.
 
 ## Architectural rules
 
-1. `CanonicalTabResult` is the single authoritative downstream TAB source.
+1. `CanonicalTabResult` is the single authoritative downstream TAB source for the current public conversion path.
 2. Writers use `selectedPosition` and never rerun optimization.
 3. The parser does not choose strings/frets.
-4. Physical validity precedes any learned component.
+4. Physical validity precedes any learned fingering component.
 5. Deterministic optimization remains the required fallback.
 6. Unsupported structures fail explicitly or generate explicit warnings.
 7. Teacher review remains required for educational use.
 8. External systems connect through explicit versioned contracts/adapters.
-9. Learned systems may score only already-generated, physically valid candidates.
-10. Learned systems may not mutate MusicXML, pitch, strings, frets, physical rules, validators, or canonical objects directly.
-11. Teacher feedback is non-authoritative observation data; it is not consent for research or training.
-12. Observation digest equality proves content correspondence only; it does not prove trusted producer identity.
-13. S3 producer/revision/run identifiers are bounded assertions, not cryptographically authenticated identities.
-14. S3.1 durability/atomicity guarantees belong to a conforming external store; the core cannot manufacture them.
-15. Ambiguous post-commit outcomes must not be blindly retried.
-16. B1 teacher approval applies to one exact fixed benchmark artifact/version; changing fixtures or labels requires a new review cycle.
-17. B1 accepted/preferred labels are event-local; path-level pedagogical truth requires a separate contract.
-18. B2 is measurement-only: benchmark scoring must never change deterministic optimizer decisions.
-19. Blocked/failed benchmark cases may not be silently removed from denominators.
-20. The fixed B1 evaluation set must not be used as training data and then reused as independent performance evidence.
-21. Any learned-ranking work begins in shadow mode and may not affect production selection until a separately approved evaluation/opt-in gate.
+9. Current learned/shadow systems may score only already-generated, physically valid candidates.
+10. LR-S0 remains observation-only and cannot mutate normal conversion, writers, physical validation, package exports, or canonical output.
+11. Teacher feedback is non-authoritative observation data and is not research/training consent.
+12. Fixed B1 evaluation evidence must remain separate from future training data.
+13. Polyphonic guitar arrangement must be added through a separately versioned parallel projection/arrangement path; the current monophonic validation path must not be weakened to obtain polyphonic support.
+14. Original MusicXML remains immutable source truth. Future arrangement transformations such as omission, octave displacement, revoicing, chord reduction, or arpeggiation require explicit provenance.
+15. `CanonicalTabResult 1.0.0` remains unchanged until a separately approved compatibility gate determines whether a chord-aware extension or new version is required.
 
 ## Public package API
 
-Current package-root exports include exactly:
+Current package-root exports remain exactly:
 
 - `ENGINE_ERROR_CONTRACT_VERSION`
 - `FretboardError`
@@ -119,102 +101,138 @@ Current package-root exports include exactly:
 - `serializeCanonicalTabResultToMusicXml`
 - `validateMidi`
 
-Benchmark, evaluation, observation, feedback, admission, and learned-ranking APIs are not package-root exports.
+Benchmark, evaluation, observation, feedback, admission, shadow-ranking, and future arrangement APIs are not package-root exports.
 
-## Supported musical scope
+## Current supported musical scope
 
-- `score-partwise`
-- one part / one staff / one voice
-- monophonic notes and rests
-- standard six-string tuning by default
-- validated custom six-string open MIDI tuning internally
-- frets 0–20 by default
-- supported whole/half/quarter/eighth/16th and dotted values
-- supported ties, beam metadata, inherited divisions/time signatures, pickup measures
-- explicit unsupported-notation and unplayable-pitch handling
+The current public conversion scope remains:
+
+- `score-partwise`,
+- one part / one staff / one voice,
+- monophonic notes and rests,
+- standard six-string tuning by default,
+- validated custom six-string open MIDI tuning internally,
+- frets 0–20 by default,
+- supported whole/half/quarter/eighth/16th and dotted values,
+- supported ties, beam metadata, inherited divisions/time signatures, pickup measures,
+- explicit unsupported-notation and unplayable-pitch handling.
+
+Chords, multiple voices, multiple staves, and multipart scores remain fail-closed on this public path.
+
+## Planned Polyphonic MusicXML → Guitar Arrangement path
+
+PA-0 records a future architecture for piano-like MusicXML containing two staves, multiple voices, and simultaneous notes. This is **planned, not implemented**.
+
+```text
+MusicXML
+   ↓
+XML Safety + ProcessingBudget
+   ↓
+ParsedMusicXmlDocument 1.0.0
+   ├───────────────────────────────┐
+   ↓                               ↓
+existing monophonic          future polyphonic
+projection                   projection
+   ↓                               ↓
+CanonicalMusicDocument       PolyphonicSourceModel
+                                   ↓
+                           GuitarArrangementPlan
+                                   ↓
+                           guitar-compatible score
+                                   ↓
+                         chord / left-hand model
+                                   ↓
+                         Playability Validator v2
+                                   ↓
+                         deterministic optimizer
+                                   ↓
+                         reviewed TAB-result gate
+```
+
+The polyphonic path will be developed in separate PA gates and must not alter the existing public monophonic behavior during the early foundation stages. See [Polyphonic Guitar Arrangement Foundation](docs/polyphonic-guitar-arrangement-foundation.md).
 
 ## Error boundary
 
-`EngineError 1.0.0` remains internal. Consumers may use `isEngineError(error)` for caught package errors and inspect `error.code`, `name`, `details`, and `message`. Machine branching should prefer stable `code` values over message text.
+`EngineError 1.0.0` remains internal. Consumers may use `isEngineError(error)` for caught package errors and branch on stable `error.code` values rather than message text.
 
-## Approved controlled roadmap
+## Controlled roadmap
 
-| Stage | Verified state on the runtime implementation baseline |
+| Stage | State |
 |---|---|
 | Milestones 2A-2D, SEC-CI-1, Public Writer API | Merged |
-| `GuitarConfiguration 1.0.0` | Internal contract merged |
-| `Integration Contract v1` | Internal boundary merged |
-| OptimizerObservation S1 + S2 | Internal validation and content-integrity foundations merged |
-| S3 `ObservationAdmission 1.0.0` | Merged internal admission foundation |
-| S3.1 `ObservationAdmissionAtomicAdapter 1.0.0` | Merged internal atomic-store orchestration boundary |
-| B1 `TeacherFingeringBenchmark 1.0.0` | **Merged in PR #63; 8 fixed teacher-approved cases / 32 events** |
-| B2 `TeacherFingeringBenchmarkEvaluation 1.0.0` | **Merged in PR #64; deterministic baseline measured** |
-| Learned ranking v1 — shadow-mode scope/threat-model review | **Next safe gate; not started** |
-| Learned ranking v1 — shadow implementation | Not started; requires separate approval after scope review |
-| Concrete durable production admission store | Not implemented; required before any live/mutable feedback dataset |
+| `GuitarConfiguration 1.0.0` | Merged internal contract |
+| `Integration Contract v1` | Merged internal boundary |
+| OptimizerObservation S1 + S2 | Merged |
+| S3 / S3.1 admission foundations | Merged internal |
+| B1 teacher fingering benchmark | Merged internal |
+| B2 deterministic evaluation | Merged internal |
+| LR-S0 Shadow Ranking Foundation v1 | **Merged internal; `authority: none`** |
+| LR shadow evaluation / path-policy provenance binding | Pending separate gates |
+| Concrete durable production admission store | Not implemented |
 | Privacy/consent or lawful-use research boundary | Not implemented |
-| Teacher-feedback research dataset pipeline | Blocked pending durable admission + lawful-use controls |
-| Learned-ranking evaluation gate | Not started; must compare against deterministic B1/B2 baseline |
-| Controlled learned-ranking opt-in | Long-term; requires separate evidence and approval |
+| Teacher-feedback research dataset pipeline | Blocked pending prerequisites |
+| Real learned-ranking training | Not started |
+| Controlled learned-ranking opt-in | Long-term / separately gated |
+| PA-0 Polyphonic Guitar Arrangement architecture | **Documentation/planning gate** |
+| PA-1+ polyphonic runtime foundation | Not started |
 
-The next learned-ranking gate is **shadow-only**. A future shadow ranker may compare alternative candidate scores against B2 evidence, but it must not change the deterministic selected position, canonical result, writers, physical validation, or public conversion behavior.
-
-## Long-term chord/barre sequence
+## Polyphonic Guitar Arrangement safe sequence
 
 ```text
-Chord / Simultaneous Event Model
+PA-0 Documentation / architecture
   ↓
-Left-Hand Shape Contract
+PA-1 PolyphonicSourceModel contract
   ↓
-Finger Assignment + Barre / Partial-Barre
+PA-2 parallel polyphonic projection
   ↓
-Chord Candidate Generator
+PA-3 simultaneous-event / chord model
   ↓
-Physical Playability Validator v2
+PA-4 arrangement-decision + provenance
   ↓
-Deterministic Left-Hand Optimizer
+PA-5 melody / bass / voice analysis
   ↓
-Pedagogical Feature Vector v2
+PA-6 deterministic reduction / octave rules
   ↓
-Chord Benchmark v2
+PA-7 guitar chord / voicing candidates
   ↓
-Learned Pedagogical Ranking v2
+PA-8 finger assignment + barre / partial-barre
+  ↓
+PA-9 Physical Playability Validator v2
+  ↓
+PA-10 Canonical v1/v2 compatibility review
+  ↓
+PA-11 teacher-approved arrangement benchmark
+  ↓
+PA-12 internal polyphonic E2E + monophonic regression
+  ↓
+PA-13 separately approved public arrangement API
+  ↓
+PA-14 ScoreMosaic / SesliTab adapter integration
 ```
+
+Future learned arrangement ranking comes only after separate training-data, provenance, lawful-use/privacy, model-lifecycle, and independent-evaluation gates.
 
 ## Project boundaries
 
-This repository does not directly implement:
+This repository does not directly implement PDF/image OMR, Audiveris, HTTP service, UI/PWA/mobile application, or SesliTab/ScoreMosaic application behavior. External integration remains adapter-based.
 
-- PDF/image OMR,
-- Audiveris,
-- HTTP service,
-- UI/PWA/mobile application,
-- SesliTab integration,
-- chords/polyphony/barre/finger assignment,
-- multipart/multistaff selection,
-- grace notes/tuplets,
-- compressed `.mxl` input.
+The current runtime also does not yet implement polyphonic arrangement, chord/barre/finger assignment, multipart/multistaff public conversion, grace notes/tuplets, or compressed `.mxl` input.
 
 ## Governance
 
-Third-party workflow actions are pinned to immutable SHAs and workflow permissions are read-only (`contents: read`). `main` remains protected. Administrator-bypass hardening remains an open governance task because required-check enforcement is still recorded as `non_admins`.
+Third-party workflow actions are pinned to immutable SHAs and workflow permissions are read-only (`contents: read`). `main` remains protected. Administrator-bypass hardening remains an open governance task because required-check enforcement is recorded as `non_admins`.
 
 ## Documentation
 
 1. [AI context](AI_CONTEXT.md)
 2. [Current implementation status](docs/current-status.md)
 3. [Package and verification status](docs/package-status.md)
-4. [EngineError contract](docs/engine-error-contract.md)
-5. [Architecture](docs/ARCHITECTURE.md)
-6. [GuitarConfiguration contract](docs/guitar-configuration-contract.md)
-7. [Integration Contract v1](docs/integration-contract-v1.md)
-8. [OptimizerObservation contract](docs/optimizer-observation-contract.md)
-9. [Pedagogical feature-vector contract](docs/pedagogical-feature-vector-contract.md)
-10. [Teacher-feedback contract](docs/teacher-feedback-contract.md)
-11. [Observation admission contract](docs/observation-admission-contract.md)
-12. [Observation admission atomic-adapter contract](docs/observation-admission-atomic-adapter-contract.md)
-13. [Teacher fingering benchmark contract](docs/teacher-fingering-benchmark-contract.md)
-14. [Teacher fingering benchmark evaluation contract](docs/teacher-fingering-benchmark-evaluation-contract.md)
+4. [Architecture](docs/ARCHITECTURE.md)
+5. [Polyphonic Guitar Arrangement Foundation](docs/polyphonic-guitar-arrangement-foundation.md)
+6. [Integration Contract v1](docs/integration-contract-v1.md)
+7. [Shadow Ranking Foundation v1](docs/shadow-ranking-contract.md)
+8. [Teacher fingering benchmark contract](docs/teacher-fingering-benchmark-contract.md)
+9. [Teacher fingering benchmark evaluation contract](docs/teacher-fingering-benchmark-evaluation-contract.md)
 
 ## Development
 
