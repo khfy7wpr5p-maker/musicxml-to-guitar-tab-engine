@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { isProxy } = require('node:util/types');
 const { EngineError } = require('../errors/engineError');
 const { positionToMidi } = require('../guitar/fretboard');
 const {
@@ -40,18 +41,34 @@ function invalid(message, field, details = {}) {
 }
 
 function isPlainObject(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || isProxy(value)
+  ) {
     return false;
   }
-  return Object.getPrototypeOf(value) === Object.prototype;
+  try {
+    return Object.getPrototypeOf(value) === Object.prototype;
+  } catch {
+    return false;
+  }
 }
 
 function assertExactOwnDataFields(value, allowedFields, path) {
   if (!isPlainObject(value)) {
-    throw invalid(`${path || 'benchmark'} must be a plain object.`, path || 'benchmark');
+    throw invalid(`${path || 'benchmark'} must be a non-proxy plain object.`, path || 'benchmark');
   }
 
-  for (const key of Reflect.ownKeys(value)) {
+  let keys;
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch {
+    throw invalid('Object keys could not be inspected safely.', path || 'benchmark');
+  }
+
+  for (const key of keys) {
     if (typeof key !== 'string') {
       throw invalid('Symbol properties are not allowed.', path ? `${path}.symbol` : 'symbol');
     }
@@ -59,7 +76,12 @@ function assertExactOwnDataFields(value, allowedFields, path) {
     if (!allowedFields.has(key)) {
       throw invalid('Unknown field is not allowed.', field);
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      throw invalid('Field descriptor could not be inspected safely.', field);
+    }
     if (!descriptor || !Object.hasOwn(descriptor, 'value') || !descriptor.enumerable) {
       throw invalid('Fields must be enumerable own data properties.', field);
     }
@@ -67,8 +89,8 @@ function assertExactOwnDataFields(value, allowedFields, path) {
 }
 
 function assertDenseArray(value, field, { min = 0, max }) {
-  if (!Array.isArray(value)) {
-    throw invalid(`${field} must be an array.`, field);
+  if ((value !== null && typeof value === 'object' && isProxy(value)) || !Array.isArray(value)) {
+    throw invalid(`${field} must be a non-proxy array.`, field);
   }
   if (value.length < min || value.length > max) {
     throw invalid(`${field} length is outside the supported benchmark boundary.`, field, {
@@ -78,7 +100,14 @@ function assertDenseArray(value, field, { min = 0, max }) {
     });
   }
 
-  for (const key of Reflect.ownKeys(value)) {
+  let keys;
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch {
+    throw invalid('Array keys could not be inspected safely.', field);
+  }
+
+  for (const key of keys) {
     if (typeof key !== 'string') {
       throw invalid('Array symbol properties are not allowed.', field);
     }
@@ -94,7 +123,12 @@ function assertDenseArray(value, field, { min = 0, max }) {
     if (!Object.hasOwn(value, index)) {
       throw invalid(`${field} must be dense.`, `${field}[${index}]`);
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    } catch {
+      throw invalid('Array entry descriptor could not be inspected safely.', `${field}[${index}]`);
+    }
     if (!descriptor || !Object.hasOwn(descriptor, 'value') || !descriptor.enumerable) {
       throw invalid('Array entries must be enumerable own data properties.', `${field}[${index}]`);
     }
@@ -467,9 +501,11 @@ function assertTeacherApprovedBenchmark(benchmark) {
 }
 
 function verifyTeacherBenchmarkCaseSource(benchmarkCase, sourceText) {
-  if (!isPlainObject(benchmarkCase)) {
-    throw invalid('benchmarkCase must be a plain object.', 'benchmarkCase');
-  }
+  assertExactOwnDataFields(
+    benchmarkCase,
+    new Set(['caseId', 'pedagogicalFocus', 'source', 'events']),
+    'benchmarkCase',
+  );
   validateSource(benchmarkCase.source, 'benchmarkCase.source');
   if (typeof sourceText !== 'string' || sourceText.length === 0) {
     throw invalid('Benchmark source content must be a non-empty UTF-8 string.', 'sourceText');
