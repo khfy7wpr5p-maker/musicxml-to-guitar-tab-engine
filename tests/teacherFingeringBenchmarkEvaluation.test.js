@@ -241,6 +241,66 @@ test('rejects hostile evaluation wrapper and source-entry shapes with structured
   );
 });
 
+test('rejects array subclasses before inherited prototype methods can redirect evaluation', () => {
+  const benchmark = loadBenchmark();
+  const sourceEntries = loadSourceEntries(benchmark);
+  let sourceMapCalled = false;
+  let acceptedSomeCalled = false;
+  let tuningMapCalled = false;
+
+  class HostileSourceEntries extends Array {
+    map() {
+      sourceMapCalled = true;
+      throw new Error('source map override should not run');
+    }
+  }
+  const hostileSources = new HostileSourceEntries(...sourceEntries);
+  expectEvaluationError(
+    () => evaluate(benchmark, hostileSources),
+    { field: 'sourceEntries' },
+  );
+  assert.equal(sourceMapCalled, false);
+
+  class HostileAcceptedPositions extends Array {
+    some() {
+      acceptedSomeCalled = true;
+      throw new Error('accepted-position some override should not run');
+    }
+  }
+  const benchmarkWithHostileAcceptedPositions = loadBenchmark();
+  benchmarkWithHostileAcceptedPositions.cases[0].events[0].acceptedPositions =
+    new HostileAcceptedPositions(
+      ...benchmarkWithHostileAcceptedPositions.cases[0].events[0].acceptedPositions,
+    );
+  expectEvaluationError(
+    () => evaluate(
+      benchmarkWithHostileAcceptedPositions,
+      loadSourceEntries(benchmarkWithHostileAcceptedPositions),
+    ),
+    { field: 'benchmark.cases[0].events[0].acceptedPositions' },
+  );
+  assert.equal(acceptedSomeCalled, false);
+
+  class HostileTuning extends Array {
+    map() {
+      tuningMapCalled = true;
+      throw new Error('tuning map override should not run');
+    }
+  }
+  const benchmarkWithHostileTuning = loadBenchmark();
+  benchmarkWithHostileTuning.guitarConfiguration.value.tuning = new HostileTuning(
+    ...benchmarkWithHostileTuning.guitarConfiguration.value.tuning,
+  );
+  expectEvaluationError(
+    () => evaluate(
+      benchmarkWithHostileTuning,
+      loadSourceEntries(benchmarkWithHostileTuning),
+    ),
+    { field: 'benchmark.guitarConfiguration.value.tuning' },
+  );
+  assert.equal(tuningMapCalled, false);
+});
+
 test('keeps the B2 evaluation harness out of the package-root public API', () => {
   assert.equal(packageRoot.TEACHER_FINGERING_BENCHMARK_EVALUATION_CONTRACT_VERSION, undefined);
   assert.equal(packageRoot.TeacherFingeringBenchmarkEvaluationError, undefined);
