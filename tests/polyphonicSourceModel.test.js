@@ -357,3 +357,14 @@ test('rejects non-enumerable array index properties fail closed', () => {
   });
   expectInvalid(model);
 });
+
+test('rejects numeric-looking custom array properties beyond array length fail closed', () => {
+  const model = validModel();
+  Object.defineProperty(model.measures[0].events, '4294967295', {
+    value: model.measures[0].events[0],
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+  expectInvalid(model);
+});
