@@ -13,6 +13,12 @@ This document defines the internal LR-S1B.2a semantic replay verification bounda
 - `CanonicalTabResult 1.0.0`: unchanged
 - Production optimizer authority: unchanged
 
+### 2026-08-10 convergence note
+
+LR-S1B.2a remains unchanged. The original text described LR-S1B.2b as a later gate; LR-S1B.2b is now merged as `OptimizerPathPolicyBinding 1.0.0` plus `OptimizerPathPolicyBindingDigest 1.0.0`.
+
+The merged binding creator calls this replay verifier internally before creating an immutable binding record. LR-S1B.2b does not weaken this replay contract, and neither contract proves historical producer authenticity or grants learned/shadow production authority.
+
 ## Purpose
 
 LR-S1B.2a answers one narrow question:
@@ -21,7 +27,7 @@ LR-S1B.2a answers one narrow question:
 
 A successful verification returns `true`. Any malformed input, binding mismatch, replay mismatch, movement-limit violation, cost mismatch, or replay resource-limit failure is fail-closed.
 
-LR-S1B.2a does not create a durable binding record and does not create a binding digest. Those responsibilities remain LR-S1B.2b.
+LR-S1B.2a itself does not create a durable binding record or binding digest. Those responsibilities are implemented by the separate merged LR-S1B.2b contract.
 
 ## Required input
 
@@ -162,6 +168,12 @@ The LR-S0/LR-S1A `authority: "none"` boundary remains unchanged.
 
 ## Relationship to LR-S1B.2b
 
-LR-S1B.2b is a separate later gate. It may define an immutable `OptimizerPathPolicyBinding` record and a domain-separated binding digest only after LR-S1B.2a has successfully verified the semantic relationship.
+Merged LR-S1B.2b defines the immutable `OptimizerPathPolicyBinding 1.0.0` record and domain-separated binding digest.
 
-LR-S1B.2b must not weaken the semantic replay requirements and must not reinterpret semantic compatibility as producer authenticity.
+Its creator accepts the same four values as this verifier and calls `verifyOptimizerPathPolicyReplay()` itself. A replay failure produces no binding.
+
+The binding records the observation digest reference, exact path-policy snapshot/digest, optimizer identity/version, note count and replay metadata. It does not copy the complete observation and it does not turn stored `semanticReplay.status: "verified"` into independent authority.
+
+Any future authority-bearing consumer reading untrusted persistence must retain/recover the original observation and rerun the LR-S1B.2a semantic verification rather than trusting a status string alone.
+
+LR-S1B.2b does not reinterpret semantic compatibility as producer authenticity.
