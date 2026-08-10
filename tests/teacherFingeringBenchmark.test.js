@@ -6,7 +6,7 @@ const { createHash } = require('node:crypto');
 
 const {
   GUITAR_CONFIGURATION_VERSION,
-  STANDARD_TUNING,
+  createGuitarConfiguration,
 } = require('../src/guitar/tuning');
 const {
   TEACHER_FINGERING_BENCHMARK_CONTRACT_VERSION,
@@ -22,12 +22,13 @@ function sourceDigest(sourceText) {
 }
 
 function standardConfiguration() {
+  const value = createGuitarConfiguration();
   return {
     contractVersion: GUITAR_CONFIGURATION_VERSION,
     value: {
-      tuning: STANDARD_TUNING.map((entry) => ({ ...entry })),
-      minimumFret: 0,
-      maximumFret: 20,
+      tuning: value.tuning.map((entry) => ({ ...entry })),
+      minimumFret: value.minimumFret,
+      maximumFret: value.maximumFret,
     },
   };
 }
