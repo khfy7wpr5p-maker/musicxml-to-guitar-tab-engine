@@ -186,7 +186,7 @@ test('rejects accepted positions that are duplicated, out of bounds, or pitch-in
 
   const outOfBounds = validInput();
   outOfBounds.cases[0].events[0].acceptedPositions[0] = { string: 7, fret: 0 };
-  expectInvalid(outOfBounds, 'cases[0].events[0].acceptedPositions[0]');
+  expectInvalid(outOfBounds, 'cases[0].events[0].acceptedPositions[0].string');
 
   const wrongPitch = validInput();
   wrongPitch.cases[0].events[0].acceptedPositions[0] = { string: 1, fret: 1 };
