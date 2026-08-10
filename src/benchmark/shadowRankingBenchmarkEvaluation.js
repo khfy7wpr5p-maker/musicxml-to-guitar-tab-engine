@@ -350,6 +350,7 @@ function evaluateShadowRankingBenchmark(input) {
     preferredEligibleEventCount: 0,
     preferredMatchCount: 0,
     casePassCount: 0,
+    candidateCoverageFailureCount: baselineReport.counts.candidateCoverageFailureCount,
     blockedConversionCount: 0,
   };
   let divergentCaseCount = 0;
