@@ -3,7 +3,7 @@
   "contractVersion": "1.0.0",
   "benchmarkId": "teacher-fingering-v1",
   "benchmarkVersion": "1.0.0",
-  "reviewStatus": "proposed",
+  "reviewStatus": "teacher-approved",
   "guitarConfiguration": {
     "contractVersion": "1.0.0",
     "value": {
