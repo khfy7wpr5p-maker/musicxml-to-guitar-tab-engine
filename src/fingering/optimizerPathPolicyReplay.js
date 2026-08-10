@@ -20,6 +20,9 @@ const {
 const OPTIMIZER_PATH_POLICY_REPLAY_VERSION = '1.0.0';
 const MAX_SEMANTIC_REPLAY_DECISIONS = 50_000;
 const MAX_REPLAY_CANDIDATES_PER_DECISION = 6;
+const MAX_REPLAY_COST_REASONS = 16;
+const MAX_REPLAY_STRING_LENGTH = 4_096;
+const MAX_REPLAY_TOTAL_STRING_CHARACTERS = 4 * 1024 * 1024;
 
 const INPUT_FIELDS = Object.freeze([
   'observation',
@@ -178,18 +181,35 @@ function readData(value, key, path) {
   return descriptor(value, key, path).value;
 }
 
-function assertCanonicalPrimitive(value, path) {
+function accountString(value, path, budget) {
+  if (value.length > MAX_REPLAY_STRING_LENGTH) {
+    throw resourceLimit(`${path} exceeds the semantic replay string-length limit.`, {
+      path,
+      maximumLength: MAX_REPLAY_STRING_LENGTH,
+      actualLength: value.length,
+    });
+  }
+  budget.stringCharacters += value.length;
+  if (budget.stringCharacters > MAX_REPLAY_TOTAL_STRING_CHARACTERS) {
+    throw resourceLimit('Semantic replay input exceeds the pre-digest string-character budget.', {
+      maximumCharacters: MAX_REPLAY_TOTAL_STRING_CHARACTERS,
+      actualCharacters: budget.stringCharacters,
+    });
+  }
+}
+
+function assertCanonicalPrimitive(value, path, budget) {
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || Object.is(value, -0)) {
       throw invalid(`${path} must be a finite canonical number.`, { path });
     }
     return;
   }
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) {
+  if (typeof value === 'string') {
+    accountString(value, path, budget);
+    return;
+  }
+  if (value === null || typeof value === 'boolean') {
     return;
   }
   throw invalid(`${path} contains an unsupported value type.`, {
@@ -230,21 +250,37 @@ function assertDenseDataArray(value, path, maximumLength = null) {
   return value;
 }
 
-function validatePositionShape(position, path) {
+function validatePositionShape(position, path, budget) {
   assertExactDataObject(position, POSITION_FIELDS, path);
-  assertCanonicalPrimitive(readData(position, 'string', `${path}.string`), `${path}.string`);
-  assertCanonicalPrimitive(readData(position, 'fret', `${path}.fret`), `${path}.fret`);
+  assertCanonicalPrimitive(
+    readData(position, 'string', `${path}.string`),
+    `${path}.string`,
+    budget,
+  );
+  assertCanonicalPrimitive(
+    readData(position, 'fret', `${path}.fret`),
+    `${path}.fret`,
+    budget,
+  );
 }
 
-function validateCostShape(cost, decisionIndex, path) {
+function validateCostShape(cost, decisionIndex, path, budget) {
   assertExactDataObject(cost, COST_FIELDS, path);
-  assertCanonicalPrimitive(readData(cost, 'total', `${path}.total`), `${path}.total`);
-  assertCanonicalPrimitive(readData(cost, 'isPlayable', `${path}.isPlayable`), `${path}.isPlayable`);
+  assertCanonicalPrimitive(readData(cost, 'total', `${path}.total`), `${path}.total`, budget);
+  assertCanonicalPrimitive(
+    readData(cost, 'isPlayable', `${path}.isPlayable`),
+    `${path}.isPlayable`,
+    budget,
+  );
 
   const reasons = readData(cost, 'reasons', `${path}.reasons`);
-  assertDenseDataArray(reasons, `${path}.reasons`);
+  assertDenseDataArray(reasons, `${path}.reasons`, MAX_REPLAY_COST_REASONS);
   for (let index = 0; index < reasons.length; index += 1) {
-    assertCanonicalPrimitive(readData(reasons, String(index), `${path}.reasons[${index}]`), `${path}.reasons[${index}]`);
+    assertCanonicalPrimitive(
+      readData(reasons, String(index), `${path}.reasons[${index}]`),
+      `${path}.reasons[${index}]`,
+      budget,
+    );
   }
 
   const breakdown = readData(cost, 'breakdown', `${path}.breakdown`);
@@ -256,11 +292,12 @@ function validateCostShape(cost, decisionIndex, path) {
     assertCanonicalPrimitive(
       readData(breakdown, field, `${path}.breakdown.${field}`),
       `${path}.breakdown.${field}`,
+      budget,
     );
   }
 }
 
-function validateObservationShape(observation) {
+function validateObservationShape(observation, budget) {
   assertExactDataObject(observation, OBSERVATION_FIELDS, 'observation');
 
   for (const field of [
@@ -271,7 +308,11 @@ function validateObservationShape(observation) {
     'noteCount',
     'totalCost',
   ]) {
-    assertCanonicalPrimitive(readData(observation, field, `observation.${field}`), `observation.${field}`);
+    assertCanonicalPrimitive(
+      readData(observation, field, `observation.${field}`),
+      `observation.${field}`,
+      budget,
+    );
   }
 
   const optimizer = readData(observation, 'optimizer', 'observation.optimizer');
@@ -280,6 +321,7 @@ function validateObservationShape(observation) {
     assertCanonicalPrimitive(
       readData(optimizer, field, `observation.optimizer.${field}`),
       `observation.optimizer.${field}`,
+      budget,
     );
   }
 
@@ -292,6 +334,7 @@ function validateObservationShape(observation) {
   assertCanonicalPrimitive(
     readData(guitar, 'contractVersion', 'observation.guitarConfiguration.contractVersion'),
     'observation.guitarConfiguration.contractVersion',
+    budget,
   );
 
   const guitarValue = readData(guitar, 'value', 'observation.guitarConfiguration.value');
@@ -299,10 +342,12 @@ function validateObservationShape(observation) {
   assertCanonicalPrimitive(
     readData(guitarValue, 'minimumFret', 'observation.guitarConfiguration.value.minimumFret'),
     'observation.guitarConfiguration.value.minimumFret',
+    budget,
   );
   assertCanonicalPrimitive(
     readData(guitarValue, 'maximumFret', 'observation.guitarConfiguration.value.maximumFret'),
     'observation.guitarConfiguration.value.maximumFret',
+    budget,
   );
 
   const tuning = readData(guitarValue, 'tuning', 'observation.guitarConfiguration.value.tuning');
@@ -311,7 +356,11 @@ function validateObservationShape(observation) {
     throw invalid('observation.guitarConfiguration.value.tuning must contain six entries.');
   }
   for (let index = 0; index < tuning.length; index += 1) {
-    const entry = readData(tuning, String(index), `observation.guitarConfiguration.value.tuning[${index}]`);
+    const entry = readData(
+      tuning,
+      String(index),
+      `observation.guitarConfiguration.value.tuning[${index}]`,
+    );
     assertExactDataObject(
       entry,
       TUNING_ENTRY_FIELDS,
@@ -321,6 +370,7 @@ function validateObservationShape(observation) {
       assertCanonicalPrimitive(
         readData(entry, field, `observation.guitarConfiguration.value.tuning[${index}].${field}`),
         `observation.guitarConfiguration.value.tuning[${index}].${field}`,
+        budget,
       );
     }
   }
@@ -342,6 +392,7 @@ function validateObservationShape(observation) {
       assertCanonicalPrimitive(
         readData(decision, field, `${decisionPath}.${field}`),
         `${decisionPath}.${field}`,
+        budget,
       );
     }
 
@@ -358,33 +409,42 @@ function validateObservationShape(observation) {
       assertCanonicalPrimitive(
         readData(candidate, 'candidateId', `${candidatePath}.candidateId`),
         `${candidatePath}.candidateId`,
+        budget,
       );
       assertCanonicalPrimitive(
         readData(candidate, 'candidateIndex', `${candidatePath}.candidateIndex`),
         `${candidatePath}.candidateIndex`,
+        budget,
       );
       validatePositionShape(
         readData(candidate, 'position', `${candidatePath}.position`),
         `${candidatePath}.position`,
+        budget,
       );
     }
 
     validatePositionShape(
       readData(decision, 'selectedPosition', `${decisionPath}.selectedPosition`),
       `${decisionPath}.selectedPosition`,
+      budget,
     );
     validateCostShape(
       readData(decision, 'cost', `${decisionPath}.cost`),
       decisionIndex,
       `${decisionPath}.cost`,
+      budget,
     );
   }
 }
 
-function validateDigestShape(digest, path) {
+function validateDigestShape(digest, path, budget) {
   assertExactDataObject(digest, DIGEST_FIELDS, path);
   for (const field of DIGEST_FIELDS) {
-    assertCanonicalPrimitive(readData(digest, field, `${path}.${field}`), `${path}.${field}`);
+    assertCanonicalPrimitive(
+      readData(digest, field, `${path}.${field}`),
+      `${path}.${field}`,
+      budget,
+    );
   }
 }
 
@@ -406,10 +466,11 @@ function strictInput(input) {
     'pathPolicyDigest',
     'input.pathPolicyDigest',
   );
+  const preDigestBudget = { stringCharacters: 0 };
 
-  validateObservationShape(observation);
-  validateDigestShape(observationDigest, 'observationDigest');
-  validateDigestShape(pathPolicyDigest, 'pathPolicyDigest');
+  validateObservationShape(observation, preDigestBudget);
+  validateDigestShape(observationDigest, 'observationDigest', preDigestBudget);
+  validateDigestShape(pathPolicyDigest, 'pathPolicyDigest', preDigestBudget);
 
   return {
     observation,
@@ -580,6 +641,9 @@ module.exports = {
   OPTIMIZER_PATH_POLICY_REPLAY_VERSION,
   MAX_SEMANTIC_REPLAY_DECISIONS,
   MAX_REPLAY_CANDIDATES_PER_DECISION,
+  MAX_REPLAY_COST_REASONS,
+  MAX_REPLAY_STRING_LENGTH,
+  MAX_REPLAY_TOTAL_STRING_CHARACTERS,
   OptimizerPathPolicyReplayError,
   verifyOptimizerPathPolicyReplay,
 };
