@@ -114,7 +114,10 @@ The report preserves the existing B2 baseline counts and records shadow counts f
 - preferred-eligible events,
 - preferred matches,
 - case passes,
+- candidate-coverage failures,
 - blocked conversions.
+
+Candidate coverage is a property of the fixed validated candidate set shared by the deterministic baseline and LR-S0 shadow path. LR-S1A therefore carries the exact B2 `candidateCoverageFailureCount` into the shadow summary rather than recalculating or redefining coverage.
 
 Comparison metadata records:
 
