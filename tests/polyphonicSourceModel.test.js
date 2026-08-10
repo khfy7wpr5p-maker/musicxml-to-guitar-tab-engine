@@ -322,3 +322,26 @@ test('rejects malformed measure timing and unsupported top-level contract identi
   badFormat.source.format = 'score-timewise';
   expectInvalid(badFormat);
 });
+
+test('rejects non-enumerable data properties fail closed', () => {
+  const model = validModel();
+  Object.defineProperty(model.measures[0].events[0], 'voice', {
+    value: '1',
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  expectInvalid(model);
+});
+
+test('rejects negative zero in canonical numeric fields', () => {
+  const model = validModel();
+  model.measures[0].events[0].onsetDivisions = -0;
+  expectInvalid(model);
+});
+
+test('rejects tie markers on rest events', () => {
+  const model = validModel();
+  model.measures[0].events[4].tieStart = true;
+  expectInvalid(model);
+});
