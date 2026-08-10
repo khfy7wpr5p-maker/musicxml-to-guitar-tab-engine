@@ -74,12 +74,26 @@ Negative zero is rejected because JSON serialization collapses `-0` to `0`; sema
 
 The LR-S1B.1 path-policy snapshot validator remains authoritative for strict path-policy shape and numeric validation.
 
+## Pre-digest resource boundaries
+
+Hostile input must be bounded before digest verification or optimizer replay begins. LR-S1B.2a therefore applies these internal fail-closed limits while inspecting the canonical observation/digest wrappers:
+
+- at most 50,000 observation decisions,
+- at most six candidates per decision,
+- at most 16 `cost.reasons` entries per decision,
+- at most 4,096 characters in any one semantic string,
+- at most 4 Mi characters across semantic strings inspected by the pre-digest boundary.
+
+Exceeding one of these resource bounds throws `OPTIMIZER_PATH_POLICY_REPLAY_RESOURCE_LIMIT`. These bounds are independent from the later trusted `ProcessingRuntime` deadline: the static limits prevent unbounded work before the runtime checkpoint boundary becomes active, while the runtime deadline bounds deterministic optimizer replay itself.
+
+These limits do not enlarge accepted musical authority and do not prove source provenance. Changing them requires a separate compatibility/security review because they are part of the LR-S1B.2a hostile-input contract.
+
 ## Verification sequence
 
 The verifier performs the following fail-closed sequence:
 
 1. Validate the exact LR-S1B.2a input shape.
-2. Validate the exact canonical observation graph shape used by the current `OptimizerObservation 1.0.0` producer.
+2. Validate the exact canonical observation graph shape used by the current `OptimizerObservation 1.0.0` producer while enforcing the pre-digest resource bounds.
 3. Verify `OptimizerObservationDigest 1.0.0` against the supplied observation.
 4. Verify the LR-S1B.1 path-policy digest against the supplied snapshot.
 5. Require the current deterministic dynamic-programming optimizer identity/version.
