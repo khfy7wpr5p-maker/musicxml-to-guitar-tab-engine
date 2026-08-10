@@ -1,191 +1,248 @@
 # MusicXML to Guitar TAB Engine — Architecture
 
-## Current implementation authority
+## 0. Current implementation authority — 2026-08-10
 
-This document includes planned architecture as well as implemented behavior. For the current `CanonicalTabResult` contract, use the following sources in order:
+This document now distinguishes **implemented runtime architecture** from **planned product architecture**.
 
-1. `src/tab/canonicalTabResult.js`
-2. the reviewed golden fixtures and canonical result tests
-3. [`canonical-contract-audit.md`](./canonical-contract-audit.md)
+The runtime baseline reviewed before this documentation convergence is:
 
-[`DATA-CONTRACT.md`](./DATA-CONTRACT.md) is a deprecated historical draft until the shared schema and validator milestone is completed. Planned fields must not be treated as current runtime fields. Writers may validate and serialize the canonical result, but must not recalculate fingering or introduce undocumented result fields.
+`05c3a59e1f615417d637a6ae71e3e42d552ffca5`
 
-## 1. Architecture Goal
+Latest merged runtime feature: PR #71 — LR-S1B.2b Optimizer Path-Policy Binding + Binding Digest. Post-merge Tests #464 passed on Node.js 18 / 20 / 22.
 
-The system converts validated MusicXML scores into playable six-string guitar tablature while preserving musical timing, measure structure and pitch information.
+For current runtime truth, use this authority order:
+
+1. merged runtime source code/tests/workflows on `main`
+2. versioned runtime contract modules under `src/`
+3. applicable versioned contract documents under `docs/`
+4. `docs/current-status.md`
+5. `docs/package-status.md`
+6. `README.md`
+7. older historical/planning documents
+
+`DATA-CONTRACT.md` remains a deprecated historical draft and must not be treated as the current runtime schema. The authoritative current downstream TAB result remains `CanonicalTabResult 1.0.0`.
+
+Early repository plans proposed filenames such as `rhythm.js`, `measure.js`, `eventModel.js` and `conversionResult.js`. The absence of those exact filenames is **not** evidence that the corresponding capability is missing. Current functionality is implemented through the actual parser/canonical/pipeline modules and tests.
+
+## 1. Architecture goal
+
+The engine converts validated MusicXML into playable six-string guitar tablature while preserving supported musical pitch, timing, measure and notation semantics.
 
 The architecture separates:
 
-- MusicXML parsing
-- Musical data normalization
-- Guitar fretboard calculation
-- Fingering optimization
-- Output generation
+- XML safety and bounded parsing
+- musical semantic projection
+- canonical musical representation
+- guitar configuration and physical candidate generation
+- deterministic fingering optimization
+- canonical TAB result validation
+- output serialization
+- compatibility/rendering adapters
+- application/presentation layers
+- future polyphonic arrangement
+- future learning/AI infrastructure
+
+No presentation or learned component may silently become source-of-truth authority over the deterministic core.
+
+## 2. Current implemented public engine
+
+```text
+MusicXML
+   ↓
+XML normalization + safety
+   ↓
+ProcessingBudget / deadline / cancellation
+   ↓
+ParsedMusicXmlDocument 1.0.0
+   ↓
+structural validation
+   ↓
+supported monophonic semantic projection
+   ↓
+CanonicalMusicDocument
+   ↓
+GuitarConfiguration + physical candidates
+   ↓
+deterministic fingering cost model
+   ↓
+dynamic-programming optimizer
+   ↓
+CanonicalTabResult 1.0.0
+   ↓
+shared canonical validator
+   ↓
+┌──────────────┬───────────────┬────────────────┐
+│ JSON         │ ASCII TAB     │ TAB MusicXML   │
+└──────────────┴───────────────┴────────────────┘
+```
+
+This path is implemented and protected. It must not be replaced with a second parser, second optimizer, second canonical result authority or second writer stack without a separately approved architecture change.
+
+## 3. System boundaries
+
+### In scope for the deterministic engine
+
+- supported uncompressed MusicXML input
+- XML safety/resource enforcement
+- supported musical semantic parsing
+- immutable canonical musical data
+- physical six-string guitar position generation
+- deterministic fingering selection
+- canonical TAB validation
+- JSON / ASCII TAB / TAB MusicXML serialization
+- internal observation/feedback/benchmark/path-policy foundations
+
+### Outside current deterministic-core authority
+
+- PDF/image OMR
+- Audiveris execution
+- `.omr` manipulation
+- direct SesliTab/ScoreMosaic application behavior
+- HTTP service behavior
+- production UI/PWA/mobile behavior
+- production playback
+- MuseScore process execution
 - PDF rendering
+- project persistence
+- arbitrary user score editing
+- learned production selection
 
-This separation allows each component to be tested independently and prevents PDF rendering or external tools from affecting the core conversion engine.
+These connect through explicit adapters/contracts.
 
-## 2. System Boundary
+## 4. Non-negotiable architecture rules
 
-The engine begins with MusicXML and ends with Guitar TAB outputs.
+1. `CanonicalTabResult 1.0.0` is authoritative for the current public monophonic TAB path.
+2. Writers serialize approved selected positions and never rerun fingering optimization.
+3. Parsing never chooses guitar strings/frets.
+4. Structural XML validation and musical semantic projection remain separate.
+5. Physical validity precedes learned/shadow ranking.
+6. Deterministic optimization remains reproducible and the mandatory fallback.
+7. Unsupported structures fail explicitly or generate documented warnings.
+8. Original MusicXML is immutable source truth.
+9. External systems integrate through versioned contracts/adapters.
+10. Teacher review cannot make physically impossible fingering valid.
+11. Teacher feedback is not research/training consent.
+12. Digests prove content correspondence, not trusted producer identity.
+13. B1 fixed benchmark remains independent evaluation evidence and must not become training data.
+14. Polyphonic support must enter through a parallel versioned projection; current monophonic rejection checks must not be weakened.
+15. Application UI/renderers/editors/persistence cannot directly mutate authoritative canonical objects.
+16. High-risk runtime changes require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and separate merge approval.
 
-```text
-Input MusicXML
-      ↓
-MusicXML validation and parsing
-      ↓
-Normalized musical events
-      ↓
-Guitar position candidates
-      ↓
-Playable fingering selection
-      ↓
-Canonical TAB result
-      ↓
-JSON / ASCII TAB / TAB MusicXML / PDF
-```
+## 5. Current public musical scope
 
-The engine does not:
+The current public path supports:
 
-- Read PDF scores directly
-- Perform optical music recognition
-- Run Audiveris
-- Read or modify `.omr` files
-- Access SesliTab source files
-- Modify existing HTML files
-- Share writable storage with the existing OMR service
+- MusicXML `score-partwise`
+- one part
+- one staff
+- one voice
+- monophonic notes/rests
+- pitch `step`, `alter`, `octave`
+- whole, half, quarter, eighth and 16th values
+- dotted values
+- rests
+- `divisions`
+- time signatures
+- pickup/implicit measures
+- ties
+- beams, including normalized hook metadata
 
-PDF-to-MusicXML conversion remains outside this repository.
+It fails closed for:
 
-## 3. Repository Structure
+- chords / simultaneous note events
+- `backup` / `forward` polyphonic timing
+- multiple voices
+- multiple staves
+- multipart scores
+- grace notes
+- tuplets
+- unsupported rhythm values such as 32nd notes
+- compressed `.mxl`
 
-Planned initial structure:
+This fail-closed boundary is deliberate.
 
-```text
-musicxml-to-guitar-tab-engine/
-│
-├── docs/
-│   ├── MVP-SPEC.md
-│   └── ARCHITECTURE.md
-│
-├── src/
-│   ├── parser/
-│   │   ├── musicXmlValidator.js
-│   │   ├── musicXmlParser.js
-│   │   └── parserErrors.js
-│   ├── music/
-│   │   ├── pitch.js
-│   │   ├── rhythm.js
-│   │   ├── measure.js
-│   │   └── eventModel.js
-│   ├── guitar/
-│   │   ├── tuning.js
-│   │   ├── fretboard.js
-│   │   ├── positionCandidate.js
-│   │   └── playability.js
-│   ├── fingering/
-│   │   ├── costModel.js
-│   │   ├── fingeringOptimizer.js
-│   │   └── fingeringWarnings.js
-│   ├── output/
-│   │   ├── jsonWriter.js
-│   │   ├── asciiTabWriter.js
-│   │   ├── musicXmlTabWriter.js
-│   │   └── pdfRenderer.js
-│   ├── validation/
-│   │   ├── inputLimits.js
-│   │   ├── eventValidator.js
-│   │   ├── resultValidator.js
-│   │   └── securityValidator.js
-│   ├── core/
-│   │   ├── conversionPipeline.js
-│   │   └── conversionResult.js
-│   └── index.js
-│
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── security/
-│   └── fixtures/
-├── examples/
-├── package.json
-└── README.md
-```
+## 6. XML safety and parsing architecture
 
-This structure is a plan. Source files will be added incrementally and only after explicit approval.
+The engine uses a bounded event-driven XML parser to create an immutable parsed representation before musical/guitar decisions are made.
 
-## 4. Core Architectural Principle
+Safety responsibilities include:
 
-The canonical output of the conversion engine is structured event data.
+- input existence and supported shape
+- malformed XML rejection
+- unsafe declaration/entity policy
+- encoding/null handling
+- byte ceilings
+- XML structural ceilings
+- semantic measure/event ceilings
+- deadline/cancellation/checkpoints
+- fail-closed error codes
 
-PDF, ASCII TAB and output MusicXML are presentation formats derived from the same canonical result.
+`ParsedMusicXmlDocument 1.0.0` is the safe branching point shared by the current monophonic path and the future parallel polyphonic projection.
 
-```text
-                 ┌── JSON
-Canonical TAB ───┼── ASCII TAB
-event model      ├── TAB MusicXML
-                 └── PDF
-```
+## 7. Musical semantic projection
 
-No output generator should recalculate string or fret positions independently. This prevents different outputs from showing different fingerings.
+The current semantic layer reads and validates supported MusicXML meaning including:
 
-## 5. Conversion Pipeline
+- note/rest structure
+- pitch step/alter/octave
+- MIDI normalization
+- duration divisions
+- note type
+- dots
+- voice/staff constraints
+- time signatures
+- divisions inheritance
+- measure duration
+- pickup measures
+- tie metadata
+- beam metadata
+- source/event ordering
 
-### Stage 1 — Input validation
+This capability is implemented even though early plans proposed separate `rhythm.js`, `measure.js` and `eventModel.js` files.
 
-Responsibilities:
+## 8. Rhythm and notation architecture
 
-- Confirm that input exists
-- Enforce maximum file size
-- Reject unsupported extensions
-- Reject malformed XML
-- Reject unsafe document declarations
-- Confirm supported MusicXML root structure
-- Detect unsupported multipart or polyphonic scores
+### Implemented notation scope
 
-Possible errors:
+| Feature | Runtime state |
+|---|---|
+| whole / half / quarter / eighth / 16th | implemented |
+| rests | implemented |
+| dotted values | implemented |
+| divisions | implemented |
+| time signatures | implemented |
+| pickup/implicit measure | implemented |
+| ties | implemented |
+| beam metadata | implemented |
+| beam/tie alphaTab rendering fixture | compatibility verified |
 
-```text
-EMPTY_INPUT
-FILE_TOO_LARGE
-INVALID_XML
-INVALID_MUSICXML
-UNSUPPORTED_SCORE_FORMAT
-```
+### Future notation coverage
 
-### Stage 2 — MusicXML parsing
+The following require separate explicit gates and must not be silently accepted:
 
-Responsibilities:
+- slur / legato semantics
+- grace notes / acciaccatura / appoggiatura
+- tuplets
+- 32nd and later advanced rhythm values
+- articulations: staccato, accent, tenuto, etc.
+- ornaments: trill, mordent, turn, etc.
+- fermata and other expressive notation
 
-- Read parts and measures
-- Read pitch information
-- Read rests
-- Read durations
-- Read note types and dots
-- Read time signatures
-- Read ties
-- Preserve original event order
-- Preserve source location information for errors
+A future **Musical Notation Coverage Contract** should define for each symbol:
 
-The parser must not assign guitar strings or frets.
+1. parser acceptance/rejection;
+2. canonical semantic representation;
+3. duration/timing effect;
+4. preservation through TAB MusicXML;
+5. alphaTab rendering evidence;
+6. MuseScore semantic round-trip expectation;
+7. unsupported/fail-closed behavior.
 
-### Stage 3 — Musical normalization
+PDF/image recognition of these symbols is **OMR work**, not this MusicXML parser's responsibility.
 
-Responsibilities:
+## 9. Guitar configuration and physical candidates
 
-- Convert pitch to MIDI number
-- Normalize accidentals
-- Normalize rhythm values
-- Calculate event start positions
-- Validate measure duration
-- Represent rests consistently
-- Preserve ties and measure boundaries
-
-The normalized model must not depend on MusicXML-specific XML nodes. This allows future input formats to use the same guitar engine.
-
-### Stage 4 — Guitar configuration
-
-The initial guitar model uses standard tuning:
+The current default tuning is standard six-string guitar:
 
 ```text
 String 6: E2 — MIDI 40
@@ -196,457 +253,254 @@ String 2: B3 — MIDI 59
 String 1: E4 — MIDI 64
 ```
 
-Initial fret range:
+Default fret range is 0–20.
 
-```text
-0–20
-```
-
-The guitar configuration must be stored separately from conversion logic.
-
-This allows later support for 22- or 24-fret guitars, Drop D, alternative tunings and capo positions. These features are outside the MVP.
-
-### Stage 5 — Position candidate calculation
+`GuitarConfiguration 1.0.0` centralizes physical configuration. Internally validated custom six-string open MIDI tuning is supported; current package-root API does not expose an arbitrary public configuration surface.
 
 For every playable pitch:
 
 ```text
-fret = note MIDI − open-string MIDI
+fret = pitch MIDI − open-string MIDI
 ```
 
-A position is valid when:
+Candidate generation:
+
+- creates all valid string/fret positions
+- rejects negative frets
+- enforces maximum fret
+- rejects out-of-range notes
+- preserves alternatives
+- does not choose the final path
+
+## 10. Deterministic fingering architecture
+
+The current optimizer is implemented using deterministic dynamic programming.
+
+The cost model includes explainable components such as:
+
+- fret movement
+- string movement
+- position shifts / large movement penalties
+- high-fret usage
+- configurable open-string preference
+- repeated/same-position stability
+- hard maximum movement policies
+
+The same supported input + guitar configuration + policy + engine version must produce the same result.
+
+The deterministic optimizer remains the production authority and fallback. No current AI component may override it.
+
+## 11. Canonical TAB result
+
+`CanonicalTabResult 1.0.0` is the single current downstream TAB authority.
+
+Core properties include:
+
+- immutable score/measure/event data
+- selected physical position for notes
+- alternatives where applicable
+- preserved supported rhythm/notation data
+- configuration/fingering metadata required by the current contract
+- warnings/review metadata under the implemented schema
+
+Rests have no selected physical position.
+
+All writers consume validated canonical data and must not create new fingering decisions.
+
+## 12. Output architecture
+
+### JSON
+
+Implemented public deterministic serializer.
+
+### ASCII TAB
+
+Implemented public deterministic debug/readability serializer. Current tests cover six-string alignment and double-digit fret values.
+
+### TAB MusicXML
+
+Implemented public deterministic MusicXML serializer. Current output includes standard notation + six-line TAB structure for the supported canonical scope, guitar tuning and selected string/fret technical data while preserving supported measure/rhythm/tie/beam semantics.
+
+### PDF
+
+Not implemented as a production runtime feature.
+
+PDF must remain downstream:
 
 ```text
-0 ≤ fret ≤ maximum fret
-```
-
-Responsibilities:
-
-- Generate all valid positions
-- Reject negative frets
-- Enforce maximum fret
-- Detect notes outside the guitar range
-- Preserve all alternatives for teacher review
-
-The candidate generator must not select the final position.
-
-### Stage 6 — Fingering optimization
-
-The optimizer receives a sequence of musical events and position candidates. Its goal is to find a complete playable path through the candidate sets.
-
-The first implementation should use deterministic dynamic programming rather than artificial intelligence.
-
-Benefits:
-
-- Reproducible results
-- Easy testing
-- Transparent cost calculation
-- No external service
-- No training data required
-
-## 6. Fingering Cost Model
-
-Each transition between two positions receives a cost.
-
-Initial factors:
-
-- Fret movement
-- String movement
-- Position shifts
-- High-fret usage
-- Configurable open-string preference
-- Repeated-note stability
-- Unplayable transitions
-
-Unplayable transitions receive an infinite cost and cannot be selected.
-
-## 7. Determinism
-
-The same MusicXML input, guitar configuration, fingering settings and engine version must produce the same output.
-
-The result should record the engine version, tuning, maximum fret and fingering profile to support reproducible testing and later comparison between algorithm versions.
-
-## 8. Canonical Event Model
-
-The canonical conversion result should contain:
-
-- Engine metadata
-- Teacher-review requirement
-- Score metadata
-- Measures and time signatures
-- Event order and start time
-- Pitch and rhythm information
-- Selected string and fret
-- Alternative positions
-- Validation warnings
-
-Rests use `selectedPosition: null`.
-
-## 9. Output Architecture
-
-### JSON writer
-
-Responsibilities:
-
-- Serialize the canonical model
-- Include warnings
-- Include alternative positions
-- Include engine settings
-- Preserve event order
-
-JSON is the authoritative machine-readable output.
-
-### ASCII TAB writer
-
-Responsibilities:
-
-- Produce six TAB lines
-- Insert measure boundaries
-- Align simultaneous events
-- Represent rests or spacing
-- Handle double-digit fret values without breaking alignment
-
-ASCII TAB will prioritize debugging and readability rather than professional engraving.
-
-### TAB MusicXML writer
-
-Responsibilities:
-
-- Preserve musical durations
-- Preserve measure structure
-- Add string and fret technical elements
-- Define six-line TAB staff
-- Define TAB clef
-- Define standard guitar tuning
-- Generate valid MusicXML
-- Optionally retain standard notation
-
-The writer must use the selected positions from the canonical model and must not rerun fingering optimization.
-
-### PDF renderer
-
-The PDF renderer is an optional external boundary.
-
-```text
-Generated TAB MusicXML
-       ↓
-PDF renderer
-       ↓
-PDF score
-```
-
-Planned renderer: MuseScore Studio command-line export.
-
-The core engine must remain successful when PDF rendering is disabled, MuseScore is unavailable or PDF generation times out. JSON, ASCII TAB and TAB MusicXML must remain available.
-
-## 10. PDF Rendering Safety
-
-The PDF renderer must:
-
-- Run in a separate temporary directory
-- Use a fixed executable
-- Use `spawn` or `execFile`
-- Never use a shell command string
-- Enforce a strict timeout
-- Limit concurrent rendering jobs
-- Validate the generated file
-- Confirm the `%PDF` file signature
-- Reject empty output
-- Remove only its own temporary files
-- Avoid network access
-- Avoid user-controlled command arguments
-
-It must never read unrelated project directories, overwrite input MusicXML, or modify SesliTab, Audiveris, OMR or HTML files.
-
-## 11. Error Architecture
-
-Errors should use structured codes and include safe contextual details such as measure number, event index and pitch where available.
-
-Error details must not contain:
-
-- Absolute server paths
-- Environment variables
-- Raw command output
-- Internal stack traces in production
-- API keys or credentials
-
-Errors are grouped into input, parsing, music-model, playability, output-generation, PDF-rendering and internal errors.
-
-## 12. Security Architecture
-
-### XML parser isolation
-
-The XML parser must disable:
-
-- External entities
-- External DTD loading
-- Network retrieval
-- Script execution
-- XInclude or equivalent external inclusion
-
-The parser must enforce input size, nesting depth, element count, text-node size and processing limits.
-
-### Path isolation
-
-All temporary paths must be created internally. User file names must not control folder paths or executable arguments.
-
-### Dependency control
-
-Before adding any dependency:
-
-- Its purpose must be documented
-- Its license must be checked
-- Its maintenance status must be checked
-- Known vulnerabilities must be reviewed
-- Its version must be pinned through a lockfile
-- Unnecessary dependencies must be rejected
-
-No install script should be trusted automatically.
-
-### Resource limits
-
-The application should define maximum input size, measures, notes, XML elements, conversion duration, PDF-render duration, concurrent jobs and generated-output size.
-
-Exact values will be selected before implementation.
-
-## 13. Testing Architecture
-
-### Unit tests
-
-Cover pitch conversion, candidate calculation, range checks, cost calculation, fingering selection, rhythm normalization, ASCII alignment and error generation.
-
-### Integration tests
-
-Cover:
-
-```text
-MusicXML → JSON
-MusicXML → ASCII TAB
-MusicXML → TAB MusicXML
-TAB MusicXML → PDF
-```
-
-### Security tests
-
-Cover XML entity attacks, oversized XML, excessive nesting, invalid paths, malformed MusicXML, process timeout, missing PDF renderer and invalid generated PDF.
-
-### Musical verification tests
-
-Compare expected and generated notes, octaves, durations, measures, strings, frets and position shifts.
-
-## 14. Test Fixtures
-
-Fixtures should be small and independently verifiable.
-
-Planned fixtures:
-
-```text
-open-strings.musicxml
-c-major-scale.musicxml
-chromatic-scale.musicxml
-accidentals.musicxml
-rests.musicxml
-dotted-rhythm.musicxml
-eighth-beams.musicxml
-sixteenth-beams.musicxml
-position-shift.musicxml
-lowest-note.musicxml
-highest-note.musicxml
-below-range.musicxml
-above-range.musicxml
-invalid-xml.xml
-polyphonic-score.musicxml
-```
-
-Each valid fixture should include an expected JSON result.
-
-## 15. Development Sequence
-
-```text
-1. Documentation
-2. Canonical event schema
-3. Pitch and MIDI utilities
-4. Guitar configuration
-5. Fretboard candidate generation
-6. Candidate-generation tests
-7. MusicXML validation
-8. MusicXML parser
-9. Rhythm normalization
-10. Fingering cost model
-11. Fingering optimizer
-12. Structured JSON output
-13. ASCII TAB output
-14. TAB MusicXML output
-15. PDF renderer
-16. Independent API
-17. External integration
-```
-
-No stage should depend on unverified behavior from a later stage.
-
-## 16. Deployment Architecture
-
-Deployment is not part of the first implementation milestone.
-
-A possible later architecture uses a separate HTTP API, MusicXML conversion worker and optional PDF-rendering worker.
-
-The service should use a separate repository, Docker image, deployment, temporary storage and environment variables, with no writable mount shared with SesliTab or Audiveris.
-
-## 17. Future Visual Dataset Project
-
-The future repository `tab-rhythm-visual-dataset` will remain independent.
-
-It may contain:
-
-- Rendered score images
-- Scanned TAB pages
-- Bounding-box annotations
-- Rhythm-beam labels
-- Stem labels
-- Fret-number labels
-- Expected event JSON
-- Expected MusicXML fragments
-
-The canonical event schema from this engine may be reused as a documented format.
-
-The repositories must not share runtime code, writable storage, secrets or deployment environments.
-
-## 18. Architecture Acceptance Criteria
-
-The architecture will be considered successfully implemented when:
-
-1. Each module has one clear responsibility.
-2. MusicXML parsing is independent from guitar calculation.
-3. Guitar calculation is independent from output rendering.
-4. All output formats use the same canonical result.
-5. The same input and settings produce deterministic output.
-6. Invalid input fails explicitly.
-7. Unplayable notes never receive invented fret values.
-8. PDF failure does not destroy other outputs.
-9. XML processing is isolated from external resources.
-10. Tests cover musical correctness and security boundaries.
-11. The repository remains independent from SesliTab, Audiveris, OMR and HTML files.
-12. External integration occurs only through documented files or APIs.
-
-## 19. Milestone 2A single-pass MusicXML foundation
-
-The MusicXML input boundary now separates XML reading from structural and semantic projection.
-
-```text
-Raw MusicXML
+CanonicalTabResult
       ↓
-normalizeXmlInput()
+TAB MusicXML
       ↓
-one SaxesParser pass
+MuseScore/approved renderer adapter
       ↓
-ParsedMusicXmlDocument 1.0.0
-      ├─ structural adapter → validateMusicXml()
-      └─ semantic adapter   → parseMusicXmlNotes()
+PDF validation
+      ↓
+application preview / print / share
 ```
 
-`ParsedMusicXmlDocument` is an immutable internal XML representation. It preserves local element names, namespace URIs, non-namespaced attributes, direct text and child order. It contains no guitar positions, fingering data or output-specific fields.
+Failure or absence of PDF rendering must not invalidate a valid core conversion result.
 
-The structural adapter validates the supported score-partwise container, direct part-list and part relationships, identifiers and measure count. It intentionally does not reject chord, grace-note, tuplet or other semantically unsupported note content when the caller requests structural validation only.
+## 13. alphaTab compatibility/presentation boundary
 
-The semantic adapter projects the same parsed representation into the existing deterministic monophonic parser result. Existing parser field names, ordering, source locations, rhythm normalization and error codes remain the compatibility boundary.
+Current isolated compatibility evidence verifies:
 
-For each direct entry point, XML normalization and SAX parsing occur once:
+- real alphaTab MusicXML import
+- real SVG rendering
+- browser rendering in headless Chrome
+- standard notation + six-line TAB
+- double-digit fret rendering
+- ties and beams
+- bar/measure cursor
+- beat cursor
 
-- `validateMusicXml(input)` performs one SAX pass and one structural projection.
-- `parseMusicXmlNotes(input)` performs one SAX pass and then structural plus semantic projection without reparsing the source.
+This evidence does not itself implement a product viewer.
 
-Resource ceilings beyond the existing byte limit, including depth, element, text, measure, event and deadline limits, remain Milestone 2C work.
+The tested alphaTab 1.8.4 synthesizer path remains unverified because an internal recursive `loadedMidiInfo` error occurred before score/MIDI/SoundFont/player readiness. Therefore production playback is not yet an accepted capability.
 
-## 20. Milestone 2B shared public conversion parse
-
-The public conversion pipeline now shares one immutable semantic parse between preflight reporting and canonical conversion.
+Planned application use:
 
 ```text
-Raw MusicXML
-      ↓
-parseMusicXmlNotes() — one SAX pass
-      ↓
-Parsed monophonic notes
-      ├─ preflight report
-      └─ CanonicalMusicDocument
-             ↓
-        CanonicalTabResult
+TAB MusicXML
+    ↓
+alphaTab application adapter
+    ├─ score/TAB viewer
+    ├─ measure/bar cursor
+    ├─ beat cursor
+    └─ playback only after stable synth/audio evidence
 ```
 
-`inspectMusicXml(input, parserOptions)` is an internal validation-module boundary. It returns a frozen pair containing the preflight report and the parsed monophonic notes. On a blocked input, the report preserves the existing safety, structure, capability or content classification and `parsedNotes` is `null`.
+## 14. MuseScore compatibility/engraving boundary
 
-`preflightMusicXml()` remains the standalone public preflight entry point and returns only the report. `parseCanonicalTabResult()` remains a standalone direct conversion entry point. Neither package-root export shape nor the canonical TAB contract changes.
+MuseScore was always intended as an independent compatibility/semantic-validation target and optional professional engraving/PDF adapter. It is not deterministic-core authority.
 
-`convertMusicXmlToCanonicalTab()` validates conversion options before parsing, performs one semantic MusicXML parse, preserves PASS, WARNING and BLOCKED behavior, and feeds the same parsed notes into `CanonicalMusicDocument` and `CanonicalTabResult` creation. PASS, WARNING and BLOCKED public conversion paths therefore construct one `SaxesParser`; invalid conversion options construct none.
-
-Explicit XML depth, element, text, measure, event, deadline and cancellation ceilings remain Milestone 2C work. The common public error contract remains Milestone 2D work.
-
-## 21. Milestone 2C-1 central processing budget contract
-
-Milestone 2C begins with one internal, versioned source of truth for resource and processing defaults:
+Safe role:
 
 ```text
-src/core/processingBudget.js
-      ↓
-ProcessingBudget 1.0.0
-      ↓
-immutable validated limits
+TAB MusicXML
+    ↓
+MuseScore Adapter
+    ├─ import validation
+    ├─ professional engraving check
+    ├─ MusicXML re-export
+    ├─ semantic round-trip comparison
+    └─ optional PDF / Print
 ```
 
-`createProcessingBudget(options)` accepts a plain object containing partial overrides, rejects unknown fields, and requires every limit to be a positive safe integer. Invalid configuration uses `ProcessingBudgetConfigurationError` with the stable code `INVALID_PROCESSING_BUDGET` and safe `field` and `value` details where applicable.
+The tested environments did not contain MuseScore Studio, so the following remain unexecuted:
 
-The approved defaults are:
+- real import
+- MusicXML re-export
+- semantic round-trip
+- PDF export
 
-| Limit | Default |
-|---|---:|
-| `maxBytes` | 5 MiB |
-| `maxDepth` | 128 |
-| `maxElements` | 100,000 |
-| `maxAttributes` | 200,000 |
-| `maxTextBytes` | 4 MiB |
-| `maxMeasures` | 2,000 |
-| `maxEvents` | 50,000 |
-| `maxProcessingMilliseconds` | 10,000 ms |
+Semantic round-trip must compare musical meaning, not XML bytes. Minimum comparison fields:
 
-The returned budget has the identity `ProcessingBudget 1.0.0` and is deeply immutable. The existing `maxBytes` option name is retained so later enforcement can converge without introducing a second byte-limit vocabulary.
+- measures
+- note/rest identity/order
+- pitch/octave
+- durations
+- dots
+- ties
+- beams
+- staff structure
+- string/fret
+- tuning
+- time signatures
 
-This sub-milestone defines only the central contract. It does not yet connect the budget to SAX callbacks, MusicXML measure/event projection, candidate generation, fingering optimization, preflight error classification, deadlines, or cancellation. It does not change package-root exports, canonical schemas, public conversion output, or supported musical features.
+Before process execution is productionized, the adapter requires a separate security contract covering executable discovery/version, no-shell invocation, fixed arguments, path isolation, temp cleanup, timeout/termination, bounded stdout/stderr/output, concurrency and fail-closed error handling.
 
-## 22. PA-0 — Parallel Polyphonic Guitar Arrangement Architecture
+## 15. Teacher review architecture
 
-PA-0 is documentation and architecture planning only. It does not add runtime support for chords, multiple voices, multiple staves, barre, or polyphonic conversion.
+### 15.1 Teacher Fingering Correction
 
-The architectural objective is to preserve the current deterministic monophonic path while adding a separately versioned future arrangement path for piano-like MusicXML.
+`TeacherFeedback 1.1.0` already provides an internal immutable observation contract for:
 
-### 22.1 Protected current path
+- accept
+- override to a different candidate from the exact validated candidate layer
+- reject
 
-The current public path remains:
+It cannot mutate the deterministic result.
+
+Future UI:
 
 ```text
-MusicXML
-  ↓
-XML safety + ProcessingBudget
-  ↓
-ParsedMusicXmlDocument 1.0.0
-  ↓
-current monophonic structural/semantic projection
-  ↓
-CanonicalMusicDocument
-  ↓
-physical guitar candidates
-  ↓
-deterministic cost model + DP optimizer
-  ↓
-CanonicalTabResult 1.0.0
-  ↓
-JSON / ASCII TAB / TAB MusicXML
+selected note
+   ↓
+current engine fingering + valid alternatives
+   ↓
+Teacher: Accept / Override / Reject
+   ↓
+TeacherFeedback record
 ```
 
-Current fail-closed monophonic rejection rules remain compatibility requirements. Chords, multiple voices, multiple staves, and multipart scores must not become accepted on this public path merely by removing or weakening existing `UNSUPPORTED_*` checks.
+### 15.2 Teacher Score Correction
 
-### 22.2 Planned parallel branching point
+Pitch/rhythm/notation editing is a different authority and is not implemented.
 
-`ParsedMusicXmlDocument 1.0.0` is the planned branch point because it is already an immutable bounded XML representation produced after XML safety/resource enforcement and before guitar fingering authority.
+Future safe flow:
+
+```text
+immutable source musical event
+      ↓
+Teacher Score Correction decision + provenance
+      ↓
+new derived musical document
+      ↓
+semantic validation
+      ↓
+physical candidate regeneration
+      ↓
+deterministic optimizer
+      ↓
+new validated CanonicalTabResult
+```
+
+Teacher Score Correction must never mutate the original MusicXML artifact or directly patch selected TAB fields without regeneration/revalidation.
+
+## 16. Learning / AI architecture
+
+Current merged internal foundations:
+
+- OptimizerObservation 1.0.0
+- OptimizerObservationDigest 1.0.0
+- PedagogicalFeatureVector 1.0.0
+- TeacherFeedback 1.1.0
+- S1 full observation validation
+- S2 observation digest
+- S3 ObservationAdmission 1.0.0
+- S3.1 ObservationAdmissionAtomicAdapter 1.0.0
+- B1 TeacherFingeringBenchmark 1.0.0
+- B2 TeacherFingeringBenchmarkEvaluation 1.0.0
+- LR-S0 ShadowRanking foundation
+- LR-S1A ShadowRankingBenchmarkEvaluation 1.0.0
+- LR-S1B.1 FingeringPathPolicySnapshot + digest
+- LR-S1B.2a OptimizerPathPolicyReplay 1.0.0
+- LR-S1B.2b OptimizerPathPolicyBinding + digest
+
+Current authority rule:
+
+```text
+Deterministic optimizer = production authority
+Shadow / learning infrastructure = authority none
+```
+
+No current AI component may:
+
+- change source pitch/rhythm
+- create guitar positions
+- bypass physical validation
+- mutate `CanonicalTabResult`
+- silently become writer authority
+- use TeacherFeedback as training consent
+
+Production learned ranking remains blocked until separate durable storage, privacy/consent/lawful-use, dataset admission, model lifecycle, independent evaluation, shadow-first evidence and production opt-in gates are complete.
+
+## 17. Polyphonic MusicXML → Guitar Arrangement architecture
+
+PA-0 is merged documentation/architecture. The existing public monophonic path remains protected.
+
+### Parallel extension point
 
 ```text
                          MusicXML
@@ -683,77 +537,212 @@ Current fail-closed monophonic rejection rules remain compatibility requirements
                           reviewed TAB-result gate
 ```
 
-The new projection must be independent from the current monophonic semantic projection. Early PA work must not modify `convertMusicXmlToCanonicalTab()` or change its public behavior.
-
-### 22.3 Initial future source scope
-
-The early polyphonic foundation should target a narrow piano-like source scope:
-
-- MusicXML `score-partwise`,
-- one selected source part,
-- one or two staves,
-- multiple voices,
-- simultaneous/chord note events,
-- rests and supported rhythmic timing,
-- stable source identity/location for projected events.
-
-Arbitrary multipart/orchestral reduction, grace-note semantics, tuplets beyond separately reviewed support, compressed `.mxl`, and production AI arrangement authority remain separate later gates.
-
-### 22.4 Source truth versus arrangement truth
+### Source truth versus arrangement truth
 
 Original MusicXML remains immutable source truth.
 
-A future guitar arrangement may need explicit musical transformations including note omission, octave displacement, voice redistribution, chord reduction, revoicing, and arpeggiation. These are arrangement decisions, not parser truth and not fingering side effects.
+Future arrangement decisions must explicitly preserve provenance for transformations such as:
 
-A future `GuitarArrangementPlan` must bind every transformation to source events and record the transformation explicitly. Planned conceptual decision classes include `PRESERVED`, `OMITTED`, `OCTAVE_DISPLACED`, `VOICE_REDISTRIBUTED`, `CHORD_REDUCED`, `REVOICED`, and `ARPEGGIATED`. Exact schemas are deferred to a later contract gate.
+- PRESERVED
+- OMITTED
+- OCTAVE_DISPLACED
+- VOICE_REDISTRIBUTED
+- CHORD_REDUCED
+- REVOICED
+- ARPEGGIATED
 
-### 22.5 Canonical compatibility boundary
+These decisions must never be hidden inside parser or fingering code.
 
-`CanonicalTabResult 1.0.0` remains unchanged during the early PA gates.
+### PA-1 current repository state
 
-Chord/polyphonic fields must not be inserted into v1 solely to avoid versioning. A future PA-10 compatibility review must decide whether a backward-compatible bridge is sufficient or whether a separately versioned chord-aware canonical result is required.
+Real PA-1 work exists on branch:
 
-### 22.6 Learned-system boundary
+`feature/pa-1-polyphonic-source-model-v1`
 
-Current LR-S0 remains an internal shadow-only ranking path over already-generated physically valid monophonic candidates. It has no arrangement authority.
+Reviewed head:
 
-Future arrangement AI must be a separate shadow-first domain and may rank only separately validated arrangement alternatives after approved data/provenance/lawful-use/privacy/model-lifecycle/evaluation gates. It may not mutate the original MusicXML artifact, bypass source validation, fabricate source notes or physical guitar positions, bypass physical validation, or silently modify canonical output.
+`86d3c35b6c6af42f6e3608c03a60dfc813f8e7ff`
 
-### 22.7 PA safe gates
+Files:
 
-| Gate | Scope | Authority |
-|---|---|---|
-| `PA-0` | Documentation + architecture planning | none |
-| `PA-1` | `PolyphonicSourceModel 1.0` contract | internal only |
-| `PA-2` | Parallel polyphonic projection | internal only |
-| `PA-3` | Simultaneous-event / chord contract | internal only |
-| `PA-4` | Arrangement-decision + provenance contract | internal only |
-| `PA-5` | Deterministic melody/bass/voice analysis | internal only |
-| `PA-6` | Deterministic reduction / octave rules | internal only |
-| `PA-7` | Guitar chord/voicing candidates | internal only |
-| `PA-8` | Left-hand shape, finger assignment, barre/partial-barre | internal only |
-| `PA-9` | Physical Playability Validator v2 | internal only |
-| `PA-10` | Canonical result compatibility review | separate architecture approval |
-| `PA-11` | Teacher-approved arrangement benchmark | evaluation only |
-| `PA-12` | Internal polyphonic E2E + monophonic compatibility | no public activation |
-| `PA-13` | Public arrangement API review | separate public-contract approval |
-| `PA-14` | ScoreMosaic/SesliTab adapter integration | external adapter only |
+- `src/music/polyphonicSourceModel.js`
+- `tests/polyphonicSourceModel.test.js`
+- `docs/polyphonic-source-model-contract.md`
 
-### 22.8 High-risk controls
+At the 2026-08-10 convergence review the branch is 3 unique commits ahead and 24 commits behind current `main`. It must not be directly merged or deleted as routine cleanup. Perform a read-only recovery/compatibility audit first.
 
-The current monophonic projection, `convertMusicXmlToCanonicalTab()`, `CanonicalMusicDocument`, `CanonicalTabResult 1.0.0`, deterministic monophonic optimizer, physical guitar validation, writers, and package-root API are protected high-risk boundaries.
+### PA safe sequence
 
-Before any separately approved high-risk integration change, require:
+1. PA-0 documentation/architecture — merged
+2. PA-1 `PolyphonicSourceModel 1.0` — unmerged work, recovery/review required
+3. PA-2 parallel polyphonic projection
+4. PA-3 simultaneous-event/chord contract
+5. PA-4 arrangement-decision + provenance
+6. PA-5 deterministic melody/bass/voice analysis
+7. PA-6 deterministic reduction/octave rules
+8. PA-7 guitar chord/voicing candidate generation
+9. PA-8 left-hand shape + finger assignment + barre/partial-barre
+10. PA-9 Physical Playability Validator v2
+11. PA-10 Canonical v1/v2 compatibility review
+12. PA-11 teacher-approved arrangement benchmark
+13. PA-12 internal polyphonic E2E + monophonic compatibility
+14. PA-13 separately approved public arrangement API
+15. PA-14 ScoreMosaic/SesliTab adapter integration
 
-1. exact current-main baseline identification,
-2. focused feature tests,
-3. negative/fail-closed security tests,
-4. full regression suite,
-5. monophonic E2E compatibility evidence,
-6. deterministic-output comparison where applicable,
-7. GitHub-hosted required CI,
-8. separate approval before merge.
+No early PA gate changes current public monophonic support.
 
-If existing supported monophonic inputs change unexpectedly, the gate fails.
+## 18. Application / presentation architecture
 
-The detailed PA-0 contract is maintained in [`polyphonic-guitar-arrangement-foundation.md`](./polyphonic-guitar-arrangement-foundation.md).
+No production application UI is implemented yet.
+
+Future downstream structure:
+
+```text
+Core Engine
+   ↓
+Application Adapter
+   ├─ File Open / Preflight / Convert state
+   ├─ Score + TAB Viewer
+   │     └─ alphaTab adapter
+   ├─ Cursor
+   │     ├─ measure/bar
+   │     └─ beat
+   ├─ Playback
+   │     └─ Play / Pause / Stop after stable evidence
+   ├─ Error / Warning Presentation
+   ├─ Fingering Inspector
+   ├─ Teacher Fingering Correction
+   ├─ Teacher Score Correction
+   ├─ Export Center
+   ├─ MuseScore/PDF Adapter
+   ├─ PDF Viewer / Print / Share
+   └─ Project Persistence
+```
+
+Application rules:
+
+- UI state is not canonical musical truth.
+- Renderer state is not canonical musical truth.
+- Playback state is not canonical musical truth.
+- PDF is a derived presentation artifact.
+- project persistence must version source/canonical/presentation/edit state explicitly.
+- user-facing errors must branch on stable error codes rather than message text.
+
+## 19. Safe development order — 2026-08-10
+
+### Stabilization
+
+1. Documentation Convergence
+2. G0.1 administrator-bypass governance hardening
+3. historical branch inventory / orphan-work audit
+4. PA-1 recovery audit and closure
+
+### Notation and compatibility foundations
+
+5. Musical Notation Coverage Contract
+6. MuseScore semantic compatibility gate
+7. independent real-world MusicXML E2E fixture gate
+
+### Application/presentation
+
+8. Application/Presentation architecture contract
+9. alphaTab application viewer
+10. application measure/beat cursor
+11. playback adapter + Play/Pause/Stop after synth/audio evidence
+12. Teacher Fingering Correction UI
+13. Teacher Score Correction contract/UI
+14. export center
+15. MuseScore/PDF renderer adapter
+16. PDF viewer / print / download / share
+17. project save/reopen persistence
+18. full application E2E
+
+### Polyphonic arrangement
+
+19. continue PA-2…PA-14 only after PA-1 closure and in the approved order
+
+### Learned AI
+
+20. durable production admission storage
+21. privacy/consent/lawful-use contract
+22. authorized dataset admission
+23. real learned training + model registry
+24. independent learned evaluation
+25. learned shadow mode
+26. separately approved production opt-in
+
+Completion of one gate never authorizes later gates automatically.
+
+## 20. CI and governance architecture
+
+Current protections:
+
+- third-party workflow actions pinned to immutable SHAs
+- `main` protected
+- required Node.js 18 / 20 / 22 tests
+- required alphaTab import/SVG compatibility contexts
+- required browser renderer/cursor diagnostic context
+
+Open governance item:
+
+- G0.1 administrator enforcement remains open because required-check enforcement is currently recorded as `non_admins`
+
+Repository-settings changes remain a separate approval gate from code/docs development.
+
+Historical branch cleanup must begin with a read-only classification of branch head, merged status, unique commits and PR history. Do not bulk-delete branches.
+
+## 21. High-risk change protocol
+
+The following are high-risk and must not change incidentally:
+
+- current monophonic semantic projection
+- `convertMusicXmlToCanonicalTab()`
+- `CanonicalMusicDocument`
+- `CanonicalTabResult 1.0.0`
+- deterministic monophonic optimizer
+- physical guitar validation
+- package-root public API
+- writer authority
+- B1 independent evaluation evidence
+
+Required sequence for approved runtime changes:
+
+```text
+read-only baseline audit
+   ↓
+exact scope definition
+   ↓
+red-first / negative tests
+   ↓
+smallest implementation
+   ↓
+focused tests
+   ↓
+full regression
+   ↓
+compatibility / E2E where applicable
+   ↓
+GitHub-hosted CI
+   ↓
+independent review
+   ↓
+separate merge approval
+   ↓
+post-merge verification
+```
+
+Local tests must never be presented as GitHub-hosted CI evidence.
+
+## 22. Historical architecture note
+
+Earlier sections of this repository described a planned initial directory tree and future PDF renderer as though those were filenames still to be created. That plan served as a useful starting map, but current implementation authority is the merged code/contracts listed above.
+
+Do not infer missing capability from a missing planned filename. Do not infer implemented capability from a planned section. Always classify evidence as one of:
+
+- merged runtime
+- merged internal/non-authoritative
+- compatibility verified
+- documentation only
+- unmerged work
+- not implemented
+- blocked by prerequisites
