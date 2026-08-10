@@ -29,7 +29,7 @@ A `ShadowRankingReport` always records:
 
 Shadow ranking must not:
 
-- replace or mutate `OptimizerObservation.selectedPosition`,
+- replace or mutate any `OptimizerObservation` decision `selectedPosition`,
 - change the deterministic optimizer or cost model,
 - write `CanonicalTabResult.selectedPosition`,
 - change writers or normal conversion behavior,
@@ -44,6 +44,12 @@ LR-S0 consumes only a produced, deeply frozen `OptimizerObservation 1.0.0` and a
 Before scoring, the observation boundary rejects proxy values, accessors, symbols, custom array properties, array subclasses, sparse arrays, non-plain objects, non-finite numbers, cycles/shared object references, and excessive graph depth/node count. The existing `OptimizerObservationDigest 1.0.0` path then validates and binds the observation content.
 
 The shadow implementation never accepts caller-provided feature vectors. `PedagogicalFeatureVector 1.0.0` values are recomputed internally from the candidate positions already present in the validated observation.
+
+### Residual path-policy limitation
+
+`OptimizerObservation 1.0.0` proves the exact observed candidate membership and the deterministic selected path, but it does not persist every caller-supplied optimizer cost-profile setting. In particular, a shadow alternative cannot currently prove that it satisfies an unrecorded custom `maximumFretMovement` or `maximumStringMovement` transition cap merely because each selected shadow position is an observed physical candidate.
+
+Therefore LR-S0 establishes **candidate-membership / physical-position validity only** for a divergent shadow suggestion. It does not claim policy-equivalence with an unrecorded custom optimizer transition profile. This limitation is acceptable only because `authority: "none"` is mandatory and LR-S0 cannot affect canonical output. Any future milestone that gives a learned path production influence must first bind and validate the relevant path-level policy/provenance explicitly.
 
 ## Model contract
 
