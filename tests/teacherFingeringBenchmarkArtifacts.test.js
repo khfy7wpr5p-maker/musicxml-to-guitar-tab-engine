@@ -38,12 +38,12 @@ function noteEvents(canonicalTabResult) {
     measure.events.filter((event) => event.type === 'note'));
 }
 
-test('ships a bounded proposed B1 manifest for explicit teacher review', () => {
+test('ships the explicitly reviewed teacher-approved B1 manifest', () => {
   const benchmark = loadBenchmark();
 
   assert.equal(benchmark.benchmarkId, 'teacher-fingering-v1');
   assert.equal(benchmark.benchmarkVersion, '1.0.0');
-  assert.equal(benchmark.reviewStatus, 'proposed');
+  assert.equal(benchmark.reviewStatus, 'teacher-approved');
   assert.equal(benchmark.cases.length, 8);
   assert.equal(
     benchmark.cases.reduce((count, benchmarkCase) => count + benchmarkCase.events.length, 0),
@@ -53,9 +53,8 @@ test('ships a bounded proposed B1 manifest for explicit teacher review', () => {
     benchmark.cases.every((benchmarkCase) => benchmarkCase.source.policy === 'self-authored'),
     true,
   );
-  assert.throws(
+  assert.doesNotThrow(
     () => assertTeacherApprovedBenchmark(benchmark),
-    /teacher-approved/,
   );
 });
 
@@ -76,7 +75,7 @@ test('binds every benchmark case to an exact repository-local MusicXML fixture',
   }
 });
 
-test('keeps proposed labels aligned with supported source events and physical candidate membership', () => {
+test('keeps teacher-approved labels aligned with supported source events and physical candidate membership', () => {
   const benchmark = loadBenchmark();
   const guitar = benchmark.guitarConfiguration.value;
 
