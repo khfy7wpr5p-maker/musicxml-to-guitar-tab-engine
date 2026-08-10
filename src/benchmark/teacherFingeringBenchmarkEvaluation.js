@@ -90,10 +90,24 @@ function assertExactOwnDataFields(value, allowedFields, path) {
   }
 }
 
-function assertDenseArray(value, field, expectedLength = null) {
+function assertNativeArrayPrototype(value, field) {
   if ((value !== null && typeof value === 'object' && isProxy(value)) || !Array.isArray(value)) {
     throw invalid(`${field} must be a non-proxy array.`, field);
   }
+  try {
+    if (Object.getPrototypeOf(value) !== Array.prototype) {
+      throw invalid('Array subclasses are not allowed at the B2 boundary.', field);
+    }
+  } catch (error) {
+    if (error instanceof TeacherFingeringBenchmarkEvaluationError) {
+      throw error;
+    }
+    throw invalid('Array prototype could not be inspected safely.', field);
+  }
+}
+
+function assertDenseArray(value, field, expectedLength = null) {
+  assertNativeArrayPrototype(value, field);
   if (value.length > MAX_BENCHMARK_CASES) {
     throw invalid(`${field} exceeds the fixed B2 case boundary.`, field, {
       length: value.length,
@@ -142,6 +156,66 @@ function assertDenseArray(value, field, expectedLength = null) {
   }
 }
 
+function getOwnDataValue(value, key) {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+  let descriptor;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(value, key);
+  } catch {
+    return undefined;
+  }
+  if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
+    return undefined;
+  }
+  return descriptor.value;
+}
+
+function preflightBenchmarkArrayPrototypes(benchmark) {
+  if (!isPlainObject(benchmark)) {
+    return;
+  }
+
+  const guitarConfiguration = getOwnDataValue(benchmark, 'guitarConfiguration');
+  const guitarValue = getOwnDataValue(guitarConfiguration, 'value');
+  const tuning = getOwnDataValue(guitarValue, 'tuning');
+  if (tuning !== undefined) {
+    assertNativeArrayPrototype(tuning, 'benchmark.guitarConfiguration.value.tuning');
+  }
+
+  const cases = getOwnDataValue(benchmark, 'cases');
+  if (cases === undefined) {
+    return;
+  }
+  assertNativeArrayPrototype(cases, 'benchmark.cases');
+
+  for (let caseIndex = 0; caseIndex < cases.length; caseIndex += 1) {
+    if (!Object.hasOwn(cases, caseIndex)) {
+      continue;
+    }
+    const benchmarkCase = cases[caseIndex];
+    const events = getOwnDataValue(benchmarkCase, 'events');
+    if (events === undefined) {
+      continue;
+    }
+    assertNativeArrayPrototype(events, `benchmark.cases[${caseIndex}].events`);
+
+    for (let eventIndex = 0; eventIndex < events.length; eventIndex += 1) {
+      if (!Object.hasOwn(events, eventIndex)) {
+        continue;
+      }
+      const acceptedPositions = getOwnDataValue(events[eventIndex], 'acceptedPositions');
+      if (acceptedPositions !== undefined) {
+        assertNativeArrayPrototype(
+          acceptedPositions,
+          `benchmark.cases[${caseIndex}].events[${eventIndex}].acceptedPositions`,
+        );
+      }
+    }
+  }
+}
+
 function samePosition(left, right) {
   return left.string === right.string && left.fret === right.fret;
 }
@@ -165,6 +239,7 @@ function deepFreeze(value) {
 }
 
 function normalizeBenchmark(benchmark) {
+  preflightBenchmarkArrayPrototypes(benchmark);
   try {
     assertTeacherApprovedBenchmark(benchmark);
   } catch (error) {
@@ -178,7 +253,9 @@ function normalizeBenchmark(benchmark) {
 function normalizeSourceEntries(sourceEntries, benchmark) {
   assertDenseArray(sourceEntries, 'sourceEntries', benchmark.cases.length);
 
-  return sourceEntries.map((entry, index) => {
+  const normalized = [];
+  for (let index = 0; index < sourceEntries.length; index += 1) {
+    const entry = sourceEntries[index];
     const field = `sourceEntries[${index}]`;
     assertExactOwnDataFields(entry, new Set(['caseId', 'sourceText']), field);
 
@@ -201,20 +278,27 @@ function normalizeSourceEntries(sourceEntries, benchmark) {
       });
     }
 
-    return {
+    normalized.push({
       caseId: entry.caseId,
       sourceText: entry.sourceText,
-    };
-  });
+    });
+  }
+  return normalized;
 }
 
 function guitarOptionsFromBenchmark(benchmark) {
-  return {
-    tuning: benchmark.guitarConfiguration.value.tuning.map((entry) => ({
+  const tuning = [];
+  const benchmarkTuning = benchmark.guitarConfiguration.value.tuning;
+  for (let index = 0; index < benchmarkTuning.length; index += 1) {
+    const entry = benchmarkTuning[index];
+    tuning.push({
       number: entry.number,
       pitch: entry.pitch,
       midi: entry.midi,
-    })),
+    });
+  }
+  return {
+    tuning,
     minimumFret: benchmark.guitarConfiguration.value.minimumFret,
     maximumFret: benchmark.guitarConfiguration.value.maximumFret,
   };
@@ -254,20 +338,41 @@ function assertAlignedEvents(benchmarkCase, resultEvents, caseIndex) {
   }
 }
 
+function includesPosition(positions, target) {
+  for (let index = 0; index < positions.length; index += 1) {
+    if (samePosition(positions[index], target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasCandidateCoverage(acceptedPositions, candidatePositions) {
+  for (let acceptedIndex = 0; acceptedIndex < acceptedPositions.length; acceptedIndex += 1) {
+    if (includesPosition(candidatePositions, acceptedPositions[acceptedIndex])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function evaluateEvent(benchmarkEvent, resultEvent) {
   const selectedPosition = clonePosition(resultEvent.selectedPosition);
-  const candidatePositions = [
+  const candidatePositions = [selectedPosition];
+  for (let index = 0; index < resultEvent.alternativePositions.length; index += 1) {
+    candidatePositions.push(clonePosition(resultEvent.alternativePositions[index]));
+  }
+
+  const acceptableMatch = includesPosition(
+    benchmarkEvent.acceptedPositions,
     selectedPosition,
-    ...resultEvent.alternativePositions.map(clonePosition),
-  ];
-  const acceptableMatch = benchmarkEvent.acceptedPositions.some(
-    (position) => samePosition(position, selectedPosition),
   );
   const preferredEligible = benchmarkEvent.preferredPosition !== null;
   const preferredMatch = preferredEligible
     && samePosition(benchmarkEvent.preferredPosition, selectedPosition);
-  const candidateCoveragePresent = benchmarkEvent.acceptedPositions.some(
-    (accepted) => candidatePositions.some((candidate) => samePosition(accepted, candidate)),
+  const candidateCoveragePresent = hasCandidateCoverage(
+    benchmarkEvent.acceptedPositions,
+    candidatePositions,
   );
 
   return {
@@ -280,6 +385,16 @@ function evaluateEvent(benchmarkEvent, resultEvent) {
   };
 }
 
+function countPreferredEligible(benchmarkCase) {
+  let count = 0;
+  for (let index = 0; index < benchmarkCase.events.length; index += 1) {
+    if (benchmarkCase.events[index].preferredPosition !== null) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function createBlockedCase(benchmarkCase) {
   return {
     caseId: benchmarkCase.caseId,
@@ -289,9 +404,7 @@ function createBlockedCase(benchmarkCase) {
     eventCount: benchmarkCase.events.length,
     evaluatedEventCount: 0,
     acceptableMatchCount: 0,
-    preferredEligibleEventCount: benchmarkCase.events.filter(
-      (event) => event.preferredPosition !== null,
-    ).length,
+    preferredEligibleEventCount: countPreferredEligible(benchmarkCase),
     preferredMatchCount: 0,
     candidateCoverageFailureCount: 0,
     events: [],
@@ -299,15 +412,29 @@ function createBlockedCase(benchmarkCase) {
 }
 
 function createEvaluatedCase(benchmarkCase, resultEvents) {
-  const events = benchmarkCase.events.map(
-    (benchmarkEvent, index) => evaluateEvent(benchmarkEvent, resultEvents[index]),
-  );
-  const acceptableMatchCount = events.filter((event) => event.acceptableMatch).length;
-  const preferredEligibleEventCount = events.filter((event) => event.preferredEligible).length;
-  const preferredMatchCount = events.filter((event) => event.preferredMatch).length;
-  const candidateCoverageFailureCount = events.filter(
-    (event) => !event.candidateCoveragePresent,
-  ).length;
+  const events = [];
+  let acceptableMatchCount = 0;
+  let preferredEligibleEventCount = 0;
+  let preferredMatchCount = 0;
+  let candidateCoverageFailureCount = 0;
+
+  for (let index = 0; index < benchmarkCase.events.length; index += 1) {
+    const eventReport = evaluateEvent(benchmarkCase.events[index], resultEvents[index]);
+    events.push(eventReport);
+    if (eventReport.acceptableMatch) {
+      acceptableMatchCount += 1;
+    }
+    if (eventReport.preferredEligible) {
+      preferredEligibleEventCount += 1;
+    }
+    if (eventReport.preferredMatch) {
+      preferredMatchCount += 1;
+    }
+    if (!eventReport.candidateCoveragePresent) {
+      candidateCoverageFailureCount += 1;
+    }
+  }
+
   const pass = acceptableMatchCount === events.length && candidateCoverageFailureCount === 0;
 
   return {
@@ -344,6 +471,14 @@ function addCounts(counts, caseReport) {
   }
 }
 
+function countBenchmarkEvents(benchmark) {
+  let count = 0;
+  for (let index = 0; index < benchmark.cases.length; index += 1) {
+    count += benchmark.cases[index].events.length;
+  }
+  return count;
+}
+
 function evaluateTeacherFingeringBenchmark(input) {
   assertExactOwnDataFields(input, new Set(['benchmark', 'sourceEntries']), 'input');
   const benchmark = normalizeBenchmark(input.benchmark);
@@ -352,10 +487,7 @@ function evaluateTeacherFingeringBenchmark(input) {
 
   const counts = {
     benchmarkCaseCount: benchmark.cases.length,
-    benchmarkEventCount: benchmark.cases.reduce(
-      (total, benchmarkCase) => total + benchmarkCase.events.length,
-      0,
-    ),
+    benchmarkEventCount: countBenchmarkEvents(benchmark),
     evaluatedCaseCount: 0,
     evaluatedEventCount: 0,
     unevaluatedEventCount: 0,
