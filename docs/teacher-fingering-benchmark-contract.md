@@ -23,6 +23,14 @@ The manifest carries an explicit `reviewStatus`:
 
 `assertTeacherApprovedBenchmark()` rejects any benchmark that remains `proposed`. A benchmark must not be used as approved evaluation truth merely because it is structurally valid or committed to a branch.
 
+### Review/version integrity rule
+
+Teacher approval applies to one exact reviewed benchmark artifact version, not to a mutable filename.
+
+After a benchmark has been marked `teacher-approved`, any change to fixture bytes, source SHA-256 values, event labels, accepted/preferred positions, guitar configuration, case membership, or pedagogical focus requires a new review cycle. The changed artifact must not retain the old approval claim silently: its benchmark version must be advanced as appropriate and its `reviewStatus` must return to `proposed` until the changed artifact is explicitly reviewed again.
+
+The runtime contract validates the current object; Git history and review workflow remain repository-governance evidence and cannot be inferred from a string field alone.
+
 ## Fixed artifact layout
 
 B1 stores:
@@ -93,6 +101,12 @@ Accepted positions are a **set of teacher-acceptable alternatives**, not a claim
 
 The validator rejects duplicate accepted positions and rejects a preferred position that is not an exact accepted member.
 
+### Event-local semantics
+
+`acceptedPositions[]` and `preferredPosition` are event-local labels. They do not imply that every Cartesian combination of accepted event positions forms a teacher-approved whole-piece fingering path.
+
+B1 therefore does not claim path-level pedagogical truth. A future evaluator may report event-local acceptance using these labels, but a path-level or sequence-level benchmark requires a separately versioned contract that explicitly represents approved transitions or complete approved paths. This prevents B2 from silently converting independent per-note labels into a stronger sequence-level claim.
+
 ## Source-content binding
 
 Each case is bound to the exact UTF-8 fixture bytes through SHA-256.
@@ -109,6 +123,7 @@ The runtime contract rejects:
 - symbol properties;
 - non-enumerable data properties;
 - accessor-backed contract fields;
+- proxy-backed objects or arrays at contract boundaries;
 - non-plain objects;
 - sparse or custom-property arrays;
 - excessive case/event/accepted-position counts;
@@ -188,6 +203,7 @@ TeacherFingeringBenchmark MUST NOT:
 - activate learned ranking;
 - perform network access;
 - treat `proposed` labels as teacher-approved evidence;
+- infer whole-path teacher approval from event-local accepted-position labels;
 - implement B2 evaluation scoring.
 
 ## B2 readiness
