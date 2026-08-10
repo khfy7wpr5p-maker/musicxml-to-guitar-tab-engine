@@ -27,8 +27,8 @@ function invalid(message, details = {}) {
 }
 
 function requireSafeInteger(value, field, details = {}) {
-  if (!Number.isSafeInteger(value)) {
-    throw invalid(`${field} must be a safe integer.`, { ...details, field });
+  if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
+    throw invalid(`${field} must be a safe integer other than -0.`, { ...details, field });
   }
   return value;
 }
@@ -110,8 +110,8 @@ function safeObjectDescriptors(value, field, seen, allowedKeys, requiredKeys) {
       throw invalid(`${field} contains an unknown field.`, { field, unknownField: key });
     }
     const descriptor = descriptors[key];
-    if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
-      throw invalid(`${field}.${key} must be a data property, not an accessor.`, {
+    if (!descriptor || !Object.hasOwn(descriptor, 'value') || descriptor.enumerable !== true) {
+      throw invalid(`${field}.${key} must be an enumerable data property, not an accessor.`, {
         field,
         property: key,
       });
@@ -465,6 +465,12 @@ function validateEvent(event, field, seen, context) {
     `${field}.tieStop`,
     { measureIndex, eventIndex },
   );
+  if (type === 'rest' && (tieStart || tieStop)) {
+    throw invalid(`${field} rest events must not carry tie markers.`, {
+      measureIndex,
+      eventIndex,
+    });
+  }
   const source = validateSourceLocation(
     descriptorValue(descriptors, 'source'),
     `${field}.source`,
