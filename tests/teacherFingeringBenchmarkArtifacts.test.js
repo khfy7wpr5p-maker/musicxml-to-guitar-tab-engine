@@ -16,6 +16,12 @@ const REPOSITORY_ROOT = path.resolve(__dirname, '..');
 const BENCHMARK_ROOT = path.join(REPOSITORY_ROOT, 'benchmarks', 'teacher-fingering-v1');
 const FIXTURE_ROOT = path.join(BENCHMARK_ROOT, 'fixtures');
 const MANIFEST_PATH = path.join(BENCHMARK_ROOT, 'benchmark.json');
+const BENCHMARK_CONTRACT_SOURCE_PATH = path.join(
+  REPOSITORY_ROOT,
+  'src',
+  'benchmark',
+  'teacherFingeringBenchmark.js',
+);
 
 function loadBenchmark() {
   return createTeacherFingeringBenchmark(
@@ -119,10 +125,18 @@ test('keeps proposed labels aligned with supported source events and physical ca
   }
 });
 
-test('does not score the current optimizer against proposed teacher labels in B1', () => {
-  const source = fs.readFileSync(__filename, 'utf8');
+test('keeps B2 scoring vocabulary out of the B1 production module', () => {
+  const productionSource = fs.readFileSync(BENCHMARK_CONTRACT_SOURCE_PATH, 'utf8');
 
-  assert.equal(source.includes('acceptableMatchCount'), false);
-  assert.equal(source.includes('preferredMatchCount'), false);
-  assert.equal(source.includes('casePassCount'), false);
+  for (const scoringField of [
+    'acceptableMatchCount',
+    'preferredMatchCount',
+    'casePassCount',
+  ]) {
+    assert.equal(
+      productionSource.includes(scoringField),
+      false,
+      `${scoringField} belongs to the later B2 Evaluation Harness`,
+    );
+  }
 });
