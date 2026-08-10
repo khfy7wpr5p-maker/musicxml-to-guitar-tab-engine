@@ -8,9 +8,10 @@ This document records the current package surface, strongest verified runtime ev
 - latest merged runtime feature: PR #71 — LR-S1B.2b Optimizer Path-Policy Binding + Binding Digest
 - PR #71 merge commit: `05c3a59e1f615417d637a6ae71e3e42d552ffca5`
 - post-merge Tests #464: PASS on Node.js 18 / 20 / 22
+- GitHub repository visibility at the 2026-08-10 convergence review: `public`
 - package name: `musicxml-to-guitar-tab-engine`
 - package version: `0.1.0`
-- package state: `private: true`
+- npm/package publication guard: `private: true`
 - license metadata: `UNLICENSED`
 - Node.js engine: `>=18`
 - runtime dependency: `saxes@6.0.0`
@@ -22,15 +23,18 @@ This document records the current package surface, strongest verified runtime ev
 - PA-1: real unmerged work exists and requires recovery/review before merge
 - application UI / PDF / production playback: not implemented
 
+GitHub repository visibility and npm/package publication state are separate controls. A `public` GitHub repository does **not** change `package.json` `private: true`, does not publish the package to npm and does not create a package release.
+
 A later documentation-only merge may advance `main` while leaving this runtime baseline unchanged.
 
 ## Package metadata
 
 | Field | Value |
 |---|---|
+| GitHub repository visibility | `public` |
 | `name` | `musicxml-to-guitar-tab-engine` |
 | `version` | `0.1.0` |
-| `private` | `true` |
+| `private` | `true` — npm/package publication guard; distinct from GitHub repository visibility |
 | `main` | `src/index.js` |
 | `test` | `node --test` |
 | Node.js engine | `>=18` |
