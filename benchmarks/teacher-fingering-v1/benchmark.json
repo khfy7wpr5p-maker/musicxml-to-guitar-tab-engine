@@ -1,0 +1,441 @@
+{
+  "documentType": "TeacherFingeringBenchmark",
+  "contractVersion": "1.0.0",
+  "benchmarkId": "teacher-fingering-v1",
+  "benchmarkVersion": "1.0.0",
+  "reviewStatus": "teacher-approved",
+  "guitarConfiguration": {
+    "contractVersion": "1.0.0",
+    "value": {
+      "tuning": [
+        {
+          "number": 1,
+          "pitch": "E4",
+          "midi": 64
+        },
+        {
+          "number": 2,
+          "pitch": "B3",
+          "midi": 59
+        },
+        {
+          "number": 3,
+          "pitch": "G3",
+          "midi": 55
+        },
+        {
+          "number": 4,
+          "pitch": "D3",
+          "midi": 50
+        },
+        {
+          "number": 5,
+          "pitch": "A2",
+          "midi": 45
+        },
+        {
+          "number": 6,
+          "pitch": "E2",
+          "midi": 40
+        }
+      ],
+      "minimumFret": 0,
+      "maximumFret": 20
+    }
+  },
+  "cases": [
+    {
+      "caseId": "open-string-reference",
+      "pedagogicalFocus": "open-string-reference",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/open-string-reference.musicxml",
+        "sha256": "0bf5912ffcf22f0284fd50a5d3df09d768d49871da34fb3d69d502d9410a0b7d",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 64,
+          "acceptedPositions": [
+            { "string": 1, "fret": 0 },
+            { "string": 2, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 0 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 65,
+          "acceptedPositions": [
+            { "string": 1, "fret": 1 },
+            { "string": 2, "fret": 6 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 1 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 67,
+          "acceptedPositions": [
+            { "string": 1, "fret": 3 },
+            { "string": 2, "fret": 8 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 3 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 69,
+          "acceptedPositions": [
+            { "string": 1, "fret": 5 },
+            { "string": 2, "fret": 10 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 5 }
+        }
+      ]
+    },
+    {
+      "caseId": "first-position-scale",
+      "pedagogicalFocus": "first-position-scale",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/first-position-scale.musicxml",
+        "sha256": "4bbefae9f57dd70538f0594788eef49f688e0060feb22d291f4c9dd674d3b104",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 1 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 62,
+          "acceptedPositions": [
+            { "string": 2, "fret": 3 },
+            { "string": 3, "fret": 7 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 3 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 64,
+          "acceptedPositions": [
+            { "string": 1, "fret": 0 },
+            { "string": 2, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 0 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 65,
+          "acceptedPositions": [
+            { "string": 1, "fret": 1 },
+            { "string": 2, "fret": 6 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 1 }
+        }
+      ]
+    },
+    {
+      "caseId": "same-string-line",
+      "pedagogicalFocus": "same-string-continuity",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/same-string-line.musicxml",
+        "sha256": "5e569bc63f053a0540892599f45a74f13778f6354d73d021187ab3658fcb862f",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 67,
+          "acceptedPositions": [
+            { "string": 1, "fret": 3 },
+            { "string": 2, "fret": 8 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 3 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 69,
+          "acceptedPositions": [
+            { "string": 1, "fret": 5 },
+            { "string": 2, "fret": 10 },
+            { "string": 3, "fret": 14 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 5 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 71,
+          "acceptedPositions": [
+            { "string": 1, "fret": 7 },
+            { "string": 2, "fret": 12 },
+            { "string": 3, "fret": 16 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 7 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 72,
+          "acceptedPositions": [
+            { "string": 1, "fret": 8 },
+            { "string": 2, "fret": 13 },
+            { "string": 3, "fret": 17 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 8 }
+        }
+      ]
+    },
+    {
+      "caseId": "third-string-continuity",
+      "pedagogicalFocus": "continuity-over-open-string",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/third-string-continuity.musicxml",
+        "sha256": "04f9515eaa3b5cb597da7f6557c2e134aac72d507fddf6c2494f4f3d3ea5a8ae",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 57,
+          "acceptedPositions": [
+            { "string": 3, "fret": 2 },
+            { "string": 4, "fret": 7 },
+            { "string": 5, "fret": 12 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 2 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 59,
+          "acceptedPositions": [
+            { "string": 2, "fret": 0 },
+            { "string": 3, "fret": 4 },
+            { "string": 4, "fret": 9 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 4 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 },
+            { "string": 4, "fret": 10 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 5 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 62,
+          "acceptedPositions": [
+            { "string": 2, "fret": 3 },
+            { "string": 3, "fret": 7 },
+            { "string": 4, "fret": 12 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 7 }
+        }
+      ]
+    },
+    {
+      "caseId": "multiple-acceptable",
+      "pedagogicalFocus": "multiple-acceptable-no-preference",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/multiple-acceptable.musicxml",
+        "sha256": "069ab3e2e7bccafea211cc18625b9764f9e4cdb8ce974c6559b34824f386b759",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 59,
+          "acceptedPositions": [
+            { "string": 2, "fret": 0 },
+            { "string": 3, "fret": 4 }
+          ],
+          "preferredPosition": null
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": null
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 62,
+          "acceptedPositions": [
+            { "string": 2, "fret": 3 },
+            { "string": 3, "fret": 7 }
+          ],
+          "preferredPosition": null
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 64,
+          "acceptedPositions": [
+            { "string": 1, "fret": 0 },
+            { "string": 2, "fret": 5 },
+            { "string": 3, "fret": 9 }
+          ],
+          "preferredPosition": null
+        }
+      ]
+    },
+    {
+      "caseId": "descending-upper-register",
+      "pedagogicalFocus": "descending-same-string-continuity",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/descending-upper-register.musicxml",
+        "sha256": "f9b2c718b5992fab5104169b6bcd23f3eae960e942b73e9bc454a03839403ac9",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 76,
+          "acceptedPositions": [
+            { "string": 1, "fret": 12 },
+            { "string": 2, "fret": 17 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 12 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 74,
+          "acceptedPositions": [
+            { "string": 1, "fret": 10 },
+            { "string": 2, "fret": 15 },
+            { "string": 3, "fret": 19 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 10 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 72,
+          "acceptedPositions": [
+            { "string": 1, "fret": 8 },
+            { "string": 2, "fret": 13 },
+            { "string": 3, "fret": 17 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 8 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 71,
+          "acceptedPositions": [
+            { "string": 1, "fret": 7 },
+            { "string": 2, "fret": 12 },
+            { "string": 3, "fret": 16 }
+          ],
+          "preferredPosition": { "string": 1, "fret": 7 }
+        }
+      ]
+    },
+    {
+      "caseId": "cross-string-continuity",
+      "pedagogicalFocus": "cross-string-continuity",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/cross-string-continuity.musicxml",
+        "sha256": "e039d72733462920d8048122142abe0711d930591eee4698d8929cf5ea80af68",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 55,
+          "acceptedPositions": [
+            { "string": 3, "fret": 0 },
+            { "string": 4, "fret": 5 },
+            { "string": 5, "fret": 10 },
+            { "string": 6, "fret": 15 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 0 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 57,
+          "acceptedPositions": [
+            { "string": 3, "fret": 2 },
+            { "string": 4, "fret": 7 },
+            { "string": 5, "fret": 12 },
+            { "string": 6, "fret": 17 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 2 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 59,
+          "acceptedPositions": [
+            { "string": 2, "fret": 0 },
+            { "string": 3, "fret": 4 },
+            { "string": 4, "fret": 9 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 4 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 },
+            { "string": 4, "fret": 10 }
+          ],
+          "preferredPosition": { "string": 3, "fret": 5 }
+        }
+      ]
+    },
+    {
+      "caseId": "repeated-tone-stability",
+      "pedagogicalFocus": "repeated-tone-stability",
+      "source": {
+        "path": "benchmarks/teacher-fingering-v1/fixtures/repeated-tone-stability.musicxml",
+        "sha256": "ea97e7a7f20f10dd7f7120f4adc8c867d17409a561477e2b344d728e05c5b8e0",
+        "policy": "self-authored"
+      },
+      "events": [
+        {
+          "eventId": "m1-e0",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 1 }
+        },
+        {
+          "eventId": "m1-e1",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 1 }
+        },
+        {
+          "eventId": "m1-e2",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 1 }
+        },
+        {
+          "eventId": "m1-e3",
+          "pitchMidi": 60,
+          "acceptedPositions": [
+            { "string": 2, "fret": 1 },
+            { "string": 3, "fret": 5 }
+          ],
+          "preferredPosition": { "string": 2, "fret": 1 }
+        }
+      ]
+    }
+  ]
+}
