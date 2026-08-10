@@ -324,9 +324,11 @@ test('fails closed on pre-digest replay resource boundaries', async (t) => {
   await t.test('aggregate semantic strings exceed the pre-digest character budget', () => {
     const fixture = buildFixture();
     const observation = structuredClone(fixture.observation);
-    const template = observation.decisions[0];
-    observation.decisions = Array.from({ length: 1_100 }, () => {
-      const decision = structuredClone(template);
+    const firstTemplate = observation.decisions[0];
+    const transitionTemplate = observation.decisions[1];
+    observation.decisions = Array.from({ length: 1_100 }, (_, index) => {
+      const decision = structuredClone(index === 0 ? firstTemplate : transitionTemplate);
+      decision.decisionIndex = index;
       decision.measureKey = 'm'.repeat(4_096);
       return decision;
     });
