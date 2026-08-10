@@ -4,14 +4,22 @@
 
 - Planning gate: `PA-0`
 - Status: `DOCUMENTATION_ONLY`
-- Runtime implementation: **not started**
+- Current merged public polyphonic runtime: **not implemented**
 - Public API changes: **none**
 - `CanonicalTabResult 1.0.0` changes: **none**
 - Existing monophonic conversion changes: **none**
 
+### 2026-08-10 repository convergence note
+
+PA-0 remains documentation/architecture only on `main`. However, real **unmerged** PA-1 work now exists on branch `feature/pa-1-polyphonic-source-model-v1` at reviewed head `86d3c35b6c6af42f6e3608c03a60dfc813f8e7ff`, containing the proposed `PolyphonicSourceModel 1.0` runtime foundation, tests and contract documentation.
+
+At the convergence review that branch is 3 unique commits ahead and 24 commits behind the current runtime baseline. It must therefore be treated as `UNMERGED_WORK_EXISTS`, not as current capability and not as disposable stale-branch cleanup. A read-only recovery/compatibility audit against current `main` is required before any rebase/recreation/merge decision.
+
+This note does not authorize PA-2 or public polyphonic conversion.
+
 This document defines the approved architectural direction for extending the existing monophonic MusicXML-to-Guitar-TAB engine toward a separately gated polyphonic guitar-arrangement path.
 
-PA-0 is documentation and contract planning only. Nothing in this document makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current capability.
+Nothing in PA-0 or the existence of unmerged PA-1 work makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current public capability.
 
 ## Architectural objective
 
@@ -163,7 +171,7 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 | Gate | Scope | Runtime authority |
 |---|---|---|
 | `PA-0` | Documentation + architecture planning | none |
-| `PA-1` | `PolyphonicSourceModel 1.0` contract | internal only |
+| `PA-1` | `PolyphonicSourceModel 1.0` contract/foundation | internal only after separate recovery/review/merge |
 | `PA-2` | `ParsedMusicXmlDocument` → polyphonic projection | parallel internal path |
 | `PA-3` | Simultaneous-event / chord contract | internal only |
 | `PA-4` | Arrangement-decision + provenance contract | internal only |
@@ -181,6 +189,36 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 
 Completion of one gate does not authorize later gates.
 
+## PA-1 recovery rule
+
+Because PA-1 work exists on a branch that diverged while LR-S1A/LR-S1B work advanced `main`, the safe next PA action is **not** a direct merge.
+
+Required recovery sequence:
+
+```text
+read-only PA-1 branch diff
+      ↓
+current-main contract compatibility review
+      ↓
+confirm exact PA-1 file scope
+      ↓
+if needed, recreate on a fresh branch from current main
+      ↓
+focused + negative/fail-closed tests
+      ↓
+full repository regression
+      ↓
+monophonic compatibility evidence
+      ↓
+GitHub-hosted CI
+      ↓
+independent review
+      ↓
+separate merge approval
+```
+
+The current monophonic public path must remain byte/decision compatible for existing supported fixtures unless a separately approved high-risk change explicitly says otherwise.
+
 ## High-risk controls
 
 High-risk areas include the current monophonic projection, `convertMusicXmlToCanonicalTab()`, `CanonicalMusicDocument`, `CanonicalTabResult 1.0.0`, the deterministic monophonic optimizer, package-root public API, writer authority, and physical validation rules.
@@ -191,10 +229,10 @@ If existing supported monophonic inputs change unexpectedly, the gate fails.
 
 ## PA-0 boundary
 
-PA-0 may update documentation only: `README.md`, `AI_CONTEXT.md`, `docs/current-status.md`, `docs/package-status.md`, `docs/ARCHITECTURE.md`, and this document.
+PA-0 documentation may describe architecture and planning but does not add package exports, runtime dependencies, parser behavior, conversion options, output formats, or public polyphonic capability.
 
-PA-0 must not modify `src/**`, `tests/**`, `schemas/**`, package metadata/lockfiles, workflows, `Integration Contract v1`, public exports, or runtime conversion behavior.
+The unmerged PA-1 branch is a separate repository-history fact and does not retroactively change PA-0 runtime authority.
 
 ## PA-0 acceptance criteria
 
-PA-0 documentation must consistently state that current monophonic conversion remains the only public conversion scope, LR-S0 is merged but non-authoritative, polyphonic arrangement is planned rather than implemented, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
+PA-0 documentation must consistently state that current monophonic conversion remains the only public conversion scope, current learning/shadow systems are non-authoritative, polyphonic arrangement is separately gated, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged during early gates, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
