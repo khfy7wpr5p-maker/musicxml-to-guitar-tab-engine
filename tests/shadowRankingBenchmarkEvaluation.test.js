@@ -113,6 +113,7 @@ test('evaluates the fixed B1 benchmark in measurement-only shadow mode', () => {
     preferredEligibleEventCount: 28,
     preferredMatchCount: 26,
     casePassCount: 8,
+    candidateCoverageFailureCount: 0,
     blockedConversionCount: 0,
   });
 
@@ -213,6 +214,10 @@ test('keeps blocked cases in the benchmark denominator and never fabricates a sh
   assert.equal(report.baseline.counts.unevaluatedEventCount, 4);
   assert.equal(report.shadow.counts.blockedConversionCount, 1);
   assert.equal(report.shadow.counts.unevaluatedEventCount, 4);
+  assert.equal(
+    report.shadow.counts.candidateCoverageFailureCount,
+    report.baseline.counts.candidateCoverageFailureCount,
+  );
   assert.equal(report.cases[0].status, 'blocked');
   assert.equal(report.cases[0].shadowReport, null);
 });
