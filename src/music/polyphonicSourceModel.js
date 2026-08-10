@@ -174,8 +174,8 @@ function safeArrayValues(value, field, seen, maximumLength) {
   const values = new Array(value.length);
   for (let index = 0; index < value.length; index += 1) {
     const descriptor = descriptors[String(index)];
-    if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
-      throw invalid(`${field} must be dense and accessor-free.`, { field, index });
+    if (!descriptor || !Object.hasOwn(descriptor, 'value') || descriptor.enumerable !== true) {
+      throw invalid(`${field} must be dense, enumerable and accessor-free.`, { field, index });
     }
     values[index] = descriptor.value;
   }
