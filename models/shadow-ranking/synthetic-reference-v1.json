@@ -1,0 +1,19 @@
+{
+  "documentType": "ShadowRankingModel",
+  "contractVersion": "1.0.0",
+  "modelId": "synthetic-reference-movement-v1",
+  "modelVersion": "1.0.0",
+  "modelKind": "synthetic-reference-linear",
+  "featureContractVersion": "1.0.0",
+  "scoreDirection": "lower-is-better",
+  "featureWeights": {
+    "fretMovement": 1,
+    "stringMovement": 1,
+    "positionContinuity": 0,
+    "openStringUsage": 0,
+    "largeShift": 0,
+    "handStability": 0,
+    "phraseContinuity": 0
+  },
+  "modelSha256": "998dc638af69641fb58bbecec3c7c4cfa49ef181e8cde5e6210f6e4bed178efc"
+}
