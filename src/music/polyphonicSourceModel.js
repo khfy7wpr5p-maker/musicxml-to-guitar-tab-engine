@@ -166,7 +166,11 @@ function safeArrayValues(value, field, seen, maximumLength) {
     if (key === 'length') {
       continue;
     }
-    if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key)) {
+    if (
+      typeof key !== 'string'
+      || !/^(0|[1-9]\d*)$/.test(key)
+      || Number(key) >= value.length
+    ) {
       throw invalid(`${field} must not contain custom or symbol properties.`, { field });
     }
   }
