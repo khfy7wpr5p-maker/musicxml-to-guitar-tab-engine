@@ -11,6 +11,16 @@ This document defines the internal LR-S0 shadow-ranking boundary.
 - Package-root public API: unchanged
 - Production optimizer authority: unchanged
 
+### 2026-08-10 convergence note
+
+LR-S0 itself remains unchanged and `authority: "none"`. The path-policy limitation described below is still a limitation of an LR-S0 report **by itself**, but the repository has since merged the companion LR-S1B integrity/provenance foundations:
+
+- LR-S1B.1 — `FingeringPathPolicySnapshot 1.0.0` + digest
+- LR-S1B.2a — `OptimizerPathPolicyReplay 1.0.0`
+- LR-S1B.2b — `OptimizerPathPolicyBinding 1.0.0` + binding digest
+
+Those later contracts provide strict path-policy content binding, deterministic semantic replay and an immutable verified binding record without changing LR-S0, the deterministic optimizer or production authority. They still do **not** prove trusted historical producer identity and they do not authorize learned production selection.
+
 ## Purpose
 
 LR-S0 creates a deterministic, observation-only ranking path over candidates that were already produced and physically validated by the deterministic guitar engine. It exists to compare a shadow suggestion with the authoritative deterministic optimizer decision without allowing the shadow path to alter normal conversion.
@@ -47,9 +57,11 @@ The shadow implementation never accepts caller-provided feature vectors. `Pedago
 
 ### Residual path-policy limitation
 
-`OptimizerObservation 1.0.0` proves the exact observed candidate membership and the deterministic selected path, but it does not persist every caller-supplied optimizer cost-profile setting. In particular, a shadow alternative cannot currently prove that it satisfies an unrecorded custom `maximumFretMovement` or `maximumStringMovement` transition cap merely because each selected shadow position is an observed physical candidate.
+`OptimizerObservation 1.0.0` proves the exact observed candidate membership and the deterministic selected path, but it does not persist every caller-supplied optimizer cost-profile setting. In particular, a shadow alternative cannot prove that it satisfies an unrecorded custom `maximumFretMovement` or `maximumStringMovement` transition cap merely because each selected shadow position is an observed physical candidate.
 
-Therefore LR-S0 establishes **candidate-membership / physical-position validity only** for a divergent shadow suggestion. It does not claim policy-equivalence with an unrecorded custom optimizer transition profile. This limitation is acceptable only because `authority: "none"` is mandatory and LR-S0 cannot affect canonical output. Any future milestone that gives a learned path production influence must first bind and validate the relevant path-level policy/provenance explicitly.
+Therefore LR-S0 establishes **candidate-membership / physical-position validity only** for a divergent shadow suggestion. It does not claim policy-equivalence with an unrecorded custom optimizer transition profile. This limitation is acceptable because `authority: "none"` is mandatory and LR-S0 cannot affect canonical output.
+
+For later policy-aware evidence, use the merged LR-S1B.1 / LR-S1B.2a / LR-S1B.2b companion contracts. Their existence does not retrofit LR-S0 itself with policy provenance or production authority.
 
 ## Model contract
 
