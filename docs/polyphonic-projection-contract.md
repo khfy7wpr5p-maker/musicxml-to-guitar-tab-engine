@@ -354,7 +354,7 @@ PA-2 must not duplicate large source subtrees in its result.
 
 ## Failure policy
 
-Projection is fail closed. It must never guess missing timing, fabricate a voice/staff, clamp a cursor, silently drop a note, silently repair malformed `<chord/>`, or normalize staff 3+ into the supported range.
+Projection is fail closed. It must never guess missing timing, invent a voice or staff value other than the explicit contract-defined defaults (`<voice>` absent → `"1"`; `<staff>` absent → `1`), clamp a cursor, silently drop a note, silently repair malformed `<chord/>`, or normalize staff 3+ into the supported range.
 
 Existing error categories should be reused where they already describe the same condition, including unsupported multipart, multistaff, grace and tuplet boundaries. Any new internal error code required specifically for PA-2 must be introduced only with focused negative tests and error-contract review during the implementation gate; PA-2.1 does not expand the public error API.
 
