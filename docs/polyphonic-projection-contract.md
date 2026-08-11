@@ -372,7 +372,15 @@ tieStart
 tieStop
 ```
 
-Both direct `<tie>` and `<notations><tied>` source forms may contribute the same semantic flags. Supported source tie types remain `start`, `stop` and `continue`; malformed tie types fail closed.
+Each supported source tie marker contributes flags exactly as follows, matching the current monophonic `setTie()` behavior:
+
+```text
+type="start"    → tieStart = true
+type="stop"     → tieStop = true
+type="continue" → tieStart = true, tieStop = true
+```
+
+The note begins with `tieStart = false` and `tieStop = false`. Direct `<tie>` markers and direct `<tied>` markers inside each direct `<notations>` element are processed as two source forms of the same semantic facts. Their contributions are combined monotonically by logical OR, so repeated equivalent markers are idempotent and a `start` marker in one form plus a `stop` marker in the other deterministically produces both booleans as `true`. Any marker with a type other than `start`, `stop` or `continue` fails closed.
 
 A source rest containing any direct `<tie>` or `<notations><tied>` marker is malformed for PA-2 and must fail closed. The projector must reject that source rest before constructing the output event; it must not discard the marker by normalizing both tie flags to false.
 
