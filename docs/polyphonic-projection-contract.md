@@ -68,6 +68,15 @@ The future projector accepts only a valid `ParsedMusicXmlDocument 1.0.0` produce
 
 Before detailed musical projection, the same caller-supplied processing runtime must pass through the existing MusicXML semantic resource-limit gate. That gate establishes the current structural baseline and enforces `maxMeasures` and aggregate `maxEvents` before projection work proceeds.
 
+Because the downstream `PolyphonicSourceModel 1.0.0` contract retains the PA-1 fixed ceilings of 2,000 measures and 50,000 events, PA-2 must additionally derive the effective pre-projection ceilings from both boundaries:
+
+```text
+effectiveMaxMeasures = min(runtime.budget.limits.maxMeasures, 2000)
+effectiveMaxEvents = min(runtime.budget.limits.maxEvents, 50000)
+```
+
+Those effective ceilings must be enforced before detailed measure/event projection begins. A caller-supplied runtime may lower either ceiling, but it must not raise the PA-2 projection ceiling above the PA-1 output-model boundary. These compatibility ceilings do not create a second ProcessingBudget authority: deadline, cancellation and runtime checkpoints continue to come from the same caller-supplied processing runtime.
+
 PA-2 must not create an independent second budget/deadline/cancellation authority for the same conversion. The projection participates in the existing processing runtime and adds checkpoints during bounded measure/event/cursor processing.
 
 ## Structural scope
@@ -343,7 +352,8 @@ It also must not expand the package-root API merely to expose the internal proje
 
 The implementation gate must preserve the existing hostile-input posture:
 
-- semantic `maxMeasures` and aggregate `maxEvents` are enforced before detailed projection;
+- before detailed projection, effective measure/event ceilings are `min(runtime.budget.limits.maxMeasures, 2000)` and `min(runtime.budget.limits.maxEvents, 50000)` respectively;
+- caller-supplied runtime limits may tighten those ceilings but may not raise projection work above the PA-1 `PolyphonicSourceModel 1.0.0` boundary;
 - XML structural limits remain upstream authority;
 - measure child scanning is bounded by the already-parsed XML tree limits;
 - processing checkpoints are required at projection start, per measure, per timing operation/event, and completion;
@@ -404,6 +414,6 @@ PA-2.1 is complete when the repository documentation consistently establishes th
 5. voice is preserved as a bounded string and staff is limited to 1–2;
 6. divisions/time-signature inheritance and per-measure stable timing basis are explicit;
 7. projector output is exactly `PolyphonicSourceModel 1.0.0` source truth;
-8. resource budgets, deadline/cancellation and hostile-input boundaries are inherited rather than bypassed;
+8. resource budgets, deadline/cancellation and hostile-input boundaries are inherited rather than bypassed, and effective pre-projection measure/event ceilings are the lower of the caller runtime limit and the PA-1 fixed model ceiling;
 9. no arrangement, fingering, public API or canonical-result authority is introduced;
 10. runtime implementation remains `NOT_IMPLEMENTED` until the separately approved PA-2.2+ gates.
