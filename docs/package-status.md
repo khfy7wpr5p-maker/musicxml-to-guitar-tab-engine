@@ -4,12 +4,12 @@ This document records the current package surface, strongest verified runtime ev
 
 ## Snapshot — 2026-08-11
 
-- current authoritative `main` head after PA-2.0 convergence: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
-- latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
+- PA-2.1 PR #75 base `main` head: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
+- latest merged runtime feature before PA-2.1: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
 - PR #73: rebase-merged on 2026-08-11
-- latest merged documentation gate: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence
+- PA-2.1 baseline documentation merge: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence
 - PR #74: rebase-merged on 2026-08-11
-- post-merge Tests #490: PASS on `main`
+- baseline post-merge Tests #490: PASS on `main`
 - GitHub repository visibility: `public`
 - package name: `musicxml-to-guitar-tab-engine`
 - package version: `0.1.0`
@@ -24,8 +24,8 @@ This document records the current package surface, strongest verified runtime ev
 - PA-0: merged documentation-only polyphonic arrangement architecture
 - PA-1 `PolyphonicSourceModel 1.0.0`: merged internal source-truth foundation
 - PA-2.0 documentation convergence: merged documentation
-- PA-2.1 projection contract: documentation-only current gate; PA-2 runtime projection remains `NOT_IMPLEMENTED`
-- PA-2.2 valid polyphonic red-first fixtures/tests: next separately gated step after PA-2.1 merge
+- PA-2.1 projection contract: documentation-only closure recorded by PR #75; merging PR #75 closes PA-2.1 without runtime authority
+- PA-2.2 valid polyphonic red-first fixtures/tests: separate next tests-only gate requiring explicit approval after PA-2.1 closure
 - application UI / PDF / production playback: not implemented
 
 GitHub repository visibility and npm/package publication state are separate controls. A `public` GitHub repository does **not** change `package.json` `private: true`, does not publish the package to npm and does not create a package release.
@@ -101,8 +101,8 @@ The following remain intentionally internal: EngineError/domain subclasses, Guit
 | LR-S1B.2b path-policy binding/digest | `VERIFIED_ON_MAIN_INTERNAL` |
 | PA-1 `PolyphonicSourceModel 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` |
 | PA-2.0 documentation convergence | `VERIFIED_ON_MAIN_DOCUMENTATION` |
-| PA-2.1 projection contract | `DOCUMENTATION_ONLY_CURRENT_GATE` |
-| PA-2.2 valid polyphonic red-first fixtures/tests | `NOT_STARTED` |
+| PA-2.1 projection contract | `DOCUMENTATION_ONLY` — closure recorded by PR #75; no runtime authority |
+| PA-2.2 valid polyphonic red-first fixtures/tests | `NOT_STARTED` — separate next gate requiring explicit approval after PA-2.1 closure |
 | PA-2 runtime projection | `NOT_IMPLEMENTED` |
 | PA-3+ polyphonic arrangement runtime | `NOT_IMPLEMENTED` |
 | alphaTab MusicXML import | `COMPATIBILITY_VERIFIED` |
@@ -287,7 +287,7 @@ MuseScore is an independent compatibility/engraving/PDF adapter target, not dete
 
 ## PA package boundary
 
-PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is merged. PA-2.1 is the documentation-only projection contract and adds no public polyphonic conversion or package-root API.
+PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is merged. PA-2.1 is the documentation-only projection contract recorded by PR #75 and adds no public polyphonic conversion or package-root API; merging PR #75 closes PA-2.1 without creating runtime authority.
 
 The parallel branch point remains after safe immutable `ParsedMusicXmlDocument 1.0.0`:
 
@@ -305,7 +305,7 @@ ParsedMusicXmlDocument 1.0.0
                      Physical Playability Validator v2
 ```
 
-The PA-2 runtime projector label is an umbrella for the separately gated PA-2.3–PA-2.5 implementation work. PA-2.2 is tests-only and is the next gate after PA-2.1 merge. PA-2.6–PA-2.8 remain separate hardening/regression/CI-review gates.
+The PA-2 runtime projector label is an umbrella for the separately gated PA-2.3–PA-2.5 implementation work. PA-2.2 is tests-only and is a separate next gate requiring explicit approval after PA-2.1 closure. PA-2.6–PA-2.8 remain separate hardening/regression/CI-review gates.
 
 `CanonicalTabResult 1.0.0` remains unchanged in early PA work.
 
@@ -359,10 +359,10 @@ The planned notation contract should define parse, canonical preservation, fail-
 4. PA-1 recovery/review/closure — completed
 5. PA-2.0 PA-1 → PA-2 documentation convergence — completed
 
-### Current / next PA gate
+### PA-2 transition gates
 
-6. PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract — current documentation-only gate
-7. PA-2.2 valid polyphonic red-first fixtures/tests — next separately gated tests-only step after PA-2.1 merge
+6. PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
+7. PA-2.2 valid polyphonic red-first fixtures/tests — separate next tests-only gate requiring explicit approval after PA-2.1 closure
 8. PA-2.3–PA-2.8 projector implementation/hardening/regression/CI-review sequence — separately gated and not started
 
 ### Compatibility and notation foundations
