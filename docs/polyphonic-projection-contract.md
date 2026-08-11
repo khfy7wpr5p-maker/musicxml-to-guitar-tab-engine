@@ -77,6 +77,16 @@ effectiveMaxEvents = min(runtime.budget.limits.maxEvents, 50000)
 
 Those effective ceilings must be enforced before detailed measure/event projection begins. A caller-supplied runtime may lower either ceiling, but it must not raise the PA-2 projection ceiling above the PA-1 output-model boundary. These compatibility ceilings do not create a second ProcessingBudget authority: deadline, cancellation and runtime checkpoints continue to come from the same caller-supplied processing runtime.
 
+PA-2 must also enforce the output-bound PA-1 string ceilings before it starts allocating a detailed projected event graph:
+
+- selected `partId` / `source.partId`: non-empty and at most 256 characters;
+- source MusicXML version metadata: `null` or at most 32 characters;
+- source measure number: non-empty and at most 256 characters before events for that measure are constructed;
+- voice identifier: non-empty and at most 64 characters before the corresponding event is constructed;
+- every derived `measureId` and `sourceEventId`: at most 256 characters.
+
+The semantic resource-limit pass already establishes bounded measure/event counts. Using those counts, PA-2 must verify before detailed projection that the selected `partId` can produce every possible deterministic `measureId` and `sourceEventId` required by that document without exceeding the PA-1 256-character output boundary. It must not duplicate an over-limit source identifier across a large output graph and rely on the final PA-1 constructor to reject it afterward. Actual measure numbers, voices and derived IDs are still validated at their local measure/event boundary before the corresponding output objects are allocated.
+
 PA-2 must not create an independent second budget/deadline/cancellation authority for the same conversion. The projection participates in the existing processing runtime and adds checkpoints during bounded measure/event/cursor processing.
 
 ## Structural scope
@@ -92,7 +102,7 @@ Initial PA-2 projection is deliberately narrow:
 - source `<chord/>` allowed under the rules below;
 - `backup` and `forward` allowed only as bounded cursor operations;
 - inherited `divisions` and time signature supported;
-- measure `implicit="yes"` preserved;
+- measure `implicit` accepts only `yes`, `no` or absence under the rules below;
 - grace-note semantics rejected;
 - tuplets / `time-modification` rejected;
 - staff 3+ rejected;
@@ -112,7 +122,8 @@ For every successful projection:
 5. cursor arithmetic is safe-integer bounded and cannot underflow below zero;
 6. no projected event extends beyond the model's declared measure duration;
 7. the source MusicXML and `ParsedMusicXmlDocument` remain immutable;
-8. current monophonic conversion output is unaffected.
+8. projected objects do not share semantic object/array references that the hostile-graph-hardened PA-1 validator rejects;
+9. current monophonic conversion output is unaffected.
 
 ## Measure projection
 
@@ -124,18 +135,38 @@ For measure index `i`:
 measureId = <partId>:measure:<i>
 index = i
 number = bounded non-empty source measure number
-implicit = true only when source implicit="yes"
 ```
 
-The projector carries forward active `divisions`, time signature and declared staff count between measures according to MusicXML inheritance rules.
+The source `implicit` attribute is interpreted exactly as:
 
-A valid active `divisions` and time signature must exist before the first note/rest/timing cursor operation requiring them.
+```text
+implicit="yes" → true
+implicit="no"  → false
+attribute absent → false
+any other value → fail closed
+```
+
+A malformed value such as `implicit="maybe"` must not be normalized to `false` merely because it is not `yes`.
+
+The projector carries forward active `divisions`, time signature and declared staff count between measures according to MusicXML inheritance rules. Inherited structured values such as `timeSignature` are copied by value into fresh output objects; one mutable or shared object reference must not be reused across multiple projected measures.
+
+A valid active `divisions` and time signature must exist before the first note/rest/timing cursor operation requiring them. Every projected measure, including an empty measure, must also have a valid resolved `divisions` and time signature by measure finalization so that the required PA-1 `expectedDurationDivisions` can be constructed and validated.
 
 ### Stable timing basis per measure
 
 `PolyphonicSourceModel 1.0.0` has exactly one `divisions` value and one time signature per measure. Therefore PA-2.1 requires those timing values to be stable for the projected measure.
 
-Direct `<attributes>` elements before the first note/backup/forward may establish or update the inherited values. A divisions or time-signature change after timing activity has begun is outside the PA-2 initial contract and must fail closed rather than being silently flattened into one measure-level value.
+Direct `<attributes>` elements before the first note/backup/forward may establish or update the inherited values. Across that pre-timing region, each PA-2 semantic singleton may be declared at most once per measure:
+
+- direct `<divisions>`: zero or one declaration;
+- direct `<time>`: zero or one declaration;
+- direct `<staves>`: zero or one declaration.
+
+A duplicate declaration fails closed even when both values happen to be equal; PA-2 must not use first-wins or last-wins normalization. A divisions, time-signature or staff-count declaration/change after timing activity has begun is outside the PA-2 initial contract and must fail closed rather than being silently flattened into one measure-level value.
+
+When direct `<time>` is present, it must contain exactly one direct `<beats>` and exactly one direct `<beat-type>`. Both values must be positive safe integers. Repeated/additive meter components or duplicate timing singleton children are outside the initial PA-2 contract and fail closed rather than being collapsed.
+
+When direct `<staves>` is present, it must be a positive safe integer and only values `1` or `2` are accepted.
 
 The expected measure duration is:
 
@@ -160,7 +191,7 @@ third source note  → sourceOrder 2
 ...
 ```
 
-`backup`, `forward`, `attributes` and other non-note source elements do not increment `sourceOrder`.
+`backup`, `forward`, `attributes` and other non-note source elements do not increment `sourceOrder`. This source-order rule does not itself authorize unknown elements to be silently ignored; all non-projected source constructs remain subject to the semantic handling policy below.
 
 The deterministic event identity is:
 
@@ -196,11 +227,17 @@ The note/rest duration must be a positive safe integer.
 
 For a direct `<backup>` element:
 
+- exactly one direct `<duration>` is required;
+- duplicate or missing direct `<duration>` fails closed;
+- the duration must be a positive safe integer.
+
+Then:
+
 ```text
 cursor = cursor - duration
 ```
 
-The duration must be a positive safe integer. If subtraction would move the cursor below zero, projection fails closed.
+If subtraction would move the cursor below zero, projection fails closed.
 
 `backup` creates no source event.
 
@@ -208,11 +245,17 @@ The duration must be a positive safe integer. If subtraction would move the curs
 
 For a direct `<forward>` element:
 
+- exactly one direct `<duration>` is required;
+- duplicate or missing direct `<duration>` fails closed;
+- the duration must be a positive safe integer.
+
+Then:
+
 ```text
 cursor = cursor + duration
 ```
 
-The duration must be a positive safe integer. If addition is unsafe or moves the cursor beyond the declared measure duration, projection fails closed.
+If addition is unsafe or moves the cursor beyond the declared measure duration, projection fails closed.
 
 `forward` creates no source event.
 
@@ -243,6 +286,7 @@ It does not create a `ChordGroup`, guitar chord shape or arrangement decision.
 
 For a note containing direct `<chord/>`:
 
+- exactly one direct `<chord/>` is allowed; duplicate markers fail closed;
 - it must be a pitched note, not a rest;
 - a source `<note>` must immediately precede it in the same measure with no intervening timing cursor operation;
 - the preceding projected source event must be a note;
@@ -267,7 +311,7 @@ Projection rule:
 - zero direct `<voice>` elements → default voice `"1"`;
 - exactly one direct `<voice>` → trim surrounding XML text whitespace and preserve the resulting non-empty source identifier;
 - duplicate direct `<voice>` elements → fail closed;
-- empty or over-limit voice identifiers → fail closed.
+- empty identifiers or identifiers longer than the PA-1 64-character limit → fail closed.
 
 Numeric-looking identifiers remain strings. For example source `2` becomes `"2"`, not integer `2`.
 
@@ -292,21 +336,25 @@ A projected source event must represent exactly one pitched note or one rest.
 For every direct `<note>`:
 
 - exactly one positive `<duration>` is required;
+- zero or one direct `<chord/>` is allowed;
+- zero or one direct `<voice>` is allowed;
+- zero or one direct `<staff>` is allowed;
 - `<grace>` is rejected;
 - `<time-modification>` is rejected;
 - exactly one of direct `<rest>` or direct `<pitch>` must be present;
 - duplicate semantic singleton elements fail closed rather than using first/last-wins normalization.
 
-The projector does not require the monophonic adapter's current rhythm-type whitelist merely to establish polyphonic source timing. PA-2 source timing authority is the validated positive MusicXML duration in the active divisions basis. Advanced notation whose semantics cannot be represented safely by `PolyphonicSourceModel 1.0.0` remains separately gated and must be rejected where required by this contract.
+The projector does not require the monophonic adapter's current rhythm-type whitelist merely to establish polyphonic source timing. PA-2 source timing authority is the validated positive MusicXML duration in the active divisions basis. Advanced notation whose semantics cannot be represented safely by `PolyphonicSourceModel 1.0.0` remains separately gated and must be rejected where required by this contract and the semantic handling policy below.
 
 ## Pitch projection
 
-For note events:
+For note events, the direct `<pitch>` value is also singleton-normalized fail closed:
 
-- `step` must be `A` through `G`;
-- missing `alter` means `0`;
+- exactly one direct `<step>` is required and must be `A` through `G`;
+- zero or one direct `<alter>` is allowed; missing `alter` means `0`;
 - explicit `alter` must be an integer from -2 through 2;
-- `octave` is required;
+- exactly one direct `<octave>` is required;
+- duplicate pitch singleton children fail closed;
 - MIDI is derived through the existing pitch utility;
 - `written` is deterministically derived from step/alter/octave;
 - no source MIDI/written value is trusted over those components.
@@ -329,6 +377,16 @@ Both direct `<tie>` and `<notations><tied>` source forms may contribute the same
 A source rest containing any direct `<tie>` or `<notations><tied>` marker is malformed for PA-2 and must fail closed. The projector must reject that source rest before constructing the output event; it must not discard the marker by normalizing both tie flags to false.
 
 Only rest events with no source tie markers produce `tieStart: false` and `tieStop: false`.
+
+## Semantic handling of non-projected MusicXML
+
+`ParsedMusicXmlDocument 1.0.0` proves bounded, immutable, well-formed XML; it is not a complete MusicXML schema/semantic validator. PA-2 therefore must not treat every unrecognized or unprojected element/attribute as harmless merely because XML parsing succeeded.
+
+An implementation may ignore a source construct only when its semantics are known not to change any PA-2 / PA-1 source fact represented by this contract: selected-part structure, measure timing basis, cursor position, note/rest identity, pitch, duration, voice, staff, source chord relation or tie facts. Presentation-only or metadata-only source content may therefore be ignored when that non-authority is explicit and covered by tests.
+
+If a source construct can alter one of those represented facts, introduces semantics that `PolyphonicSourceModel 1.0.0` cannot express, or its effect is unknown to the implementation, projection must fail closed rather than silently discarding or flattening it. Adding a new ignored semantic category requires focused contract/tests evidence; unsupported musical meaning must not become accepted merely because a parser branch has no handler for it.
+
+This policy does not authorize PA-2 to add new output fields. New musical semantics that need preservation remain separately gated.
 
 ## Fields intentionally not created by PA-2
 
@@ -354,19 +412,21 @@ The implementation gate must preserve the existing hostile-input posture:
 
 - before detailed projection, effective measure/event ceilings are `min(runtime.budget.limits.maxMeasures, 2000)` and `min(runtime.budget.limits.maxEvents, 50000)` respectively;
 - caller-supplied runtime limits may tighten those ceilings but may not raise projection work above the PA-1 `PolyphonicSourceModel 1.0.0` boundary;
+- PA-1 output-bound source/derived string ceilings are checked before repeated output allocation as defined above;
 - XML structural limits remain upstream authority;
 - measure child scanning is bounded by the already-parsed XML tree limits;
 - processing checkpoints are required at projection start, per measure, per timing operation/event, and completion;
 - cancellation/deadline failure propagates through the existing processing runtime;
 - no recursive unbounded source walk is required for normal projection;
 - no network, filesystem, environment or external callback access is allowed;
+- output semantic objects/arrays are freshly constructed and do not intentionally reuse shared references across the model;
 - projector output must pass the hostile-graph-hardened PA-1 model constructor before return.
 
 PA-2 must not duplicate large source subtrees in its result.
 
 ## Failure policy
 
-Projection is fail closed. It must never guess missing timing, invent a voice or staff value other than the explicit contract-defined defaults (`<voice>` absent → `"1"`; `<staff>` absent → `1`), clamp a cursor, silently drop a note, silently repair malformed `<chord/>`, or normalize staff 3+ into the supported range.
+Projection is fail closed. It must never guess missing timing, invent a voice or staff value other than the explicit contract-defined defaults (`<voice>` absent → `"1"`; `<staff>` absent → `1`), clamp a cursor, silently drop a note, silently repair malformed `<chord/>`, normalize an invalid `implicit` value, choose among duplicate semantic singleton values, or normalize staff 3+ into the supported range.
 
 Existing error categories should be reused where they already describe the same condition, including unsupported multipart, multistaff, grace and tuplet boundaries. Any new internal error code required specifically for PA-2 must be introduced only with focused negative tests and error-contract review during the implementation gate; PA-2.1 does not expand the public error API.
 
@@ -410,10 +470,15 @@ PA-2.1 is complete when the repository documentation consistently establishes th
 1. PA-2 is a separate internal projection after `ParsedMusicXmlDocument 1.0.0`;
 2. the existing monophonic adapter remains unchanged and fail closed;
 3. source-order and musical-onset order are distinct;
-4. normal note, `backup`, `forward` and `<chord/>` cursor semantics are explicit;
+4. normal note, `backup`, `forward` and `<chord/>` cursor semantics are explicit, including timing-element cardinality;
 5. voice is preserved as a bounded string and staff is limited to 1–2;
-6. divisions/time-signature inheritance and per-measure stable timing basis are explicit;
-7. projector output is exactly `PolyphonicSourceModel 1.0.0` source truth;
-8. resource budgets, deadline/cancellation and hostile-input boundaries are inherited rather than bypassed, and effective pre-projection measure/event ceilings are the lower of the caller runtime limit and the PA-1 fixed model ceiling;
-9. no arrangement, fingering, public API or canonical-result authority is introduced;
-10. runtime implementation remains `NOT_IMPLEMENTED` until the separately approved PA-2.2+ gates.
+6. divisions/time-signature/staff-count inheritance, singleton cardinality and per-measure stable timing basis are explicit;
+7. every projected measure, including an empty measure, resolves a valid timing basis before finalization;
+8. malformed `implicit` values and duplicate semantic singleton values fail closed rather than being normalized;
+9. PA-1 source/derived string ceilings are enforced before repeated detailed output allocation;
+10. projected structured values are constructed without hostile shared-reference reuse;
+11. unsupported or unknown MusicXML semantics are ignored only when they are known not to alter represented PA-1 source facts; otherwise they fail closed;
+12. projector output is exactly `PolyphonicSourceModel 1.0.0` source truth;
+13. resource budgets, deadline/cancellation and hostile-input boundaries are inherited rather than bypassed, and effective pre-projection measure/event ceilings are the lower of the caller runtime limit and the PA-1 fixed model ceiling;
+14. no arrangement, fingering, public API or canonical-result authority is introduced;
+15. runtime implementation remains `NOT_IMPLEMENTED` until the separately approved PA-2.2+ gates.
