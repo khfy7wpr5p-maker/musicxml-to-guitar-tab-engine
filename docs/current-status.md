@@ -4,12 +4,12 @@ This document records the verified implementation state of the authoritative run
 
 ## Snapshot — 2026-08-11
 
-- current authoritative `main` head for this PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
+- current authoritative `main` head after PA-2.0 convergence: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
 - latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
 - PR #73: rebase-merged on 2026-08-11
-- post-merge Tests #488: PASS on `main`
-- pre-merge exact-head Tests #487: PASS on Node.js 18 / 20 / 22
-- pre-merge exact-head MusicXML Compatibility #319: PASS
+- latest merged documentation gate: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence
+- PR #74: rebase-merged on 2026-08-11
+- post-merge Tests #490: PASS on `main`
 - current package version: `0.1.0`
 - current canonical result: `CanonicalTabResult 1.0.0`
 - current internal error contract: `EngineError 1.0.0`
@@ -21,14 +21,16 @@ This document records the verified implementation state of the authoritative run
 - LR-S0 / LR-S1A / LR-S1B.1 / LR-S1B.2a / LR-S1B.2b: merged internal, non-authoritative learning path
 - PA-0 Polyphonic MusicXML → Guitar Arrangement architecture: merged documentation
 - PA-1 `PolyphonicSourceModel 1.0.0`: merged internal source-truth foundation
-- PA-2 parallel polyphonic projection: not implemented; next gated PA step
+- PA-2.0 documentation convergence: merged documentation
+- PA-2.1 projection contract: documentation-only current gate; PA-2 runtime projection remains `NOT_IMPLEMENTED`
+- PA-2.2 valid polyphonic red-first fixtures/tests: next separately gated step after PA-2.1 merge
 - production application UI: not implemented
 - MuseScore semantic round-trip: not executed
 - production PDF renderer: not implemented
 - G0.1 administrator enforcement: completed
 - historical branch audit: completed
 
-PA-1 does not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic.
+PA-1 and PA-2.1 do not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic.
 
 ## Status labels
 
@@ -315,25 +317,27 @@ No production application UI is currently implemented in this repository.
 
 Application UI, renderers, editors and persistence layers must remain downstream adapters and cannot directly mutate authoritative canonical objects.
 
-## PA-0 / PA-1 polyphonic status
+## PA-0 / PA-1 / PA-2.1 polyphonic status
 
-PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. Together they define the parallel path after `ParsedMusicXmlDocument 1.0.0` without changing the public monophonic path.
+PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. PA-2.0 documentation convergence is merged. PA-2.1 defines the documentation-only projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`; it does not implement that projection or change the public monophonic path.
 
 ```text
 ParsedMusicXmlDocument 1.0.0
   ├─ existing monophonic projection → current deterministic TAB core
-  └─ PA-2 polyphonic projection → PolyphonicSourceModel 1.0.0
-                                ↓
-                          GuitarArrangementPlan
-                                ↓
-                          guitar-compatible score
-                                ↓
-                          chord/left-hand model
-                                ↓
-                          Playability Validator v2
-                                ↓
-                          deterministic arrangement optimizer
+  └─ PA-2 runtime projector → PolyphonicSourceModel 1.0.0
+                            ↓
+                      GuitarArrangementPlan
+                            ↓
+                      guitar-compatible score
+                            ↓
+                      chord/left-hand model
+                            ↓
+                      Playability Validator v2
+                            ↓
+                      deterministic arrangement optimizer
 ```
+
+The PA-2 runtime projector in this diagram is an umbrella label for the separately gated PA-2.3–PA-2.5 implementation work. PA-2.2 is tests-only and must precede runtime implementation.
 
 Original MusicXML remains immutable source truth. Arrangement transformations such as omission, octave displacement, voice redistribution, chord reduction/revoicing or arpeggiation require explicit provenance.
 
@@ -349,19 +353,27 @@ PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic s
 |---:|---|---|
 | 1 | PA-0 Documentation + architecture planning | `MERGED_DOCUMENTATION_ONLY` |
 | 2 | PA-1 `PolyphonicSourceModel 1.0` | `MERGED_INTERNAL` |
-| 3 | PA-2 Parallel polyphonic projection | `NOT_IMPLEMENTED` — next gate |
-| 4 | PA-3 Simultaneous-event / chord contract | `NOT_IMPLEMENTED` |
-| 5 | PA-4 Arrangement-decision + provenance contract | `NOT_IMPLEMENTED` |
-| 6 | PA-5 Deterministic melody/bass/voice analysis | `NOT_IMPLEMENTED` |
-| 7 | PA-6 Deterministic reduction / octave rules | `NOT_IMPLEMENTED` |
-| 8 | PA-7 Guitar chord/voicing candidates | `NOT_IMPLEMENTED` |
-| 9 | PA-8 Left-hand shape / finger assignment / barre | `NOT_IMPLEMENTED` |
-| 10 | PA-9 Physical Playability Validator v2 | `NOT_IMPLEMENTED` |
-| 11 | PA-10 Canonical v1/v2 compatibility review | `BLOCKED` |
-| 12 | PA-11 Teacher-approved arrangement benchmark | `BLOCKED` |
-| 13 | PA-12 Internal polyphonic E2E + monophonic compatibility | `BLOCKED` |
-| 14 | PA-13 Public arrangement API review | `BLOCKED` |
-| 15 | PA-14 ScoreMosaic/SesliTab adapter integration | `BLOCKED` |
+| 3 | PA-2.0 PA-1 → PA-2 documentation convergence | `MERGED_DOCUMENTATION_ONLY` |
+| 4 | PA-2.1 Projection contract | `DOCUMENTATION_ONLY_CURRENT_GATE` |
+| 5 | PA-2.2 Valid polyphonic red-first fixtures/tests | `NOT_STARTED` — next after PA-2.1 merge |
+| 6 | PA-2.3 Minimal internal note/rest projector | `BLOCKED_BY_PA_2_2` |
+| 7 | PA-2.4 `backup` / `forward` cursor semantics | `BLOCKED_BY_PA_2_3` |
+| 8 | PA-2.5 `<chord/>`, multiple voice, staff 1–2 projection | `BLOCKED_BY_PA_2_4` |
+| 9 | PA-2.6 Hostile/budget/deadline/cancellation negatives | `BLOCKED_BY_PA_2_5` |
+| 10 | PA-2.7 Full regression + monophonic compatibility | `BLOCKED_BY_PA_2_6` |
+| 11 | PA-2.8 GitHub CI + independent review | `BLOCKED_BY_PA_2_7` |
+| 12 | PA-3 Simultaneous-event / chord contract | `NOT_IMPLEMENTED` |
+| 13 | PA-4 Arrangement-decision + provenance contract | `NOT_IMPLEMENTED` |
+| 14 | PA-5 Deterministic melody/bass/voice analysis | `NOT_IMPLEMENTED` |
+| 15 | PA-6 Deterministic reduction / octave rules | `NOT_IMPLEMENTED` |
+| 16 | PA-7 Guitar chord/voicing candidates | `NOT_IMPLEMENTED` |
+| 17 | PA-8 Left-hand shape / finger assignment / barre | `NOT_IMPLEMENTED` |
+| 18 | PA-9 Physical Playability Validator v2 | `NOT_IMPLEMENTED` |
+| 19 | PA-10 Canonical v1/v2 compatibility review | `BLOCKED` |
+| 20 | PA-11 Teacher-approved arrangement benchmark | `BLOCKED` |
+| 21 | PA-12 Internal polyphonic E2E + monophonic compatibility | `BLOCKED` |
+| 22 | PA-13 Public arrangement API review | `BLOCKED` |
+| 23 | PA-14 ScoreMosaic/SesliTab adapter integration | `BLOCKED` |
 
 ## Learning/training capabilities explicitly not implemented or authorized
 
@@ -385,24 +397,26 @@ These remain blocked by explicit prerequisites and must not be inferred from the
 | 2 | G0.1 administrator-bypass governance hardening | `COMPLETED` |
 | 3 | Historical branch inventory / orphan-work audit | `COMPLETED` |
 | 4 | PA-1 recovery audit and closure | `COMPLETED` |
-| 5 | PA-2.0 PA-1 → PA-2 documentation convergence | `IN_PROGRESS_DOCS_ONLY` |
-| 6 | PA-2 Parallel polyphonic projection | `NEXT_NOT_IMPLEMENTED` |
-| 7 | Musical Notation Coverage contract | `NOT_STARTED` |
-| 8 | MuseScore semantic compatibility gate | `NOT_STARTED` |
-| 9 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
-| 10 | Application/Presentation architecture contract | `NOT_STARTED` |
-| 11 | alphaTab application viewer | `NOT_IMPLEMENTED` |
-| 12 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
-| 13 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
-| 14 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
-| 15 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
-| 16 | Export center | `NOT_IMPLEMENTED` |
-| 17 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
-| 18 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
-| 19 | Project persistence | `NOT_IMPLEMENTED` |
-| 20 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
-| 21 | PA-3…PA-14 | `BLOCKED_BY_PA_2_SEQUENCE` |
-| 22 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
+| 5 | PA-2.0 PA-1 → PA-2 documentation convergence | `COMPLETED` |
+| 6 | PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | `CURRENT_DOCS_ONLY` |
+| 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `NEXT_TESTS_ONLY_AFTER_PA_2_1_MERGE` |
+| 8 | PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence | `SEPARATELY_GATED_NOT_STARTED` |
+| 9 | Musical Notation Coverage contract | `NOT_STARTED` |
+| 10 | MuseScore semantic compatibility gate | `NOT_STARTED` |
+| 11 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
+| 12 | Application/Presentation architecture contract | `NOT_STARTED` |
+| 13 | alphaTab application viewer | `NOT_IMPLEMENTED` |
+| 14 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
+| 15 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
+| 16 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
+| 17 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
+| 18 | Export center | `NOT_IMPLEMENTED` |
+| 19 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
+| 20 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
+| 21 | Project persistence | `NOT_IMPLEMENTED` |
+| 22 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
+| 23 | PA-3…PA-14 | `BLOCKED_BY_PA_2_SEQUENCE` |
+| 24 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
 
 ## High-risk protection rule
 

@@ -317,7 +317,9 @@ tieStop
 
 Both direct `<tie>` and `<notations><tied>` source forms may contribute the same semantic flags. Supported source tie types remain `start`, `stop` and `continue`; malformed tie types fail closed.
 
-Rests must produce `tieStart: false` and `tieStop: false`.
+A source rest containing any direct `<tie>` or `<notations><tied>` marker is malformed for PA-2 and must fail closed. The projector must reject that source rest before constructing the output event; it must not discard the marker by normalizing both tie flags to false.
+
+Only rest events with no source tie markers produce `tieStart: false` and `tieStop: false`.
 
 ## Fields intentionally not created by PA-2
 
