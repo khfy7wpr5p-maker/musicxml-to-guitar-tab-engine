@@ -2,21 +2,25 @@
 
 This file is the required starting point for AI agents, coding assistants, reviewers and automated tools working with this repository.
 
-## Verified runtime snapshot — 2026-08-10
+## Verified runtime snapshot — 2026-08-11
 
 - authoritative branch: `main`
-- runtime baseline reviewed before this documentation convergence: `05c3a59e1f615417d637a6ae71e3e42d552ffca5`
-- latest merged runtime feature: PR #71 — LR-S1B.2b Optimizer Path-Policy Binding + Binding Digest
-- PR #71 merge commit: `05c3a59e1f615417d637a6ae71e3e42d552ffca5`
-- post-merge Tests #464: PASS on Node.js 18 / 20 / 22
+- current authoritative `main` head for this PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
+- latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
+- PR #73: rebase-merged on 2026-08-11
+- post-merge Tests #488: PASS on `main`
+- pre-merge exact-head Tests #487: PASS on Node.js 18 / 20 / 22
+- pre-merge exact-head MusicXML Compatibility #319: PASS
 - package version: `0.1.0`
 - package metadata: `private: true`, `UNLICENSED`
 - canonical result contract: `CanonicalTabResult 1.0.0`
 - internal error contract: `EngineError 1.0.0`
 - public error detection boundary: PEB-1
-- G0.1 administrator-bypass hardening remains open because required-check enforcement is recorded as `non_admins`
+- PA-1: `MERGED_INTERNAL`, source-truth authority only
+- PA-2: `NOT_IMPLEMENTED`, next gated PA step
+- G0.1 administrator-bypass hardening: completed
 
-A documentation-only merge may advance `main` without changing runtime behavior. Do not use an older documentation SHA as proof that later merged runtime contracts are absent.
+PA-1 does not make polyphonic conversion public. The existing public monophonic conversion behavior remains protected and unchanged.
 
 ## Source-of-truth order
 
@@ -124,7 +128,7 @@ Do not expand support by deleting or weakening current `UNSUPPORTED_*` rejection
 - `serializeCanonicalTabResultToMusicXml`
 - `validateMidi`
 
-Observation, feedback, benchmark, shadow-ranking, path-policy and future polyphonic-arrangement APIs remain internal.
+Observation, feedback, benchmark, shadow-ranking, path-policy and polyphonic-arrangement APIs remain internal.
 
 ## Non-negotiable architecture rules
 
@@ -170,6 +174,7 @@ Merged runtime foundations include:
 - `EngineError 1.0.0`
 - PEB-1 public error detection
 - `Integration Contract v1`
+- internal PA-1 `PolyphonicSourceModel 1.0.0` source-truth foundation
 
 These are current capabilities and must not be marked `NOT_IMPLEMENTED` based only on an old planned directory tree.
 
@@ -293,9 +298,9 @@ Separate future gates are required for:
 
 These must be added through an explicit notation-coverage contract with parser/preservation/rejection/render/round-trip tests. Do not silently accept unsupported notation.
 
-## PA-0 — Polyphonic MusicXML → Guitar Arrangement
+## PA-0 / PA-1 — Polyphonic MusicXML → Guitar Arrangement foundation
 
-PA-0 architecture is merged. Current monophonic behavior is protected.
+PA-0 architecture and PA-1 `PolyphonicSourceModel 1.0.0` are merged. Current monophonic behavior remains protected.
 
 Approved target:
 
@@ -306,7 +311,7 @@ XML Safety + ProcessingBudget
         ↓
 ParsedMusicXmlDocument 1.0.0
         ↓
-PolyphonicSourceModel
+PolyphonicSourceModel 1.0.0
         ↓
 source-score analysis
         ↓
@@ -327,21 +332,17 @@ Original MusicXML is immutable source truth. Arrangement decisions such as omiss
 
 `CanonicalTabResult 1.0.0` must remain unchanged during early PA gates. A later PA-10 review decides whether a compatible bridge or new chord-aware canonical version is required.
 
-### PA-1 unmerged work
+### PA-1 closure
 
-Real PA-1 work exists on:
+PA-1 was recovered onto a fresh current-main branch, hardened with fail-closed tests, independently reviewed and rebase-merged through PR #73. The final P2 aggregate-event-budget issue was reproduced red-first and fixed before merge. Post-merge Tests #488 passed on `main`. The recovery branch was then deleted after a read-only content-equivalence check.
 
-- branch: `feature/pa-1-polyphonic-source-model-v1`
-- head reviewed: `86d3c35b6c6af42f6e3608c03a60dfc813f8e7ff`
-- files: `src/music/polyphonicSourceModel.js`, `tests/polyphonicSourceModel.test.js`, `docs/polyphonic-source-model-contract.md`
-
-At the 2026-08-10 convergence review this branch is diverged from current `main` (3 unique commits ahead and 24 commits behind). It must not be directly merged or deleted as routine cleanup. First perform a read-only recovery/compatibility audit against current `main`, then use the approved small-gate workflow.
+PA-1 authority remains internal source truth only. It does not provide parser projection, chord grouping, arrangement decisions, guitar fingering or public polyphonic conversion.
 
 ### PA safe sequence
 
 1. PA-0 documentation/architecture — merged
-2. PA-1 `PolyphonicSourceModel 1.0` — unmerged work; recovery/review required
-3. PA-2 parallel polyphonic projection
+2. PA-1 `PolyphonicSourceModel 1.0` — merged internal
+3. PA-2 parallel polyphonic projection — next / not implemented
 4. PA-3 simultaneous-event/chord contract
 5. PA-4 arrangement-decision + provenance contract
 6. PA-5 deterministic melody/bass/voice analysis
@@ -380,37 +381,39 @@ Planned application capabilities include:
 
 Application UI, renderer, editor and persistence layers are downstream adapters. They cannot directly mutate authoritative canonical objects or bypass validation.
 
-## Current safe development order — 2026-08-10
+## Current safe development order — 2026-08-11
 
-1. Documentation Convergence
-2. G0.1 administrator-bypass governance hardening
-3. historical branch inventory / orphan-work audit
-4. PA-1 recovery audit and closure
-5. musical-notation coverage contract
-6. MuseScore semantic compatibility gate
-7. independent real-world MusicXML E2E fixture gate
-8. application/presentation architecture contract
-9. alphaTab application viewer
-10. measure/beat cursor integration
-11. playback adapter + Play/Pause/Stop after synth evidence
-12. teacher fingering correction UI
-13. teacher score-correction contract/UI
-14. export center
-15. MuseScore/PDF adapter
-16. PDF viewer / print / share
-17. project persistence
-18. application E2E
-19. continue PA-2…PA-14 in order
-20. production learned/training work only after durable-storage and lawful-use/privacy prerequisites
+1. Documentation Convergence — completed
+2. G0.1 administrator-bypass governance hardening — completed
+3. historical branch inventory / orphan-work audit — completed
+4. PA-1 recovery audit and closure — completed
+5. PA-2.0 PA-1 → PA-2 documentation convergence — current docs-only gate
+6. PA-2 parallel polyphonic projection — next runtime/contract gate
+7. Musical Notation Coverage contract
+8. MuseScore semantic compatibility gate
+9. independent real-world MusicXML E2E fixture gate
+10. application/presentation architecture contract
+11. alphaTab application viewer
+12. measure/beat cursor integration
+13. playback adapter + Play/Pause/Stop after synth evidence
+14. teacher fingering correction UI
+15. teacher score-correction contract/UI
+16. export center
+17. MuseScore/PDF adapter
+18. PDF viewer / print / share
+19. project persistence
+20. application E2E
+21. continue PA-3…PA-14 in order after PA-2
+22. production learned/training work only after durable-storage and lawful-use/privacy prerequisites
 
 ## Repository governance
 
 - `main` is protected.
 - required Node.js and compatibility checks are configured.
 - workflow third-party actions are SHA-pinned.
-- administrator enforcement remains open (`non_admins`).
-- historical branch cleanup must be preceded by merged/unmerged/unique-commit classification.
-- do not delete PA-1 as stale cleanup.
+- G0.1 administrator enforcement is completed.
+- historical branch audit is completed; each cleanup action remains separately gated.
+- the PA-1 recovery branch was deleted only after successful merge and content-equivalence verification.
 
 ## Safe-development protocol for agents
 
