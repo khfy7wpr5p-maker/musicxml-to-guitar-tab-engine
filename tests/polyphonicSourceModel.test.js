@@ -368,3 +368,74 @@ test('rejects numeric-looking custom array properties beyond array length fail c
   });
   expectInvalid(model);
 });
+
+test('enforces the aggregate event budget before validating an over-budget measure', () => {
+  function budgetRestEvent(measureIndex, eventIndex, staff = 1) {
+    const measureNumber = String(measureIndex + 1);
+    return {
+      sourceEventId: createSourceEventId('P1', measureIndex, eventIndex),
+      sourceOrder: eventIndex,
+      type: 'rest',
+      voice: '1',
+      staff,
+      onsetDivisions: 0,
+      durationDivisions: 1,
+      tieStart: false,
+      tieStop: false,
+      source: {
+        partId: 'P1',
+        measureIndex,
+        measureNumber,
+        noteIndex: eventIndex,
+        chordWithPrevious: false,
+      },
+    };
+  }
+
+  function budgetMeasure(measureIndex, eventTotal, firstStaff = 1) {
+    const number = String(measureIndex + 1);
+    return {
+      measureId: createMeasureId('P1', measureIndex),
+      index: measureIndex,
+      number,
+      implicit: false,
+      divisions: 1,
+      timeSignature: { beats: 4, beatType: 4 },
+      expectedDurationDivisions: 4,
+      events: Array.from(
+        { length: eventTotal },
+        (_, eventIndex) => budgetRestEvent(
+          measureIndex,
+          eventIndex,
+          eventIndex === 0 ? firstStaff : 1,
+        ),
+      ),
+    };
+  }
+
+  const model = {
+    documentType: 'PolyphonicSourceModel',
+    contractVersion: POLYPHONIC_SOURCE_MODEL_VERSION,
+    source: {
+      format: 'score-partwise',
+      musicXmlVersion: '4.0',
+      partId: 'P1',
+    },
+    measureCount: 2,
+    eventCount: 50_000,
+    measures: [
+      budgetMeasure(0, 50_000),
+      budgetMeasure(1, 1, 3),
+    ],
+  };
+
+  assert.throws(
+    () => validatePolyphonicSourceModel(model),
+    (error) => {
+      assert.ok(error instanceof PolyphonicSourceModelError);
+      assert.equal(error.code, 'INVALID_POLYPHONIC_SOURCE_MODEL');
+      assert.equal(error.message, 'model events exceed the ProcessingBudget default boundary.');
+      return true;
+    },
+  );
+});
