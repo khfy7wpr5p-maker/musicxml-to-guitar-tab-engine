@@ -4,11 +4,11 @@
 
 This document distinguishes **implemented runtime architecture** from **planned product architecture**.
 
-The authoritative `main` head after PA-2.0 convergence is:
+The PA-2.1 PR #75 base `main` head is:
 
 `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
 
-Latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`, rebase-merged on 2026-08-11. Latest merged documentation gate: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence, rebase-merged on 2026-08-11. Post-merge Tests #490 passed on `main`. PA-2.1 is the documentation-only current projection-contract gate; PA-2 runtime projection remains `NOT_IMPLEMENTED` and PA-2.2 is the next separately gated tests-only step after PA-2.1 merge.
+Latest merged runtime feature before PA-2.1: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`, rebase-merged on 2026-08-11. PA-2.1 baseline documentation merge: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence, rebase-merged on 2026-08-11. Baseline post-merge Tests #490 passed on `main`. PA-2.1 is the documentation-only projection contract recorded by PR #75; merging that PR closes PA-2.1 without runtime authority. PA-2.2 remains a separately gated tests-only step requiring explicit approval after PA-2.1 closure.
 
 For current runtime truth, use this authority order:
 
@@ -537,7 +537,7 @@ Production learned ranking remains blocked until separate durable storage, priva
 
 ## 17. Polyphonic MusicXML → Guitar Arrangement architecture
 
-PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is also merged. PA-2.1 is the current documentation-only contract for the future internal projection from `ParsedMusicXmlDocument 1.0.0` to `PolyphonicSourceModel 1.0.0`; see `docs/polyphonic-projection-contract.md`. The existing public monophonic path remains protected, and PA-2 runtime projection remains `NOT_IMPLEMENTED`.
+PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is also merged. PA-2.1 is the documentation-only contract recorded by PR #75 for the future internal projection from `ParsedMusicXmlDocument 1.0.0` to `PolyphonicSourceModel 1.0.0`; merging PR #75 closes this contract gate but creates no runtime authority. The existing public monophonic path remains protected, and PA-2 runtime projection remains `NOT_IMPLEMENTED`.
 
 ### Parallel extension point
 
@@ -576,7 +576,7 @@ PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merge
                           reviewed TAB-result gate
 ```
 
-PA-2.1 defines the projection contract only. PA-2.2 is the next separately gated tests-only step after PA-2.1 merge. Runtime projection begins no earlier than PA-2.3 and remains split across PA-2.3–PA-2.5, followed by PA-2.6 hardening, PA-2.7 regression and PA-2.8 CI/independent review.
+PA-2.1 defines the projection contract only. PA-2.2 is a separate tests-only gate requiring explicit approval after PA-2.1 closure. Runtime projection begins no earlier than PA-2.3 and remains split across PA-2.3–PA-2.5, followed by PA-2.6 hardening, PA-2.7 regression and PA-2.8 CI/independent review.
 
 ### Source truth versus arrangement truth
 
@@ -607,8 +607,8 @@ PA-1 does not implement `ParsedMusicXmlDocument` → `PolyphonicSourceModel` pro
 1. PA-0 documentation/architecture — merged
 2. PA-1 `PolyphonicSourceModel 1.0` — merged internal
 3. PA-2.0 PA-1 → PA-2 documentation convergence — merged documentation
-4. PA-2.1 projection contract — current documentation-only gate
-5. PA-2.2 valid polyphonic red-first fixtures/tests — next after PA-2.1 merge
+4. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
+5. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
 6. PA-2.3 minimal internal note/rest projector
 7. PA-2.4 `backup` / `forward` cursor semantics
 8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection
@@ -677,10 +677,10 @@ Application rules:
 4. PA-1 recovery audit and closure — completed
 5. PA-2.0 PA-1 → PA-2 documentation convergence — completed
 
-### Current / next PA work
+### PA-2 transition gates
 
-6. PA-2.1 projection contract — current documentation-only gate
-7. PA-2.2 valid polyphonic red-first fixtures/tests — next separately gated step after PA-2.1 merge
+6. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
+7. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
 8. PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence — separately gated and not started
 
 ### Notation and compatibility foundations
