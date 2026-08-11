@@ -3,23 +3,22 @@
 ## Status
 
 - Planning gate: `PA-0`
-- Status: `DOCUMENTATION_ONLY`
+- PA-0 status: `DOCUMENTATION_ONLY` architecture foundation merged
+- PA-1 `PolyphonicSourceModel 1.0.0`: `MERGED_INTERNAL`
+- PA-1 merge: PR #73, rebase-merged to `main` on 2026-08-11
+- Current PA-1-bearing `main` head at PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
+- Post-merge Tests #488: `SUCCESS`
+- PA-2 parallel polyphonic projection: `NOT_IMPLEMENTED` / next gated PA step
 - Current merged public polyphonic runtime: **not implemented**
 - Public API changes: **none**
 - `CanonicalTabResult 1.0.0` changes: **none**
 - Existing monophonic conversion changes: **none**
 
-### 2026-08-10 repository convergence note
-
-PA-0 remains documentation/architecture only on `main`. However, real **unmerged** PA-1 work now exists on branch `feature/pa-1-polyphonic-source-model-v1` at reviewed head `86d3c35b6c6af42f6e3608c03a60dfc813f8e7ff`, containing the proposed `PolyphonicSourceModel 1.0` runtime foundation, tests and contract documentation.
-
-At the convergence review that branch is 3 unique commits ahead and 24 commits behind the current runtime baseline. It must therefore be treated as `UNMERGED_WORK_EXISTS`, not as current capability and not as disposable stale-branch cleanup. A read-only recovery/compatibility audit against current `main` is required before any rebase/recreation/merge decision.
-
-This note does not authorize PA-2 or public polyphonic conversion.
+PA-1 is now present on the authoritative runtime line as an internal source-truth foundation. Its recovery branch was removed only after the rebase merge and a read-only content-equivalence check. PA-1 does not expose polyphonic conversion publicly and does not authorize PA-2 or later arrangement gates.
 
 This document defines the approved architectural direction for extending the existing monophonic MusicXML-to-Guitar-TAB engine toward a separately gated polyphonic guitar-arrangement path.
 
-Nothing in PA-0 or the existence of unmerged PA-1 work makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current public capability.
+Nothing in PA-0 or PA-1 makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current public capability.
 
 ## Architectural objective
 
@@ -79,7 +78,7 @@ The current public path continues to fail closed for chords, multiple voices, mu
 
 ## Safe parallel extension point
 
-`ParsedMusicXmlDocument 1.0.0` is the planned branching point because it is an immutable XML representation created after XML safety/resource enforcement and before guitar fingering decisions.
+`ParsedMusicXmlDocument 1.0.0` is the approved branching point because it is an immutable XML representation created after XML safety/resource enforcement and before guitar fingering decisions.
 
 ```text
                          MusicXML
@@ -171,8 +170,8 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 | Gate | Scope | Runtime authority |
 |---|---|---|
 | `PA-0` | Documentation + architecture planning | none |
-| `PA-1` | `PolyphonicSourceModel 1.0` contract/foundation | internal only after separate recovery/review/merge |
-| `PA-2` | `ParsedMusicXmlDocument` → polyphonic projection | parallel internal path |
+| `PA-1` | `PolyphonicSourceModel 1.0` contract/foundation | merged internal; source truth only |
+| `PA-2` | `ParsedMusicXmlDocument` → polyphonic projection | next gate; parallel internal path only |
 | `PA-3` | Simultaneous-event / chord contract | internal only |
 | `PA-4` | Arrangement-decision + provenance contract | internal only |
 | `PA-5` | Deterministic melody/bass/voice analysis | internal only |
@@ -189,20 +188,20 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 
 Completion of one gate does not authorize later gates.
 
-## PA-1 recovery rule
+## PA-1 closure record
 
-Because PA-1 work exists on a branch that diverged while LR-S1A/LR-S1B work advanced `main`, the safe next PA action is **not** a direct merge.
+PA-1 was recovered from the historical divergent work onto a fresh branch based on the then-current `main`, hardened with fail-closed negative tests, independently reviewed, and rebase-merged through PR #73. The final P2 aggregate-event-budget finding was reproduced red-first, fixed before per-event validation/allocation, re-reviewed, and its review thread resolved before merge.
 
-Required recovery sequence:
+The approved recovery sequence was completed:
 
 ```text
-read-only PA-1 branch diff
+read-only historical PA-1 diff
       ↓
 current-main contract compatibility review
       ↓
-confirm exact PA-1 file scope
+exact PA-1 file scope
       ↓
-if needed, recreate on a fresh branch from current main
+fresh recovery branch from current main
       ↓
 focused + negative/fail-closed tests
       ↓
@@ -214,10 +213,14 @@ GitHub-hosted CI
       ↓
 independent review
       ↓
-separate merge approval
+rebase merge
+      ↓
+post-merge Tests #488
+      ↓
+content-equivalence check + branch cleanup
 ```
 
-The current monophonic public path must remain byte/decision compatible for existing supported fixtures unless a separately approved high-risk change explicitly says otherwise.
+This closure authorizes only the internal PA-1 foundation. PA-2 remains a separate gate.
 
 ## High-risk controls
 
@@ -227,12 +230,10 @@ Before any approved high-risk integration change, require exact baseline identif
 
 If existing supported monophonic inputs change unexpectedly, the gate fails.
 
-## PA-0 boundary
+## PA-0 / PA-1 boundary
 
-PA-0 documentation may describe architecture and planning but does not add package exports, runtime dependencies, parser behavior, conversion options, output formats, or public polyphonic capability.
+PA-0 remains architecture/documentation. PA-1 adds only the internal `PolyphonicSourceModel 1.0.0` source-truth foundation. Neither gate adds package exports, public polyphonic conversion, arrangement authority, output-format changes, or application behavior.
 
-The unmerged PA-1 branch is a separate repository-history fact and does not retroactively change PA-0 runtime authority.
+## Early-PA acceptance invariants
 
-## PA-0 acceptance criteria
-
-PA-0 documentation must consistently state that current monophonic conversion remains the only public conversion scope, current learning/shadow systems are non-authoritative, polyphonic arrangement is separately gated, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged during early gates, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
+The documentation and runtime must consistently state that current monophonic conversion remains the only public conversion scope, current learning/shadow systems are non-authoritative, polyphonic arrangement is separately gated, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged during early gates, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
