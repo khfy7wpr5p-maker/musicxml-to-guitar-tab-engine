@@ -174,7 +174,7 @@ For note events:
 - declared MIDI must exactly match pitch components;
 - declared written pitch must exactly match the canonical spelling derived from step/alter/octave.
 
-Rest events must not contain pitch.
+Rest events must not contain pitch. Rest events must also carry `tieStart: false` and `tieStop: false`; tie markers on rests are rejected fail closed.
 
 PA-1 does not transpose or octave-shift source pitch.
 
@@ -182,6 +182,7 @@ PA-1 does not transpose or octave-shift source pitch.
 
 - `divisions`, time-signature components, expected measure duration and event duration must be positive safe integers;
 - `onsetDivisions` must be a non-negative safe integer;
+- every numeric field governed by the safe-integer boundary rejects JavaScript negative zero (`-0`) rather than normalizing it to canonical zero;
 - onset + duration must remain within the safe-integer range;
 - an event may not extend beyond the measure's declared expected duration;
 - `expectedDurationDivisions` must agree exactly with divisions and time signature.
@@ -197,20 +198,25 @@ The contract rejects:
 - non-plain objects,
 - Proxy objects,
 - accessor properties,
+- non-enumerable semantic object data properties,
 - symbol properties,
 - unknown fields,
 - custom array subclasses,
 - sparse arrays,
-- custom array properties,
+- non-enumerable array index properties,
+- custom array properties, including numeric-looking own properties whose numeric index is outside `array.length`,
 - cycles,
 - shared object references,
 - `NaN` / `Infinity`,
-- unsafe integers,
+- unsafe integers and canonical numeric `-0`,
 - negative onset or non-positive duration,
 - invalid pitch/MIDI/written-pitch combinations,
+- tie markers on rest events,
 - inconsistent deterministic IDs/provenance,
 - inconsistent aggregate measure/event counts,
 - source chord markers inconsistent with the preceding source event.
+
+Semantic object fields and array elements must therefore be represented by enumerable own data properties; the validator does not silently normalize hidden or accessor-backed semantic values.
 
 The model also inherits the current default `ProcessingBudget` ceilings for maximum measures and total events. PA-2 may later bind projection to an explicit caller-supplied processing runtime; PA-1 does not introduce a second runtime budget API.
 
