@@ -540,7 +540,7 @@ function validateEvent(event, field, seen, context) {
 }
 
 function validateMeasure(measure, field, seen, context) {
-  const { partId, measureIndex } = context;
+  const { partId, measureIndex, remainingEventBudget } = context;
   const descriptors = safeObjectDescriptors(
     measure,
     field,
@@ -610,8 +610,19 @@ function validateMeasure(measure, field, seen, context) {
     });
   }
 
+  const rawEvents = descriptorValue(descriptors, 'events');
+  if (
+    !types.isProxy(rawEvents)
+    && Array.isArray(rawEvents)
+    && rawEvents.length > remainingEventBudget
+  ) {
+    throw invalid('model events exceed the ProcessingBudget default boundary.', {
+      maximumEvents: DEFAULT_PROCESSING_LIMITS.maxEvents,
+    });
+  }
+
   const eventValues = safeArrayValues(
-    descriptorValue(descriptors, 'events'),
+    rawEvents,
     `${field}.events`,
     seen,
     DEFAULT_PROCESSING_LIMITS.maxEvents,
@@ -754,7 +765,11 @@ function validatePolyphonicSourceModel(model) {
       measureValues[measureIndex],
       `model.measures[${measureIndex}]`,
       seen,
-      { partId: source.partId, measureIndex },
+      {
+        partId: source.partId,
+        measureIndex,
+        remainingEventBudget: DEFAULT_PROCESSING_LIMITS.maxEvents - observedEventCount,
+      },
     );
     for (const event of measure.events) {
       observedEventCount += 1;
