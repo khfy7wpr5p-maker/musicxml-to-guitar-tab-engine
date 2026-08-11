@@ -2,12 +2,14 @@
 
 This document records the verified implementation state of the authoritative runtime line and the separately planned application, notation, polyphonic-arrangement and learning directions.
 
-## Snapshot — 2026-08-10
+## Snapshot — 2026-08-11
 
-- runtime baseline reviewed before this docs-only convergence: `05c3a59e1f615417d637a6ae71e3e42d552ffca5`
-- latest merged runtime feature: PR #71 — LR-S1B.2b Optimizer Path-Policy Binding + Binding Digest
-- PR #71 merge commit: `05c3a59e1f615417d637a6ae71e3e42d552ffca5`
-- post-merge Tests #464: PASS on Node.js 18 / 20 / 22
+- current authoritative `main` head for this PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
+- latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
+- PR #73: rebase-merged on 2026-08-11
+- post-merge Tests #488: PASS on `main`
+- pre-merge exact-head Tests #487: PASS on Node.js 18 / 20 / 22
+- pre-merge exact-head MusicXML Compatibility #319: PASS
 - current package version: `0.1.0`
 - current canonical result: `CanonicalTabResult 1.0.0`
 - current internal error contract: `EngineError 1.0.0`
@@ -18,13 +20,15 @@ This document records the verified implementation state of the authoritative run
 - B1/B2 benchmark/evaluation: merged internal
 - LR-S0 / LR-S1A / LR-S1B.1 / LR-S1B.2a / LR-S1B.2b: merged internal, non-authoritative learning path
 - PA-0 Polyphonic MusicXML → Guitar Arrangement architecture: merged documentation
-- PA-1 `PolyphonicSourceModel 1.0`: real unmerged branch work exists; recovery/review required
+- PA-1 `PolyphonicSourceModel 1.0.0`: merged internal source-truth foundation
+- PA-2 parallel polyphonic projection: not implemented; next gated PA step
 - production application UI: not implemented
 - MuseScore semantic round-trip: not executed
 - production PDF renderer: not implemented
-- G0.1 administrator enforcement: governance open
+- G0.1 administrator enforcement: completed
+- historical branch audit: completed
 
-A later docs-only merge may advance `main` without changing runtime behavior; use the runtime baseline above when interpreting this snapshot.
+PA-1 does not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic.
 
 ## Status labels
 
@@ -65,6 +69,7 @@ A later docs-only merge may advance `main` without changing runtime behavior; us
 | LR-S1B.1 | `MERGED_INTERNAL` | Strict fingering path-policy snapshot + digest |
 | LR-S1B.2a | `MERGED_INTERNAL` | Semantic replay verifier for observation + policy compatibility |
 | LR-S1B.2b | `MERGED_INTERNAL` | Immutable path-policy binding record + binding digest |
+| PA-1 | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0` source-truth foundation; no public projection/arrangement authority |
 
 ## Current merged public runtime capabilities
 
@@ -88,6 +93,7 @@ A later docs-only merge may advance `main` without changing runtime behavior; us
 | Benchmark/evaluation | `MERGED_INTERNAL` | B1/B2 fixed independent evidence |
 | Shadow learning evaluation | `MERGED_INTERNAL_SHADOW_ONLY` | LR-S0/LR-S1A, no normal-conversion authority |
 | Path-policy provenance integrity | `MERGED_INTERNAL` | LR-S1B.1 / 2a / 2b content/semantic binding foundations |
+| Polyphonic source-truth foundation | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0`; no parser wiring or arrangement authority |
 
 ## Current public musical scope
 
@@ -311,43 +317,39 @@ Application UI, renderers, editors and persistence layers must remain downstream
 
 ## PA-0 / PA-1 polyphonic status
 
-PA-0 is merged architecture/documentation only. It defines a separate parallel path after `ParsedMusicXmlDocument 1.0.0`.
+PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. Together they define the parallel path after `ParsedMusicXmlDocument 1.0.0` without changing the public monophonic path.
 
 ```text
 ParsedMusicXmlDocument 1.0.0
   ├─ existing monophonic projection → current deterministic TAB core
-  └─ future polyphonic projection → PolyphonicSourceModel
-                                    ↓
-                              GuitarArrangementPlan
-                                    ↓
-                              guitar-compatible score
-                                    ↓
-                              chord/left-hand model
-                                    ↓
-                              Playability Validator v2
-                                    ↓
-                              deterministic arrangement optimizer
+  └─ PA-2 polyphonic projection → PolyphonicSourceModel 1.0.0
+                                ↓
+                          GuitarArrangementPlan
+                                ↓
+                          guitar-compatible score
+                                ↓
+                          chord/left-hand model
+                                ↓
+                          Playability Validator v2
+                                ↓
+                          deterministic arrangement optimizer
 ```
 
 Original MusicXML remains immutable source truth. Arrangement transformations such as omission, octave displacement, voice redistribution, chord reduction/revoicing or arpeggiation require explicit provenance.
 
-### PA-1 unmerged work
+### PA-1 closure
 
-Real work exists on branch `feature/pa-1-polyphonic-source-model-v1` at reviewed head `86d3c35b6c6af42f6e3608c03a60dfc813f8e7ff`:
+PA-1 was recovered from historical divergent work onto a fresh current-main branch, hardened with negative/fail-closed tests, independently reviewed and rebase-merged through PR #73. The final P2 aggregate-event-budget issue was reproduced red-first and fixed before merge. Post-merge Tests #488 passed. The recovery branch was then removed after a read-only tree/content-equivalence check.
 
-- `src/music/polyphonicSourceModel.js`
-- `tests/polyphonicSourceModel.test.js`
-- `docs/polyphonic-source-model-contract.md`
-
-At the 2026-08-10 review it is diverged from current `main`, with 3 unique commits ahead and 24 commits behind. This work is **not merged runtime capability**, but it is also not `NOT_STARTED` in the repository-history sense. It requires read-only recovery/compatibility review before any new branch/merge action.
+PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic source projection, create chord groups, make arrangement decisions, select strings/frets/fingers/barres, or expose a public polyphonic API.
 
 ## Approved polyphonic safe sequence
 
 | Order | Gate | Status |
 |---:|---|---|
 | 1 | PA-0 Documentation + architecture planning | `MERGED_DOCUMENTATION_ONLY` |
-| 2 | PA-1 `PolyphonicSourceModel 1.0` | `UNMERGED_WORK_EXISTS` |
-| 3 | PA-2 Parallel polyphonic projection | `NOT_IMPLEMENTED` |
+| 2 | PA-1 `PolyphonicSourceModel 1.0` | `MERGED_INTERNAL` |
+| 3 | PA-2 Parallel polyphonic projection | `NOT_IMPLEMENTED` — next gate |
 | 4 | PA-3 Simultaneous-event / chord contract | `NOT_IMPLEMENTED` |
 | 5 | PA-4 Arrangement-decision + provenance contract | `NOT_IMPLEMENTED` |
 | 6 | PA-5 Deterministic melody/bass/voice analysis | `NOT_IMPLEMENTED` |
@@ -375,30 +377,32 @@ At the 2026-08-10 review it is diverged from current `main`, with 3 unique commi
 
 These remain blocked by explicit prerequisites and must not be inferred from the existence of observation/digest/shadow infrastructure.
 
-## Current safe development order — 2026-08-10
+## Current safe development order — 2026-08-11
 
 | Order | Gate | Current state |
 |---:|---|---|
-| 1 | Documentation Convergence | `IN_PROGRESS_DOCS_ONLY` |
-| 2 | G0.1 administrator-bypass governance hardening | `GOVERNANCE_OPEN` |
-| 3 | Historical branch inventory / orphan-work audit | `NOT_STARTED` |
-| 4 | PA-1 recovery audit and closure | `UNMERGED_WORK_EXISTS` |
-| 5 | Musical Notation Coverage contract | `NOT_STARTED` |
-| 6 | MuseScore semantic compatibility gate | `NOT_STARTED` |
-| 7 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
-| 8 | Application/Presentation architecture contract | `NOT_STARTED` |
-| 9 | alphaTab application viewer | `NOT_IMPLEMENTED` |
-| 10 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
-| 11 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
-| 12 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
-| 13 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
-| 14 | Export center | `NOT_IMPLEMENTED` |
-| 15 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
-| 16 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
-| 17 | Project persistence | `NOT_IMPLEMENTED` |
-| 18 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
-| 19 | PA-2…PA-14 | `BLOCKED_BY_PA_1_SEQUENCE` |
-| 20 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
+| 1 | Documentation Convergence | `COMPLETED` |
+| 2 | G0.1 administrator-bypass governance hardening | `COMPLETED` |
+| 3 | Historical branch inventory / orphan-work audit | `COMPLETED` |
+| 4 | PA-1 recovery audit and closure | `COMPLETED` |
+| 5 | PA-2.0 PA-1 → PA-2 documentation convergence | `IN_PROGRESS_DOCS_ONLY` |
+| 6 | PA-2 Parallel polyphonic projection | `NEXT_NOT_IMPLEMENTED` |
+| 7 | Musical Notation Coverage contract | `NOT_STARTED` |
+| 8 | MuseScore semantic compatibility gate | `NOT_STARTED` |
+| 9 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
+| 10 | Application/Presentation architecture contract | `NOT_STARTED` |
+| 11 | alphaTab application viewer | `NOT_IMPLEMENTED` |
+| 12 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
+| 13 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
+| 14 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
+| 15 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
+| 16 | Export center | `NOT_IMPLEMENTED` |
+| 17 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
+| 18 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
+| 19 | Project persistence | `NOT_IMPLEMENTED` |
+| 20 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
+| 21 | PA-3…PA-14 | `BLOCKED_BY_PA_2_SEQUENCE` |
+| 22 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
 
 ## High-risk protection rule
 
@@ -423,8 +427,9 @@ Any separately approved high-risk change requires exact baseline identification,
 | `main` protected | configured |
 | required Node/compatibility contexts | configured |
 | workflow supply-chain SHA pinning | configured |
-| administrator enforcement | `GOVERNANCE_OPEN` (`non_admins`) |
-| historical branch cleanup | pending read-only inventory |
+| administrator enforcement | completed |
+| historical branch audit | completed |
+| PA-1 recovery branch cleanup | completed after merge + content-equivalence verification |
 
 ## Update rule
 
