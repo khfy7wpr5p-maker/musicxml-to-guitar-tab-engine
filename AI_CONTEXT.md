@@ -5,19 +5,19 @@ This file is the required starting point for AI agents, coding assistants, revie
 ## Verified runtime snapshot — 2026-08-11
 
 - authoritative branch: `main`
-- current authoritative `main` head for this PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
+- current authoritative `main` head before PA-2.1 closure: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
 - latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
-- PR #73: rebase-merged on 2026-08-11
-- post-merge Tests #488: PASS on `main`
-- pre-merge exact-head Tests #487: PASS on Node.js 18 / 20 / 22
-- pre-merge exact-head MusicXML Compatibility #319: PASS
+- PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
+- post-merge Tests #490: PASS on `main`
 - package version: `0.1.0`
 - package metadata: `private: true`, `UNLICENSED`
 - canonical result contract: `CanonicalTabResult 1.0.0`
 - internal error contract: `EngineError 1.0.0`
 - public error detection boundary: PEB-1
 - PA-1: `MERGED_INTERNAL`, source-truth authority only
-- PA-2: `NOT_IMPLEMENTED`, next gated PA step
+- PA-2.1: documentation-only projection contract; PR #75 is the closure vehicle and creates no runtime authority
+- PA-2.2: next separate tests-only gate requiring explicit approval after PA-2.1 closure
+- PA-2 runtime projection: `NOT_IMPLEMENTED`; runtime implementation begins no earlier than PA-2.3
 - G0.1 administrator-bypass hardening: completed
 
 PA-1 does not make polyphonic conversion public. The existing public monophonic conversion behavior remains protected and unchanged.
@@ -300,7 +300,7 @@ These must be added through an explicit notation-coverage contract with parser/p
 
 ## PA-0 / PA-1 — Polyphonic MusicXML → Guitar Arrangement foundation
 
-PA-0 architecture and PA-1 `PolyphonicSourceModel 1.0.0` are merged. Current monophonic behavior remains protected.
+PA-0 architecture and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is also merged. PA-2.1 is the documentation-only projection contract carried by PR #75; closing PA-2.1 creates no runtime authority. PA-2.2 is the next separate tests-only gate requiring explicit approval after PA-2.1 closure. PA-2 runtime projection remains `NOT_IMPLEMENTED` and begins no earlier than PA-2.3. Current monophonic behavior remains protected.
 
 Approved target:
 
@@ -342,19 +342,27 @@ PA-1 authority remains internal source truth only. It does not provide parser pr
 
 1. PA-0 documentation/architecture — merged
 2. PA-1 `PolyphonicSourceModel 1.0` — merged internal
-3. PA-2 parallel polyphonic projection — next / not implemented
-4. PA-3 simultaneous-event/chord contract
-5. PA-4 arrangement-decision + provenance contract
-6. PA-5 deterministic melody/bass/voice analysis
-7. PA-6 deterministic reduction/octave rules
-8. PA-7 guitar chord/voicing candidates
-9. PA-8 left-hand shape/finger assignment/barre/partial-barre
-10. PA-9 Physical Playability Validator v2
-11. PA-10 canonical v1/v2 compatibility review
-12. PA-11 teacher-approved arrangement benchmark
-13. PA-12 internal polyphonic E2E + monophonic compatibility
-14. PA-13 separately approved public arrangement API
-15. PA-14 ScoreMosaic/SesliTab adapter integration
+3. PA-2.0 PA-1 → PA-2 documentation convergence — merged documentation
+4. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
+5. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+6. PA-2.3 minimal internal note/rest projector
+7. PA-2.4 `backup` / `forward` cursor semantics
+8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection
+9. PA-2.6 hostile/budget/deadline/cancellation negatives
+10. PA-2.7 full regression + monophonic compatibility
+11. PA-2.8 GitHub Tests + MusicXML Compatibility + independent review
+12. PA-3 simultaneous-event/chord contract
+13. PA-4 arrangement-decision + provenance contract
+14. PA-5 deterministic melody/bass/voice analysis
+15. PA-6 deterministic reduction/octave rules
+16. PA-7 guitar chord/voicing candidates
+17. PA-8 left-hand shape/finger assignment/barre/partial-barre
+18. PA-9 Physical Playability Validator v2
+19. PA-10 canonical v1/v2 compatibility review
+20. PA-11 teacher-approved arrangement benchmark
+21. PA-12 internal polyphonic E2E + monophonic compatibility
+22. PA-13 separately approved public arrangement API
+23. PA-14 ScoreMosaic/SesliTab adapter integration
 
 Completion of one gate does not authorize the next.
 
@@ -387,24 +395,26 @@ Application UI, renderer, editor and persistence layers are downstream adapters.
 2. G0.1 administrator-bypass governance hardening — completed
 3. historical branch inventory / orphan-work audit — completed
 4. PA-1 recovery audit and closure — completed
-5. PA-2.0 PA-1 → PA-2 documentation convergence — current docs-only gate
-6. PA-2 parallel polyphonic projection — next runtime/contract gate
-7. Musical Notation Coverage contract
-8. MuseScore semantic compatibility gate
-9. independent real-world MusicXML E2E fixture gate
-10. application/presentation architecture contract
-11. alphaTab application viewer
-12. measure/beat cursor integration
-13. playback adapter + Play/Pause/Stop after synth evidence
-14. teacher fingering correction UI
-15. teacher score-correction contract/UI
-16. export center
-17. MuseScore/PDF adapter
-18. PDF viewer / print / share
-19. project persistence
-20. application E2E
-21. continue PA-3…PA-14 in order after PA-2
-22. production learned/training work only after durable-storage and lawful-use/privacy prerequisites
+5. PA-2.0 PA-1 → PA-2 documentation convergence — completed
+6. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
+7. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+8. PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence — separately gated and not started
+9. Musical Notation Coverage contract
+10. MuseScore semantic compatibility gate
+11. independent real-world MusicXML E2E fixture gate
+12. application/presentation architecture contract
+13. alphaTab application viewer
+14. measure/beat cursor integration
+15. playback adapter + Play/Pause/Stop after synth evidence
+16. teacher fingering correction UI
+17. teacher score-correction contract/UI
+18. export center
+19. MuseScore/PDF adapter
+20. PDF viewer / print / share
+21. project persistence
+22. application E2E
+23. continue PA-3…PA-14 only after PA-2.8 closure and in order
+24. production learned/training work only after durable-storage and lawful-use/privacy prerequisites
 
 ## Repository governance
 
