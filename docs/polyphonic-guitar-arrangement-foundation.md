@@ -14,14 +14,17 @@
 - PA-2.4 `backup` / `forward` cursor semantics: `MERGED_INTERNAL` through PR #80 on 2026-08-12
 - PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection: `MERGED_INTERNAL` through PR #81 on 2026-08-12
 - PA-2.6 hostile/budget/deadline/cancellation negatives: `MERGED_TESTS_ONLY` through PR #83 on 2026-08-12
-- PA-2 verification closure baseline on `main`: `488d00f7ddfaac7a5c8552f03384e82c456f3328`
-- closure tree: `8b86a7b8b27bd522dc8afdbe14b1884e6b21fdc7`
-- Post-merge Tests #617 on `main`: `SUCCESS`
-- MusicXML Compatibility #438: `SUCCESS` on PR head `0ecc4f6222af668027b7d38b74aefddb8d90337f`, whose tree is identical to the rebased `main` tree
 - PA-2.7 full regression + monophonic compatibility: `VERIFIED`
 - PA-2.8 GitHub CI + independent review: `VERIFIED`; no P1/P2 blocker found
 - PA-2 sequence: `CLOSED`
-- next separately approved polyphonic gate: PA-3 simultaneous-event/chord contract
+- PA-3 `SimultaneousEventModel 1.0.0`: `MERGED_INTERNAL` through PR #85 on 2026-08-12
+- PA-3 closure baseline on `main`: `912ccf5f552ed0a5b21c2225266b95c421ff0dfd`
+- closure tree: `2e16564ecf30c563e54ab3031a28d8858cc4d271`
+- PA-3 exact-head Tests #622: `SUCCESS`
+- PA-3 exact-head MusicXML Compatibility #442: `SUCCESS`
+- PA-3 post-merge Tests #623 on `main`: `SUCCESS`
+- PA-3 independent review: no P1/P2 blocker found
+- next separately approved polyphonic gate: PA-4 arrangement-decision + provenance contract
 - Current merged public polyphonic runtime: **not implemented**
 - Public API changes: **none**
 - `CanonicalTabResult 1.0.0` changes: **none**
@@ -29,11 +32,11 @@
 
 PA-1 is present on the authoritative runtime line as an internal source-truth foundation. Its recovery branch was removed only after the rebase merge and a read-only content-equivalence check. PA-1 does not expose polyphonic conversion publicly.
 
-PA-2.1 defines the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`. PA-2.2 supplies merged red-first vectors. PA-2.3 implements the minimal internal basic one-voice/staff-1 note/rest slice, PA-2.4 adds `backup` / `forward` cursor semantics, PA-2.5 adds source `<chord/>`, multiple bounded voices and staff 1–2 projection, PA-2.6 adds hostile/budget/deadline/cancellation negative evidence, PA-2.7 verifies full regression/monophonic compatibility, and PA-2.8 verifies GitHub CI plus independent review. These remain internal and do not expose public polyphonic conversion or authorize PA-3 behavior.
+PA-2.1 defines the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`. PA-2.2 supplies merged red-first vectors. PA-2.3 implements the minimal internal basic one-voice/staff-1 note/rest slice, PA-2.4 adds `backup` / `forward` cursor semantics, PA-2.5 adds source `<chord/>`, multiple bounded voices and staff 1–2 projection, PA-2.6 adds hostile/budget/deadline/cancellation negative evidence, PA-2.7 verifies full regression/monophonic compatibility, and PA-2.8 verifies GitHub CI plus independent review. PA-3 then adds deterministic source simultaneity grouping through `SimultaneousEventModel 1.0.0`. These remain internal and do not expose public polyphonic conversion or authorize PA-4 behavior.
 
 This document defines the approved architectural direction for extending the existing monophonic MusicXML-to-Guitar-TAB engine toward a separately gated polyphonic guitar-arrangement path.
 
-Nothing in PA-0 through PA-2.8 makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current public capability.
+Nothing in PA-0 through PA-3 makes multi-staff, multi-voice, chord, barre, or polyphonic conversion a current public capability.
 
 ## Architectural objective
 
@@ -45,6 +48,8 @@ Polyphonic / piano MusicXML
 secure XML parse
         ↓
 polyphonic source projection
+        ↓
+source simultaneity grouping
         ↓
 source-score analysis
         ↓
@@ -87,7 +92,7 @@ CanonicalTabResult 1.0.0
 JSON / ASCII TAB / TAB MusicXML
 ```
 
-Throughout PA-0 through PA-2 closure, the existing public `convertMusicXmlToCanonicalTab()` behavior remains the protected compatibility baseline.
+Throughout PA-0 through PA-3 closure, the existing public `convertMusicXmlToCanonicalTab()` behavior remains the protected compatibility baseline.
 
 The current public path continues to fail closed for chords, multiple voices, multiple staves, and multipart scores. Future arrangement work must not make that path permissive.
 
@@ -114,6 +119,9 @@ The current public path continues to fail closed for chords, multiple voices, mu
      CanonicalMusicDocument      PolyphonicSourceModel 1.0.0
                │                         │
                │                         ▼
+               │               SimultaneousEventModel 1.0.0
+               │                         │
+               │                         ▼
                │               GuitarArrangementPlan
                │                         │
                │                         ▼
@@ -130,7 +138,7 @@ The current public path continues to fail closed for chords, multiple voices, mu
                           reviewed TAB-result gate
 ```
 
-The two projections remain explicit and separately versioned. PA-2.1 specifies the right-hand projection contract; its internal runtime slices are merged through PA-2.5 and the PA-2.6–PA-2.8 hardening/verification sequence is closed. PA-3 remains a distinct new contract gate.
+The two projections remain explicit and separately versioned. PA-2.1 specifies the right-hand projection contract; its internal runtime slices are merged through PA-2.5 and the PA-2.6–PA-2.8 hardening/verification sequence is closed. PA-3 adds a distinct versioned internal source-simultaneity view after `PolyphonicSourceModel 1.0.0`; it still does not make arrangement decisions.
 
 ## Initial target musical scope
 
@@ -148,7 +156,7 @@ Deferred to later gates: arbitrary multipart/orchestral reduction, grace-note se
 
 ## Source truth and arrangement truth
 
-The original MusicXML remains immutable source truth. A future `GuitarArrangementPlan` must explicitly record arrangement decisions such as:
+The original MusicXML remains immutable source truth. PA-3 adds only a deterministic derived source grouping of notes sharing exact measure/onset. A future `GuitarArrangementPlan` must explicitly record arrangement decisions such as:
 
 - `PRESERVED`,
 - `OMITTED`,
@@ -158,11 +166,12 @@ The original MusicXML remains immutable source truth. A future `GuitarArrangemen
 - `REVOICED`,
 - `ARPEGGIATED`.
 
-Exact field names and schemas are deferred to a later contract gate. These transformations must never be hidden inside parsing or fingering.
+Exact field names and schemas are deferred to PA-4 or another later approved contract gate. These transformations must never be hidden inside parsing, PA-3 grouping, or fingering.
 
 ## Authority boundaries
 
 - Parsing establishes source structure/content; it does not decide guitar arrangement.
+- PA-3 grouping establishes which source note events are simultaneous by exact onset; it does not decide a guitar voicing or arrangement.
 - Arrangement logic may create explicit alternatives but must preserve source provenance.
 - Only the guitar physical layer determines physical string/fret/left-hand validity.
 - Writers serialize an approved canonical result and must not perform arrangement or rerun optimization.
@@ -170,7 +179,7 @@ Exact field names and schemas are deferred to a later contract gate. These trans
 
 ## Canonical result compatibility
 
-`CanonicalTabResult 1.0.0` remains unchanged through PA-2. Chord/polyphonic fields must not be inserted into v1 merely to avoid a new contract.
+`CanonicalTabResult 1.0.0` remains unchanged through PA-3. Chord/polyphonic fields must not be inserted into v1 merely to avoid a new contract.
 
 A later compatibility gate will decide whether a backward-compatible adapter is sufficient or whether a separately versioned chord-aware result contract is required.
 
@@ -194,8 +203,8 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 | `PA-2.6` | Hostile/budget/deadline/cancellation negatives | merged tests-only through PR #83; no new runtime authority |
 | `PA-2.7` | Full regression + monophonic compatibility | verified |
 | `PA-2.8` | GitHub CI + independent review | verified; no public activation |
-| `PA-3` | Simultaneous-event / chord contract | next separate gate; not authorized by PA-2 closure |
-| `PA-4` | Arrangement-decision + provenance contract | internal only |
+| `PA-3` | `SimultaneousEventModel 1.0.0` source grouping | merged internal through PR #85; no arrangement/public authority |
+| `PA-4` | Arrangement-decision + provenance contract | next separate gate; internal only after explicit approval |
 | `PA-5` | Deterministic melody/bass/voice analysis | internal only |
 | `PA-6` | Deterministic reduction / octave rules | internal only |
 | `PA-7` | Guitar chord/voicing candidate generation | internal only |
@@ -208,7 +217,7 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 | `PA-14` | ScoreMosaic/SesliTab adapter integration | external adapter only |
 | `AI-A1+` | Learned arrangement ranking | shadow-first, separately gated |
 
-Completion of one gate does not authorize later gates. Completion of PA-2 does not authorize PA-3.
+Completion of one gate does not authorize later gates. Completion of PA-3 does not authorize PA-4.
 
 ## PA-2.1 projection contract boundary
 
@@ -229,7 +238,7 @@ It fixes the initial projection semantics for:
 - existing ProcessingBudget/deadline/cancellation reuse,
 - fail-closed unsupported or malformed source conditions.
 
-PA-2.1 itself is documentation-only; the corresponding internal runtime slices are implemented through PA-2.5 and hardened/verified through PA-2.8. It still does not add package exports, public polyphonic conversion, chord grouping authority, arrangement decisions, guitar fingering, or canonical-result changes.
+PA-2.1 itself is documentation-only; the corresponding internal runtime slices are implemented through PA-2.5 and hardened/verified through PA-2.8. PA-3 consumes the resulting validated `PolyphonicSourceModel 1.0.0` and adds only source simultaneity grouping. These gates still do not add package exports, public polyphonic conversion, arrangement decisions, guitar fingering, or canonical-result changes.
 
 ## PA-1 closure record
 
@@ -273,10 +282,12 @@ Before any approved high-risk integration change, require exact baseline identif
 
 If existing supported monophonic inputs change unexpectedly, the gate fails.
 
-## PA-0 / PA-1 / PA-2 boundary
+## PA-0 / PA-1 / PA-2 / PA-3 boundary
 
-PA-0 remains architecture/documentation. PA-1 adds only the internal `PolyphonicSourceModel 1.0.0` source-truth foundation. PA-2.1 is merged documentation-only and adds only a projection contract. PA-2.3 through PA-2.5 implement internal projection slices under that contract, PA-2.6 adds tests-only hardening evidence, and PA-2.7/PA-2.8 close regression/CI/review. None of these gates adds package exports, public polyphonic conversion, arrangement authority, output-format changes, or application behavior.
+PA-0 remains architecture/documentation. PA-1 adds only the internal `PolyphonicSourceModel 1.0.0` source-truth foundation. PA-2.1 is merged documentation-only and adds only a projection contract. PA-2.3 through PA-2.5 implement internal projection slices under that contract, PA-2.6 adds tests-only hardening evidence, and PA-2.7/PA-2.8 close regression/CI/review. PA-3 adds only the internal `SimultaneousEventModel 1.0.0` source-simultaneity layer. None of these gates adds package exports, public polyphonic conversion, arrangement authority, output-format changes, or application behavior.
 
 ## Early-PA acceptance invariants
 
-The documentation and runtime must consistently state that current monophonic conversion remains the only public conversion scope, current learning/shadow systems are non-authoritative, polyphonic arrangement is separately gated, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged through PA-2, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
+The documentation and runtime must consistently state that current monophonic conversion remains the only public conversion scope, current learning/shadow systems are non-authoritative, polyphonic arrangement is separately gated, current monophonic rejection rules remain intact, the polyphonic path is parallel and separately versioned, original MusicXML remains immutable source truth, arrangement transformations require provenance, `CanonicalTabResult 1.0.0` and public APIs are unchanged through PA-3, and future high-risk integration requires regression/E2E/CI evidence plus separate approval.
+
+See `docs/pa-3-closure.md` for the exact PA-3 merge/evidence record.
