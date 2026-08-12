@@ -130,7 +130,7 @@ function rejectEntry(entry, fallbackFeature, location, rejectUnsupported, extraD
   ) {
     return;
   }
-  rejectUnsupported(entry.feature || fallbackFeature, { ...location, ...extraDetails });
+  throw rejectUnsupported(entry.feature || fallbackFeature, { ...location, ...extraDetails });
 }
 
 function enforceChildren(node, surface, table, location, rejectUnsupported, unknownFeature = null) {
@@ -143,7 +143,7 @@ function enforceChildren(node, surface, table, location, rejectUnsupported, unkn
       const feature = unknownFeature
         ? unknownFeature(child.name)
         : `${surface}-child:${child.name}`;
-      rejectUnsupported(feature, location);
+      throw rejectUnsupported(feature, location);
     }
     rejectEntry(entry, `${surface}-child:${child.name}`, location, rejectUnsupported);
   }
@@ -156,7 +156,7 @@ function enforceAttributes(node, surface, table, location, rejectUnsupported) {
     }
     const entry = table[attribute.name];
     if (!entry) {
-      rejectUnsupported(`${surface}-attribute:${attribute.name}`, location);
+      throw rejectUnsupported(`${surface}-attribute:${attribute.name}`, location);
     }
     const extraDetails = {};
     if (entry.feature === 'note-timing-offset') {
