@@ -260,6 +260,9 @@ function parseBasicNote(noteNode, context) {
   if (directChildren(noteNode, 'grace').length > 0) {
     throw unsupported('grace-note', location);
   }
+  if (directChildren(noteNode, 'cue').length > 0) {
+    throw unsupported('cue-note', location);
+  }
   if (directChildren(noteNode, 'time-modification').length > 0) {
     throw unsupported('time-modification', location);
   }
