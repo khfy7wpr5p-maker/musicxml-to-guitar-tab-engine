@@ -269,6 +269,12 @@ function parseBasicNote(noteNode, context) {
   } = context;
   const location = { measureIndex, measureNumber, sourceOrder };
 
+  for (const attribute of ['attack', 'release']) {
+    if (getAttribute(noteNode, attribute) !== undefined) {
+      throw unsupported('note-timing-offset', { ...location, attribute });
+    }
+  }
+
   if (directChildren(noteNode, 'chord').length > 0) {
     throw unsupported('source-chord-marker', location);
   }
@@ -340,9 +346,13 @@ function applyMeasureAttributes(attributesNode, state, timingStarted, location) 
   const timeNodes = directChildren(attributesNode, 'time');
   const stavesNodes = directChildren(attributesNode, 'staves');
   const transposeNodes = directChildren(attributesNode, 'transpose');
+  const measureStyleNodes = directChildren(attributesNode, 'measure-style');
 
   if (transposeNodes.length > 0) {
     throw unsupported('transpose', location);
+  }
+  if (measureStyleNodes.length > 0) {
+    throw unsupported('measure-style', location);
   }
   if (divisionsNodes.length > 1 || timeNodes.length > 1 || stavesNodes.length > 1) {
     throw invalid('MusicXML timing/staff singleton attributes must not be duplicated.', location);
