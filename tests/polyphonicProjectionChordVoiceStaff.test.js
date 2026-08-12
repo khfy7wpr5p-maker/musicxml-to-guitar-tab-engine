@@ -79,10 +79,27 @@ test('PA-2.5 preserves bounded non-numeric voice identifiers as strings', () => 
   );
 });
 
-test('PA-2.5 chord note preserves source marker, onset, duration and does not advance cursor', () => {
+test('PA-2.5 trims voice text and defaults a missing voice to string 1', () => {
+  const withWhitespace = project(score(note('C', { voice: '  lead  ' })));
+  const withoutVoice = project(score(note('C').replace('<voice>1</voice>', '')));
+
+  assert.equal(withWhitespace.measures[0].events[0].voice, 'lead');
+  assert.equal(withoutVoice.measures[0].events[0].voice, '1');
+});
+
+test('PA-2.5 voice identifiers fail closed when empty, over-limit or duplicated', () => {
+  assertInvalid(score(note('C', { voice: '   ' })));
+  assertInvalid(score(note('C', { voice: 'v'.repeat(65) })));
+  assertInvalid(score(note('C').replace(
+    '<voice>1</voice>',
+    '<voice>1</voice><voice>2</voice>',
+  )));
+});
+
+test('PA-2.5 chord note preserves source marker, onset, own duration and does not advance cursor', () => {
   const projected = project(score([
     note('C'),
-    note('E', { chord: true }),
+    note('E', { chord: true, duration: 2 }),
     note('G'),
   ].join('')));
 
@@ -94,7 +111,7 @@ test('PA-2.5 chord note preserves source marker, onset, duration and does not ad
     })),
     [
       { onset: 0, duration: 4, chordWithPrevious: false },
-      { onset: 0, duration: 4, chordWithPrevious: true },
+      { onset: 0, duration: 2, chordWithPrevious: true },
       { onset: 4, duration: 4, chordWithPrevious: false },
     ],
   );
@@ -138,4 +155,12 @@ test('PA-2.5 rejects duplicate chord markers and staff values outside the two-st
   ].join('')));
   assertInvalid(score(note('C', { staff: 2 })));
   assertInvalid(score(note('C', { staff: 3 }), { staves: 3 }));
+});
+
+test('PA-2.5 staff identifiers fail closed when zero or duplicated', () => {
+  assertInvalid(score(note('C', { staff: 0 })));
+  assertInvalid(score(note('C').replace(
+    '<staff>1</staff>',
+    '<staff>1</staff><staff>1</staff>',
+  )));
 });
