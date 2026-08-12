@@ -211,6 +211,24 @@ test('PA-2.3 rejects unsupported notation semantics instead of discarding them',
   );
 });
 
+test('PA-2.3 rejects cue notes instead of projecting them as played notes', () => {
+  const xml = BASIC_XML.replace(
+    '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    '<note><cue/><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+  );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+      assert.equal(error.details.feature, 'cue-note');
+      return true;
+    },
+  );
+});
+
 test('PA-2.3 enforces the fixed PA-1 event ceiling before event graph allocation', () => {
   let sawProjectionEvent = false;
   const runtime = createMusicXmlProcessingRuntime(
