@@ -263,14 +263,6 @@ function enforcePolyphonicMusicXmlSemanticProfile(
   enforceChildren(root, 'root', ROOT_CHILDREN, {}, rejectUnsupported);
   enforceAttributes(root, 'root', ROOT_ATTRIBUTES, {}, rejectUnsupported);
 
-  const partList = directSameProfileChildren(root, 'part-list')[0];
-  enforceChildren(partList, 'part-list', PART_LIST_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported);
-
-  const scorePart = directSameProfileChildren(partList, 'score-part')[0];
-  enforceChildren(scorePart, 'score-part', SCORE_PART_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(scorePart, 'score-part', SCORE_PART_ATTRIBUTES, {}, rejectUnsupported);
-
   const part = directSameProfileChildren(root, 'part')[0];
   enforceChildren(part, 'part', PART_CHILDREN, {}, rejectUnsupported);
   enforceAttributes(part, 'part', PART_ATTRIBUTES, {}, rejectUnsupported);
@@ -321,6 +313,14 @@ function enforcePolyphonicMusicXmlSemanticProfile(
       sourceOrder += 1;
     }
   }
+
+  const partList = directSameProfileChildren(root, 'part-list')[0];
+  enforceChildren(partList, 'part-list', PART_LIST_CHILDREN, {}, rejectUnsupported);
+  enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported);
+
+  const scorePart = directSameProfileChildren(partList, 'score-part')[0];
+  enforceChildren(scorePart, 'score-part', SCORE_PART_CHILDREN, {}, rejectUnsupported);
+  enforceAttributes(scorePart, 'score-part', SCORE_PART_ATTRIBUTES, {}, rejectUnsupported);
 }
 
 module.exports = {
