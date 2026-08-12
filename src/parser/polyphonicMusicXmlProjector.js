@@ -495,7 +495,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
   processing.checkpoint('polyphonic-projector:start');
   validateParsedInput(parsedDocument);
   const validation = enforceMusicXmlSemanticResourceLimits(parsedDocument, processing);
-  enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, unsupported);
+  enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, unsupported, processing);
 
   const effectiveMaxMeasures = Math.min(processing.budget.limits.maxMeasures, MAX_PROJECTED_MEASURES);
   const effectiveMaxEvents = Math.min(processing.budget.limits.maxEvents, MAX_PROJECTED_EVENTS);
