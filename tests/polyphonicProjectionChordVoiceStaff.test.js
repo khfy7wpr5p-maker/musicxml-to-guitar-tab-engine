@@ -164,3 +164,10 @@ test('PA-2.5 staff identifiers fail closed when zero or duplicated', () => {
     '<staff>1</staff><staff>1</staff>',
   )));
 });
+
+test('PA-2.5 malformed chord marker text fails closed instead of being silently discarded', () => {
+  assertInvalid(score([
+    note('C'),
+    note('E', { chord: true }).replace('<chord/>', '<chord>unexpected</chord>'),
+  ].join('')));
+});
