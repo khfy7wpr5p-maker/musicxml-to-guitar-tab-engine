@@ -135,6 +135,26 @@ function expectedBasicModel() {
   };
 }
 
+function denseRestXml(eventCount, partId = 'P1') {
+  const divisions = Math.ceil(eventCount / 4);
+  const notes = '<note><rest/><duration>1</duration><voice>1</voice><staff>1</staff></note>'
+    .repeat(eventCount);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="${partId}"><part-name>PA-2.3 bounds</part-name></score-part></part-list>
+  <part id="${partId}">
+    <measure number="1">
+      <attributes>
+        <divisions>${divisions}</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      ${notes}
+    </measure>
+  </part>
+</score-partwise>`;
+}
+
 test('PA-2.3 projects basic note/rest source facts into an immutable PA-1 model', () => {
   const runtime = createMusicXmlProcessingRuntime();
   const parsed = parseParsedMusicXmlDocument(BASIC_XML, {}, runtime);
@@ -156,7 +176,7 @@ test('PA-2.3 keeps PA-2.4 and PA-2.5 constructs fail-closed', () => {
   const cases = [
     BASIC_XML.replace(
       '<note><rest/><duration>4</duration><voice>1</voice><staff>1</staff></note>',
-      '<forward><duration>4</duration></forward><note><rest/><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+      '<forward><duration>4</duration></forward>',
     ),
     BASIC_XML.replace(
       '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
@@ -171,6 +191,77 @@ test('PA-2.3 keeps PA-2.4 and PA-2.5 constructs fail-closed', () => {
     const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
     assert.throws(() => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime));
   }
+});
+
+test('PA-2.3 rejects unsupported notation semantics instead of discarding them', () => {
+  const xml = BASIC_XML.replace(
+    '<notations><tied type="start"/></notations>',
+    '<notations><tied type="start"/><ornaments><trill-mark/></ornaments></notations>',
+  );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+      assert.equal(error.details.feature, 'notation:ornaments');
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 enforces the fixed PA-1 event ceiling before event graph allocation', () => {
+  let sawProjectionEvent = false;
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxEvents: 50001, maxElements: 300000 },
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-projector:event') {
+          sawProjectionEvent = true;
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(denseRestXml(50001), {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'INVALID_MUSICXML');
+      assert.match(error.message, /Projected event count exceeds the PA-1 output boundary/);
+      return true;
+    },
+  );
+  assert.equal(sawProjectionEvent, false);
+});
+
+test('PA-2.3 preflights the longest derived source event ID before event graph allocation', () => {
+  const partId = 'P'.repeat(236);
+  let sawProjectionEvent = false;
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxEvents: 20000, maxElements: 60000 },
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-projector:event') {
+          sawProjectionEvent = true;
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(denseRestXml(10001, partId), {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'INVALID_MUSICXML');
+      assert.equal(error.details.field, 'sourceEventId');
+      return true;
+    },
+  );
+  assert.equal(sawProjectionEvent, false);
 });
 
 test('PA-2.3 projector remains internal and does not expand package-root API', () => {
