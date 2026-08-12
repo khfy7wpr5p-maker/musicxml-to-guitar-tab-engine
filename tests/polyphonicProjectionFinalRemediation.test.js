@@ -221,7 +221,7 @@ test('PA-2.3 observes the deadline during semantic-profile measure-child travers
   );
 });
 
-test('PA-2.3 observes cancellation between semantic-profile event validations', () => {
+test('PA-2.3 observes cancellation at the first nested note-child checkpoint after semantic-profile event injection', () => {
   const controller = new AbortController();
   let cancellationInjected = false;
   const runtime = createMusicXmlProcessingRuntime(
@@ -242,9 +242,10 @@ test('PA-2.3 observes cancellation between semantic-profile event validations', 
     () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
     (error) => {
       assert.equal(error.code, 'PROCESSING_ABORTED');
-      assert.equal(error.details.phase, 'polyphonic-semantic-profile:event');
+      assert.equal(error.details.phase, 'polyphonic-semantic-profile:note-child');
       assert.equal(error.details.measureIndex, 0);
-      assert.equal(error.details.sourceOrder, 1);
+      assert.equal(error.details.sourceOrder, 0);
+      assert.equal(error.details.childIndex, 0);
       return true;
     },
   );
