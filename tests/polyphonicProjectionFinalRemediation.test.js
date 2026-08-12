@@ -91,3 +91,57 @@ test('PA-2.3 observes pre-aborted cancellation before structural tree scans', ()
   );
   assert.equal(rootChildrenReads, 0);
 });
+
+test('PA-2.3 rejects measure-style semantics that the source model cannot represent', () => {
+  const xml = BASIC_XML.replace(
+    '<staves>1</staves>',
+    '<staves>1</staves><measure-style><multiple-rest>4</multiple-rest></measure-style>',
+  );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+      assert.equal(error.details.feature, 'measure-style');
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 rejects note-level attack and release timing offsets', () => {
+  for (const attribute of ['attack', 'release']) {
+    const xml = BASIC_XML.replace('<note>', `<note ${attribute}="1">`);
+    const runtime = createMusicXmlProcessingRuntime();
+    const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+    assert.throws(
+      () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+      (error) => {
+        assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+        assert.equal(error.details.feature, 'note-timing-offset');
+        assert.equal(error.details.attribute, attribute);
+        return true;
+      },
+    );
+  }
+});
+
+test('PA-2.3 semantic measure budget ignores foreign-namespace measure extensions', () => {
+  const xml = BASIC_XML
+    .replace(
+      '<score-partwise version="4.0">',
+      '<score-partwise version="4.0" xmlns="http://www.musicxml.org/ns/musicxml" xmlns:x="urn:pa-2-3-foreign">',
+    )
+    .replace(
+      '    </measure>\n  </part>',
+      '    </measure>\n    <x:measure number="foreign"/>\n  </part>',
+    );
+  const runtime = createMusicXmlProcessingRuntime({ maxMeasures: 1 });
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+  const projected = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+
+  assert.equal(projected.measureCount, 1);
+  assert.equal(projected.measures.length, 1);
+});
