@@ -59,6 +59,14 @@ function invalid(message, details = {}) {
   return new GuitarArrangementPlanError(message, details);
 }
 
+function safeIsArray(value, path) {
+  try {
+    return Array.isArray(value);
+  } catch {
+    throw invalid('Arrangement decision data cannot be safely inspected.', { path });
+  }
+}
+
 function safeOwnKeys(value, path) {
   try {
     return Reflect.ownKeys(value);
@@ -84,7 +92,7 @@ function safeDescriptor(value, key, path) {
 }
 
 function assertPlainRecord(value, path, allowedFields) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (value === null || typeof value !== 'object' || safeIsArray(value, path)) {
     throw invalid('Arrangement decision must be a plain object.', { path });
   }
 
@@ -94,6 +102,7 @@ function assertPlainRecord(value, path, allowedFields) {
   }
 
   const keys = safeOwnKeys(value, path);
+  const observedFields = new Set();
   for (const key of keys) {
     if (typeof key !== 'string') {
       throw invalid('Arrangement decision cannot contain symbol fields.', { path });
@@ -112,10 +121,11 @@ function assertPlainRecord(value, path, allowedFields) {
         field: key,
       });
     }
+    observedFields.add(key);
   }
 
   for (const field of allowedFields) {
-    if (!Object.hasOwn(value, field)) {
+    if (!observedFields.has(field)) {
       throw invalid('Arrangement decision is missing a required field.', {
         path,
         field,
@@ -125,7 +135,7 @@ function assertPlainRecord(value, path, allowedFields) {
 }
 
 function assertDenseOrdinaryArray(value, path) {
-  if (!Array.isArray(value) || safePrototype(value, path) !== Array.prototype) {
+  if (!safeIsArray(value, path) || safePrototype(value, path) !== Array.prototype) {
     throw invalid('Arrangement decision lists must be ordinary arrays.', { path });
   }
 
@@ -142,7 +152,18 @@ function assertDenseOrdinaryArray(value, path) {
     }
   }
 
-  for (let index = 0; index < value.length; index += 1) {
+  const lengthDescriptor = safeDescriptor(value, 'length', `${path}.length`);
+  if (
+    !lengthDescriptor
+    || !Object.hasOwn(lengthDescriptor, 'value')
+    || !Number.isSafeInteger(lengthDescriptor.value)
+    || lengthDescriptor.value < 0
+  ) {
+    throw invalid('Arrangement decision array length is invalid.', { path });
+  }
+  const length = lengthDescriptor.value;
+
+  for (let index = 0; index < length; index += 1) {
     const key = String(index);
     const descriptor = safeDescriptor(value, key, `${path}[${index}]`);
     if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
@@ -152,6 +173,8 @@ function assertDenseOrdinaryArray(value, path) {
       });
     }
   }
+
+  return length;
 }
 
 function readDataField(record, field, path) {
@@ -216,13 +239,13 @@ function collectGroups(grouping, runtime) {
 }
 
 function assertExactStringArray(value, path) {
-  assertDenseOrdinaryArray(value, path);
-  if (value.length === 0) {
+  const length = assertDenseOrdinaryArray(value, path);
+  if (length === 0) {
     throw invalid('sourceEventIds must contain at least one source note id.', { path });
   }
 
-  const result = new Array(value.length);
-  for (let index = 0; index < value.length; index += 1) {
+  const result = new Array(length);
+  for (let index = 0; index < length; index += 1) {
     const descriptor = safeDescriptor(value, String(index), `${path}[${index}]`);
     const item = descriptor.value;
     if (typeof item !== 'string' || item.length === 0 || item.length > 256) {
@@ -246,20 +269,20 @@ function createGuitarArrangementPlan(sourceModel, decisions, runtime = null) {
   const { notes, byId: sourceNotesById } = collectSourceNotes(source, runtime);
   const groupsById = collectGroups(grouping, runtime);
 
-  assertDenseOrdinaryArray(decisions, 'decisions');
-  if (decisions.length > notes.length) {
+  const decisionCount = assertDenseOrdinaryArray(decisions, 'decisions');
+  if (decisionCount > notes.length) {
     throw invalid('Arrangement decision count cannot exceed source note count.', {
       field: 'decisions',
       limit: notes.length,
-      observed: decisions.length,
+      observed: decisionCount,
     });
   }
 
   const covered = new Set();
-  const normalized = new Array(decisions.length);
+  const normalized = new Array(decisionCount);
   let previousFirstSourceOrder = -1;
 
-  for (let decisionIndex = 0; decisionIndex < decisions.length; decisionIndex += 1) {
+  for (let decisionIndex = 0; decisionIndex < decisionCount; decisionIndex += 1) {
     if (runtime) {
       runtime.checkpoint('guitar-arrangement-plan:decision', { decisionIndex });
     }
