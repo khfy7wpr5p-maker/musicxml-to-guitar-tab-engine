@@ -29,6 +29,7 @@ function sourceModel() {
   );
 }
 
+// Red-first regression: validation must inspect descriptors, not invoke Proxy property getters.
 test('PA-4 hostile decision-array proxies fail closed without invoking property getters', () => {
   let getCalls = 0;
   const decisions = new Proxy([
