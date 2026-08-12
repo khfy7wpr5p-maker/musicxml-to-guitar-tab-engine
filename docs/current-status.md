@@ -4,12 +4,12 @@ This document records the verified implementation state of the authoritative run
 
 ## Snapshot — 2026-08-12
 
-- PA-2.3 closure baseline on `main`: `776755d993c6b057d655df1ed6b4a9046144f46d`
-- latest merged runtime-changing feature: PR #78 — PA-2.3 minimal internal basic note/rest projector
-- PR #78: rebase-merged on 2026-08-12
-- PR #78 exact-head Tests #593 and MusicXML Compatibility #420: `SUCCESS`
-- post-merge Tests #594 on `main`: `SUCCESS`
-- exact-head independent Codex review: no major issue found
+- PA-2.5 closure baseline on `main`: `4ba74b0891b8f2471c994fd746cd09099553f884`
+- latest merged runtime-changing feature: PR #81 — PA-2.5 internal `<chord/>`, multiple-voice and staff 1–2 projection
+- PR #81: rebase-merged on 2026-08-12
+- PR #81 exact-head Tests #612 and MusicXML Compatibility #436: `SUCCESS`
+- post-merge Tests #613 on `main`: `SUCCESS`
+- exact-head independent review: no P1/P2 blocker found
 - PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
 - PA-2.1 projection contract: PR #75 — documentation-only, rebase-merged on 2026-08-12; no runtime authority created
 - current package version: `0.1.0`
@@ -27,14 +27,16 @@ This document records the verified implementation state of the authoritative run
 - PA-2.1 projection contract: merged documentation-only through PR #75
 - PA-2.2 valid polyphonic red-first fixtures/tests: merged tests-only through PR #77
 - PA-2.3 minimal internal basic note/rest projector: merged through PR #78
-- PA-2.4 `backup` / `forward` cursor semantics: current next gate requiring separate explicit approval
+- PA-2.4 `backup` / `forward` cursor semantics: merged through PR #80
+- PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection: merged through PR #81
+- PA-2.6 hostile/budget/deadline/cancellation negatives: current next gate requiring separate explicit approval
 - production application UI: not implemented
 - MuseScore semantic round-trip: not executed
 - production PDF renderer: not implemented
 - G0.1 administrator enforcement: completed
 - historical branch audit: completed
 
-PA-2.3 does not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic.
+PA-2.5 does not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic.
 
 ## Status labels
 
@@ -81,6 +83,8 @@ PA-2.3 does not change the current public conversion scope. The package-root con
 | PA-2.1 | `MERGED_DOCUMENTATION_ONLY` | Projection contract merged through PR #75; no runtime projection authority |
 | PA-2.2 | `MERGED_TESTS_ONLY` | Valid polyphonic red-first fixtures/tests merged through PR #77; no runtime authority |
 | PA-2.3 | `MERGED_INTERNAL` | Minimal basic note/rest projector merged through PR #78; no public projection authority |
+| PA-2.4 | `MERGED_INTERNAL` | `backup` / `forward` cursor semantics merged through PR #80; no public projection authority |
+| PA-2.5 | `MERGED_INTERNAL` | `<chord/>`, multiple voice and staff 1–2 projection merged through PR #81; no public projection authority |
 
 ## Current merged public runtime capabilities
 
@@ -104,7 +108,7 @@ PA-2.3 does not change the current public conversion scope. The package-root con
 | Benchmark/evaluation | `MERGED_INTERNAL` | B1/B2 fixed independent evidence |
 | Shadow learning evaluation | `MERGED_INTERNAL_SHADOW_ONLY` | LR-S0/LR-S1A, no normal-conversion authority |
 | Path-policy provenance integrity | `MERGED_INTERNAL` | LR-S1B.1 / 2a / 2b content/semantic binding foundations |
-| Polyphonic source-truth foundation | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0`; no parser wiring or arrangement authority |
+| Polyphonic source-truth foundation | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0`; internal projector implemented through PA-2.5, no public arrangement authority |
 
 ## Current public musical scope
 
@@ -328,7 +332,7 @@ Application UI, renderers, editors and persistence layers must remain downstream
 
 ## PA-0 / PA-1 / PA-2.1 polyphonic status
 
-PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. PA-2.0 documentation convergence is merged. PA-2.1 is merged documentation-only through PR #75 and defines the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`; it does not implement that projection or change the public monophonic path.
+PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. PA-2.0 documentation convergence is merged. PA-2.1 is merged documentation-only through PR #75 and defines the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`. PA-2.2 supplies tests-only vectors, while PA-2.3 through PA-2.5 implement internal runtime slices under that contract. None of this changes the public monophonic path.
 
 ```text
 ParsedMusicXmlDocument 1.0.0
@@ -346,7 +350,7 @@ ParsedMusicXmlDocument 1.0.0
                       deterministic arrangement optimizer
 ```
 
-The PA-2 runtime projector in this diagram is an umbrella label. PA-2.3's minimal basic note/rest slice is merged; PA-2.4 `backup` / `forward` and PA-2.5 chord/multiple-voice/staff-2 expansion remain separately gated.
+The PA-2 runtime projector in this diagram is an umbrella label. PA-2.3 basic note/rest, PA-2.4 `backup` / `forward`, and PA-2.5 source chord/multiple-voice/staff-2 slices are merged internal. PA-2.6–PA-2.8 remain separately gated hardening/regression/CI-review work.
 
 Original MusicXML remains immutable source truth. Arrangement transformations such as omission, octave displacement, voice redistribution, chord reduction/revoicing or arpeggiation require explicit provenance.
 
@@ -354,7 +358,7 @@ Original MusicXML remains immutable source truth. Arrangement transformations su
 
 PA-1 was recovered from historical divergent work onto a fresh current-main branch, hardened with negative/fail-closed tests, independently reviewed and rebase-merged through PR #73. The final P2 aggregate-event-budget issue was reproduced red-first and fixed before merge. Post-merge Tests #488 passed. The recovery branch was then removed after a read-only tree/content-equivalence check.
 
-PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic source projection, create chord groups, make arrangement decisions, select strings/frets/fingers/barres, or expose a public polyphonic API.
+PA-1 remains internal. It does not create chord groups, make arrangement decisions, select strings/frets/fingers/barres, or expose a public polyphonic API.
 
 ## Approved polyphonic safe sequence
 
@@ -366,9 +370,9 @@ PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic s
 | 4 | PA-2.1 Projection contract | `MERGED_DOCUMENTATION_ONLY` — PR #75 merged; no runtime authority |
 | 5 | PA-2.2 Valid polyphonic red-first fixtures/tests | `MERGED_TESTS_ONLY` — PR #77 |
 | 6 | PA-2.3 Minimal internal note/rest projector | `MERGED_INTERNAL` — PR #78 |
-| 7 | PA-2.4 `backup` / `forward` cursor semantics | `SEPARATE_NEXT_GATE` — requires explicit approval |
-| 8 | PA-2.5 `<chord/>`, multiple voice, staff 1–2 projection | `BLOCKED_BY_PA_2_4` |
-| 9 | PA-2.6 Hostile/budget/deadline/cancellation negatives | `BLOCKED_BY_PA_2_5` |
+| 7 | PA-2.4 `backup` / `forward` cursor semantics | `MERGED_INTERNAL` — PR #80 |
+| 8 | PA-2.5 `<chord/>`, multiple voice, staff 1–2 projection | `MERGED_INTERNAL` — PR #81 |
+| 9 | PA-2.6 Hostile/budget/deadline/cancellation negatives | `SEPARATE_NEXT_GATE` — requires explicit approval |
 | 10 | PA-2.7 Full regression + monophonic compatibility | `BLOCKED_BY_PA_2_6` |
 | 11 | PA-2.8 GitHub CI + independent review | `BLOCKED_BY_PA_2_7` |
 | 12 | PA-3 Simultaneous-event / chord contract | `NOT_IMPLEMENTED` |
@@ -410,23 +414,25 @@ These remain blocked by explicit prerequisites and must not be inferred from the
 | 6 | PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | `COMPLETED_DOCUMENTATION_ONLY` — PR #75 merged; no runtime authority |
 | 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `MERGED_TESTS_ONLY` — PR #77 |
 | 8 | PA-2.3 Minimal internal note/rest projector | `MERGED_INTERNAL` — PR #78 |
-| 9 | PA-2.4–PA-2.8 cursor/chord projection, hardening, regression and CI sequence | `SEPARATELY_GATED` — PA-2.4 is next |
-| 10 | Musical Notation Coverage contract | `NOT_STARTED` |
-| 11 | MuseScore semantic compatibility gate | `NOT_STARTED` |
-| 12 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
-| 13 | Application/Presentation architecture contract | `NOT_STARTED` |
-| 14 | alphaTab application viewer | `NOT_IMPLEMENTED` |
-| 15 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
-| 16 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
-| 17 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
-| 18 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
-| 19 | Export center | `NOT_IMPLEMENTED` |
-| 20 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
-| 21 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
-| 22 | Project persistence | `NOT_IMPLEMENTED` |
-| 23 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
-| 24 | PA-3…PA-14 | `BLOCKED_BY_PA_2_SEQUENCE` |
-| 25 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
+| 9 | PA-2.4 `backup` / `forward` cursor semantics | `MERGED_INTERNAL` — PR #80 |
+| 10 | PA-2.5 chord/multiple-voice/staff-2 projection | `MERGED_INTERNAL` — PR #81 |
+| 11 | PA-2.6–PA-2.8 hardening, regression and CI/review sequence | `SEPARATELY_GATED` — PA-2.6 is next |
+| 12 | Musical Notation Coverage contract | `NOT_STARTED` |
+| 13 | MuseScore semantic compatibility gate | `NOT_STARTED` |
+| 14 | Independent real-world MusicXML E2E fixture gate | `NOT_STARTED` |
+| 15 | Application/Presentation architecture contract | `NOT_STARTED` |
+| 16 | alphaTab application viewer | `NOT_IMPLEMENTED` |
+| 17 | Application measure/beat cursor | `NOT_IMPLEMENTED` |
+| 18 | Playback adapter + Play/Pause/Stop | `BLOCKED_BY_PLAYBACK_EVIDENCE` |
+| 19 | Teacher Fingering Correction UI | `NOT_IMPLEMENTED` |
+| 20 | Teacher Score Correction contract/UI | `NOT_IMPLEMENTED` |
+| 21 | Export center | `NOT_IMPLEMENTED` |
+| 22 | MuseScore/PDF adapter | `BLOCKED_BY_MUSESCORE_COMPATIBILITY` |
+| 23 | PDF viewer / print / share | `BLOCKED_BY_PDF_ADAPTER` |
+| 24 | Project persistence | `NOT_IMPLEMENTED` |
+| 25 | Application E2E | `BLOCKED_BY_APPLICATION_FOUNDATIONS` |
+| 26 | PA-3…PA-14 | `BLOCKED_BY_PA_2_SEQUENCE` |
+| 27 | Production learned/training work | `BLOCKED_BY_DATA_GOVERNANCE` |
 
 ## High-risk protection rule
 
