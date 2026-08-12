@@ -37,7 +37,9 @@ function contentError(message, code = 'INVALID_MUSICXML', details = {}) {
 }
 
 function directChildren(node, name) {
-  return node.children.filter((child) => child.name === name);
+  return node.children.filter(
+    (child) => child.name === name && child.uri === node.uri,
+  );
 }
 
 function firstDirectChild(node, name) {
