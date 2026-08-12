@@ -43,7 +43,9 @@ function unsupported(feature, details = {}) {
 }
 
 function directChildren(node, name) {
-  return node.children.filter((child) => child.name === name);
+  return node.children.filter(
+    (child) => child.name === name && child.uri === node.uri,
+  );
 }
 
 function getAttribute(node, name) {
@@ -173,6 +175,9 @@ function parseTieState(noteNode, isRest, location) {
   const tiedNodes = [];
   for (const notations of directChildren(noteNode, 'notations')) {
     for (const notationChild of notations.children) {
+      if (notationChild.uri !== notations.uri) {
+        continue;
+      }
       if (notationChild.name !== 'tied') {
         throw unsupported(`notation:${notationChild.name}`, location);
       }
@@ -262,6 +267,9 @@ function parseBasicNote(noteNode, context) {
   }
   if (directChildren(noteNode, 'cue').length > 0) {
     throw unsupported('cue-note', location);
+  }
+  if (directChildren(noteNode, 'unpitched').length > 0) {
+    throw unsupported('unpitched-note', location);
   }
   if (directChildren(noteNode, 'time-modification').length > 0) {
     throw unsupported('time-modification', location);
@@ -384,7 +392,7 @@ function preflightProjectionOutputBounds(measureNodes, partId, effectiveMaxEvent
 
     let measureEventCount = 0;
     for (const child of measureNode.children) {
-      if (child.name !== 'note') {
+      if (child.name !== 'note' || child.uri !== measureNode.uri) {
         continue;
       }
 
@@ -473,6 +481,9 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
     const events = [];
 
     for (const child of measureNode.children) {
+      if (child.uri !== measureNode.uri) {
+        continue;
+      }
       if (child.name === 'attributes') {
         applyMeasureAttributes(child, state, timingStarted, location);
         continue;
