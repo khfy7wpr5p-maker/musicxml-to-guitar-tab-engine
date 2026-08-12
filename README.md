@@ -4,24 +4,26 @@ A standalone, deterministic engine that converts the currently supported MusicXM
 
 AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md).
 
-## Verified runtime baseline — 2026-08-11
+## Verified runtime baseline — 2026-08-12
 
-The authoritative `main` baseline before PA-2.1 closure is:
+The authoritative repository baseline after PA-2.1 closure is:
 
-- current `main` head: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
-- latest merged runtime feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0` internal source-truth foundation
+- current `main` head: `6b78c86e00c90c1d422bbfb3b29fbd378ce1bd93`
+- latest merged runtime-changing feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0` internal source-truth foundation; final runtime-changing commit `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
 - PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
-- post-merge Tests #490: PASS on `main`
+- PA-2.1 projection contract: PR #75 — documentation-only, rebase-merged on 2026-08-12; no runtime authority created
+- post-merge Tests #499: PASS on current `main`
+- PR #75 exact-head MusicXML Compatibility #328: PASS before rebase merge
 - package version: `0.1.0`
 - package metadata: `private: true`, `UNLICENSED`
 - current canonical TAB contract: `CanonicalTabResult 1.0.0`
 - current internal error contract: `EngineError 1.0.0`
 - PA-1 status: `MERGED_INTERNAL`
-- PA-2.1 status: documentation-only projection contract; PR #75 is the closure vehicle and creates no runtime authority
-- PA-2.2 status: next separate tests-only gate requiring explicit approval after PA-2.1 closure
+- PA-2.1 status: `MERGED_DOCUMENTATION_ONLY`
+- PA-2.2 status: next separate tests-only gate requiring explicit approval
 - PA-2 runtime projection: `NOT_IMPLEMENTED`; runtime implementation begins no earlier than PA-2.3
 
-PA-1 does not make polyphonic conversion public. The current public conversion path remains monophonic and unchanged.
+PA-1 and PA-2.1 do not make polyphonic conversion public. The current public conversion path remains monophonic and unchanged.
 
 ## Current public conversion pipeline
 
@@ -216,7 +218,7 @@ PDF must remain a presentation adapter. Failure or absence of PDF rendering must
 
 ## Polyphonic MusicXML → Guitar Arrangement
 
-PA-0 documentation/architecture and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is also merged. PA-2.1 is the documentation-only projection contract carried by PR #75; closing PA-2.1 creates no runtime authority. PA-2.2 is the next separate tests-only gate and requires explicit approval after PA-2.1 closure. PA-2 runtime projection remains `NOT_IMPLEMENTED` and begins no earlier than PA-2.3. The public monophonic path remains unchanged.
+PA-0 documentation/architecture, PA-1 `PolyphonicSourceModel 1.0.0`, PA-2.0 documentation convergence and the PA-2.1 documentation-only projection contract are merged. PR #75 closed PA-2.1 without creating runtime authority. PA-2.2 is now the next separate tests-only gate and requires explicit approval. PA-2 runtime projection remains `NOT_IMPLEMENTED` and begins no earlier than PA-2.3. The public monophonic path remains unchanged.
 
 The approved parallel target is:
 
@@ -251,8 +253,8 @@ Safe PA sequence:
 1. PA-0 documentation/architecture — merged
 2. PA-1 `PolyphonicSourceModel 1.0` — merged internal
 3. PA-2.0 PA-1 → PA-2 documentation convergence — merged documentation
-4. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
-5. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+4. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
+5. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval
 6. PA-2.3 minimal internal note/rest projector
 7. PA-2.4 `backup` / `forward` cursor semantics
 8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection
@@ -313,7 +315,7 @@ Target application capabilities:
 
 Application, renderer, editor and persistence layers must not directly mutate authoritative canonical data or bypass physical validation.
 
-## Safe development order — 2026-08-11
+## Safe development order — 2026-08-12
 
 Current controlled order:
 
@@ -322,8 +324,8 @@ Current controlled order:
 3. historical branch inventory / orphan-work audit — completed
 4. PA-1 recovery audit and closure — completed
 5. PA-2.0 PA-1 → PA-2 documentation convergence — completed
-6. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
-7. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+6. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
+7. PA-2.2 valid polyphonic red-first fixtures/tests — **current next separate gate**, requiring explicit approval
 8. PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence — separately gated and not started
 9. Musical Notation Coverage contract
 10. MuseScore semantic compatibility gate

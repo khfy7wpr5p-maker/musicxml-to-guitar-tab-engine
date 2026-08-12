@@ -2,14 +2,16 @@
 
 This document records the verified implementation state of the authoritative runtime line and the separately planned application, notation, polyphonic-arrangement and learning directions.
 
-## Snapshot — 2026-08-11
+## Snapshot — 2026-08-12
 
-- PA-2.1 PR #75 base `main` head: `012e66898ba584fad79dd8b31bf6f76feb0a8f72`
-- latest merged runtime feature before PA-2.1: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
+- current authoritative `main` head: `6b78c86e00c90c1d422bbfb3b29fbd378ce1bd93`
+- latest merged runtime-changing feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`
+- final runtime-changing commit: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
 - PR #73: rebase-merged on 2026-08-11
-- PA-2.1 baseline documentation merge: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence
-- PR #74: rebase-merged on 2026-08-11
-- baseline post-merge Tests #490: PASS on `main`
+- PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
+- PA-2.1 projection contract: PR #75 — documentation-only, rebase-merged on 2026-08-12; no runtime authority created
+- post-merge Tests #499: PASS on current `main`
+- PR #75 exact-head MusicXML Compatibility #328: PASS before rebase merge
 - current package version: `0.1.0`
 - current canonical result: `CanonicalTabResult 1.0.0`
 - current internal error contract: `EngineError 1.0.0`
@@ -22,8 +24,8 @@ This document records the verified implementation state of the authoritative run
 - PA-0 Polyphonic MusicXML → Guitar Arrangement architecture: merged documentation
 - PA-1 `PolyphonicSourceModel 1.0.0`: merged internal source-truth foundation
 - PA-2.0 documentation convergence: merged documentation
-- PA-2.1 projection contract: documentation-only closure recorded by PR #75; merging PR #75 closes PA-2.1 without implementing runtime projection
-- PA-2.2 valid polyphonic red-first fixtures/tests: separate next tests-only gate requiring explicit approval after PA-2.1 closure
+- PA-2.1 projection contract: merged documentation-only through PR #75; no runtime projection implemented
+- PA-2.2 valid polyphonic red-first fixtures/tests: current next tests-only gate requiring separate explicit approval
 - production application UI: not implemented
 - MuseScore semantic round-trip: not executed
 - production PDF renderer: not implemented
@@ -42,6 +44,7 @@ PA-1 and PA-2.1 do not change the current public conversion scope. The package-r
 | `COMPATIBILITY_VERIFIED` | Verified in isolated compatibility tests, not necessarily production app capability |
 | `UNMERGED_WORK_EXISTS` | Real branch work exists but is not current `main` runtime capability |
 | `DOCUMENTATION_ONLY` | Architecture/contract planning only; no runtime capability |
+| `MERGED_DOCUMENTATION_ONLY` | Documentation/contract gate is merged on `main` but creates no runtime capability |
 | `NOT_IMPLEMENTED` | No merged implementation exists |
 | `BLOCKED` | Work must not begin until prerequisites/evidence are complete |
 | `GOVERNANCE_OPEN` | Repository/process hardening issue remains unresolved |
@@ -72,6 +75,7 @@ PA-1 and PA-2.1 do not change the current public conversion scope. The package-r
 | LR-S1B.2a | `MERGED_INTERNAL` | Semantic replay verifier for observation + policy compatibility |
 | LR-S1B.2b | `MERGED_INTERNAL` | Immutable path-policy binding record + binding digest |
 | PA-1 | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0` source-truth foundation; no public projection/arrangement authority |
+| PA-2.1 | `MERGED_DOCUMENTATION_ONLY` | Projection contract merged through PR #75; no runtime projection authority |
 
 ## Current merged public runtime capabilities
 
@@ -319,7 +323,7 @@ Application UI, renderers, editors and persistence layers must remain downstream
 
 ## PA-0 / PA-1 / PA-2.1 polyphonic status
 
-PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. PA-2.0 documentation convergence is merged. PA-2.1 defines the documentation-only projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`; it does not implement that projection or change the public monophonic path.
+PA-0 is merged architecture/documentation. PA-1 `PolyphonicSourceModel 1.0.0` is merged internal source-truth infrastructure. PA-2.0 documentation convergence is merged. PA-2.1 is merged documentation-only through PR #75 and defines the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`; it does not implement that projection or change the public monophonic path.
 
 ```text
 ParsedMusicXmlDocument 1.0.0
@@ -354,8 +358,8 @@ PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic s
 | 1 | PA-0 Documentation + architecture planning | `MERGED_DOCUMENTATION_ONLY` |
 | 2 | PA-1 `PolyphonicSourceModel 1.0` | `MERGED_INTERNAL` |
 | 3 | PA-2.0 PA-1 → PA-2 documentation convergence | `MERGED_DOCUMENTATION_ONLY` |
-| 4 | PA-2.1 Projection contract | `DOCUMENTATION_ONLY` — closure recorded by PR #75; no runtime authority |
-| 5 | PA-2.2 Valid polyphonic red-first fixtures/tests | `NOT_STARTED` — separate next gate requiring explicit approval after PA-2.1 closure |
+| 4 | PA-2.1 Projection contract | `MERGED_DOCUMENTATION_ONLY` — PR #75 merged; no runtime authority |
+| 5 | PA-2.2 Valid polyphonic red-first fixtures/tests | `SEPARATE_NEXT_GATE` — requires explicit approval |
 | 6 | PA-2.3 Minimal internal note/rest projector | `BLOCKED_BY_PA_2_2` |
 | 7 | PA-2.4 `backup` / `forward` cursor semantics | `BLOCKED_BY_PA_2_3` |
 | 8 | PA-2.5 `<chord/>`, multiple voice, staff 1–2 projection | `BLOCKED_BY_PA_2_4` |
@@ -389,7 +393,7 @@ PA-1 remains internal. It does not wire `ParsedMusicXmlDocument` to polyphonic s
 
 These remain blocked by explicit prerequisites and must not be inferred from the existence of observation/digest/shadow infrastructure.
 
-## Current safe development order — 2026-08-11
+## Current safe development order — 2026-08-12
 
 | Order | Gate | Current state |
 |---:|---|---|
@@ -398,8 +402,8 @@ These remain blocked by explicit prerequisites and must not be inferred from the
 | 3 | Historical branch inventory / orphan-work audit | `COMPLETED` |
 | 4 | PA-1 recovery audit and closure | `COMPLETED` |
 | 5 | PA-2.0 PA-1 → PA-2 documentation convergence | `COMPLETED` |
-| 6 | PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | `DOCUMENTATION_ONLY` — PR #75 is the closure vehicle; no runtime authority |
-| 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `SEPARATE_NEXT_GATE` — requires explicit approval after PA-2.1 closure |
+| 6 | PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | `COMPLETED_DOCUMENTATION_ONLY` — PR #75 merged; no runtime authority |
+| 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `SEPARATE_NEXT_GATE` — requires explicit approval |
 | 8 | PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence | `SEPARATELY_GATED_NOT_STARTED` |
 | 9 | Musical Notation Coverage contract | `NOT_STARTED` |
 | 10 | MuseScore semantic compatibility gate | `NOT_STARTED` |
