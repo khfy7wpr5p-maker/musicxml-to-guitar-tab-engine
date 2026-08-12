@@ -16,6 +16,9 @@ const {
 const {
   enforceMusicXmlSemanticResourceLimits,
 } = require('./musicxmlSemanticResourceLimits');
+const {
+  enforcePolyphonicMusicXmlSemanticProfile,
+} = require('./polyphonicMusicXmlSemanticProfile');
 
 const PARSED_MUSICXML_DOCUMENT_VERSION = '1.0.0';
 const MUSICXML_NAMESPACE = 'http://www.musicxml.org/ns/musicxml';
@@ -492,6 +495,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
   processing.checkpoint('polyphonic-projector:start');
   validateParsedInput(parsedDocument);
   const validation = enforceMusicXmlSemanticResourceLimits(parsedDocument, processing);
+  enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, unsupported);
 
   const effectiveMaxMeasures = Math.min(processing.budget.limits.maxMeasures, MAX_PROJECTED_MEASURES);
   const effectiveMaxEvents = Math.min(processing.budget.limits.maxEvents, MAX_PROJECTED_EVENTS);
