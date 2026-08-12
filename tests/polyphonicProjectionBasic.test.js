@@ -229,6 +229,51 @@ test('PA-2.3 rejects cue notes instead of projecting them as played notes', () =
   );
 });
 
+test('PA-2.3 matches source elements by MusicXML namespace', () => {
+  const namespacedBase = BASIC_XML.replace(
+    '<score-partwise version="4.0">',
+    '<score-partwise version="4.0" xmlns:x="urn:pa-2-3-foreign">',
+  );
+  const foreignTieXml = namespacedBase.replace(
+    '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><x:tie type="start"/><voice>1</voice><staff>1</staff></note>',
+  );
+  const foreignNoteXml = namespacedBase.replace(
+    '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    '<x:note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></x:note>',
+  );
+
+  const tieRuntime = createMusicXmlProcessingRuntime();
+  const tieParsed = parseParsedMusicXmlDocument(foreignTieXml, {}, tieRuntime);
+  const tieProjected = projectParsedMusicXmlToPolyphonicSourceModel(tieParsed, tieRuntime);
+  assert.equal(tieProjected.measures[0].events[0].tieStart, false);
+
+  const noteRuntime = createMusicXmlProcessingRuntime();
+  const noteParsed = parseParsedMusicXmlDocument(foreignNoteXml, {}, noteRuntime);
+  const noteProjected = projectParsedMusicXmlToPolyphonicSourceModel(noteParsed, noteRuntime);
+  assert.equal(noteProjected.eventCount, 4);
+  assert.equal(noteProjected.measures[0].events.length, 2);
+  assert.equal(noteProjected.measures[0].events[0].type, 'rest');
+});
+
+test('PA-2.3 rejects unpitched note-kind constructs instead of flattening them to pitch', () => {
+  const xml = BASIC_XML.replace(
+    '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    '<note><pitch><step>C</step><octave>4</octave></pitch><unpitched><display-step>C</display-step><display-octave>4</display-octave></unpitched><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+  );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+      assert.equal(error.details.feature, 'unpitched-note');
+      return true;
+    },
+  );
+});
+
 test('PA-2.3 enforces the fixed PA-1 event ceiling before event graph allocation', () => {
   let sawProjectionEvent = false;
   const runtime = createMusicXmlProcessingRuntime(
