@@ -3,6 +3,7 @@
 const { types } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { DEFAULT_PROCESSING_LIMITS } = require('../core/processingBudget');
+const { isProcessingRuntime } = require('../core/processingRuntime');
 const { pitchToMidi, PitchError } = require('./pitch');
 
 const POLYPHONIC_SOURCE_MODEL_VERSION = '1.0.0';
@@ -24,6 +25,16 @@ class PolyphonicSourceModelError extends EngineError {
 
 function invalid(message, details = {}) {
   return new PolyphonicSourceModelError(message, details);
+}
+
+function resolveOptionalProcessingRuntime(runtime) {
+  if (runtime === null || runtime === undefined) {
+    return null;
+  }
+  if (!isProcessingRuntime(runtime)) {
+    throw invalid('runtime must be a ProcessingRuntime 1.0.0 value.', { field: 'runtime' });
+  }
+  return runtime;
 }
 
 function requireSafeInteger(value, field, details = {}) {
@@ -540,7 +551,12 @@ function validateEvent(event, field, seen, context) {
 }
 
 function validateMeasure(measure, field, seen, context) {
-  const { partId, measureIndex, remainingEventBudget } = context;
+  const {
+    partId,
+    measureIndex,
+    remainingEventBudget,
+    processing,
+  } = context;
   const descriptors = safeObjectDescriptors(
     measure,
     field,
@@ -631,6 +647,12 @@ function validateMeasure(measure, field, seen, context) {
   const events = [];
   let previousEvent = null;
   for (let eventIndex = 0; eventIndex < eventValues.length; eventIndex += 1) {
+    if (processing) {
+      processing.checkpoint('polyphonic-source-model:event', {
+        measureIndex,
+        eventIndex,
+      });
+    }
     const validated = validateEvent(
       eventValues[eventIndex],
       `${field}.events[${eventIndex}]`,
@@ -680,7 +702,8 @@ function validateSourceMetadata(source, field, seen) {
   return Object.freeze({ format, musicXmlVersion, partId });
 }
 
-function validatePolyphonicSourceModel(model) {
+function validatePolyphonicSourceModel(model, runtime = null) {
+  const processing = resolveOptionalProcessingRuntime(runtime);
   const seen = new WeakSet();
   const descriptors = safeObjectDescriptors(
     model,
@@ -769,9 +792,17 @@ function validatePolyphonicSourceModel(model) {
         partId: source.partId,
         measureIndex,
         remainingEventBudget: DEFAULT_PROCESSING_LIMITS.maxEvents - observedEventCount,
+        processing,
       },
     );
-    for (const event of measure.events) {
+    for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      if (processing) {
+        processing.checkpoint('polyphonic-source-model:index-event', {
+          measureIndex,
+          eventIndex,
+        });
+      }
+      const event = measure.events[eventIndex];
       observedEventCount += 1;
       if (observedEventCount > DEFAULT_PROCESSING_LIMITS.maxEvents) {
         throw invalid('model events exceed the ProcessingBudget default boundary.', {
@@ -805,8 +836,8 @@ function validatePolyphonicSourceModel(model) {
   });
 }
 
-function createPolyphonicSourceModel(input) {
-  return validatePolyphonicSourceModel(input);
+function createPolyphonicSourceModel(input, runtime = null) {
+  return validatePolyphonicSourceModel(input, runtime);
 }
 
 module.exports = {
