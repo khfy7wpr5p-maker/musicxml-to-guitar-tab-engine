@@ -207,6 +207,56 @@ test('PA-2.3S-1 REJECT unknown same-profile pitch child', () => {
   assertProfileRejects(score({ pitchExtra: '<profile-unknown/>' }));
 });
 
+const supportedScalarLeafCases = [
+  [
+    'note duration child',
+    score().replace('<duration>4</duration>', '<duration><profile-unknown/>4</duration>'),
+  ],
+  [
+    'note voice attribute',
+    score().replace('<voice>1</voice>', '<voice profile-unknown="yes">1</voice>'),
+  ],
+  [
+    'note staff child',
+    score().replace('<staff>1</staff>', '<staff><profile-unknown/>1</staff>'),
+  ],
+  [
+    'pitch step attribute',
+    score().replace('<step>C</step>', '<step profile-unknown="yes">C</step>'),
+  ],
+  [
+    'pitch alter child',
+    score({ pitchExtra: '<alter>0</alter>' })
+      .replace('<alter>0</alter>', '<alter><profile-unknown/>0</alter>'),
+  ],
+  [
+    'pitch octave attribute',
+    score().replace('<octave>4</octave>', '<octave profile-unknown="yes">4</octave>'),
+  ],
+  [
+    'divisions child',
+    score().replace('<divisions>4</divisions>', '<divisions><profile-unknown/>4</divisions>'),
+  ],
+  [
+    'time beats attribute',
+    score().replace('<beats>4</beats>', '<beats profile-unknown="yes">4</beats>'),
+  ],
+  [
+    'time beat-type child',
+    score().replace('<beat-type>4</beat-type>', '<beat-type><profile-unknown/>4</beat-type>'),
+  ],
+  [
+    'staves attribute',
+    score().replace('<staves>1</staves>', '<staves profile-unknown="yes">1</staves>'),
+  ],
+];
+
+for (const [name, xml] of supportedScalarLeafCases) {
+  test(`PA-2.3S-1 REJECT supported scalar content: ${name}`, () => {
+    assertProfileRejects(xml);
+  });
+}
+
 test('PA-2.3S-1 REJECT unknown same-profile root child', () => {
   assertProfileRejects(score({ rootExtra: '<profile-unknown/>' }));
 });

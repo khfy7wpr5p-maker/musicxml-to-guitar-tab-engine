@@ -252,6 +252,20 @@ function enforceLeaf(node, surface, location, rejectUnsupported, processing = nu
   );
 }
 
+function enforceScalarLeaves(
+  groupedChildren,
+  names,
+  location,
+  rejectUnsupported,
+  processing = null,
+) {
+  for (const name of names) {
+    for (const node of groupedChildren.get(name) || []) {
+      enforceLeaf(node, name, location, rejectUnsupported, processing);
+    }
+  }
+}
+
 function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = null) {
   const noteChildren = enforceChildren(
     noteNode,
@@ -270,9 +284,16 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
     rejectUnsupported,
     processing,
   );
+  enforceScalarLeaves(
+    noteChildren,
+    ['duration', 'voice', 'staff'],
+    location,
+    rejectUnsupported,
+    processing,
+  );
 
   for (const pitch of noteChildren.get('pitch') || []) {
-    enforceChildren(
+    const pitchChildren = enforceChildren(
       pitch,
       'pitch',
       PITCH_CHILDREN,
@@ -285,6 +306,13 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
       pitch,
       'pitch',
       EMPTY_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
+    enforceScalarLeaves(
+      pitchChildren,
+      ['step', 'alter', 'octave'],
       location,
       rejectUnsupported,
       processing,
@@ -375,8 +403,15 @@ function enforceAttributesProfile(
     rejectUnsupported,
     processing,
   );
+  enforceScalarLeaves(
+    attributeChildren,
+    ['divisions', 'staves'],
+    location,
+    rejectUnsupported,
+    processing,
+  );
   for (const time of attributeChildren.get('time') || []) {
-    enforceChildren(
+    const timeChildren = enforceChildren(
       time,
       'time',
       TIME_CHILDREN,
@@ -389,6 +424,13 @@ function enforceAttributesProfile(
       time,
       'time',
       EMPTY_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
+    enforceScalarLeaves(
+      timeChildren,
+      ['beats', 'beat-type'],
       location,
       rejectUnsupported,
       processing,
