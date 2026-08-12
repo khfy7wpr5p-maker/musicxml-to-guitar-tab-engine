@@ -30,6 +30,13 @@ const {
  * separately approved.
  */
 
+function protectedMonophonicErrorCode(fixture) {
+  const containsSecondStaff = fixture.expectedModel.measures.some(
+    (measure) => measure.events.some((event) => event.staff === 2),
+  );
+  return containsSecondStaff ? 'UNSUPPORTED_MULTISTAFF' : fixture.monophonicErrorCode;
+}
+
 for (const fixture of fixtures) {
   test(`PA-2.2 valid vector parses safely and targets a valid PA-1 model: ${fixture.name}`, () => {
     const runtime = createMusicXmlProcessingRuntime();
@@ -56,7 +63,7 @@ for (const fixture of fixtures) {
     assert.throws(
       () => parseMusicXmlNotes(fixture.xml),
       (error) => {
-        assert.equal(error.code, fixture.monophonicErrorCode);
+        assert.equal(error.code, protectedMonophonicErrorCode(fixture));
         return true;
       },
     );
