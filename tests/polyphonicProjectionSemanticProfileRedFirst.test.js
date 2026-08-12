@@ -139,6 +139,95 @@ test('PA-2.3S-1 SAFE_IGNORE: selected presentation-only note attributes do not a
   assert.deepEqual(candidate, baseline);
 });
 
+test('PA-2.3S-1 SAFE_IGNORE: profiled notation attributes and notehead text remain presentation-only', () => {
+  const baseline = project(score());
+  const candidate = project(score({
+    noteType: '<type size="full">quarter</type>',
+    noteDecorations: [
+      '<dot placement="above" color="#112233"/>',
+      '<stem default-y="1">up</stem>',
+      '<beam number="1" color="#112233" id="beam-1">begin</beam>',
+      '<notehead filled="yes" parentheses="no">normal</notehead>',
+      '<notehead-text><display-text font-style="italic">x</display-text><accidental-text smufl="accidentalSharp">sharp</accidental-text></notehead-text>',
+      '<accidental cautionary="yes" editorial="yes" smufl="accidentalNatural">natural</accidental>',
+      '<footnote font-weight="bold">editorial</footnote>',
+      '<level reference="yes" type="single">1</level>',
+    ].join(''),
+  }));
+  assert.deepEqual(candidate, baseline);
+});
+
+test('PA-2.3S-1 SAFE_IGNORE: profiled part-name presentation metadata does not alter source facts', () => {
+  const baseline = project(score());
+  const candidate = project(score().replace(
+    '<part-name>',
+    '<part-name color="#112233" font-style="italic" print-object="yes">',
+  ));
+  assert.deepEqual(candidate, baseline);
+});
+
+const rejectSafeIgnoreAttributeCases = [
+  ['type', { noteType: '<type profile-unknown="yes">quarter</type>' }],
+  ['dot', { noteDecorations: '<dot profile-unknown="yes"/>' }],
+  ['stem', { noteDecorations: '<stem profile-unknown="yes">up</stem>' }],
+  ['beam', { noteDecorations: '<beam profile-unknown="yes">begin</beam>' }],
+  ['notehead', { noteDecorations: '<notehead profile-unknown="yes">normal</notehead>' }],
+  ['notehead-text', { noteDecorations: '<notehead-text profile-unknown="yes"><display-text>x</display-text></notehead-text>' }],
+  ['accidental', { noteDecorations: '<accidental profile-unknown="yes">natural</accidental>' }],
+  ['footnote', { noteDecorations: '<footnote profile-unknown="yes">editorial</footnote>' }],
+  ['level', { noteDecorations: '<level profile-unknown="yes">1</level>' }],
+];
+
+for (const [name, options] of rejectSafeIgnoreAttributeCases) {
+  test(`PA-2.3S-1 REJECT unknown SAFE_IGNORE attribute: ${name}`, () => {
+    assertProfileRejects(score(options));
+  });
+}
+
+test('PA-2.3S-1 REJECT unknown SAFE_IGNORE attribute: part-name', () => {
+  assertProfileRejects(score().replace(
+    '<part-name>',
+    '<part-name profile-unknown="yes">',
+  ));
+});
+
+const rejectSafeIgnoreChildCases = [
+  ['type', { noteType: '<type><profile-unknown/>quarter</type>' }],
+  ['dot', { noteDecorations: '<dot><profile-unknown/></dot>' }],
+  ['stem', { noteDecorations: '<stem><profile-unknown/>up</stem>' }],
+  ['beam', { noteDecorations: '<beam><profile-unknown/>begin</beam>' }],
+  ['notehead', { noteDecorations: '<notehead><profile-unknown/>normal</notehead>' }],
+  ['notehead-text', { noteDecorations: '<notehead-text><profile-unknown/></notehead-text>' }],
+  ['accidental', { noteDecorations: '<accidental><profile-unknown/>natural</accidental>' }],
+  ['footnote', { noteDecorations: '<footnote><profile-unknown/>editorial</footnote>' }],
+  ['level', { noteDecorations: '<level><profile-unknown/>1</level>' }],
+];
+
+for (const [name, options] of rejectSafeIgnoreChildCases) {
+  test(`PA-2.3S-1 REJECT unknown SAFE_IGNORE child: ${name}`, () => {
+    assertProfileRejects(score(options));
+  });
+}
+
+test('PA-2.3S-1 REJECT unknown SAFE_IGNORE child: part-name', () => {
+  assertProfileRejects(score().replace(
+    'PA-2.3S-1</part-name>',
+    '<profile-unknown/>PA-2.3S-1</part-name>',
+  ));
+});
+
+const rejectPlaybackBearingSafeIgnoreCases = [
+  ['beam repeater', '<beam number="1" repeater="yes">begin</beam>'],
+  ['beam fan', '<beam number="1" fan="accel">begin</beam>'],
+  ['semantic notehead SMuFL refinement', '<notehead smufl="noteheadDiamondBlack">diamond</notehead>'],
+];
+
+for (const [name, noteDecorations] of rejectPlaybackBearingSafeIgnoreCases) {
+  test(`PA-2.3S-1 REJECT playback-bearing SAFE_IGNORE metadata: ${name}`, () => {
+    assertProfileRejects(score({ noteDecorations }));
+  });
+}
+
 test('PA-2.3S-1 FOREIGN_NAMESPACE: a foreign note lookalike creates no source event', () => {
   const projected = project(score({
     rootAttributes: ' xmlns:x="urn:pa-2-3s-foreign"',

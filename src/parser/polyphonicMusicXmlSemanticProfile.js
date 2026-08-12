@@ -14,6 +14,10 @@ function classified(classification, feature = null) {
 const SUPPORTED = classified(CLASSIFICATION.SUPPORTED);
 const SAFE_IGNORE = classified(CLASSIFICATION.SAFE_IGNORE);
 
+function safeIgnoreAttributes(...names) {
+  return Object.freeze(Object.fromEntries(names.map((name) => [name, SAFE_IGNORE])));
+}
+
 const ROOT_CHILDREN = Object.freeze({
   'part-list': SUPPORTED,
   part: SUPPORTED,
@@ -90,7 +94,145 @@ const ROOT_ATTRIBUTES = Object.freeze({ version: SUPPORTED });
 const SCORE_PART_ATTRIBUTES = Object.freeze({ id: SUPPORTED });
 const PART_ATTRIBUTES = Object.freeze({ id: SUPPORTED });
 const MEASURE_ATTRIBUTES = Object.freeze({ number: SUPPORTED, implicit: SUPPORTED });
+const EMPTY_CHILDREN = Object.freeze({});
 const EMPTY_ATTRIBUTES = Object.freeze({});
+
+const FONT_ATTRIBUTES = safeIgnoreAttributes(
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+);
+
+const FORMATTED_TEXT_ATTRIBUTES = Object.freeze({
+  ...FONT_ATTRIBUTES,
+  ...safeIgnoreAttributes(
+    'color',
+    'default-x',
+    'default-y',
+    'dir',
+    'enclosure',
+    'halign',
+    'justify',
+    'letter-spacing',
+    'line-height',
+    'line-through',
+    'overline',
+    'relative-x',
+    'relative-y',
+    'rotation',
+    'underline',
+    'valign',
+  ),
+});
+
+const POSITION_ATTRIBUTES = safeIgnoreAttributes(
+  'color',
+  'default-x',
+  'default-y',
+  'relative-x',
+  'relative-y',
+);
+
+const SAFE_IGNORE_NOTE_PROFILES = Object.freeze({
+  type: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: safeIgnoreAttributes('size'),
+  }),
+  dot: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: Object.freeze({
+      ...POSITION_ATTRIBUTES,
+      ...FONT_ATTRIBUTES,
+      ...safeIgnoreAttributes('placement'),
+    }),
+  }),
+  stem: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: POSITION_ATTRIBUTES,
+  }),
+  beam: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: Object.freeze({
+      ...safeIgnoreAttributes('color', 'id', 'number'),
+      fan: classified(CLASSIFICATION.REJECT, 'beam-fan'),
+      repeater: classified(CLASSIFICATION.REJECT, 'beam-repeater'),
+    }),
+  }),
+  notehead: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: Object.freeze({
+      ...FONT_ATTRIBUTES,
+      ...safeIgnoreAttributes('color', 'filled', 'parentheses'),
+      smufl: classified(CLASSIFICATION.REJECT, 'notehead-smufl'),
+    }),
+  }),
+  'notehead-text': Object.freeze({
+    children: Object.freeze({
+      'display-text': SAFE_IGNORE,
+      'accidental-text': SAFE_IGNORE,
+    }),
+    attributes: EMPTY_ATTRIBUTES,
+    descendants: Object.freeze({
+      'display-text': Object.freeze({
+        children: EMPTY_CHILDREN,
+        attributes: FORMATTED_TEXT_ATTRIBUTES,
+      }),
+      'accidental-text': Object.freeze({
+        children: EMPTY_CHILDREN,
+        attributes: Object.freeze({
+          ...FORMATTED_TEXT_ATTRIBUTES,
+          ...safeIgnoreAttributes('smufl'),
+        }),
+      }),
+    }),
+  }),
+  accidental: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: Object.freeze({
+      ...FONT_ATTRIBUTES,
+      ...safeIgnoreAttributes(
+        'bracket',
+        'cautionary',
+        'color',
+        'default-x',
+        'default-y',
+        'editorial',
+        'parentheses',
+        'relative-x',
+        'relative-y',
+        'size',
+        'smufl',
+      ),
+    }),
+  }),
+  footnote: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: FORMATTED_TEXT_ATTRIBUTES,
+  }),
+  level: Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: safeIgnoreAttributes('bracket', 'parentheses', 'reference', 'size', 'type'),
+  }),
+});
+
+const SAFE_IGNORE_SCORE_PART_PROFILES = Object.freeze({
+  'part-name': Object.freeze({
+    children: EMPTY_CHILDREN,
+    attributes: Object.freeze({
+      ...FONT_ATTRIBUTES,
+      ...safeIgnoreAttributes(
+        'color',
+        'default-x',
+        'default-y',
+        'justify',
+        'print-object',
+        'relative-x',
+        'relative-y',
+      ),
+    }),
+  }),
+});
 
 const NOTE_ATTRIBUTES = Object.freeze({
   color: SAFE_IGNORE,
@@ -236,7 +378,7 @@ function enforceLeaf(node, surface, location, rejectUnsupported, processing = nu
   enforceChildren(
     node,
     surface,
-    Object.freeze({}),
+    EMPTY_CHILDREN,
     location,
     rejectUnsupported,
     null,
@@ -250,6 +392,66 @@ function enforceLeaf(node, surface, location, rejectUnsupported, processing = nu
     rejectUnsupported,
     processing,
   );
+}
+
+function enforceNodeProfile(
+  node,
+  surface,
+  profile,
+  location,
+  rejectUnsupported,
+  processing = null,
+) {
+  const groupedChildren = enforceChildren(
+    node,
+    surface,
+    profile.children,
+    location,
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(
+    node,
+    surface,
+    profile.attributes,
+    location,
+    rejectUnsupported,
+    processing,
+  );
+  for (const [childName, childProfile] of Object.entries(profile.descendants || {})) {
+    for (const child of groupedChildren.get(childName) || []) {
+      enforceNodeProfile(
+        child,
+        childName,
+        childProfile,
+        location,
+        rejectUnsupported,
+        processing,
+      );
+    }
+  }
+}
+
+function enforceGroupedProfiles(
+  groupedChildren,
+  profiles,
+  location,
+  rejectUnsupported,
+  processing = null,
+) {
+  for (const [childName, profile] of Object.entries(profiles)) {
+    for (const child of groupedChildren.get(childName) || []) {
+      enforceNodeProfile(
+        child,
+        childName,
+        profile,
+        location,
+        rejectUnsupported,
+        processing,
+      );
+    }
+  }
 }
 
 function enforceScalarLeaves(
@@ -287,6 +489,13 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
   enforceScalarLeaves(
     noteChildren,
     ['duration', 'voice', 'staff'],
+    location,
+    rejectUnsupported,
+    processing,
+  );
+  enforceGroupedProfiles(
+    noteChildren,
+    SAFE_IGNORE_NOTE_PROFILES,
     location,
     rejectUnsupported,
     processing,
@@ -530,7 +739,7 @@ function enforcePolyphonicMusicXmlSemanticProfile(
   enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported, processing);
 
   const scorePart = partListChildren.get('score-part')[0];
-  enforceChildren(
+  const scorePartChildren = enforceChildren(
     scorePart,
     'score-part',
     SCORE_PART_CHILDREN,
@@ -543,6 +752,13 @@ function enforcePolyphonicMusicXmlSemanticProfile(
     scorePart,
     'score-part',
     SCORE_PART_ATTRIBUTES,
+    {},
+    rejectUnsupported,
+    processing,
+  );
+  enforceGroupedProfiles(
+    scorePartChildren,
+    SAFE_IGNORE_SCORE_PART_PROFILES,
     {},
     rejectUnsupported,
     processing,
