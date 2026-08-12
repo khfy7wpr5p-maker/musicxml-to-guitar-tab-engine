@@ -245,3 +245,68 @@ test('PA-3 revalidates its PolyphonicSourceModel input fail-closed before groupi
     },
   );
 });
+
+test('PA-3 grouping remains deadline-bounded after source-model validation', () => {
+  const source = sourceModel(score([
+    note('C'),
+    '<backup><duration>4</duration></backup>',
+    note('E', { voice: '2' }),
+  ].join('')));
+  let groupingEventCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => {
+        if (phase !== 'simultaneous-event-model:event') {
+          return 0;
+        }
+        groupingEventCheckpoints += 1;
+        return groupingEventCheckpoints >= 2 ? 11 : 0;
+      },
+    },
+  );
+
+  assert.throws(
+    () => createSimultaneousEventModel(source, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_DEADLINE_EXCEEDED');
+      assert.equal(error.details.phase, 'simultaneous-event-model:event');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.eventIndex, 1);
+      return true;
+    },
+  );
+});
+
+test('PA-3 grouping observes cancellation between source events', () => {
+  const source = sourceModel(score([
+    note('C'),
+    '<backup><duration>4</duration></backup>',
+    note('E', { voice: '2' }),
+  ].join('')));
+  const controller = new AbortController();
+  let injected = false;
+  const runtime = createMusicXmlProcessingRuntime(
+    { signal: controller.signal },
+    {
+      clock: (phase) => {
+        if (phase === 'simultaneous-event-model:event' && !injected) {
+          injected = true;
+          controller.abort();
+        }
+        return 0;
+      },
+    },
+  );
+
+  assert.throws(
+    () => createSimultaneousEventModel(source, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_ABORTED');
+      assert.equal(error.details.phase, 'simultaneous-event-model:event');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.eventIndex, 1);
+      return true;
+    },
+  );
+});
