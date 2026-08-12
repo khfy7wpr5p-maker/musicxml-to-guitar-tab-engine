@@ -4,15 +4,15 @@
 
 This document distinguishes **implemented runtime architecture** from **planned product architecture**.
 
-PA-3 closure baseline on `main`:
+PA-4 runtime closure baseline on `main`:
 
-`912ccf5f552ed0a5b21c2225266b95c421ff0dfd`
+`a04f37f84bc825580cadfd972de30ad4c7b206cb`
 
 Git tree at that baseline:
 
-`2e16564ecf30c563e54ab3031a28d8858cc4d271`
+`59675efbbc00d88e836e58331dc16cc9bcf5ceb9`
 
-Latest merged runtime-changing feature: PR #85 — PA-3 internal `SimultaneousEventModel 1.0.0` source grouping, rebase-merged on 2026-08-12. PA-2.6 hostile/budget/deadline/cancellation negative hardening was merged tests-only through PR #83 and did not change production source. PA-2.7 full regression/monophonic compatibility and PA-2.8 GitHub CI/independent code-test review are verified; PA-2 is closed. PA-3 exact-head Tests #622 and MusicXML Compatibility #442 passed; post-merge Tests #623 passed on `main`. Independent PA-3 review found no P1/P2 blocker. PA-4 arrangement-decision + provenance is the next separately gated polyphonic contract and is not authorized by PA-3 closure.
+Latest merged runtime-changing feature: PR #87 — PA-4 internal `GuitarArrangementPlan 1.0.0` arrangement-decision/provenance contract, rebase-merged on 2026-08-12. PA-2.6 hostile/budget/deadline/cancellation negative hardening was merged tests-only through PR #83 and did not change production source. PA-2.7 full regression/monophonic compatibility and PA-2.8 GitHub CI/independent code-test review are verified; PA-2 is closed. PA-3 `SimultaneousEventModel 1.0.0` was merged through PR #85. PA-4 exact-head Tests #633 and MusicXML Compatibility #451 passed; post-merge Tests #634 passed on exact `main` SHA. Independent final PA-4 review found no remaining P1/P2 blocker. PA-5 deterministic melody/bass/voice analysis is the next separately gated polyphonic contract and is not authorized by PA-4 closure.
 
 For current runtime truth, use this authority order:
 
@@ -43,7 +43,7 @@ The architecture separates:
 - output serialization
 - compatibility/rendering adapters
 - application/presentation layers
-- polyphonic source projection, simultaneity grouping and future arrangement gates
+- polyphonic source projection, simultaneity grouping, arrangement-decision provenance and future analysis/arrangement gates
 - future learning/AI infrastructure
 
 No presentation or learned component may silently become source-of-truth authority over the deterministic core.
@@ -99,6 +99,7 @@ This path is implemented and protected. It must not be replaced with a second pa
 - internal PA-2 projection slices merged through PA-2.5
 - PA-2.6 tests-only hardening evidence and PA-2.7/PA-2.8 verification evidence
 - internal PA-3 `SimultaneousEventModel 1.0.0` source-simultaneity grouping
+- internal PA-4 `GuitarArrangementPlan 1.0.0` explicit arrangement-decision/provenance representation
 
 ### Outside current deterministic-core authority
 
@@ -114,7 +115,8 @@ This path is implemented and protected. It must not be replaced with a second pa
 - project persistence
 - arbitrary user score editing
 - learned production selection
-- PA-4+ arrangement authority until separately gated
+- PA-5+ source-analysis/executable arrangement authority until separately gated
+- guitar string/fret/finger/barre/voicing authority for polyphonic groups until later approved gates
 - public polyphonic conversion authority
 
 These connect through explicit adapters/contracts.
@@ -136,8 +138,9 @@ These connect through explicit adapters/contracts.
 13. B1 fixed benchmark remains independent evaluation evidence and must not become training data.
 14. Polyphonic support must enter through a parallel versioned projection; current monophonic rejection checks must not be weakened.
 15. Application UI/renderers/editors/persistence cannot directly mutate authoritative canonical objects.
-16. PA-3 source simultaneity grouping must not make arrangement, guitar voicing or fingering decisions.
-17. High-risk runtime changes require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and separate merge approval.
+16. PA-3 source simultaneity grouping and PA-4 arrangement-decision/provenance representation must not silently gain arrangement-policy, guitar voicing or fingering authority.
+17. PA-4 decisions are explicit provenance records only; executable target pitch/voice/timing/chord-tone transformations remain later gates.
+18. High-risk runtime changes require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and separate merge approval.
 
 ## 5. Current public musical scope
 
@@ -170,7 +173,7 @@ It fails closed for:
 - unsupported rhythm values such as 32nd notes
 - compressed `.mxl`
 
-This fail-closed boundary is deliberate and remains verified after PA-3.
+This fail-closed boundary is deliberate and remains verified after PA-4.
 
 ## 6. XML safety and parsing architecture
 
@@ -188,9 +191,9 @@ Safety responsibilities include:
 - deadline/cancellation/checkpoints
 - fail-closed error codes
 
-`ParsedMusicXmlDocument 1.0.0` is the safe branching point shared by the current monophonic path and the separately gated PA projection track. PA-1 provides the internal destination contract, `PolyphonicSourceModel 1.0.0`; PA-2.1 defines the projection contract, PA-2.2 supplies red-first vectors, PA-2.3 implements the basic note/rest slice, PA-2.4 implements `backup` / `forward` cursor semantics, and PA-2.5 implements source chord/multiple-voice/staff-2 projection. PA-2.6 adds tests-only evidence that these newer paths remain bounded by event/measure/XML budgets and deadline/cancellation checkpoints. PA-2.7 and PA-2.8 verify regression, monophonic compatibility, GitHub CI and independent review. PA-3 consumes a validated `PolyphonicSourceModel 1.0.0` and creates an internal source-simultaneity view; it does not change parsing authority or the public monophonic path.
+`ParsedMusicXmlDocument 1.0.0` is the safe branching point shared by the current monophonic path and the separately gated PA projection track. PA-1 provides the internal destination contract, `PolyphonicSourceModel 1.0.0`; PA-2.1 defines the projection contract, PA-2.2 supplies red-first vectors, PA-2.3 implements the basic note/rest slice, PA-2.4 implements `backup` / `forward` cursor semantics, and PA-2.5 implements source chord/multiple-voice/staff-2 projection. PA-2.6 adds tests-only evidence that these newer paths remain bounded by event/measure/XML budgets and deadline/cancellation checkpoints. PA-2.7 and PA-2.8 verify regression, monophonic compatibility, GitHub CI and independent review. PA-3 consumes a validated `PolyphonicSourceModel 1.0.0` and creates an internal source-simultaneity view. PA-4 consumes validated source truth, recomputes PA-3 grouping internally for provenance and creates an internal explicit arrangement-decision record. Neither changes parsing authority or the public monophonic path.
 
-## 7. Musical semantic projection and source simultaneity
+## 7. Musical semantic projection, source simultaneity and arrangement-decision provenance
 
 The current public semantic layer reads and validates supported MusicXML meaning including:
 
@@ -214,6 +217,8 @@ This capability is implemented even though early plans proposed separate `rhythm
 The PA-2 runtime projector is a separate internal path after `ParsedMusicXmlDocument 1.0.0` and follows the merged PA-2.1 projection contract. PA-2.3 covers basic note/rest facts, PA-2.4 adds bounded `backup` / `forward` cursor movement, and PA-2.5 adds source `<chord/>`, multiple bounded voice identifiers and staff 1–2 projection. PA-2.6 verifies hostile/budget/deadline/cancellation boundaries without changing production code. PA-2.7/PA-2.8 close the regression and formal verification sequence.
 
 PA-3 adds `SimultaneousEventModel 1.0.0` after the validated polyphonic source model. It groups two or more note events sharing the same measure and exact `onsetDivisions`, preserves member `sourceEventId` order, excludes rests, and does not require equal durations. The model can represent simultaneity originating from a source `<chord/>` marker, separate voices, separate staves, or combinations of those facts. It does not copy guitar-selection authority into the grouping layer and does not alter pitch or duration.
+
+PA-4 adds `GuitarArrangementPlan 1.0.0` after validated source truth and PA-3 grouping. It accepts only the fixed decision vocabulary `PRESERVED`, `OMITTED`, `OCTAVE_DISPLACED`, `VOICE_REDISTRIBUTED`, `CHORD_REDUCED`, `REVOICED`, and `ARPEGGIATED`; requires every source note to be covered exactly once; binds single-note decisions to exactly one source event; binds group decisions to exact PA-3 group membership and group ID; enforces canonical source ordering; and returns a deeply immutable record. It does not choose which decision should be made, does not copy or mutate source pitch/rhythm facts, and does not define target octave/voice, surviving chord tones, generated revoiced pitches, arpeggio timing or guitar positions.
 
 These internal capabilities do not relax the current public monophonic adapter's fail-closed rules and do not create public polyphonic conversion authority.
 
@@ -322,7 +327,7 @@ Core properties include:
 
 Rests have no selected physical position.
 
-All writers consume validated canonical data and must not create new fingering decisions. PA-3 does not alter `CanonicalTabResult 1.0.0`.
+All writers consume validated canonical data and must not create new fingering decisions. PA-3 and PA-4 do not alter `CanonicalTabResult 1.0.0`.
 
 ## 12. Output architecture
 
@@ -550,7 +555,7 @@ Production learned ranking remains blocked until separate durable storage, priva
 
 ## 17. Polyphonic MusicXML → Guitar Arrangement architecture
 
-PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence and PA-2.1's documentation-only projection contract are merged. PA-2.2 red-first vectors were merged tests-only through PR #77. PA-2.3's minimal internal basic note/rest projector was merged through PR #78, PA-2.4 `backup` / `forward` cursor semantics through PR #80, PA-2.5 source `<chord/>`, multiple-voice and staff 1–2 projection through PR #81, and PA-2.6 hostile/budget/deadline/cancellation negative evidence through tests-only PR #83. PA-2.7 full regression/public monophonic compatibility and PA-2.8 formal CI/independent review are verified. The PA-2 sequence is closed. PA-3 `SimultaneousEventModel 1.0.0` was then merged internal through PR #85. The existing public monophonic path remains protected.
+PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence and PA-2.1's documentation-only projection contract are merged. PA-2.2 red-first vectors were merged tests-only through PR #77. PA-2.3's minimal internal basic note/rest projector was merged through PR #78, PA-2.4 `backup` / `forward` cursor semantics through PR #80, PA-2.5 source `<chord/>`, multiple-voice and staff 1–2 projection through PR #81, and PA-2.6 hostile/budget/deadline/cancellation negative evidence through tests-only PR #83. PA-2.7 full regression/public monophonic compatibility and PA-2.8 formal CI/independent review are verified. The PA-2 sequence is closed. PA-3 `SimultaneousEventModel 1.0.0` was merged internal through PR #85. PA-4 `GuitarArrangementPlan 1.0.0` was then merged internal through PR #87. The existing public monophonic path remains protected.
 
 ### Parallel extension point
 
@@ -576,10 +581,13 @@ PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merge
                │               SimultaneousEventModel 1.0.0
                │                         │
                │                         ▼
-               │                 PA-4+ arrangement
+               │               GuitarArrangementPlan 1.0.0
                │                         │
                │                         ▼
-               │               GuitarArrangementPlan
+               │               PA-5 source-score analysis
+               │                         │
+               │                         ▼
+               │               PA-6 reduction/octave rules
                │                         │
                │                         ▼
                │             Guitar-Compatible Score
@@ -595,7 +603,7 @@ PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merge
                           reviewed TAB-result gate
 ```
 
-PA-2.1 defines the projection contract, PA-2.2 supplies merged tests-only vectors, PA-2.3 supplies the merged basic note/rest slice, PA-2.4 supplies cursor semantics, PA-2.5 supplies source chord/multiple-voice/staff-2 projection, and PA-2.6–PA-2.8 close hardening/regression/CI-review. PA-3 adds deterministic grouping of source note events that share exact measure/onset. PA-4 remains the first arrangement-decision/provenance authority gate.
+PA-2.1 defines the projection contract, PA-2.2 supplies merged tests-only vectors, PA-2.3 supplies the merged basic note/rest slice, PA-2.4 supplies cursor semantics, PA-2.5 supplies source chord/multiple-voice/staff-2 projection, and PA-2.6–PA-2.8 close hardening/regression/CI-review. PA-3 adds deterministic grouping of source note events that share exact measure/onset. PA-4 adds the first explicit arrangement-decision/provenance representation, but it does not select policy or execute transformations. PA-5 remains the next separate gate.
 
 ### Source truth versus arrangement truth
 
@@ -603,15 +611,17 @@ Original MusicXML remains immutable source truth.
 
 PA-3 derives only source simultaneity groups from already validated source events. It does not choose how a simultaneous source group should be represented on guitar.
 
-Future arrangement decisions must explicitly preserve provenance for transformations such as:
+PA-4 explicitly records arrangement decisions using:
 
-- PRESERVED
-- OMITTED
-- OCTAVE_DISPLACED
-- VOICE_REDISTRIBUTED
-- CHORD_REDUCED
-- REVOICED
-- ARPEGGIATED
+- `PRESERVED`
+- `OMITTED`
+- `OCTAVE_DISPLACED`
+- `VOICE_REDISTRIBUTED`
+- `CHORD_REDUCED`
+- `REVOICED`
+- `ARPEGGIATED`
+
+Single-note decisions bind one source note and null group ID. Group decisions bind exact PA-3 group membership and ID. Every source note must be covered exactly once and canonical source order is enforced. PA-4 does not define transformed pitch/timing/voice targets or guitar positions.
 
 These decisions must never be hidden inside parser, source grouping or fingering code.
 
@@ -621,7 +631,7 @@ PA-1 is present on `main` as internal source-truth infrastructure. PR #73 recove
 
 The former recovery branch was deleted only after a read-only check confirmed the rebased `main` tree and former branch tree were content-equivalent.
 
-PA-1 does not implement arrangement decisions, guitar voicing/fingering/barre authority, or any package-root public API. Internal source projection through PA-2 and source simultaneity grouping through PA-3 are later separately bounded layers and do not change PA-1 authority.
+PA-1 does not implement arrangement decisions, guitar voicing/fingering/barre authority, or any package-root public API. Internal source projection through PA-2, source simultaneity grouping through PA-3 and explicit decision/provenance records through PA-4 are later separately bounded layers and do not change PA-1 authority.
 
 ### PA safe sequence
 
@@ -637,8 +647,8 @@ PA-1 does not implement arrangement decisions, guitar voicing/fingering/barre au
 10. PA-2.7 full regression + monophonic compatibility — verified
 11. PA-2.8 GitHub CI + independent review — verified; PA-2 closed
 12. PA-3 simultaneous-event/chord source grouping — merged internal through PR #85
-13. PA-4 arrangement-decision + provenance — next separate gate; requires explicit approval
-14. PA-5 deterministic melody/bass/voice analysis
+13. PA-4 arrangement-decision + provenance — merged internal through PR #87
+14. PA-5 deterministic melody/bass/voice analysis — next separate gate; requires explicit approval
 15. PA-6 deterministic reduction/octave rules
 16. PA-7 guitar chord/voicing candidate generation
 17. PA-8 left-hand shape + finger assignment + barre/partial-barre
@@ -649,9 +659,9 @@ PA-1 does not implement arrangement decisions, guitar voicing/fingering/barre au
 22. PA-13 separately approved public arrangement API
 23. PA-14 ScoreMosaic/SesliTab adapter integration
 
-Completion of PA-3 does not authorize PA-4 automatically.
+Completion of PA-4 does not authorize PA-5 automatically.
 
-See `docs/pa-3-closure.md` for the exact merge and CI evidence record.
+See `docs/pa-4-closure.md` for the exact merge and CI evidence record and `docs/pa-4-arrangement-decision-provenance-contract.md` for the PA-4 contract.
 
 ## 18. Application / presentation architecture
 
@@ -692,7 +702,7 @@ Application rules:
 
 ## 19. Safe development order — 2026-08-12
 
-### Completed stabilization and PA-3 sequence
+### Completed stabilization and PA-4 sequence
 
 1. Documentation Convergence — completed
 2. G0.1 administrator-bypass governance hardening — completed
@@ -708,11 +718,11 @@ Application rules:
 12. PA-2.7 full regression + monophonic compatibility — verified
 13. PA-2.8 GitHub CI + independent review — verified; PA-2 closed
 14. PA-3 simultaneous-event/chord source grouping — completed through PR #85
+15. PA-4 arrangement-decision + provenance — completed through PR #87
 
 ### Next separately gated polyphonic work
 
-15. PA-4 arrangement-decision + provenance — not started; separate approval required
-16. PA-5 deterministic melody/bass/voice analysis
+16. PA-5 deterministic melody/bass/voice analysis — not started; separate approval required
 17. PA-6 deterministic reduction/octave rules
 18. PA-7 guitar chord/voicing candidate generation
 19. PA-8 left-hand shape/finger assignment/barre
@@ -813,12 +823,18 @@ post-merge verification
 
 Local tests must never be presented as GitHub-hosted CI evidence.
 
-## 22. PA-3 verification evidence limitations
+## 22. PA-4 verification evidence limitations
 
-PA-3 closure establishes repository-level contract/code/test consistency and CI evidence for the internal source-simultaneity grouping layer. It does not establish any of the following:
+PA-4 closure establishes repository-level contract/code/test consistency and CI evidence for the internal arrangement-decision/provenance layer. It verifies the fixed decision vocabulary, complete exactly-once source-note coverage, exact PA-3 group provenance for group decisions, hostile Proxy/accessor fail-closed handling, aggregate array bounds before element scanning, deadline/cancellation checkpoints, immutability and public monophonic protection.
 
-- execution of a previously uploaded Audiveris/Scarlatti MusicXML file through the PA-3 runtime layer
-- guitar arrangement decisions
+It does not establish any of the following:
+
+- execution of a previously uploaded Audiveris/Scarlatti MusicXML file through the PA-4 runtime layer
+- PA-5 melody/bass/inner-voice analysis
+- automatic arrangement policy selection
+- executable target octave/voice transformations
+- surviving chord-tone or generated revoiced-pitch selection
+- arpeggio timing policy
 - guitar chord/voicing selection
 - string/fret/finger/barre selection for polyphonic groups
 - public polyphonic conversion
@@ -826,7 +842,7 @@ PA-3 closure establishes repository-level contract/code/test consistency and CI 
 - production playback
 - production PDF generation
 
-PA-3 exact-head Compatibility #442 executed on PR head `132cef6936580c0758c02e6b68e39f3a654f4aba`. After rebase merge, `main` is `912ccf5f552ed0a5b21c2225266b95c421ff0dfd`; both resolve to Git tree `2e16564ecf30c563e54ab3031a28d8858cc4d271`. Post-merge Tests #623 executed directly on the rebased `main` SHA. This distinguishes exact-head compatibility evidence from post-merge runtime regression evidence.
+PA-4 exact-head MusicXML Compatibility #451 and Tests #633 executed on PR head `c472cd42a32353e51a21dd14748597d93e74341a`. After rebase merge, exact `main` result is `a04f37f84bc825580cadfd972de30ad4c7b206cb`, resolving to Git tree `59675efbbc00d88e836e58331dc16cc9bcf5ceb9`. Post-merge Tests #634 executed directly on that `main` SHA. This distinguishes exact-head compatibility evidence from post-merge runtime regression evidence.
 
 ## 23. Historical architecture note
 
