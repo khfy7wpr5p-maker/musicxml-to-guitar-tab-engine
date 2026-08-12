@@ -28,6 +28,11 @@ const BASIC_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
+const TWO_EVENT_XML = BASIC_XML.replace(
+  '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><tie type="start"/><voice>1</voice><staff>1</staff></note>',
+  '<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><staff>1</staff></note><note><pitch><step>D</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><staff>1</staff></note>',
+);
+
 test('PA-2.3 rejects conditional tie semantics that cannot be represented by boolean flags', () => {
   const xml = BASIC_XML.replace(
     '<tie type="start"/>',
@@ -144,4 +149,54 @@ test('PA-2.3 semantic measure budget ignores foreign-namespace measure extension
 
   assert.equal(projected.measureCount, 1);
   assert.equal(projected.measures.length, 1);
+});
+
+test('PA-2.3 observes the deadline during PolyphonicSourceModel event validation', () => {
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => phase === 'polyphonic-source-model:event' ? 11 : 0,
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(BASIC_XML, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_DEADLINE_EXCEEDED');
+      assert.equal(error.details.phase, 'polyphonic-source-model:event');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.eventIndex, 0);
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 observes cancellation between PolyphonicSourceModel event validations', () => {
+  const controller = new AbortController();
+  let cancellationInjected = false;
+  const runtime = createMusicXmlProcessingRuntime(
+    { signal: controller.signal },
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-source-model:event' && !cancellationInjected) {
+          cancellationInjected = true;
+          controller.abort();
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(TWO_EVENT_XML, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_ABORTED');
+      assert.equal(error.details.phase, 'polyphonic-source-model:event');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.eventIndex, 1);
+      return true;
+    },
+  );
 });
