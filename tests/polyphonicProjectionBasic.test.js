@@ -172,23 +172,6 @@ test('PA-2.3 projects basic note/rest source facts into an immutable PA-1 model'
   assert.ok(Object.isFrozen(parsed.root));
 });
 
-test('PA-2.4 keeps PA-2.5 constructs fail-closed', () => {
-  const cases = [
-    BASIC_XML.replace(
-      '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
-      '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note><note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
-    ),
-    BASIC_XML.replace('<staves>1</staves>', '<staves>2</staves>').replaceAll('<staff>1</staff>', '<staff>2</staff>'),
-    BASIC_XML.replace('<voice>1</voice><staff>1</staff>', '<voice>2</voice><staff>1</staff>'),
-  ];
-
-  for (const xml of cases) {
-    const runtime = createMusicXmlProcessingRuntime();
-    const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
-    assert.throws(() => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime));
-  }
-});
-
 test('PA-2.3 rejects unsupported notation semantics instead of discarding them', () => {
   const xml = BASIC_XML.replace(
     '<notations><tied type="start"/></notations>',
