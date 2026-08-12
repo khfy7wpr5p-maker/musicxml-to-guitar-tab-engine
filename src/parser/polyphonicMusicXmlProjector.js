@@ -642,7 +642,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
     measureCount: measures.length,
     eventCount: totalEvents,
     measures,
-  });
+  }, processing);
   processing.checkpoint('polyphonic-projector:complete');
   return model;
 }
