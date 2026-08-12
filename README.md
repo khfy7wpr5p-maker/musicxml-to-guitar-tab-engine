@@ -6,17 +6,19 @@ AI agents and development tools should begin with [AI_CONTEXT.md](AI_CONTEXT.md)
 
 ## Verified runtime baseline — 2026-08-12
 
-The PA-2.3 closure baseline is:
+The PA-2.5 closure baseline is:
 
-- `main` baseline: `776755d993c6b057d655df1ed6b4a9046144f46d`
-- latest merged runtime-changing feature: PR #78 — PA-2.3 minimal internal basic note/rest projector
+- `main` baseline: `4ba74b0891b8f2471c994fd746cd09099553f884`
+- latest merged runtime-changing feature: PR #81 — PA-2.5 internal `<chord/>`, multiple-voice and staff 1–2 projection
 - PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
 - PA-2.1 projection contract: PR #75 — documentation-only, rebase-merged on 2026-08-12; no runtime authority created
 - PA-2.2 red-first vectors: PR #77 — tests-only, merged on 2026-08-12
 - PA-2.3 minimal internal projector: PR #78 — rebase-merged on 2026-08-12
-- PR #78 exact-head Tests #593 and MusicXML Compatibility #420: `SUCCESS`
-- post-merge Tests #594 on `main`: `SUCCESS`
-- exact-head independent Codex review: no major issue found
+- PA-2.4 `backup` / `forward` cursor semantics: PR #80 — rebase-merged on 2026-08-12
+- PA-2.5 chord/multiple-voice/staff-2 projection: PR #81 — rebase-merged on 2026-08-12
+- PR #81 exact-head Tests #612 and MusicXML Compatibility #436: `SUCCESS`
+- post-merge Tests #613 on `main`: `SUCCESS`
+- exact-head independent review: no P1/P2 blocker found
 - package version: `0.1.0`
 - package metadata: `private: true`, `UNLICENSED`
 - current canonical TAB contract: `CanonicalTabResult 1.0.0`
@@ -24,10 +26,12 @@ The PA-2.3 closure baseline is:
 - PA-1 status: `MERGED_INTERNAL`
 - PA-2.1 status: `MERGED_DOCUMENTATION_ONLY`
 - PA-2.2 status: `MERGED_TESTS_ONLY` through PR #77
-- PA-2.3 status: `MERGED_INTERNAL` through PR #78; minimal basic note/rest projection only
-- PA-2.4 status: next separate runtime gate requiring explicit approval
+- PA-2.3 status: `MERGED_INTERNAL` through PR #78
+- PA-2.4 status: `MERGED_INTERNAL` through PR #80
+- PA-2.5 status: `MERGED_INTERNAL` through PR #81
+- PA-2.6 status: next separate hardening gate requiring explicit approval
 
-PA-2.3 does not make polyphonic conversion public. The current public conversion path remains monophonic and unchanged.
+PA-2.5 does not make polyphonic conversion public. The current public conversion path remains monophonic and unchanged.
 
 ## Current public conversion pipeline
 
@@ -222,7 +226,7 @@ PDF must remain a presentation adapter. Failure or absence of PDF rendering must
 
 ## Polyphonic MusicXML → Guitar Arrangement
 
-PA-0 documentation/architecture, PA-1 `PolyphonicSourceModel 1.0.0`, PA-2.0 documentation convergence and the PA-2.1 documentation-only projection contract are merged. PA-2.2 red-first vectors were merged through PR #77. PR #78 merged PA-2.3's minimal internal basic note/rest projector and its fail-closed hardening. PA-2.4 is the next separate runtime gate and requires explicit approval. The public monophonic path remains unchanged.
+PA-0 documentation/architecture, PA-1 `PolyphonicSourceModel 1.0.0`, PA-2.0 documentation convergence and the PA-2.1 documentation-only projection contract are merged. PA-2.2 red-first vectors were merged through PR #77. PR #78 merged PA-2.3's minimal internal basic note/rest projector, PR #80 merged PA-2.4 `backup` / `forward` cursor semantics, and PR #81 merged PA-2.5 source `<chord/>`, multiple-voice and staff 1–2 projection. PA-2.6 is the next separate hardening gate and requires explicit approval. The public monophonic path remains unchanged.
 
 The approved parallel target is:
 
@@ -260,9 +264,9 @@ Safe PA sequence:
 4. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
 5. PA-2.2 valid polyphonic red-first fixtures/tests — merged tests-only through PR #77
 6. PA-2.3 minimal internal note/rest projector — merged internal through PR #78
-7. PA-2.4 `backup` / `forward` cursor semantics — current next separate gate requiring explicit approval
-8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection
-9. PA-2.6 hostile/budget/deadline/cancellation negatives
+7. PA-2.4 `backup` / `forward` cursor semantics — merged internal through PR #80
+8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection — merged internal through PR #81
+9. PA-2.6 hostile/budget/deadline/cancellation negatives — current next separate gate requiring explicit approval
 10. PA-2.7 full regression + monophonic compatibility
 11. PA-2.8 GitHub Tests + MusicXML Compatibility + independent review
 12. PA-3 simultaneous-event/chord contract
@@ -331,23 +335,25 @@ Current controlled order:
 6. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
 7. PA-2.2 valid polyphonic red-first fixtures/tests — completed tests-only through PR #77
 8. PA-2.3 minimal internal note/rest projector — completed through PR #78
-9. PA-2.4–PA-2.8 cursor/chord projection, hardening, regression and CI sequence — separately gated; PA-2.4 is next
-10. Musical Notation Coverage contract
-11. MuseScore semantic compatibility gate
-12. independent real-world MusicXML E2E fixture gate
-13. application/presentation architecture contract
-14. alphaTab application viewer
-15. measure/beat cursor integration
-16. playback adapter + Play/Pause/Stop after synth evidence
-17. teacher fingering correction UI
-18. teacher score-correction contract/UI
-19. export center
-20. MuseScore/PDF adapter
-21. PDF viewer / print / share
-22. save/project persistence
-23. application E2E
-24. continue PA-3…PA-14 only after PA-2.8 closure and in their approved order
-25. production learning/training only after durable storage + privacy/consent/lawful-use prerequisites
+9. PA-2.4 cursor semantics — completed through PR #80
+10. PA-2.5 chord/multiple-voice/staff-2 projection — completed through PR #81
+11. PA-2.6–PA-2.8 hardening, regression and CI/review sequence — separately gated; PA-2.6 is next
+12. Musical Notation Coverage contract
+13. MuseScore semantic compatibility gate
+14. independent real-world MusicXML E2E fixture gate
+15. application/presentation architecture contract
+16. alphaTab application viewer
+17. measure/beat cursor integration
+18. playback adapter + Play/Pause/Stop after synth evidence
+19. teacher fingering correction UI
+20. teacher score-correction contract/UI
+21. export center
+22. MuseScore/PDF adapter
+23. PDF viewer / print / share
+24. save/project persistence
+25. application E2E
+26. continue PA-3…PA-14 only after PA-2.8 closure and in their approved order
+27. production learning/training only after durable storage + privacy/consent/lawful-use prerequisites
 
 Each runtime/high-risk package continues to require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and separate merge approval.
 
