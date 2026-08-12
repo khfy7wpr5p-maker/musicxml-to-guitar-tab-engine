@@ -4,9 +4,9 @@ This document records the current package surface, strongest verified runtime ev
 
 ## Snapshot — 2026-08-12
 
-- PA-3 closure baseline on `main`: `912ccf5f552ed0a5b21c2225266b95c421ff0dfd`
-- closure Git tree: `2e16564ecf30c563e54ab3031a28d8858cc4d271`
-- latest merged runtime-changing feature: PR #85 — PA-3 internal `SimultaneousEventModel 1.0.0` source grouping
+- PA-4 runtime closure baseline on `main`: `a04f37f84bc825580cadfd972de30ad4c7b206cb`
+- closure Git tree: `59675efbbc00d88e836e58331dc16cc9bcf5ceb9`
+- latest merged runtime-changing feature: PR #87 — PA-4 internal `GuitarArrangementPlan 1.0.0` arrangement-decision/provenance contract
 - PA-2.6 hostile/budget/deadline/cancellation negatives: PR #83 — tests-only, rebase-merged on 2026-08-12
 - PA-2.7 full regression + monophonic compatibility: `VERIFIED`
 - PA-2.8 GitHub CI + independent review: `VERIFIED`; no P1/P2 blocker found
@@ -16,6 +16,11 @@ This document records the current package surface, strongest verified runtime ev
 - PA-3 exact-head MusicXML Compatibility #442: `SUCCESS`
 - PA-3 post-merge Tests #623 on `main`: `SUCCESS`
 - PA-3 independent review: no P1/P2 blocker found
+- PA-4 arrangement decision + provenance: PR #87 — rebase-merged on 2026-08-12
+- PA-4 exact-head Tests #633: `SUCCESS` on Node.js 18/20/22
+- PA-4 exact-head MusicXML Compatibility #451: `SUCCESS`
+- PA-4 post-merge Tests #634 on `main`: `SUCCESS`
+- PA-4 independent final review: no remaining P1/P2 blocker found
 - PA-2.0 documentation convergence: PR #74 — rebase-merged on 2026-08-11
 - PA-2.1 projection contract: PR #75 — documentation-only, rebase-merged on 2026-08-12; no runtime authority created
 - GitHub repository visibility: `public`
@@ -40,13 +45,14 @@ This document records the current package surface, strongest verified runtime ev
 - PA-2.6 hostile/budget/deadline/cancellation negatives: merged tests-only through PR #83
 - PA-2.7/PA-2.8 verification gates: verified
 - PA-3 `SimultaneousEventModel 1.0.0`: merged internal through PR #85
-- next separately approved polyphonic gate: PA-4 arrangement-decision + provenance contract
+- PA-4 `GuitarArrangementPlan 1.0.0`: merged internal through PR #87
+- next separately approved polyphonic gate: PA-5 deterministic melody/bass/voice analysis
 - application UI / PDF / production playback: not implemented
-- real uploaded-file PA-3 E2E: not executed
+- real uploaded-file PA-4 E2E: not executed
 
 GitHub repository visibility and npm/package publication state are separate controls. A `public` GitHub repository does **not** change `package.json` `private: true`, does not publish the package to npm and does not create a package release.
 
-PA-3 closure does not create a public polyphonic API or alter the current public monophonic conversion boundary. PA-4 is not authorized by PA-3 completion.
+PA-4 closure does not create a public polyphonic API or alter the current public monophonic conversion boundary. PA-5 is not authorized by PA-4 completion.
 
 ## Package metadata
 
@@ -83,7 +89,7 @@ No public package release is claimed.
 | `serializeCanonicalTabResultToMusicXml` | Deterministic TAB MusicXML serializer |
 | `validateMidi` | MIDI validation helper |
 
-The following remain intentionally internal: EngineError/domain subclasses, GuitarConfiguration metadata, Integration Contract metadata, observation/digest/feature/feedback/admission modules, B1/B2 benchmark/evaluation components, LR shadow/path-policy components and polyphonic-arrangement foundations including `PolyphonicSourceModel 1.0.0` and `SimultaneousEventModel 1.0.0`.
+The following remain intentionally internal: EngineError/domain subclasses, GuitarConfiguration metadata, Integration Contract metadata, observation/digest/feature/feedback/admission modules, B1/B2 benchmark/evaluation components, LR shadow/path-policy components and polyphonic-arrangement foundations including `PolyphonicSourceModel 1.0.0`, `SimultaneousEventModel 1.0.0` and `GuitarArrangementPlan 1.0.0`.
 
 ## Package capability status
 
@@ -126,7 +132,8 @@ The following remain intentionally internal: EngineError/domain subclasses, Guit
 | PA-2.7 full regression + monophonic compatibility | `VERIFIED` |
 | PA-2.8 GitHub CI + independent review | `VERIFIED` — PA-2 closed |
 | PA-3 `SimultaneousEventModel 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #85 |
-| PA-4+ polyphonic arrangement runtime | `NOT_IMPLEMENTED` |
+| PA-4 `GuitarArrangementPlan 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #87 |
+| PA-5+ polyphonic arrangement analysis/execution | `NOT_IMPLEMENTED` |
 | alphaTab MusicXML import | `COMPATIBILITY_VERIFIED` |
 | alphaTab SVG rendering | `COMPATIBILITY_VERIFIED` |
 | alphaTab browser rendering/cursor | `COMPATIBILITY_VERIFIED` |
@@ -189,7 +196,8 @@ Future notation or polyphonic work must add support explicitly and must not obta
 | PDF preview/print/share | n/a | not implemented |
 | Polyphonic source model | Internal only | no application integration |
 | Simultaneous source-event model | Internal only | no application integration |
-| Polyphonic arrangement result | Not implemented | not implemented |
+| Arrangement decision/provenance plan | Internal only (`GuitarArrangementPlan 1.0.0`) | no application integration |
+| Executable polyphonic arrangement result | Not implemented | not implemented |
 | Chord-aware canonical result | Not implemented | not implemented |
 
 All current writers consume validated `CanonicalTabResult 1.0.0` and do not regenerate candidates or rerun optimization.
@@ -311,7 +319,7 @@ MuseScore is an independent compatibility/engraving/PDF adapter target, not dete
 
 ## PA package boundary
 
-PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence and PA-2.1's documentation-only projection contract are merged. PA-2.2 red-first vectors were merged tests-only through PR #77. PA-2.3's minimal internal basic note/rest projector was merged through PR #78, PA-2.4 `backup` / `forward` cursor semantics through PR #80, PA-2.5 source `<chord/>`, multiple-voice and staff-2 projection through PR #81, and PA-2.6 hostile/budget/deadline/cancellation negatives through tests-only PR #83. PA-2.7 full regression/monophonic compatibility and PA-2.8 GitHub CI/independent review are verified. PA-2 is closed. PA-3 `SimultaneousEventModel 1.0.0` was then merged internal through PR #85. These add no public polyphonic conversion or package-root API.
+PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence and PA-2.1's documentation-only projection contract are merged. PA-2.2 red-first vectors were merged tests-only through PR #77. PA-2.3's minimal internal basic note/rest projector was merged through PR #78, PA-2.4 `backup` / `forward` cursor semantics through PR #80, PA-2.5 source `<chord/>`, multiple-voice and staff-2 projection through PR #81, and PA-2.6 hostile/budget/deadline/cancellation negatives through tests-only PR #83. PA-2.7 full regression/monophonic compatibility and PA-2.8 GitHub CI/independent review are verified. PA-2 is closed. PA-3 `SimultaneousEventModel 1.0.0` was then merged internal through PR #85. PA-4 `GuitarArrangementPlan 1.0.0` was merged internal through PR #87. These add no public polyphonic conversion or package-root API.
 
 The parallel branch point remains after safe immutable `ParsedMusicXmlDocument 1.0.0`:
 
@@ -322,9 +330,11 @@ ParsedMusicXmlDocument 1.0.0
                            ↓
                     SimultaneousEventModel 1.0.0
                            ↓
-                     PA-4+ arrangement contracts
+                    GuitarArrangementPlan 1.0.0
                            ↓
-                     GuitarArrangementPlan
+                    PA-5 source-score analysis
+                           ↓
+                    PA-6 reduction/octave rules
                            ↓
                      guitar-compatible score
                            ↓
@@ -333,7 +343,7 @@ ParsedMusicXmlDocument 1.0.0
                      Physical Playability Validator v2
 ```
 
-PA-2.3 basic note/rest, PA-2.4 `backup` / `forward`, and PA-2.5 chord/multiple-voice/staff-2 slices are merged internal. PA-2.6 is tests-only hardening; PA-2.7/PA-2.8 are verification gates. PA-3 source simultaneity grouping is merged internal and remains non-arranging. PA-4 is the next separate gate and is not authorized by PA-3 closure.
+PA-2.3 basic note/rest, PA-2.4 `backup` / `forward`, and PA-2.5 chord/multiple-voice/staff-2 slices are merged internal. PA-2.6 is tests-only hardening; PA-2.7/PA-2.8 are verification gates. PA-3 source simultaneity grouping is merged internal and remains non-arranging. PA-4 decision/provenance representation is merged internal and remains non-selecting/non-executable. PA-5 is the next separate gate and is not authorized by PA-4 closure.
 
 `CanonicalTabResult 1.0.0` remains unchanged.
 
@@ -341,7 +351,7 @@ PA-2.3 basic note/rest, PA-2.4 `backup` / `forward`, and PA-2.5 chord/multiple-v
 
 PA-1 is merged internal through PR #73. The recovery branch was deleted only after the rebase merge, post-merge Tests #488, and a read-only content-equivalence check between the rebased `main` tree and the former branch tree.
 
-PA-1 does not include PA-3 grouping, arrangement decisions, fingering/barre authority, or package-root API expansion. PA-3 is a later internal source-grouping layer and also does not add arrangement or guitar authority.
+PA-1 does not include PA-3 grouping, arrangement decisions, fingering/barre authority, or package-root API expansion. PA-3 is a later internal source-grouping layer and also does not add arrangement or guitar authority. PA-4 adds only arrangement-decision/provenance records.
 
 ## Application / presentation package boundary
 
@@ -398,31 +408,32 @@ The planned notation contract should define parse, canonical preservation, fail-
 12. PA-2.7 full regression + monophonic compatibility — verified
 13. PA-2.8 GitHub CI + independent review — verified; PA-2 closed
 14. PA-3 simultaneous-event/chord source grouping — completed through PR #85
-15. PA-4 arrangement-decision + provenance contract — next separately approved gate
+15. PA-4 arrangement-decision + provenance contract — completed through PR #87
+16. PA-5 deterministic melody/bass/voice analysis — next separately approved gate
 
 ### Compatibility and notation foundations
 
-16. Musical Notation Coverage contract
-17. MuseScore semantic compatibility gate
-18. independent real-world MusicXML E2E fixture gate
+17. Musical Notation Coverage contract
+18. MuseScore semantic compatibility gate
+19. independent real-world MusicXML E2E fixture gate
 
 ### Application/presentation track
 
-19. Application/Presentation architecture contract
-20. alphaTab application viewer
-21. application measure/beat cursor
-22. playback adapter + Play/Pause/Stop after synth evidence
-23. Teacher Fingering Correction UI
-24. Teacher Score Correction contract/UI
-25. export center
-26. MuseScore/PDF adapter
-27. PDF viewer / print / download / share
-28. project persistence
-29. full application E2E
+20. Application/Presentation architecture contract
+21. alphaTab application viewer
+22. application measure/beat cursor
+23. playback adapter + Play/Pause/Stop after synth evidence
+24. Teacher Fingering Correction UI
+25. Teacher Score Correction contract/UI
+26. export center
+27. MuseScore/PDF adapter
+28. PDF viewer / print / download / share
+29. project persistence
+30. full application E2E
 
 ### Polyphonic arrangement track
 
-30. continue PA-4 through PA-14 only in their separately approved order after PA-3
+31. continue PA-5 through PA-14 only in their separately approved order after PA-4
 
 ### Learning/AI track
 
@@ -448,12 +459,12 @@ Production training remains blocked until:
 ## Evidence limitations
 
 - passing tests do not prove compatibility with every MusicXML producer
-- no real uploaded Audiveris/Scarlatti file has been executed through the PA-3 grouping layer as part of this closure
+- no real uploaded Audiveris/Scarlatti file has been executed through the PA-4 arrangement-decision/provenance layer as part of this closure
 - alphaTab compatibility evidence does not equal a production application
 - successful alphaTab rendering does not prove production synth/playback readiness
 - no current test proves MuseScore semantic round-trip
 - no current test proves production PDF generation
-- PA-3 internal source grouping does not make public polyphonic conversion or arrangement available
+- PA-4 internal decision/provenance representation does not make public polyphonic conversion or executable arrangement available
 - B1/B2/LR completion does not authorize live training data or production learned selection
 - content digests do not prove trusted producer authenticity
 - no package release is claimed
