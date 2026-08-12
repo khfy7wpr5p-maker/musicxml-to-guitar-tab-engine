@@ -78,6 +78,8 @@ PA-2.3 does not change the current public conversion scope. The package-root con
 | LR-S1B.2b | `MERGED_INTERNAL` | Immutable path-policy binding record + binding digest |
 | PA-1 | `MERGED_INTERNAL` | `PolyphonicSourceModel 1.0.0` source-truth foundation; no public projection/arrangement authority |
 | PA-2.1 | `MERGED_DOCUMENTATION_ONLY` | Projection contract merged through PR #75; no runtime projection authority |
+| PA-2.2 | `MERGED_TESTS_ONLY` | Valid polyphonic red-first fixtures/tests merged through PR #77; no runtime authority |
+| PA-2.3 | `MERGED_INTERNAL` | Minimal basic note/rest projector merged through PR #78; no public projection authority |
 
 ## Current merged public runtime capabilities
 
