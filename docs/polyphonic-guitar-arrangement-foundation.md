@@ -8,8 +8,8 @@
 - PA-1 merge: PR #73, rebase-merged to `main` on 2026-08-11
 - Current PA-1-bearing `main` head at PA-2.0 convergence: `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`
 - Post-merge Tests #488: `SUCCESS`
-- PA-2.1 projection contract: `DOCUMENTATION_ONLY`; see `docs/polyphonic-projection-contract.md`
-- PA-2 runtime projection: `NOT_IMPLEMENTED`; PA-2.2+ implementation gates remain separately gated
+- PA-2.1 projection contract: `MERGED_DOCUMENTATION_ONLY` through PR #75 on 2026-08-12; see `docs/polyphonic-projection-contract.md`
+- PA-2 runtime projection: `NOT_IMPLEMENTED`; PA-2.2 is the current next separately approved tests-only gate and PA-2.3+ implementation gates remain separately gated
 - Current merged public polyphonic runtime: **not implemented**
 - Public API changes: **none**
 - `CanonicalTabResult 1.0.0` changes: **none**
@@ -17,7 +17,7 @@
 
 PA-1 is now present on the authoritative runtime line as an internal source-truth foundation. Its recovery branch was removed only after the rebase merge and a read-only content-equivalence check. PA-1 does not expose polyphonic conversion publicly and does not authorize PA-2 runtime implementation or later arrangement gates.
 
-PA-2.1 defines only the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`. It does not implement that projection. Runtime work begins only through separately approved PA-2.2+ gates.
+PA-2.1 is merged documentation-only and defines only the projection contract between `ParsedMusicXmlDocument 1.0.0` and `PolyphonicSourceModel 1.0.0`. It does not implement that projection. PA-2.2 is the current next separately approved tests-only gate; runtime work begins no earlier than PA-2.3.
 
 This document defines the approved architectural direction for extending the existing monophonic MusicXML-to-Guitar-TAB engine toward a separately gated polyphonic guitar-arrangement path.
 
@@ -174,8 +174,8 @@ AI must not alter the original MusicXML artifact, bypass source validation, fabr
 |---|---|---|
 | `PA-0` | Documentation + architecture planning | none |
 | `PA-1` | `PolyphonicSourceModel 1.0` contract/foundation | merged internal; source truth only |
-| `PA-2.1` | `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | documentation only; none |
-| `PA-2.2` | Valid polyphonic red-first fixtures/tests | tests only; no runtime authority |
+| `PA-2.1` | `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | merged documentation-only; none |
+| `PA-2.2` | Valid polyphonic red-first fixtures/tests; current next separately approved gate | tests only; no runtime authority |
 | `PA-2.3` | Minimal internal note/rest projector | internal only after separate approval |
 | `PA-2.4` | `backup` / `forward` cursor semantics | internal only after separate approval |
 | `PA-2.5` | `<chord/>`, multiple voice, staff 1–2 projection | internal only after separate approval |
@@ -263,7 +263,7 @@ If existing supported monophonic inputs change unexpectedly, the gate fails.
 
 ## PA-0 / PA-1 / PA-2.1 boundary
 
-PA-0 remains architecture/documentation. PA-1 adds only the internal `PolyphonicSourceModel 1.0.0` source-truth foundation. PA-2.1 adds only a projection contract. None of these gates adds package exports, public polyphonic conversion, arrangement authority, output-format changes, or application behavior.
+PA-0 remains architecture/documentation. PA-1 adds only the internal `PolyphonicSourceModel 1.0.0` source-truth foundation. PA-2.1 is merged documentation-only and adds only a projection contract. None of these gates adds package exports, public polyphonic conversion, arrangement authority, output-format changes, or application behavior.
 
 ## Early-PA acceptance invariants
 
