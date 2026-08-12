@@ -201,8 +201,17 @@ function enforceLeaf(node, surface, location, rejectUnsupported) {
   enforceAttributes(node, surface, EMPTY_ATTRIBUTES, location, rejectUnsupported);
 }
 
-function enforceNoteProfile(noteNode, location, rejectUnsupported) {
-  enforceChildren(noteNode, 'note', NOTE_CHILDREN, location, rejectUnsupported);
+function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = null) {
+  enforceChildren(
+    noteNode,
+    'note',
+    NOTE_CHILDREN,
+    location,
+    rejectUnsupported,
+    null,
+    processing,
+    'polyphonic-semantic-profile:note-child',
+  );
   enforceAttributes(noteNode, 'note', NOTE_ATTRIBUTES, location, rejectUnsupported);
 
   for (const pitch of directSameProfileChildren(noteNode, 'pitch')) {
@@ -309,6 +318,7 @@ function enforcePolyphonicMusicXmlSemanticProfile(
         child,
         { ...location, sourceOrder },
         rejectUnsupported,
+        processing,
       );
       sourceOrder += 1;
     }
