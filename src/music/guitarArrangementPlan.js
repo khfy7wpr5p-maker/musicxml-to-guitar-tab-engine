@@ -148,13 +148,32 @@ function assertPlainRecord(value, path, allowedFields) {
   }
 }
 
-function assertDenseOrdinaryArray(value, path) {
+function assertDenseOrdinaryArray(value, path, limit = null, field = null) {
   if (
     safeIsProxy(value, path)
     || !safeIsArray(value, path)
     || safePrototype(value, path) !== Array.prototype
   ) {
     throw invalid('Arrangement decision lists must be non-proxy ordinary arrays.', { path });
+  }
+
+  const lengthDescriptor = safeDescriptor(value, 'length', `${path}.length`);
+  if (
+    !lengthDescriptor
+    || !Object.hasOwn(lengthDescriptor, 'value')
+    || !Number.isSafeInteger(lengthDescriptor.value)
+    || lengthDescriptor.value < 0
+  ) {
+    throw invalid('Arrangement decision array length is invalid.', { path });
+  }
+  const length = lengthDescriptor.value;
+
+  if (limit !== null && length > limit) {
+    throw invalid('Arrangement decision array exceeds the source-note bound.', {
+      field,
+      limit,
+      observed: length,
+    });
   }
 
   const keys = safeOwnKeys(value, path);
@@ -169,17 +188,6 @@ function assertDenseOrdinaryArray(value, path) {
       });
     }
   }
-
-  const lengthDescriptor = safeDescriptor(value, 'length', `${path}.length`);
-  if (
-    !lengthDescriptor
-    || !Object.hasOwn(lengthDescriptor, 'value')
-    || !Number.isSafeInteger(lengthDescriptor.value)
-    || lengthDescriptor.value < 0
-  ) {
-    throw invalid('Arrangement decision array length is invalid.', { path });
-  }
-  const length = lengthDescriptor.value;
 
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
@@ -256,8 +264,8 @@ function collectGroups(grouping, runtime) {
   return byId;
 }
 
-function assertExactStringArray(value, path) {
-  const length = assertDenseOrdinaryArray(value, path);
+function assertExactStringArray(value, path, limit) {
+  const length = assertDenseOrdinaryArray(value, path, limit, 'sourceEventIds');
   if (length === 0) {
     throw invalid('sourceEventIds must contain at least one source note id.', { path });
   }
@@ -287,7 +295,12 @@ function createGuitarArrangementPlan(sourceModel, decisions, runtime = null) {
   const { notes, byId: sourceNotesById } = collectSourceNotes(source, runtime);
   const groupsById = collectGroups(grouping, runtime);
 
-  const decisionCount = assertDenseOrdinaryArray(decisions, 'decisions');
+  const decisionCount = assertDenseOrdinaryArray(
+    decisions,
+    'decisions',
+    notes.length,
+    'decisions',
+  );
   if (decisionCount > notes.length) {
     throw invalid('Arrangement decision count cannot exceed source note count.', {
       field: 'decisions',
@@ -321,7 +334,11 @@ function createGuitarArrangementPlan(sourceModel, decisions, runtime = null) {
       });
     }
 
-    const sourceEventIds = assertExactStringArray(rawSourceEventIds, `${path}.sourceEventIds`);
+    const sourceEventIds = assertExactStringArray(
+      rawSourceEventIds,
+      `${path}.sourceEventIds`,
+      notes.length,
+    );
     const sourceEntries = new Array(sourceEventIds.length);
     for (let memberIndex = 0; memberIndex < sourceEventIds.length; memberIndex += 1) {
       if (runtime) {
