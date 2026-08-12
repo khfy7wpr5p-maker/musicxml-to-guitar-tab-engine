@@ -77,7 +77,7 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, runtime) {
     let eventIndex = 0;
 
     for (const child of measureNode.children) {
-      if (child.name !== 'note') {
+      if (child.name !== 'note' || child.uri !== measureNode.uri) {
         continue;
       }
 
