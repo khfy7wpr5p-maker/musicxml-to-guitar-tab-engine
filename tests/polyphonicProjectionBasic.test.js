@@ -274,6 +274,72 @@ test('PA-2.3 rejects unpitched note-kind constructs instead of flattening them t
   );
 });
 
+test('PA-2.3 rejects per-note instrument assignments instead of discarding event identity', () => {
+  const xml = BASIC_XML
+    .replace(
+      '<part-list><score-part id="P1"><part-name>PA-2.3</part-name></score-part></part-list>',
+      '<part-list><score-part id="P1"><part-name>PA-2.3</part-name><score-instrument id="I1"><instrument-name>Primary</instrument-name></score-instrument><score-instrument id="I2"><instrument-name>Secondary</instrument-name></score-instrument></score-part></part-list>',
+    )
+    .replace(
+      '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+      '<note><pitch><step>C</step><octave>4</octave></pitch><instrument id="I2"/><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+      assert.equal(error.details.feature, 'note-instrument-assignment');
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 requires structural descendants to use the validated MusicXML namespace', () => {
+  const xml = BASIC_XML
+    .replace(
+      '<score-partwise version="4.0">',
+      '<score-partwise version="4.0" xmlns="http://www.musicxml.org/ns/musicxml" xmlns:x="urn:pa-2-3-foreign">',
+    )
+    .replace(
+      '<part-list><score-part id="P1"><part-name>PA-2.3</part-name></score-part></part-list>',
+      '<x:part-list><x:score-part id="P1"><x:part-name>PA-2.3</x:part-name></x:score-part></x:part-list>',
+    );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'INVALID_MUSICXML');
+      assert.match(error.message, /MusicXML namespace/);
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 checkpoints each source event during the preflight scan', () => {
+  let preflightEventCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    {},
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-projector:preflight-event') {
+          preflightEventCheckpoints += 1;
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(denseRestXml(8), {}, runtime);
+  const projected = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+
+  assert.equal(projected.eventCount, 8);
+  assert.equal(preflightEventCheckpoints, 8);
+});
+
 test('PA-2.3 enforces the fixed PA-1 event ceiling before event graph allocation', () => {
   let sawProjectionEvent = false;
   const runtime = createMusicXmlProcessingRuntime(
