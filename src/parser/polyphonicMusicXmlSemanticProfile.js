@@ -72,7 +72,7 @@ const NOTE_CHILDREN = Object.freeze({
   accidental: SAFE_IGNORE,
   footnote: SAFE_IGNORE,
   level: SAFE_IGNORE,
-  chord: classified(CLASSIFICATION.LATER_GATE, 'source-chord-marker'),
+  chord: SUPPORTED,
   grace: classified(CLASSIFICATION.LATER_GATE, 'grace-note'),
   cue: classified(CLASSIFICATION.REJECT, 'cue-note'),
   unpitched: classified(CLASSIFICATION.REJECT, 'unpitched-note'),
@@ -488,7 +488,7 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
   );
   enforceScalarLeaves(
     noteChildren,
-    ['duration', 'voice', 'staff'],
+    ['chord', 'duration', 'voice', 'staff'],
     location,
     rejectUnsupported,
     processing,
