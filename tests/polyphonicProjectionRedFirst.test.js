@@ -44,10 +44,12 @@ for (const fixture of fixtures) {
     assert.equal(semantic.partId, 'P1');
 
     const target = createPolyphonicSourceModel(fixture.expectedModel);
+    const revalidated = validatePolyphonicSourceModel(target);
     assert.deepEqual(target, fixture.expectedModel);
-    assert.strictEqual(validatePolyphonicSourceModel(target), target);
+    assert.deepEqual(revalidated, target);
     assert.ok(Object.isFrozen(target));
     assert.ok(Object.isFrozen(target.measures));
+    assert.ok(Object.isFrozen(revalidated));
   });
 
   test(`PA-2.2 vector remains red against the protected monophonic path: ${fixture.name}`, () => {
