@@ -269,6 +269,11 @@ function parseBasicNote(noteNode, context) {
   } = context;
   const location = { measureIndex, measureNumber, sourceOrder };
 
+  const timeOnly = getAttribute(noteNode, 'time-only');
+  if (timeOnly !== undefined) {
+    throw unsupported('conditional-note', { ...location, timeOnly });
+  }
+
   for (const attribute of ['attack', 'release']) {
     if (getAttribute(noteNode, attribute) !== undefined) {
       throw unsupported('note-timing-offset', { ...location, attribute });
