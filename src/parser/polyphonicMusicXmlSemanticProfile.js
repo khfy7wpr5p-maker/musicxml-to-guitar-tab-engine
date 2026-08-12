@@ -120,16 +120,20 @@ const TIE_ATTRIBUTES = Object.freeze({
   'time-only': classified(CLASSIFICATION.REJECT, 'conditional-tie'),
 });
 
-function unqualifiedAttribute(node, name) {
-  return node.attributes.find(
-    (attribute) => attribute.name === name && attribute.uri.length === 0,
-  );
-}
-
-function directSameProfileChildren(node, name) {
-  return node.children.filter(
-    (child) => child.name === name && child.uri === node.uri,
-  );
+function unqualifiedAttribute(node, name, processing = null, location = {}) {
+  for (let attributeIndex = 0; attributeIndex < node.attributes.length; attributeIndex += 1) {
+    if (processing) {
+      processing.checkpoint(`polyphonic-semantic-profile:${node.name}-attribute-lookup`, {
+        ...location,
+        attributeIndex,
+      });
+    }
+    const attribute = node.attributes[attributeIndex];
+    if (attribute.name === name && attribute.uri.length === 0) {
+      return attribute;
+    }
+  }
+  return undefined;
 }
 
 function rejectEntry(entry, fallbackFeature, location, rejectUnsupported, extraDetails = {}) {
@@ -150,15 +154,18 @@ function enforceChildren(
   rejectUnsupported,
   unknownFeature = null,
   processing = null,
-  checkpointPhase = null,
 ) {
+  const grouped = new Map();
   for (let childIndex = 0; childIndex < node.children.length; childIndex += 1) {
     const child = node.children[childIndex];
+    if (processing) {
+      processing.checkpoint(`polyphonic-semantic-profile:${surface}-child`, {
+        ...location,
+        childIndex,
+      });
+    }
     if (child.uri !== node.uri) {
       continue;
-    }
-    if (processing && checkpointPhase) {
-      processing.checkpoint(checkpointPhase, { ...location, childIndex });
     }
     const entry = table[child.name];
     if (!entry) {
@@ -168,11 +175,33 @@ function enforceChildren(
       throw rejectUnsupported(feature, location);
     }
     rejectEntry(entry, `${surface}-child:${child.name}`, location, rejectUnsupported);
+    const existing = grouped.get(child.name);
+    if (existing) {
+      existing.push(child);
+    } else {
+      grouped.set(child.name, [child]);
+    }
   }
+  return grouped;
 }
 
-function enforceAttributes(node, surface, table, location, rejectUnsupported) {
-  for (const attribute of node.attributes) {
+function enforceAttributes(
+  node,
+  surface,
+  table,
+  location,
+  rejectUnsupported,
+  processing = null,
+) {
+  const grouped = new Map();
+  for (let attributeIndex = 0; attributeIndex < node.attributes.length; attributeIndex += 1) {
+    const attribute = node.attributes[attributeIndex];
+    if (processing) {
+      processing.checkpoint(`polyphonic-semantic-profile:${surface}-attribute`, {
+        ...location,
+        attributeIndex,
+      });
+    }
     if (attribute.uri.length !== 0) {
       continue;
     }
@@ -193,16 +222,38 @@ function enforceAttributes(node, surface, table, location, rejectUnsupported) {
       rejectUnsupported,
       extraDetails,
     );
+    const existing = grouped.get(attribute.name);
+    if (existing) {
+      existing.push(attribute);
+    } else {
+      grouped.set(attribute.name, [attribute]);
+    }
   }
+  return grouped;
 }
 
-function enforceLeaf(node, surface, location, rejectUnsupported) {
-  enforceChildren(node, surface, Object.freeze({}), location, rejectUnsupported);
-  enforceAttributes(node, surface, EMPTY_ATTRIBUTES, location, rejectUnsupported);
+function enforceLeaf(node, surface, location, rejectUnsupported, processing = null) {
+  enforceChildren(
+    node,
+    surface,
+    Object.freeze({}),
+    location,
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(
+    node,
+    surface,
+    EMPTY_ATTRIBUTES,
+    location,
+    rejectUnsupported,
+    processing,
+  );
 }
 
 function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = null) {
-  enforceChildren(
+  const noteChildren = enforceChildren(
     noteNode,
     'note',
     NOTE_CHILDREN,
@@ -210,45 +261,111 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
     rejectUnsupported,
     null,
     processing,
-    'polyphonic-semantic-profile:note-child',
   );
-  enforceAttributes(noteNode, 'note', NOTE_ATTRIBUTES, location, rejectUnsupported);
+  enforceAttributes(
+    noteNode,
+    'note',
+    NOTE_ATTRIBUTES,
+    location,
+    rejectUnsupported,
+    processing,
+  );
 
-  for (const pitch of directSameProfileChildren(noteNode, 'pitch')) {
-    enforceChildren(pitch, 'pitch', PITCH_CHILDREN, location, rejectUnsupported);
-    enforceAttributes(pitch, 'pitch', EMPTY_ATTRIBUTES, location, rejectUnsupported);
-  }
-  for (const rest of directSameProfileChildren(noteNode, 'rest')) {
-    enforceLeaf(rest, 'rest', location, rejectUnsupported);
-  }
-  for (const tie of directSameProfileChildren(noteNode, 'tie')) {
-    enforceChildren(tie, 'tie', Object.freeze({}), location, rejectUnsupported);
-    enforceAttributes(tie, 'tie', TIE_ATTRIBUTES, location, rejectUnsupported);
-  }
-  for (const notations of directSameProfileChildren(noteNode, 'notations')) {
+  for (const pitch of noteChildren.get('pitch') || []) {
     enforceChildren(
+      pitch,
+      'pitch',
+      PITCH_CHILDREN,
+      location,
+      rejectUnsupported,
+      null,
+      processing,
+    );
+    enforceAttributes(
+      pitch,
+      'pitch',
+      EMPTY_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
+  }
+  for (const rest of noteChildren.get('rest') || []) {
+    enforceLeaf(rest, 'rest', location, rejectUnsupported, processing);
+  }
+  for (const tie of noteChildren.get('tie') || []) {
+    enforceChildren(
+      tie,
+      'tie',
+      Object.freeze({}),
+      location,
+      rejectUnsupported,
+      null,
+      processing,
+    );
+    enforceAttributes(
+      tie,
+      'tie',
+      TIE_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
+  }
+  for (const notations of noteChildren.get('notations') || []) {
+    const notationChildren = enforceChildren(
       notations,
       'notations',
       NOTATIONS_CHILDREN,
       location,
       rejectUnsupported,
       (name) => `notation:${name}`,
+      processing,
     );
-    enforceAttributes(notations, 'notations', EMPTY_ATTRIBUTES, location, rejectUnsupported);
-    for (const tied of directSameProfileChildren(notations, 'tied')) {
-      enforceChildren(tied, 'tied', Object.freeze({}), location, rejectUnsupported);
-      enforceAttributes(tied, 'tied', TIE_ATTRIBUTES, location, rejectUnsupported);
+    enforceAttributes(
+      notations,
+      'notations',
+      EMPTY_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
+    for (const tied of notationChildren.get('tied') || []) {
+      enforceChildren(
+        tied,
+        'tied',
+        Object.freeze({}),
+        location,
+        rejectUnsupported,
+        null,
+        processing,
+      );
+      enforceAttributes(
+        tied,
+        'tied',
+        TIE_ATTRIBUTES,
+        location,
+        rejectUnsupported,
+        processing,
+      );
     }
   }
 }
 
-function enforceAttributesProfile(attributesNode, location, rejectUnsupported) {
-  enforceChildren(
+function enforceAttributesProfile(
+  attributesNode,
+  location,
+  rejectUnsupported,
+  processing = null,
+) {
+  const attributeChildren = enforceChildren(
     attributesNode,
     'attributes',
     ATTRIBUTES_CHILDREN,
     location,
     rejectUnsupported,
+    null,
+    processing,
   );
   enforceAttributes(
     attributesNode,
@@ -256,10 +373,26 @@ function enforceAttributesProfile(attributesNode, location, rejectUnsupported) {
     EMPTY_ATTRIBUTES,
     location,
     rejectUnsupported,
+    processing,
   );
-  for (const time of directSameProfileChildren(attributesNode, 'time')) {
-    enforceChildren(time, 'time', TIME_CHILDREN, location, rejectUnsupported);
-    enforceAttributes(time, 'time', EMPTY_ATTRIBUTES, location, rejectUnsupported);
+  for (const time of attributeChildren.get('time') || []) {
+    enforceChildren(
+      time,
+      'time',
+      TIME_CHILDREN,
+      location,
+      rejectUnsupported,
+      null,
+      processing,
+    );
+    enforceAttributes(
+      time,
+      'time',
+      EMPTY_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
   }
 }
 
@@ -269,17 +402,33 @@ function enforcePolyphonicMusicXmlSemanticProfile(
   processing = null,
 ) {
   const root = parsedDocument.root;
-  enforceChildren(root, 'root', ROOT_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(root, 'root', ROOT_ATTRIBUTES, {}, rejectUnsupported);
+  const rootChildren = enforceChildren(
+    root,
+    'root',
+    ROOT_CHILDREN,
+    {},
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(root, 'root', ROOT_ATTRIBUTES, {}, rejectUnsupported, processing);
 
-  const part = directSameProfileChildren(root, 'part')[0];
-  enforceChildren(part, 'part', PART_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(part, 'part', PART_ATTRIBUTES, {}, rejectUnsupported);
+  const part = rootChildren.get('part')[0];
+  const partChildren = enforceChildren(
+    part,
+    'part',
+    PART_CHILDREN,
+    {},
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(part, 'part', PART_ATTRIBUTES, {}, rejectUnsupported, processing);
 
-  const measures = directSameProfileChildren(part, 'measure');
+  const measures = partChildren.get('measure') || [];
   for (let measureIndex = 0; measureIndex < measures.length; measureIndex += 1) {
     const measure = measures[measureIndex];
-    const numberAttribute = unqualifiedAttribute(measure, 'number');
+    const numberAttribute = unqualifiedAttribute(measure, 'number', processing, { measureIndex });
     const location = {
       measureIndex,
       measureNumber: numberAttribute ? numberAttribute.value : undefined,
@@ -287,7 +436,7 @@ function enforcePolyphonicMusicXmlSemanticProfile(
     if (processing) {
       processing.checkpoint('polyphonic-semantic-profile:measure', location);
     }
-    enforceChildren(
+    const measureChildren = enforceChildren(
       measure,
       'measure',
       MEASURE_CHILDREN,
@@ -295,19 +444,22 @@ function enforcePolyphonicMusicXmlSemanticProfile(
       rejectUnsupported,
       null,
       processing,
-      'polyphonic-semantic-profile:measure-child',
     );
-    enforceAttributes(measure, 'measure', MEASURE_ATTRIBUTES, location, rejectUnsupported);
+    enforceAttributes(
+      measure,
+      'measure',
+      MEASURE_ATTRIBUTES,
+      location,
+      rejectUnsupported,
+      processing,
+    );
 
-    for (const attributes of directSameProfileChildren(measure, 'attributes')) {
-      enforceAttributesProfile(attributes, location, rejectUnsupported);
+    for (const attributes of measureChildren.get('attributes') || []) {
+      enforceAttributesProfile(attributes, location, rejectUnsupported, processing);
     }
 
-    let sourceOrder = 0;
-    for (const child of measure.children) {
-      if (child.uri !== measure.uri || child.name !== 'note') {
-        continue;
-      }
+    const noteChildren = measureChildren.get('note') || [];
+    for (let sourceOrder = 0; sourceOrder < noteChildren.length; sourceOrder += 1) {
       if (processing) {
         processing.checkpoint('polyphonic-semantic-profile:event', {
           ...location,
@@ -315,22 +467,44 @@ function enforcePolyphonicMusicXmlSemanticProfile(
         });
       }
       enforceNoteProfile(
-        child,
+        noteChildren[sourceOrder],
         { ...location, sourceOrder },
         rejectUnsupported,
         processing,
       );
-      sourceOrder += 1;
     }
   }
 
-  const partList = directSameProfileChildren(root, 'part-list')[0];
-  enforceChildren(partList, 'part-list', PART_LIST_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported);
+  const partList = rootChildren.get('part-list')[0];
+  const partListChildren = enforceChildren(
+    partList,
+    'part-list',
+    PART_LIST_CHILDREN,
+    {},
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported, processing);
 
-  const scorePart = directSameProfileChildren(partList, 'score-part')[0];
-  enforceChildren(scorePart, 'score-part', SCORE_PART_CHILDREN, {}, rejectUnsupported);
-  enforceAttributes(scorePart, 'score-part', SCORE_PART_ATTRIBUTES, {}, rejectUnsupported);
+  const scorePart = partListChildren.get('score-part')[0];
+  enforceChildren(
+    scorePart,
+    'score-part',
+    SCORE_PART_CHILDREN,
+    {},
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(
+    scorePart,
+    'score-part',
+    SCORE_PART_ATTRIBUTES,
+    {},
+    rejectUnsupported,
+    processing,
+  );
 }
 
 module.exports = {
