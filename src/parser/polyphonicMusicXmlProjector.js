@@ -372,6 +372,12 @@ function parseBasicNote(noteNode, context) {
     });
   }
   const chordWithPrevious = chordNodes.length === 1;
+  if (chordWithPrevious && textOf(chordNodes[0]) !== '') {
+    throw invalid('chord marker must not contain text content.', {
+      ...location,
+      field: 'chord',
+    });
+  }
   if (directChildren(noteNode, 'grace').length > 0) {
     throw unsupported('grace-note', location);
   }
