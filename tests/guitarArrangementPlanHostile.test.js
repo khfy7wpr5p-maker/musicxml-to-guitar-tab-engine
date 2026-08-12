@@ -54,3 +54,58 @@ test('PA-4 hostile decision-array proxies fail closed without invoking property 
   );
   assert.equal(getCalls, 0);
 });
+
+// Red-first resource regression: aggregate length bounds must win before per-element inspection.
+test('PA-4 rejects oversized decision/member arrays before scanning their elements', () => {
+  const source = sourceModel();
+
+  const oversizedDecisions = new Array(2);
+  Object.defineProperty(oversizedDecisions, '0', {
+    enumerable: true,
+    get() {
+      throw new Error('oversized decisions must be rejected before element inspection');
+    },
+  });
+  Object.defineProperty(oversizedDecisions, '1', {
+    enumerable: true,
+    value: null,
+  });
+
+  assert.throws(
+    () => createGuitarArrangementPlan(source, oversizedDecisions),
+    (error) => (
+      error
+      && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN'
+      && error.details.field === 'decisions'
+      && error.details.limit === 1
+      && error.details.observed === 2
+    ),
+  );
+
+  const oversizedSourceEventIds = new Array(2);
+  Object.defineProperty(oversizedSourceEventIds, '0', {
+    enumerable: true,
+    get() {
+      throw new Error('oversized sourceEventIds must be rejected before element inspection');
+    },
+  });
+  Object.defineProperty(oversizedSourceEventIds, '1', {
+    enumerable: true,
+    value: 'P1:measure:0:note:999',
+  });
+
+  assert.throws(
+    () => createGuitarArrangementPlan(source, [{
+      decisionType: 'PRESERVED',
+      sourceEventIds: oversizedSourceEventIds,
+      sourceGroupId: null,
+    }]),
+    (error) => (
+      error
+      && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN'
+      && error.details.field === 'sourceEventIds'
+      && error.details.limit === 1
+      && error.details.observed === 2
+    ),
+  );
+});
