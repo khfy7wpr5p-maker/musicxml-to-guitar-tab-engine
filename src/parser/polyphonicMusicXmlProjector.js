@@ -27,6 +27,7 @@ const MAX_PROJECTED_EVENTS = 50000;
 const MAX_SOURCE_STRING_LENGTH = 256;
 const MAX_VERSION_LENGTH = 32;
 const MAX_VOICE_ID_LENGTH = 64;
+const MAX_SUPPORTED_STAVES = 2;
 
 class PolyphonicMusicXmlProjectorError extends EngineError {
   constructor(message, code = 'INVALID_MUSICXML', details = {}) {
@@ -40,7 +41,7 @@ function invalid(message, details = {}) {
 
 function unsupported(feature, details = {}) {
   return new PolyphonicMusicXmlProjectorError(
-    `MusicXML feature is outside the current PA-2.4 projector scope: ${feature}.`,
+    `MusicXML feature is outside the current PA-2.5 projector scope: ${feature}.`,
     'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE',
     { feature, ...details },
   );
@@ -325,14 +326,15 @@ function parseVoiceAndStaff(noteNode, activeStaffCount, location) {
   const voiceNode = requireSingleDirectChild(noteNode, 'voice', location, { optional: true });
   const voice = voiceNode ? textOf(voiceNode) : '1';
   requireBoundedString(voice, 'voice', MAX_VOICE_ID_LENGTH, location);
-  if (voice !== '1') {
-    throw unsupported('multiple-voice-projection', { ...location, voice });
-  }
 
   const staffNode = requireSingleDirectChild(noteNode, 'staff', location, { optional: true });
   const staff = staffNode ? parsePositiveIntegerText(staffNode, 'staff', location) : 1;
-  if (staff !== 1 || staff > activeStaffCount) {
-    throw unsupported('staff-2-projection', { ...location, staff, activeStaffCount });
+  if (staff > MAX_SUPPORTED_STAVES || staff > activeStaffCount) {
+    throw invalid('staff must be 1 or 2 and may not exceed the active staff count.', {
+      ...location,
+      staff,
+      activeStaffCount,
+    });
   }
   return { voice, staff };
 }
@@ -346,6 +348,7 @@ function parseBasicNote(noteNode, context) {
     cursor,
     expectedDuration,
     activeStaffCount,
+    chordAnchorEvent,
   } = context;
   const location = { measureIndex, measureNumber, sourceOrder };
 
@@ -360,9 +363,15 @@ function parseBasicNote(noteNode, context) {
     }
   }
 
-  if (directChildren(noteNode, 'chord').length > 0) {
-    throw unsupported('source-chord-marker', location);
+  const chordNodes = directChildren(noteNode, 'chord');
+  if (chordNodes.length > 1) {
+    throw invalid('chord must appear at most once.', {
+      ...location,
+      field: 'chord',
+      observedCount: chordNodes.length,
+    });
   }
+  const chordWithPrevious = chordNodes.length === 1;
   if (directChildren(noteNode, 'grace').length > 0) {
     throw unsupported('grace-note', location);
   }
@@ -387,10 +396,32 @@ function parseBasicNote(noteNode, context) {
 
   const durationNode = requireSingleDirectChild(noteNode, 'duration', location);
   const durationDivisions = parsePositiveIntegerText(durationNode, 'duration', location);
-  if (cursor > Number.MAX_SAFE_INTEGER - durationDivisions) {
+  const { voice, staff } = parseVoiceAndStaff(noteNode, activeStaffCount, location);
+  const isRest = rests.length === 1;
+
+  if (chordWithPrevious) {
+    if (isRest) {
+      throw invalid('A chord-marked source note must be pitched, not a rest.', location);
+    }
+    if (!chordAnchorEvent || chordAnchorEvent.type !== 'note') {
+      throw invalid('A chord-marked source note requires an immediately preceding source note.', location);
+    }
+    if (voice !== chordAnchorEvent.voice || staff !== chordAnchorEvent.staff) {
+      throw invalid('A chord-marked source note must match the preceding note voice and staff.', {
+        ...location,
+        voice,
+        staff,
+        previousVoice: chordAnchorEvent.voice,
+        previousStaff: chordAnchorEvent.staff,
+      });
+    }
+  }
+
+  const onsetDivisions = chordWithPrevious ? chordAnchorEvent.onsetDivisions : cursor;
+  if (onsetDivisions > Number.MAX_SAFE_INTEGER - durationDivisions) {
     throw invalid('Event onset plus duration exceeds the safe-integer range.', location);
   }
-  const end = cursor + durationDivisions;
+  const end = onsetDivisions + durationDivisions;
   if (end > expectedDuration) {
     throw invalid('Projected event extends beyond the measure boundary.', {
       ...location,
@@ -399,8 +430,6 @@ function parseBasicNote(noteNode, context) {
     });
   }
 
-  const { voice, staff } = parseVoiceAndStaff(noteNode, activeStaffCount, location);
-  const isRest = rests.length === 1;
   const tieState = parseTieState(noteNode, isRest, location);
   const event = {
     sourceEventId: createSourceEventId(partId, measureIndex, sourceOrder),
@@ -408,7 +437,7 @@ function parseBasicNote(noteNode, context) {
     type: isRest ? 'rest' : 'note',
     voice,
     staff,
-    onsetDivisions: cursor,
+    onsetDivisions,
     durationDivisions,
     tieStart: tieState.tieStart,
     tieStop: tieState.tieStop,
@@ -417,13 +446,16 @@ function parseBasicNote(noteNode, context) {
       measureIndex,
       measureNumber,
       noteIndex: sourceOrder,
-      chordWithPrevious: false,
+      chordWithPrevious,
     },
   };
   if (!isRest) {
     event.pitch = parsePitch(pitches[0], location);
   }
-  return { event, nextCursor: end };
+  return {
+    event,
+    nextCursor: chordWithPrevious ? cursor : end,
+  };
 }
 
 function applyMeasureAttributes(attributesNode, state, timingStarted, location) {
@@ -472,8 +504,8 @@ function applyMeasureAttributes(attributesNode, state, timingStarted, location) 
       throw invalid('staves may be declared at most once per measure.', location);
     }
     const staves = parsePositiveIntegerText(stavesNodes[0], 'staves', location);
-    if (staves !== 1) {
-      throw unsupported('staff-2-projection', { ...location, staves });
+    if (staves > MAX_SUPPORTED_STAVES) {
+      throw invalid('staves must be 1 or 2 for PA-2.5 projection.', { ...location, staves });
     }
     state.staffCount = staves;
     state.seenStaves = true;
@@ -625,6 +657,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
     };
     let timingStarted = false;
     let cursor = 0;
+    let chordAnchorEvent = null;
     const events = [];
 
     for (const child of measureNode.children) {
@@ -633,6 +666,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
       }
       if (child.name === 'attributes') {
         applyMeasureAttributes(child, state, timingStarted, location);
+        chordAnchorEvent = null;
         continue;
       }
       if (child.name === 'backup' || child.name === 'forward') {
@@ -651,6 +685,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
           cursor,
         });
         cursor = applyCursorOperation(child, cursor, expectedDuration, location);
+        chordAnchorEvent = null;
         continue;
       }
       if (child.name !== 'note') {
@@ -684,9 +719,11 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
         cursor,
         expectedDuration,
         activeStaffCount: state.staffCount,
+        chordAnchorEvent,
       });
       events.push(projected.event);
       cursor = projected.nextCursor;
+      chordAnchorEvent = projected.event;
       totalEvents += 1;
       if (totalEvents > effectiveMaxEvents) {
         throw invalid('Projected event count exceeds the PA-1 output boundary.', {
