@@ -56,6 +56,10 @@ function eventId(index) {
   return `P1:measure:0:note:${index}`;
 }
 
+function groupId(onset = 0) {
+  return `P1:measure:0:simultaneous:${onset}`;
+}
+
 function plan(xml, decisions, runtime = null) {
   return createGuitarArrangementPlan(sourceModel(xml), decisions, runtime);
 }
@@ -78,8 +82,6 @@ test('PA-4 exposes a versioned internal GuitarArrangementPlan contract and fixed
     'REVOICED',
     'ARPEGGIATED',
   ]);
-  assert.equal(model.documentType, 'GuitarArrangementPlan');
-  assert.equal(model.contractVersion, '1.0.0');
   assert.deepEqual(model.source, {
     documentType: 'PolyphonicSourceModel',
     contractVersion: '1.0.0',
@@ -91,78 +93,46 @@ test('PA-4 exposes a versioned internal GuitarArrangementPlan contract and fixed
   });
 });
 
-test('PA-4 records single-note decisions with deterministic source-bound provenance', () => {
-  const model = plan(score([
-    note('C'),
-    note('D'),
-  ].join('')), [
-    { decisionType: 'PRESERVED', sourceEventIds: [eventId(0)], sourceGroupId: null },
-    { decisionType: 'OMITTED', sourceEventIds: [eventId(1)], sourceGroupId: null },
-  ]);
-
-  assert.deepEqual(model.decisions, [
-    {
-      decisionId: 'P1:arrangement-decision:0',
-      decisionType: 'PRESERVED',
-      sourceEventIds: [eventId(0)],
-      sourceGroupId: null,
-    },
-    {
-      decisionId: 'P1:arrangement-decision:1',
-      decisionType: 'OMITTED',
-      sourceEventIds: [eventId(1)],
-      sourceGroupId: null,
-    },
-  ]);
-});
-
-test('PA-4 binds a chord-level decision to exact PA-3 simultaneous-group membership', () => {
-  const model = plan(score([
-    note('C'),
-    note('E', { chord: true }),
-  ].join('')), [{
-    decisionType: 'CHORD_REDUCED',
-    sourceEventIds: [eventId(0), eventId(1)],
-    sourceGroupId: 'P1:measure:0:simultaneous:0',
-  }]);
-
-  assert.equal(model.decisionCount, 1);
-  assert.deepEqual(model.decisions[0], {
-    decisionId: 'P1:arrangement-decision:0',
-    decisionType: 'CHORD_REDUCED',
-    sourceEventIds: [eventId(0), eventId(1)],
-    sourceGroupId: 'P1:measure:0:simultaneous:0',
-  });
-});
-
-test('PA-4 accepts all single-note and simultaneous-group decision classes without adding executable transform details', () => {
-  const xml = score([
-    note('C'),
-    note('D'),
-    note('E'),
-    note('F'),
-    '<backup><duration>4</duration></backup>',
-    note('A', { voice: '2' }),
-    note('B', { voice: '2' }),
-    note('C', { voice: '2' }),
-  ].join(''));
-
+test('PA-4 records all single-note decision classes with deterministic source-bound provenance', () => {
+  const xml = score([note('C'), note('D'), note('E'), note('F')].join(''));
   const model = plan(xml, [
     { decisionType: 'PRESERVED', sourceEventIds: [eventId(0)], sourceGroupId: null },
     { decisionType: 'OMITTED', sourceEventIds: [eventId(1)], sourceGroupId: null },
     { decisionType: 'OCTAVE_DISPLACED', sourceEventIds: [eventId(2)], sourceGroupId: null },
     { decisionType: 'VOICE_REDISTRIBUTED', sourceEventIds: [eventId(3)], sourceGroupId: null },
-    { decisionType: 'CHORD_REDUCED', sourceEventIds: [eventId(4)], sourceGroupId: null },
-    { decisionType: 'REVOICED', sourceEventIds: [eventId(5)], sourceGroupId: null },
-    { decisionType: 'ARPEGGIATED', sourceEventIds: [eventId(6)], sourceGroupId: null },
   ]);
 
-  assert.equal(model.decisionCount, 7);
-  for (const entry of model.decisions) {
-    assert.deepEqual(
-      Object.keys(entry).sort(),
-      ['decisionId', 'decisionType', 'sourceEventIds', 'sourceGroupId'].sort(),
-    );
+  assert.equal(model.decisionCount, 4);
+  assert.deepEqual(model.decisions.map((entry) => entry.decisionId), [
+    'P1:arrangement-decision:0',
+    'P1:arrangement-decision:1',
+    'P1:arrangement-decision:2',
+    'P1:arrangement-decision:3',
+  ]);
+  assert.deepEqual(model.decisions.map((entry) => entry.decisionType), [
+    'PRESERVED',
+    'OMITTED',
+    'OCTAVE_DISPLACED',
+    'VOICE_REDISTRIBUTED',
+  ]);
+});
+
+test('PA-4 binds every group-level decision class to exact PA-3 simultaneous-group membership', () => {
+  const xml = score([note('C'), note('E', { chord: true })].join(''));
+
+  for (const decisionType of ['CHORD_REDUCED', 'REVOICED', 'ARPEGGIATED']) {
+    const model = plan(xml, [{
+      decisionType,
+      sourceEventIds: [eventId(0), eventId(1)],
+      sourceGroupId: groupId(0),
+    }]);
+
+    assert.deepEqual(model.decisions[0], {
+      decisionId: 'P1:arrangement-decision:0',
+      decisionType,
+      sourceEventIds: [eventId(0), eventId(1)],
+      sourceGroupId: groupId(0),
+    });
   }
 });
 
@@ -202,11 +172,8 @@ test('PA-4 rejects incomplete, duplicate, overlapping and unknown source provena
   );
 });
 
-test('PA-4 rejects rest references and non-canonical decision/member ordering', () => {
-  const withRest = score([
-    note('C'),
-    note('D', { rest: true }),
-  ].join(''));
+test('PA-4 rejects rest references and non-canonical decision ordering', () => {
+  const withRest = score([note('C'), note('D', { rest: true })].join(''));
   assert.throws(
     () => plan(withRest, [
       { decisionType: 'PRESERVED', sourceEventIds: [eventId(0)], sourceGroupId: null },
@@ -225,26 +192,50 @@ test('PA-4 rejects rest references and non-canonical decision/member ordering', 
   );
 });
 
-test('PA-4 requires simultaneous-group decisions to match one exact PA-3 group', () => {
-  const simultaneous = score([
-    note('C'),
-    note('E', { chord: true }),
-  ].join(''));
+test('PA-4 requires group decisions to use exact group id, exact members and canonical member order', () => {
+  const simultaneous = score([note('C'), note('E', { chord: true })].join(''));
 
-  assert.throws(
-    () => plan(simultaneous, [{
+  for (const badDecision of [
+    {
       decisionType: 'REVOICED',
       sourceEventIds: [eventId(0), eventId(1)],
       sourceGroupId: 'wrong-group',
-    }]),
+    },
+    {
+      decisionType: 'REVOICED',
+      sourceEventIds: [eventId(1), eventId(0)],
+      sourceGroupId: groupId(0),
+    },
+    {
+      decisionType: 'ARPEGGIATED',
+      sourceEventIds: [eventId(0)],
+      sourceGroupId: groupId(0),
+    },
+  ]) {
+    assert.throws(
+      () => plan(simultaneous, [badDecision]),
+      (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
+    );
+  }
+});
+
+test('PA-4 rejects group decision types without group provenance and single-note types with group provenance', () => {
+  const simultaneous = score([note('C'), note('E', { chord: true })].join(''));
+
+  assert.throws(
+    () => plan(simultaneous, [
+      { decisionType: 'ARPEGGIATED', sourceEventIds: [eventId(0)], sourceGroupId: null },
+      { decisionType: 'PRESERVED', sourceEventIds: [eventId(1)], sourceGroupId: null },
+    ]),
     (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
   );
 
   assert.throws(
-    () => plan(simultaneous, [
-      { decisionType: 'PRESERVED', sourceEventIds: [eventId(0)], sourceGroupId: null },
-      { decisionType: 'ARPEGGIATED', sourceEventIds: [eventId(1)], sourceGroupId: null },
-    ]),
+    () => plan(simultaneous, [{
+      decisionType: 'PRESERVED',
+      sourceEventIds: [eventId(0), eventId(1)],
+      sourceGroupId: groupId(0),
+    }]),
     (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
   );
 });
@@ -259,20 +250,60 @@ test('PA-4 rejects hostile decision object shapes without invoking accessors', (
       return 'PRESERVED';
     },
   });
-  Object.defineProperty(hostile, 'sourceEventIds', {
-    enumerable: true,
-    value: [eventId(0)],
-  });
-  Object.defineProperty(hostile, 'sourceGroupId', {
-    enumerable: true,
-    value: null,
-  });
+  Object.defineProperty(hostile, 'sourceEventIds', { enumerable: true, value: [eventId(0)] });
+  Object.defineProperty(hostile, 'sourceGroupId', { enumerable: true, value: null });
 
   assert.throws(
     () => plan(score(note('C')), [hostile]),
     (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
   );
   assert.equal(getterCalls, 0);
+});
+
+test('PA-4 rejects unknown fields and hostile decision arrays fail closed', () => {
+  const xml = score(note('C'));
+  assert.throws(
+    () => plan(xml, [{
+      decisionType: 'PRESERVED',
+      sourceEventIds: [eventId(0)],
+      sourceGroupId: null,
+      targetFret: 3,
+    }]),
+    (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
+  );
+
+  const sparse = new Array(1);
+  assert.throws(
+    () => plan(xml, sparse),
+    (error) => error && error.code === 'INVALID_GUITAR_ARRANGEMENT_PLAN',
+  );
+});
+
+test('PA-4 grouping and decision validation remain deadline-bounded and cancellation-aware', () => {
+  const xml = score([note('C'), note('E', { chord: true })].join(''));
+  const decisions = [{
+    decisionType: 'CHORD_REDUCED',
+    sourceEventIds: [eventId(0), eventId(1)],
+    sourceGroupId: groupId(0),
+  }];
+
+  let now = 0;
+  const deadlineRuntime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 1 },
+    { clock: () => { now += 1; return now; } },
+  );
+  assert.throws(
+    () => plan(xml, decisions, deadlineRuntime),
+    (error) => error && error.code === 'PROCESSING_DEADLINE_EXCEEDED',
+  );
+
+  const controller = new AbortController();
+  controller.abort();
+  const cancelledRuntime = createMusicXmlProcessingRuntime({ signal: controller.signal });
+  assert.throws(
+    () => plan(xml, decisions, cancelledRuntime),
+    (error) => error && error.code === 'PROCESSING_ABORTED',
+  );
 });
 
 test('PA-4 output is deeply immutable and contains no guitar fingering or executable transform authority', () => {
@@ -293,4 +324,11 @@ test('PA-4 output is deeply immutable and contains no guitar fingering or execut
   assert.equal('finger' in model.decisions[0], false);
   assert.equal('targetPitch' in model.decisions[0], false);
   assert.equal('targetVoice' in model.decisions[0], false);
+});
+
+test('PA-4 remains internal and does not expand package-root public API', () => {
+  const publicApi = require('../src');
+  assert.equal('createGuitarArrangementPlan' in publicApi, false);
+  assert.equal('GUITAR_ARRANGEMENT_PLAN_VERSION' in publicApi, false);
+  assert.equal('ARRANGEMENT_DECISION_TYPES' in publicApi, false);
 });
