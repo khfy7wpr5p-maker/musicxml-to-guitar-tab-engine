@@ -275,6 +275,9 @@ function parseBasicNote(noteNode, context) {
   if (directChildren(noteNode, 'time-modification').length > 0) {
     throw unsupported('time-modification', location);
   }
+  if (directChildren(noteNode, 'instrument').length > 0) {
+    throw unsupported('note-instrument-assignment', location);
+  }
 
   const rests = directChildren(noteNode, 'rest');
   const pitches = directChildren(noteNode, 'pitch');
@@ -373,6 +376,18 @@ function applyMeasureAttributes(attributesNode, state, timingStarted, location) 
   }
 }
 
+function requireStructuralMusicXmlDescendant(node, name, details = {}) {
+  const matches = directChildren(node, name);
+  if (matches.length !== 1) {
+    throw invalid('Required MusicXML structural descendants must use the MusicXML namespace.', {
+      ...details,
+      field: name,
+      observedCount: matches.length,
+    });
+  }
+  return matches[0];
+}
+
 function validateParsedInput(parsedDocument) {
   if (
     !parsedDocument
@@ -389,6 +404,16 @@ function validateParsedInput(parsedDocument) {
     throw invalid('MusicXML root namespace is not supported.', {
       field: 'rootNamespace',
       observed: rootNamespace,
+    });
+  }
+
+  const partList = requireStructuralMusicXmlDescendant(parsedDocument.root, 'part-list');
+  requireStructuralMusicXmlDescendant(partList, 'score-part');
+  const part = requireStructuralMusicXmlDescendant(parsedDocument.root, 'part');
+  if (directChildren(part, 'measure').length === 0) {
+    throw invalid('Required MusicXML structural descendants must use the MusicXML namespace.', {
+      field: 'measure',
+      observedCount: 0,
     });
   }
 }
@@ -409,6 +434,10 @@ function preflightProjectionOutputBounds(measureNodes, partId, effectiveMaxEvent
         continue;
       }
 
+      processing.checkpoint('polyphonic-projector:preflight-event', {
+        measureIndex,
+        sourceOrder: measureEventCount,
+      });
       eventCount += 1;
       measureEventCount += 1;
       if (eventCount > effectiveMaxEvents) {
