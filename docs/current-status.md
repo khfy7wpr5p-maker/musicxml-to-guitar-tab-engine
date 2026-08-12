@@ -42,6 +42,7 @@ PA-2.3 does not change the current public conversion scope. The package-root con
 |---|---|
 | `MERGED` | Implemented and present on the authoritative runtime line |
 | `MERGED_INTERNAL` | Implemented on `main` but intentionally not package-root public API |
+| `MERGED_TESTS_ONLY` | Test vectors/evidence are merged on `main`; no runtime or public API authority |
 | `MERGED_INTERNAL_SHADOW_ONLY` | Internal learning/shadow capability with no production selection authority |
 | `COMPATIBILITY_VERIFIED` | Verified in isolated compatibility tests, not necessarily production app capability |
 | `UNMERGED_WORK_EXISTS` | Real branch work exists but is not current `main` runtime capability |
@@ -407,8 +408,8 @@ These remain blocked by explicit prerequisites and must not be inferred from the
 | 4 | PA-1 recovery audit and closure | `COMPLETED` |
 | 5 | PA-2.0 PA-1 → PA-2 documentation convergence | `COMPLETED` |
 | 6 | PA-2.1 `ParsedMusicXmlDocument` → `PolyphonicSourceModel` projection contract | `COMPLETED_DOCUMENTATION_ONLY` — PR #75 merged; no runtime authority |
-| 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `COMPLETED_TESTS_ONLY` — PR #77 |
-| 8 | PA-2.3 Minimal internal note/rest projector | `COMPLETED_INTERNAL` — PR #78 |
+| 7 | PA-2.2 Valid polyphonic red-first fixtures/tests | `MERGED_TESTS_ONLY` — PR #77 |
+| 8 | PA-2.3 Minimal internal note/rest projector | `MERGED_INTERNAL` — PR #78 |
 | 9 | PA-2.4–PA-2.8 cursor/chord projection, hardening, regression and CI sequence | `SEPARATELY_GATED` — PA-2.4 is next |
 | 10 | Musical Notation Coverage contract | `NOT_STARTED` |
 | 11 | MuseScore semantic compatibility gate | `NOT_STARTED` |
