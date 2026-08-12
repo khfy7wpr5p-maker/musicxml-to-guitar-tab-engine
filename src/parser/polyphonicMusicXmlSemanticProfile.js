@@ -19,6 +19,14 @@ const ROOT_CHILDREN = Object.freeze({
   part: SUPPORTED,
 });
 
+const PART_LIST_CHILDREN = Object.freeze({
+  'score-part': SUPPORTED,
+});
+
+const SCORE_PART_CHILDREN = Object.freeze({
+  'part-name': SAFE_IGNORE,
+});
+
 const PART_CHILDREN = Object.freeze({
   measure: SUPPORTED,
 });
@@ -79,6 +87,7 @@ const NOTATIONS_CHILDREN = Object.freeze({
 });
 
 const ROOT_ATTRIBUTES = Object.freeze({ version: SUPPORTED });
+const SCORE_PART_ATTRIBUTES = Object.freeze({ id: SUPPORTED });
 const PART_ATTRIBUTES = Object.freeze({ id: SUPPORTED });
 const MEASURE_ATTRIBUTES = Object.freeze({ number: SUPPORTED, implicit: SUPPORTED });
 const EMPTY_ATTRIBUTES = Object.freeze({});
@@ -133,10 +142,23 @@ function rejectEntry(entry, fallbackFeature, location, rejectUnsupported, extraD
   throw rejectUnsupported(entry.feature || fallbackFeature, { ...location, ...extraDetails });
 }
 
-function enforceChildren(node, surface, table, location, rejectUnsupported, unknownFeature = null) {
-  for (const child of node.children) {
+function enforceChildren(
+  node,
+  surface,
+  table,
+  location,
+  rejectUnsupported,
+  unknownFeature = null,
+  processing = null,
+  checkpointPhase = null,
+) {
+  for (let childIndex = 0; childIndex < node.children.length; childIndex += 1) {
+    const child = node.children[childIndex];
     if (child.uri !== node.uri) {
       continue;
+    }
+    if (processing && checkpointPhase) {
+      processing.checkpoint(checkpointPhase, { ...location, childIndex });
     }
     const entry = table[child.name];
     if (!entry) {
@@ -232,10 +254,22 @@ function enforceAttributesProfile(attributesNode, location, rejectUnsupported) {
   }
 }
 
-function enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, rejectUnsupported) {
+function enforcePolyphonicMusicXmlSemanticProfile(
+  parsedDocument,
+  rejectUnsupported,
+  processing = null,
+) {
   const root = parsedDocument.root;
   enforceChildren(root, 'root', ROOT_CHILDREN, {}, rejectUnsupported);
   enforceAttributes(root, 'root', ROOT_ATTRIBUTES, {}, rejectUnsupported);
+
+  const partList = directSameProfileChildren(root, 'part-list')[0];
+  enforceChildren(partList, 'part-list', PART_LIST_CHILDREN, {}, rejectUnsupported);
+  enforceAttributes(partList, 'part-list', EMPTY_ATTRIBUTES, {}, rejectUnsupported);
+
+  const scorePart = directSameProfileChildren(partList, 'score-part')[0];
+  enforceChildren(scorePart, 'score-part', SCORE_PART_CHILDREN, {}, rejectUnsupported);
+  enforceAttributes(scorePart, 'score-part', SCORE_PART_ATTRIBUTES, {}, rejectUnsupported);
 
   const part = directSameProfileChildren(root, 'part')[0];
   enforceChildren(part, 'part', PART_CHILDREN, {}, rejectUnsupported);
@@ -249,7 +283,19 @@ function enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, rejectUnsuppor
       measureIndex,
       measureNumber: numberAttribute ? numberAttribute.value : undefined,
     };
-    enforceChildren(measure, 'measure', MEASURE_CHILDREN, location, rejectUnsupported);
+    if (processing) {
+      processing.checkpoint('polyphonic-semantic-profile:measure', location);
+    }
+    enforceChildren(
+      measure,
+      'measure',
+      MEASURE_CHILDREN,
+      location,
+      rejectUnsupported,
+      null,
+      processing,
+      'polyphonic-semantic-profile:measure-child',
+    );
     enforceAttributes(measure, 'measure', MEASURE_ATTRIBUTES, location, rejectUnsupported);
 
     for (const attributes of directSameProfileChildren(measure, 'attributes')) {
@@ -260,6 +306,12 @@ function enforcePolyphonicMusicXmlSemanticProfile(parsedDocument, rejectUnsuppor
     for (const child of measure.children) {
       if (child.uri !== measure.uri || child.name !== 'note') {
         continue;
+      }
+      if (processing) {
+        processing.checkpoint('polyphonic-semantic-profile:event', {
+          ...location,
+          sourceOrder,
+        });
       }
       enforceNoteProfile(
         child,
