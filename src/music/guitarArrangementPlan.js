@@ -1,5 +1,6 @@
 'use strict';
 
+const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const {
   POLYPHONIC_SOURCE_MODEL_VERSION,
@@ -59,6 +60,14 @@ function invalid(message, details = {}) {
   return new GuitarArrangementPlanError(message, details);
 }
 
+function safeIsProxy(value, path) {
+  try {
+    return isProxy(value);
+  } catch {
+    throw invalid('Arrangement decision data cannot be safely inspected.', { path });
+  }
+}
+
 function safeIsArray(value, path) {
   try {
     return Array.isArray(value);
@@ -92,8 +101,13 @@ function safeDescriptor(value, key, path) {
 }
 
 function assertPlainRecord(value, path, allowedFields) {
-  if (value === null || typeof value !== 'object' || safeIsArray(value, path)) {
-    throw invalid('Arrangement decision must be a plain object.', { path });
+  if (
+    value === null
+    || typeof value !== 'object'
+    || safeIsProxy(value, path)
+    || safeIsArray(value, path)
+  ) {
+    throw invalid('Arrangement decision must be a non-proxy plain object.', { path });
   }
 
   const prototype = safePrototype(value, path);
@@ -135,8 +149,12 @@ function assertPlainRecord(value, path, allowedFields) {
 }
 
 function assertDenseOrdinaryArray(value, path) {
-  if (!safeIsArray(value, path) || safePrototype(value, path) !== Array.prototype) {
-    throw invalid('Arrangement decision lists must be ordinary arrays.', { path });
+  if (
+    safeIsProxy(value, path)
+    || !safeIsArray(value, path)
+    || safePrototype(value, path) !== Array.prototype
+  ) {
+    throw invalid('Arrangement decision lists must be non-proxy ordinary arrays.', { path });
   }
 
   const keys = safeOwnKeys(value, path);
