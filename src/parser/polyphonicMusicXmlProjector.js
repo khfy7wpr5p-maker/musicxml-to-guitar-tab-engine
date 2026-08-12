@@ -172,7 +172,12 @@ function parseTieState(noteNode, isRest, location) {
   const directTies = directChildren(noteNode, 'tie');
   const tiedNodes = [];
   for (const notations of directChildren(noteNode, 'notations')) {
-    tiedNodes.push(...directChildren(notations, 'tied'));
+    for (const notationChild of notations.children) {
+      if (notationChild.name !== 'tied') {
+        throw unsupported(`notation:${notationChild.name}`, location);
+      }
+      tiedNodes.push(notationChild);
+    }
   }
 
   if (isRest && (directTies.length > 0 || tiedNodes.length > 0)) {
@@ -364,6 +369,47 @@ function validateParsedInput(parsedDocument) {
   }
 }
 
+function preflightProjectionOutputBounds(measureNodes, partId, effectiveMaxEvents, processing) {
+  let eventCount = 0;
+
+  for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
+    const measureNode = measureNodes[measureIndex];
+    processing.checkpoint('polyphonic-projector:preflight-measure', { measureIndex });
+
+    const measureId = createMeasureId(partId, measureIndex);
+    requireBoundedString(measureId, 'measureId', MAX_SOURCE_STRING_LENGTH, { measureIndex });
+
+    let measureEventCount = 0;
+    for (const child of measureNode.children) {
+      if (child.name !== 'note') {
+        continue;
+      }
+
+      eventCount += 1;
+      measureEventCount += 1;
+      if (eventCount > effectiveMaxEvents) {
+        throw invalid('Projected event count exceeds the PA-1 output boundary.', {
+          observed: eventCount,
+          limit: effectiveMaxEvents,
+          measureIndex,
+          sourceOrder: measureEventCount - 1,
+        });
+      }
+    }
+
+    if (measureEventCount > 0) {
+      const sourceOrder = measureEventCount - 1;
+      const sourceEventId = createSourceEventId(partId, measureIndex, sourceOrder);
+      requireBoundedString(sourceEventId, 'sourceEventId', MAX_SOURCE_STRING_LENGTH, {
+        measureIndex,
+        sourceOrder,
+      });
+    }
+  }
+
+  return eventCount;
+}
+
 function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = null) {
   validateParsedInput(parsedDocument);
   const processing = resolveProcessingRuntime({}, runtime);
@@ -385,6 +431,7 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
     : requireBoundedString(validation.version, 'musicXmlVersion', MAX_VERSION_LENGTH);
   const part = directChildren(parsedDocument.root, 'part')[0];
   const measureNodes = directChildren(part, 'measure');
+  preflightProjectionOutputBounds(measureNodes, partId, effectiveMaxEvents, processing);
 
   const inherited = {
     divisions: null,
