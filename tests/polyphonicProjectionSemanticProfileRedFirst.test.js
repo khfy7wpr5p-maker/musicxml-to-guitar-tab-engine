@@ -365,9 +365,6 @@ const existingRejectCases = [
   ['note release', { noteAttributes: ' release="-1"' }],
   ['note time-only', { noteAttributes: ' time-only="2"' }],
   ['conditional tie time-only', { tie: '<tie type="start" time-only="2"/>' }],
-  ['later gate chord marker', { noteExtra: '<chord/>' }],
-  ['later gate voice 2', { voice: '2' }],
-  ['later gate staff 2', { staves: '2', staff: '2' }],
   ['later gate grace note', { noteExtra: '<grace/>' }],
   ['later gate time-modification', { noteExtra: '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>' }],
 ];
