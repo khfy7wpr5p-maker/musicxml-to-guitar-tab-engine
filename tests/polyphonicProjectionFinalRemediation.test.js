@@ -250,6 +250,39 @@ test('PA-2.3 observes cancellation between semantic-profile event validations', 
   );
 });
 
+test('PA-2.3 observes the deadline during semantic-profile note-child traversal', () => {
+  const xml = BASIC_XML.replace(
+    '<duration>4</duration><tie type="start"/>',
+    '<duration>4</duration><dot/><dot/><dot/><tie type="start"/>',
+  );
+  let noteChildCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => {
+        if (phase !== 'polyphonic-semantic-profile:note-child') {
+          return 0;
+        }
+        noteChildCheckpoints += 1;
+        return noteChildCheckpoints >= 5 ? 11 : 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_DEADLINE_EXCEEDED');
+      assert.equal(error.details.phase, 'polyphonic-semantic-profile:note-child');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.sourceOrder, 0);
+      assert.equal(error.details.childIndex, 4);
+      return true;
+    },
+  );
+});
+
 const selectedScorePartPlaybackCases = [
   [
     'score-instrument',
