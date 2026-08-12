@@ -284,6 +284,78 @@ test('PA-2.3 observes the deadline during semantic-profile note-child traversal'
   );
 });
 
+test('PA-2.3 observes cancellation while traversing nested foreign pitch children', () => {
+  const xml = BASIC_XML
+    .replace(
+      '<score-partwise version="4.0">',
+      '<score-partwise version="4.0" xmlns:x="urn:pa-2-3-foreign">',
+    )
+    .replace(
+      '<pitch><step>C</step><octave>4</octave></pitch>',
+      '<pitch><x:extension/><step>C</step><octave>4</octave></pitch>',
+  );
+  const controller = new AbortController();
+  let cancellationInjected = false;
+  let noteChildCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    { signal: controller.signal },
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-semantic-profile:note-child') {
+          noteChildCheckpoints += 1;
+        }
+        if (noteChildCheckpoints === 5 && !cancellationInjected) {
+          cancellationInjected = true;
+          controller.abort();
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_ABORTED');
+      assert.equal(error.details.phase, 'polyphonic-semantic-profile:pitch-child');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.sourceOrder, 0);
+      assert.equal(error.details.childIndex, 0);
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 observes the deadline while safely inspecting each event array', () => {
+  let eventArrayCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => {
+        if (phase !== 'polyphonic-source-model:event-array') {
+          return 0;
+        }
+        eventArrayCheckpoints += 1;
+        return eventArrayCheckpoints >= 4 ? 11 : 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(BASIC_XML, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_DEADLINE_EXCEEDED');
+      assert.equal(error.details.phase, 'polyphonic-source-model:event-array');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.stage, 'value');
+      assert.equal(error.details.index, 0);
+      return true;
+    },
+  );
+});
+
 const selectedScorePartPlaybackCases = [
   [
     'score-instrument',

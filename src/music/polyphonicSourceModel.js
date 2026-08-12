@@ -138,7 +138,15 @@ function safeObjectDescriptors(value, field, seen, allowedKeys, requiredKeys) {
   return descriptors;
 }
 
-function safeArrayValues(value, field, seen, maximumLength) {
+function safeArrayValues(
+  value,
+  field,
+  seen,
+  maximumLength,
+  processing = null,
+  checkpointPhase = null,
+  location = {},
+) {
   if (!Array.isArray(value)) {
     throw invalid(`${field} must be an array.`, { field });
   }
@@ -148,13 +156,15 @@ function safeArrayValues(value, field, seen, maximumLength) {
 
   let prototype;
   let keys;
-  let descriptors;
   try {
     prototype = Object.getPrototypeOf(value);
     keys = Reflect.ownKeys(value);
-    descriptors = Object.getOwnPropertyDescriptors(value);
   } catch {
     throw invalid(`${field} could not be safely inspected.`, { field });
+  }
+
+  if (processing && checkpointPhase) {
+    processing.checkpoint(checkpointPhase, { ...location, field, stage: 'keys' });
   }
 
   if (prototype !== Array.prototype) {
@@ -173,7 +183,16 @@ function safeArrayValues(value, field, seen, maximumLength) {
     });
   }
 
-  for (const key of keys) {
+  for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+    if (processing && checkpointPhase) {
+      processing.checkpoint(checkpointPhase, {
+        ...location,
+        field,
+        stage: 'key',
+        keyIndex,
+      });
+    }
+    const key = keys[keyIndex];
     if (key === 'length') {
       continue;
     }
@@ -188,7 +207,20 @@ function safeArrayValues(value, field, seen, maximumLength) {
 
   const values = new Array(value.length);
   for (let index = 0; index < value.length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    if (processing && checkpointPhase) {
+      processing.checkpoint(checkpointPhase, {
+        ...location,
+        field,
+        stage: 'value',
+        index,
+      });
+    }
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    } catch {
+      throw invalid(`${field} could not be safely inspected.`, { field });
+    }
     if (!descriptor || !Object.hasOwn(descriptor, 'value') || descriptor.enumerable !== true) {
       throw invalid(`${field} must be dense, enumerable and accessor-free.`, { field, index });
     }
@@ -642,6 +674,9 @@ function validateMeasure(measure, field, seen, context) {
     `${field}.events`,
     seen,
     DEFAULT_PROCESSING_LIMITS.maxEvents,
+    processing,
+    'polyphonic-source-model:event-array',
+    { measureIndex },
   );
 
   const events = [];
@@ -772,6 +807,8 @@ function validatePolyphonicSourceModel(model, runtime = null) {
     'model.measures',
     seen,
     DEFAULT_PROCESSING_LIMITS.maxMeasures,
+    processing,
+    'polyphonic-source-model:measure-array',
   );
   if (measureValues.length !== measureCount) {
     throw invalid('model.measureCount must match model.measures.length.', {
