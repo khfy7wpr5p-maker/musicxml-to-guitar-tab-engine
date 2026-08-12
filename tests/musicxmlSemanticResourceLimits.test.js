@@ -64,6 +64,27 @@ const fourEventScore = score([
   ].join(''),
 ]);
 
+const namespacedScoreWithForeignNote = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise xmlns="http://www.musicxml.org/ns/musicxml" xmlns:x="urn:foreign" version="4.0">
+  <part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1" implicit="yes">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>2</duration><voice>1</voice><type>half</type><staff>1</staff>
+      </note>
+      <x:note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>2</duration><voice>1</voice><type>half</type><staff>1</staff>
+      </x:note>
+    </measure>
+  </part>
+</score-partwise>`;
+
 function expectSafetyLimit(input, options, code, details) {
   assert.throws(
     () => parseMusicXmlNotes(input, options),
@@ -124,6 +145,12 @@ test('counts MusicXML events cumulatively across measures', () => {
       eventIndex: 0,
     },
   );
+});
+
+test('ignores foreign-namespace note lookalikes without bypassing the event budget', () => {
+  const parsed = parseMusicXmlNotes(namespacedScoreWithForeignNote, { maxEvents: 1 });
+  assert.equal(parsed.measures[0].events.length, 1);
+  assert.equal(parsed.measures[0].events[0].pitch.written, 'E4');
 });
 
 test('maps invalid semantic processing limits to the XML configuration boundary', () => {
