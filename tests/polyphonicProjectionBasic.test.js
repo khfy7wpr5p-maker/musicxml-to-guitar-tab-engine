@@ -172,12 +172,8 @@ test('PA-2.3 projects basic note/rest source facts into an immutable PA-1 model'
   assert.ok(Object.isFrozen(parsed.root));
 });
 
-test('PA-2.3 keeps PA-2.4 and PA-2.5 constructs fail-closed', () => {
+test('PA-2.4 keeps PA-2.5 constructs fail-closed', () => {
   const cases = [
-    BASIC_XML.replace(
-      '<note><rest/><duration>4</duration><voice>1</voice><staff>1</staff></note>',
-      '<forward><duration>4</duration></forward>',
-    ),
     BASIC_XML.replace(
       '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
       '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note><note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><staff>1</staff></note>',
