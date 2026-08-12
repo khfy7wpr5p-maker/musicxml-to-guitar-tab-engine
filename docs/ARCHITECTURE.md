@@ -1,14 +1,14 @@
 # MusicXML to Guitar TAB Engine — Architecture
 
-## 0. Current implementation authority — 2026-08-11
+## 0. Current implementation authority — 2026-08-12
 
 This document distinguishes **implemented runtime architecture** from **planned product architecture**.
 
-The PA-2.1 PR #75 base `main` head is:
+Current authoritative `main` head after PA-2.1 closure:
 
-`012e66898ba584fad79dd8b31bf6f76feb0a8f72`
+`6b78c86e00c90c1d422bbfb3b29fbd378ce1bd93`
 
-Latest merged runtime feature before PA-2.1: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`, rebase-merged on 2026-08-11. PA-2.1 baseline documentation merge: PR #74 — PA-2.0 PA-1 → PA-2 documentation convergence, rebase-merged on 2026-08-11. Baseline post-merge Tests #490 passed on `main`. PA-2.1 is the documentation-only projection contract recorded by PR #75; merging that PR closes PA-2.1 without runtime authority. PA-2.2 remains a separately gated tests-only step requiring explicit approval after PA-2.1 closure.
+Latest merged runtime-changing feature: PR #73 — PA-1 `PolyphonicSourceModel 1.0.0`; final runtime-changing commit `2260ea071c08ef07a99a2dc577baa17c4d6dd08a`. PA-2.0 documentation convergence was rebase-merged through PR #74 on 2026-08-11. PA-2.1 was closed as a documentation-only projection-contract gate through PR #75, rebase-merged on 2026-08-12; no runtime authority was created. Post-merge Tests #499 passed on current `main`. PR #75 exact-head MusicXML Compatibility #328 passed before the rebase merge. PA-2.2 is now the separately gated tests-only next step and requires explicit approval.
 
 For current runtime truth, use this authority order:
 
@@ -179,7 +179,7 @@ Safety responsibilities include:
 - deadline/cancellation/checkpoints
 - fail-closed error codes
 
-`ParsedMusicXmlDocument 1.0.0` is the safe branching point shared by the current monophonic path and the separately gated PA-2 projection track. PA-1 already provides the internal destination contract, `PolyphonicSourceModel 1.0.0`; PA-2.1 defines the projection contract only and does not perform the projection. Runtime work remains split across the separately approved PA-2.2+ gates.
+`ParsedMusicXmlDocument 1.0.0` is the safe branching point shared by the current monophonic path and the separately gated PA-2 projection track. PA-1 already provides the internal destination contract, `PolyphonicSourceModel 1.0.0`; merged PA-2.1 defines the projection contract only and does not perform the projection. Runtime work remains split across the separately approved PA-2.2+ gates.
 
 ## 7. Musical semantic projection
 
@@ -202,7 +202,7 @@ The current public semantic layer reads and validates supported MusicXML meaning
 
 This capability is implemented even though early plans proposed separate `rhythm.js`, `measure.js` and `eventModel.js` files.
 
-The PA-2 runtime projector must be implemented as a separate internal path after `ParsedMusicXmlDocument 1.0.0` and must follow the PA-2.1 projection contract; it must not relax the current monophonic adapter's fail-closed rules. PA-2.2 is tests-only and precedes any PA-2.3+ runtime implementation.
+The PA-2 runtime projector must be implemented as a separate internal path after `ParsedMusicXmlDocument 1.0.0` and must follow the merged PA-2.1 projection contract; it must not relax the current monophonic adapter's fail-closed rules. PA-2.2 is tests-only and precedes any PA-2.3+ runtime implementation.
 
 ## 8. Rhythm and notation architecture
 
@@ -537,7 +537,7 @@ Production learned ranking remains blocked until separate durable storage, priva
 
 ## 17. Polyphonic MusicXML → Guitar Arrangement architecture
 
-PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is also merged. PA-2.1 is the documentation-only contract recorded by PR #75 for the future internal projection from `ParsedMusicXmlDocument 1.0.0` to `PolyphonicSourceModel 1.0.0`; merging PR #75 closes this contract gate but creates no runtime authority. The existing public monophonic path remains protected, and PA-2 runtime projection remains `NOT_IMPLEMENTED`.
+PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merged. PA-2.0 documentation convergence is merged. PA-2.1 is merged documentation-only through PR #75 and defines the future internal projection contract from `ParsedMusicXmlDocument 1.0.0` to `PolyphonicSourceModel 1.0.0`; it creates no runtime authority. The existing public monophonic path remains protected, PA-2 runtime projection remains `NOT_IMPLEMENTED`, and PA-2.2 is the current next separately approved tests-only gate.
 
 ### Parallel extension point
 
@@ -576,7 +576,7 @@ PA-0 architecture/documentation and PA-1 `PolyphonicSourceModel 1.0.0` are merge
                           reviewed TAB-result gate
 ```
 
-PA-2.1 defines the projection contract only. PA-2.2 is a separate tests-only gate requiring explicit approval after PA-2.1 closure. Runtime projection begins no earlier than PA-2.3 and remains split across PA-2.3–PA-2.5, followed by PA-2.6 hardening, PA-2.7 regression and PA-2.8 CI/independent review.
+PA-2.1 defines the projection contract only. PA-2.2 is a separate tests-only gate requiring explicit approval. Runtime projection begins no earlier than PA-2.3 and remains split across PA-2.3–PA-2.5, followed by PA-2.6 hardening, PA-2.7 regression and PA-2.8 CI/independent review.
 
 ### Source truth versus arrangement truth
 
@@ -607,8 +607,8 @@ PA-1 does not implement `ParsedMusicXmlDocument` → `PolyphonicSourceModel` pro
 1. PA-0 documentation/architecture — merged
 2. PA-1 `PolyphonicSourceModel 1.0` — merged internal
 3. PA-2.0 PA-1 → PA-2 documentation convergence — merged documentation
-4. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
-5. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+4. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
+5. PA-2.2 valid polyphonic red-first fixtures/tests — current next separate gate requiring explicit approval
 6. PA-2.3 minimal internal note/rest projector
 7. PA-2.4 `backup` / `forward` cursor semantics
 8. PA-2.5 `<chord/>`, multiple voice and staff 1–2 projection
@@ -667,7 +667,7 @@ Application rules:
 - project persistence must version source/canonical/presentation/edit state explicitly.
 - user-facing errors must branch on stable error codes rather than message text.
 
-## 19. Safe development order — 2026-08-11
+## 19. Safe development order — 2026-08-12
 
 ### Completed stabilization
 
@@ -676,11 +676,11 @@ Application rules:
 3. historical branch inventory / orphan-work audit — completed
 4. PA-1 recovery audit and closure — completed
 5. PA-2.0 PA-1 → PA-2 documentation convergence — completed
+6. PA-2.1 projection contract — merged documentation-only through PR #75; no runtime authority
 
 ### PA-2 transition gates
 
-6. PA-2.1 projection contract — documentation-only; PR #75 is the closure vehicle and creates no runtime authority
-7. PA-2.2 valid polyphonic red-first fixtures/tests — separate next gate requiring explicit approval after PA-2.1 closure
+7. PA-2.2 valid polyphonic red-first fixtures/tests — **current next separate gate**, requiring explicit approval
 8. PA-2.3–PA-2.8 projector implementation/hardening/regression/CI sequence — separately gated and not started
 
 ### Notation and compatibility foundations
@@ -787,6 +787,7 @@ Do not infer missing capability from a missing planned filename. Do not infer im
 - merged internal/non-authoritative
 - compatibility verified
 - documentation only
+- merged documentation only
 - unmerged work
 - not implemented
 - blocked by prerequisites
