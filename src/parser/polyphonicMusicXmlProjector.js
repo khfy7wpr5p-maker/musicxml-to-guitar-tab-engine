@@ -18,6 +18,7 @@ const {
 } = require('./musicxmlSemanticResourceLimits');
 
 const PARSED_MUSICXML_DOCUMENT_VERSION = '1.0.0';
+const MUSICXML_NAMESPACE = 'http://www.musicxml.org/ns/musicxml';
 const MAX_PROJECTED_MEASURES = 2000;
 const MAX_PROJECTED_EVENTS = 50000;
 const MAX_SOURCE_STRING_LENGTH = 256;
@@ -326,7 +327,11 @@ function applyMeasureAttributes(attributesNode, state, timingStarted, location) 
   const divisionsNodes = directChildren(attributesNode, 'divisions');
   const timeNodes = directChildren(attributesNode, 'time');
   const stavesNodes = directChildren(attributesNode, 'staves');
+  const transposeNodes = directChildren(attributesNode, 'transpose');
 
+  if (transposeNodes.length > 0) {
+    throw unsupported('transpose', location);
+  }
   if (divisionsNodes.length > 1 || timeNodes.length > 1 || stavesNodes.length > 1) {
     throw invalid('MusicXML timing/staff singleton attributes must not be duplicated.', location);
   }
@@ -377,6 +382,14 @@ function validateParsedInput(parsedDocument) {
     || !parsedDocument.root
   ) {
     throw invalid('PA-2 projector accepts only ParsedMusicXmlDocument 1.0.0 input.');
+  }
+
+  const rootNamespace = parsedDocument.root.uri;
+  if (rootNamespace !== '' && rootNamespace !== MUSICXML_NAMESPACE) {
+    throw invalid('MusicXML root namespace is not supported.', {
+      field: 'rootNamespace',
+      observed: rootNamespace,
+    });
   }
 }
 
