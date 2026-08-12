@@ -40,7 +40,7 @@ function invalid(message, details = {}) {
 
 function unsupported(feature, details = {}) {
   return new PolyphonicMusicXmlProjectorError(
-    `MusicXML feature is outside the current PA-2.3 projector scope: ${feature}.`,
+    `MusicXML feature is outside the current PA-2.4 projector scope: ${feature}.`,
     'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE',
     { feature, ...details },
   );
@@ -140,6 +140,83 @@ function expectedDurationDivisions(divisions, timeSignature, location) {
     throw invalid('Expected measure duration must be a positive safe integer.', location);
   }
   return duration;
+}
+
+function validateCursorElement(cursorNode, location) {
+  const unqualifiedAttributes = cursorNode.attributes.filter(
+    (attribute) => attribute.uri.length === 0,
+  );
+  if (unqualifiedAttributes.length !== 0) {
+    throw invalid('Cursor timing elements must not contain unqualified attributes.', {
+      ...location,
+      operation: cursorNode.name,
+      observedAttributes: unqualifiedAttributes.map((attribute) => attribute.name),
+    });
+  }
+
+  const sameNamespaceChildren = cursorNode.children.filter(
+    (child) => child.uri === cursorNode.uri,
+  );
+  if (sameNamespaceChildren.length !== 1 || sameNamespaceChildren[0].name !== 'duration') {
+    throw invalid('Cursor timing elements must contain exactly one direct duration child.', {
+      ...location,
+      operation: cursorNode.name,
+      observedChildren: sameNamespaceChildren.map((child) => child.name),
+    });
+  }
+
+  const durationNode = requireSingleDirectChild(cursorNode, 'duration', location);
+  const durationAttributes = durationNode.attributes.filter(
+    (attribute) => attribute.uri.length === 0,
+  );
+  const durationChildren = durationNode.children.filter(
+    (child) => child.uri === durationNode.uri,
+  );
+  if (durationAttributes.length !== 0 || durationChildren.length !== 0) {
+    throw invalid('Cursor duration must be a scalar leaf.', {
+      ...location,
+      operation: cursorNode.name,
+    });
+  }
+
+  return parsePositiveIntegerText(durationNode, 'duration', {
+    ...location,
+    operation: cursorNode.name,
+  });
+}
+
+function applyCursorOperation(cursorNode, cursor, expectedDuration, location) {
+  const duration = validateCursorElement(cursorNode, location);
+
+  if (cursorNode.name === 'backup') {
+    if (duration > cursor) {
+      throw invalid('backup moves the cursor before the start of the measure.', {
+        ...location,
+        cursor,
+        duration,
+      });
+    }
+    return cursor - duration;
+  }
+
+  if (cursor > Number.MAX_SAFE_INTEGER - duration) {
+    throw invalid('forward cursor arithmetic exceeds the safe-integer range.', {
+      ...location,
+      cursor,
+      duration,
+    });
+  }
+  const nextCursor = cursor + duration;
+  if (nextCursor > expectedDuration) {
+    throw invalid('forward moves the cursor beyond the declared measure duration.', {
+      ...location,
+      cursor,
+      duration,
+      nextCursor,
+      expectedDurationDivisions: expectedDuration,
+    });
+  }
+  return nextCursor;
 }
 
 function writtenPitch(step, alter, octave) {
@@ -559,7 +636,22 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
         continue;
       }
       if (child.name === 'backup' || child.name === 'forward') {
-        throw unsupported('backup-forward-cursor', location);
+        timingStarted = true;
+        if (!Number.isSafeInteger(state.divisions) || !state.timeSignature) {
+          throw invalid('A valid divisions and time signature are required before timing cursor operations.', location);
+        }
+        const expectedDuration = expectedDurationDivisions(
+          state.divisions,
+          state.timeSignature,
+          location,
+        );
+        processing.checkpoint('polyphonic-projector:cursor', {
+          ...location,
+          operation: child.name,
+          cursor,
+        });
+        cursor = applyCursorOperation(child, cursor, expectedDuration, location);
+        continue;
       }
       if (child.name !== 'note') {
         throw unsupported(`measure-child:${child.name}`, location);
