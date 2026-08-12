@@ -38,8 +38,8 @@ const PART_CHILDREN = Object.freeze({
 const MEASURE_CHILDREN = Object.freeze({
   attributes: SUPPORTED,
   note: SUPPORTED,
-  backup: classified(CLASSIFICATION.LATER_GATE, 'backup-forward-cursor'),
-  forward: classified(CLASSIFICATION.LATER_GATE, 'backup-forward-cursor'),
+  backup: SUPPORTED,
+  forward: SUPPORTED,
 });
 
 const ATTRIBUTES_CHILDREN = Object.freeze({
