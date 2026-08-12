@@ -147,7 +147,6 @@ function expectedRhythmDuration(divisions, type, dots) {
 
   return numerator / denominator;
 }
-
 function expectedMeasureDuration(divisions, timeSignature) {
   const numerator = divisions * timeSignature.beats * 4;
   if (numerator % timeSignature.beatType !== 0) {
@@ -701,6 +700,9 @@ function adaptParsedMusicXmlDocumentToNotes(parsedDocument) {
     };
 
     for (const child of measureNode.children) {
+      if (child.uri !== measureNode.uri) {
+        continue;
+      }
       if (child.name === 'attributes') {
         applyAttributes(child, measure);
       } else if (child.name === 'note') {
