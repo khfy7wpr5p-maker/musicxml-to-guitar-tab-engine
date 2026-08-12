@@ -25,7 +25,9 @@ function createMusicXmlProcessingRuntime(options = {}, runtimeOptions = {}) {
 }
 
 function directChildren(node, name) {
-  return node.children.filter((child) => child.name === name);
+  return node.children.filter(
+    (child) => child.name === name && child.uri === node.uri,
+  );
 }
 
 function getAttribute(node, name) {
@@ -61,14 +63,19 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, runtime) {
   processing.checkpoint('semantic:structure');
   const { limits } = processing.budget;
 
+  const part = directChildren(parsedDocument.root, 'part')[0];
+  const measureNodes = directChildren(part, 'measure');
+  const semanticValidation = Object.freeze({
+    ...validation,
+    measureCount: measureNodes.length,
+  });
+
   enforceLimit(
     'maxMeasures',
     limits.maxMeasures,
-    validation.measureCount,
+    semanticValidation.measureCount,
   );
 
-  const part = directChildren(parsedDocument.root, 'part')[0];
-  const measureNodes = directChildren(part, 'measure');
   let eventCount = 0;
 
   for (const measureNode of measureNodes) {
@@ -94,7 +101,7 @@ function enforceMusicXmlSemanticResourceLimits(parsedDocument, runtime) {
   }
 
   processing.checkpoint('semantic:complete');
-  return validation;
+  return semanticValidation;
 }
 
 module.exports = {
