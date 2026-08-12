@@ -170,6 +170,13 @@ function applyTieType(state, type, location) {
   });
 }
 
+function rejectConditionalTie(tieNode, location) {
+  const timeOnly = getAttribute(tieNode, 'time-only');
+  if (timeOnly !== undefined) {
+    throw unsupported('conditional-tie', { ...location, timeOnly });
+  }
+}
+
 function parseTieState(noteNode, isRest, location) {
   const state = { tieStart: false, tieStop: false };
   const directTies = directChildren(noteNode, 'tie');
@@ -191,9 +198,11 @@ function parseTieState(noteNode, isRest, location) {
   }
 
   for (const tie of directTies) {
+    rejectConditionalTie(tie, location);
     applyTieType(state, getAttribute(tie, 'type'), location);
   }
   for (const tied of tiedNodes) {
+    rejectConditionalTie(tied, location);
     applyTieType(state, getAttribute(tied, 'type'), location);
   }
   return state;
@@ -464,9 +473,9 @@ function preflightProjectionOutputBounds(measureNodes, partId, effectiveMaxEvent
 }
 
 function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = null) {
-  validateParsedInput(parsedDocument);
   const processing = resolveProcessingRuntime({}, runtime);
   processing.checkpoint('polyphonic-projector:start');
+  validateParsedInput(parsedDocument);
   const validation = enforceMusicXmlSemanticResourceLimits(parsedDocument, processing);
 
   const effectiveMaxMeasures = Math.min(processing.budget.limits.maxMeasures, MAX_PROJECTED_MEASURES);
