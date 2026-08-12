@@ -104,7 +104,7 @@ test('PA-6 OCTAVE_DISPLACED moves an out-of-register source by the smallest octa
   const model = analyse(score(note('C', { octave: 7 })), [singleDecision('OCTAVE_DISPLACED')]);
   assert.equal(model.instructions[0].targetMidi, 84);
   assert.equal(model.instructions[0].octaveShiftSemitones, -12);
-  assert.equal((model.instructions[0].targetMidi - 96) % 12, 0);
+  assert.equal(((model.instructions[0].targetMidi - 96) % 12 + 12) % 12, 0);
 });
 
 test('PA-6 CHORD_REDUCED keeps unique outer register candidates and omits inner candidates', () => {
