@@ -86,7 +86,8 @@ const fixtures = Object.freeze([
       <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
       <backup><duration>8</duration></backup>
       <note><pitch><step>E</step><octave>3</octave></pitch><duration>8</duration><voice>2</voice><type>half</type><staff>1</staff></note>
-      <forward><duration>8</duration></forward>
+      <forward><duration>4</duration></forward>
+      <note><pitch><step>F</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
     </measure>
   </part>
 </score-partwise>`,
@@ -96,7 +97,7 @@ const fixtures = Object.freeze([
       contractVersion: '1.0.0',
       source: { format: 'score-partwise', musicXmlVersion: '4.0', partId: 'P1' },
       measureCount: 1,
-      eventCount: 3,
+      eventCount: 4,
       measures: [{
         measureId: 'P1:measure:0',
         index: 0,
@@ -109,6 +110,7 @@ const fixtures = Object.freeze([
           note({ sourceEventId: 'P1:measure:0:note:0', sourceOrder: 0, voice: '1', staff: 1, onsetDivisions: 0, durationDivisions: 4, step: 'C', octave: 4, midi: 60, written: 'C4' }),
           note({ sourceEventId: 'P1:measure:0:note:1', sourceOrder: 1, voice: '1', staff: 1, onsetDivisions: 4, durationDivisions: 4, step: 'D', octave: 4, midi: 62, written: 'D4' }),
           note({ sourceEventId: 'P1:measure:0:note:2', sourceOrder: 2, voice: '2', staff: 1, onsetDivisions: 0, durationDivisions: 8, step: 'E', octave: 3, midi: 52, written: 'E3' }),
+          note({ sourceEventId: 'P1:measure:0:note:3', sourceOrder: 3, voice: '2', staff: 1, onsetDivisions: 12, durationDivisions: 4, step: 'F', octave: 3, midi: 53, written: 'F3' }),
         ],
       }],
     },
@@ -177,7 +179,7 @@ const fixtures = Object.freeze([
       <forward><duration>4</duration></forward>
     </measure>
     <measure number="2" implicit="yes">
-      <note><rest/><duration>6</duration><voice>1</voice><type>half</type><dot/><staff>1</staff></note>
+      <note><rest/><duration>6</duration><voice>1</voice><type>half</type><dot/><staff>2</staff></note>
     </measure>
   </part>
 </score-partwise>`,
@@ -211,7 +213,7 @@ const fixtures = Object.freeze([
           timeSignature: { beats: 3, beatType: 4 },
           expectedDurationDivisions: 6,
           events: [
-            rest({ sourceEventId: 'P1:measure:1:note:0', sourceOrder: 0, voice: '1', staff: 1, onsetDivisions: 0, durationDivisions: 6, measureIndex: 1, measureNumber: '2' }),
+            rest({ sourceEventId: 'P1:measure:1:note:0', sourceOrder: 0, voice: '1', staff: 2, onsetDivisions: 0, durationDivisions: 6, measureIndex: 1, measureNumber: '2' }),
           ],
         },
       ],
