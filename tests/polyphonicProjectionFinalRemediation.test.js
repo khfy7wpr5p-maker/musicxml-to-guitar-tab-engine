@@ -200,3 +200,83 @@ test('PA-2.3 observes cancellation between PolyphonicSourceModel event validatio
     },
   );
 });
+
+test('PA-2.3 observes the deadline during semantic-profile measure-child traversal', () => {
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => phase === 'polyphonic-semantic-profile:measure-child' ? 11 : 0,
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(BASIC_XML, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_DEADLINE_EXCEEDED');
+      assert.equal(error.details.phase, 'polyphonic-semantic-profile:measure-child');
+      assert.equal(error.details.measureIndex, 0);
+      return true;
+    },
+  );
+});
+
+test('PA-2.3 observes cancellation between semantic-profile event validations', () => {
+  const controller = new AbortController();
+  let cancellationInjected = false;
+  const runtime = createMusicXmlProcessingRuntime(
+    { signal: controller.signal },
+    {
+      clock: (phase) => {
+        if (phase === 'polyphonic-semantic-profile:event' && !cancellationInjected) {
+          cancellationInjected = true;
+          controller.abort();
+        }
+        return 0;
+      },
+    },
+  );
+  const parsed = parseParsedMusicXmlDocument(TWO_EVENT_XML, {}, runtime);
+
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+    (error) => {
+      assert.equal(error.code, 'PROCESSING_ABORTED');
+      assert.equal(error.details.phase, 'polyphonic-semantic-profile:event');
+      assert.equal(error.details.measureIndex, 0);
+      assert.equal(error.details.sourceOrder, 1);
+      return true;
+    },
+  );
+});
+
+const selectedScorePartPlaybackCases = [
+  [
+    'score-instrument',
+    '<score-instrument id="P1-I1"><instrument-name>Guitar</instrument-name></score-instrument>',
+  ],
+  [
+    'midi-instrument',
+    '<midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>25</midi-program></midi-instrument>',
+  ],
+];
+
+for (const [featureName, scorePartChild] of selectedScorePartPlaybackCases) {
+  test(`PA-2.3 rejects selected score-part playback semantic: ${featureName}`, () => {
+    const xml = BASIC_XML.replace(
+      '<part-name>PA-2.3 final remediation</part-name>',
+      `<part-name>PA-2.3 final remediation</part-name>${scorePartChild}`,
+    );
+    const runtime = createMusicXmlProcessingRuntime();
+    const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+
+    assert.throws(
+      () => projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime),
+      (error) => {
+        assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+        assert.equal(error.details.feature, `score-part-child:${featureName}`);
+        return true;
+      },
+    );
+  });
+}
