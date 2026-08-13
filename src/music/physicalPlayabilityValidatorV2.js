@@ -170,7 +170,7 @@ function validateBarreFacts(shape, sourceGroupId, voicingCandidateId) {
   }
 }
 
-function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
+function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId) {
   if (
     !shape
     || typeof shape.shapeCandidateId !== 'string'
@@ -179,6 +179,7 @@ function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
     || !Array.isArray(shape.barres)
     || !Number.isInteger(shape.assignmentCount)
     || shape.assignmentCount !== shape.fingerAssignments.length
+    || shape.assignmentCount !== positions.length
     || !Number.isInteger(shape.usedFingerCount)
     || shape.usedFingerCount < 0
     || !Number.isInteger(shape.fretSpan)
@@ -199,16 +200,22 @@ function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
 
   for (let index = 0; index < shape.fingerAssignments.length; index += 1) {
     const assignment = shape.fingerAssignments[index];
+    const position = positions[index];
     if (
       !assignment
+      || !position
       || typeof assignment.sourceEventId !== 'string'
       || assignment.sourceEventId.length === 0
       || !Number.isInteger(assignment.targetMidi)
       || !Number.isInteger(assignment.string)
       || !Number.isInteger(assignment.fret)
       || !Number.isInteger(assignment.finger)
+      || assignment.sourceEventId !== position.sourceEventId
+      || assignment.targetMidi !== position.targetMidi
+      || assignment.string !== position.string
+      || assignment.fret !== position.fret
     ) {
-      throw invalid('PA-9 encountered invalid recomputed PA-8 finger assignment facts.', {
+      throw invalid('PA-9 encountered inconsistent recomputed PA-8 position/assignment provenance.', {
         sourceGroupId,
         voicingCandidateId,
         shapeCandidateId: shape.shapeCandidateId,
@@ -315,8 +322,8 @@ function hasFingerReachViolation(fingerToFret) {
   return false;
 }
 
-function buildShapeVerdict(shape, voicingCandidateId, sourceGroupId) {
-  const facts = validateShapeFacts(shape, voicingCandidateId, sourceGroupId);
+function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId) {
+  const facts = validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId);
   const reasonCodes = [];
 
   if (facts.fretSpan > MAXIMUM_STATIC_FRET_SPAN) {
@@ -372,6 +379,7 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
         !voicing
         || typeof voicing.voicingCandidateId !== 'string'
         || voicing.voicingCandidateId.length === 0
+        || !Array.isArray(voicing.positions)
         || !Array.isArray(voicing.shapeCandidates)
         || voicing.shapeCandidateCount !== voicing.shapeCandidates.length
       ) {
@@ -402,6 +410,7 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
 
         const verdict = buildShapeVerdict(
           voicing.shapeCandidates[shapeIndex],
+          voicing.positions,
           voicing.voicingCandidateId,
           group.sourceGroupId,
         );
