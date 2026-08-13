@@ -49,17 +49,23 @@ This document records the verified implementation state of the authoritative run
 - PA-9 closure-record exact-head Tests #673: `SUCCESS` on Node.js 18/20/22
 - PA-9 closure-record exact-head MusicXML Compatibility #479: `SUCCESS`
 - PA-9 closure-record post-merge Tests #674 on exact `main` SHA `4410f73c03fd08a9af635351e64181da597f3a4d`: `SUCCESS`
+- PA-10.0 canonical v1/v2 compatibility boundary: merged documentation-only through PR #101
+- PA-10.1 canonical v1 compatibility characterization: merged tests-only through PR #102
+- PA-10.2 exact polyphonic canonical data requirements: merged documentation-only through PR #103
+- PA-10.2 exact-head Tests #681: `SUCCESS`
+- PA-10.2 exact-head MusicXML Compatibility #483: `SUCCESS`
+- PA-10.2 post-merge Tests #682 on exact `main` SHA `93c339195bbce7070d7b40c254a9380380b3edc6`: `SUCCESS`
 - current package version: `0.1.0`
 - current canonical result: `CanonicalTabResult 1.0.0`
 - current internal error contract: `EngineError 1.0.0`
-- package-root public writer API: merged and unchanged by PA-5/PA-6/PA-7/PA-8/PA-9
+- package-root public writer API: merged and unchanged by PA-5/PA-6/PA-7/PA-8/PA-9/PA-10.0/PA-10.1/PA-10.2
 - `GuitarConfiguration 1.0.0`: merged internal
 - `Integration Contract v1`: merged internal
 - S1/S2/S3/S3.1 observation/admission foundations: merged internal
 - B1/B2 benchmark/evaluation: merged internal
 - LR-S0 / LR-S1A / LR-S1B.1 / LR-S1B.2a / LR-S1B.2b: merged internal, non-authoritative learning path
-- next separately approved polyphonic gate: **PA-10 canonical v1/v2 compatibility review**
-- PA-10 status: `NOT_STARTED`
+- PA-10 status: `IN_PROGRESS`; PA-10.0 through PA-10.2 are merged
+- next separately approved PA-10 slice: **PA-10.3 explicit v1 ↔ v2 compatibility/migration matrix**
 - production application UI: not implemented
 - MuseScore semantic round-trip: not executed
 - production PDF renderer: not implemented
@@ -67,9 +73,9 @@ This document records the verified implementation state of the authoritative run
 - G0.1 administrator enforcement: completed
 - historical branch audit: completed
 
-PA-5 through PA-9 are internal parallel-path capabilities only. PA-9 closure does not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic. PA-10 is not authorized by PA-9 completion or by the PA-9 merge approval.
+PA-5 through PA-9 remain internal parallel-path capabilities only. PA-10.0 through PA-10.2 establish compatibility, characterization and future canonical-data requirements only; they do not change the current public conversion scope. The package-root conversion path remains one-part, one-staff, one-voice and monophonic, `CanonicalTabResult 1.0.0` remains authoritative for that path, and PA-10.3+ remain separately gated.
 
-See [PA-9 Closure](pa-9-closure.md) for the exact PA-9 runtime/CI/authority boundary, [PA-8 Closure](pa-8-closure.md) for the earlier PA-8 boundary, [PA-7 Closure](pa-7-closure.md) for the earlier PA-7 boundary and [PA-5 + PA-6 Closure](pa-5-pa-6-closure.md) for earlier closure evidence.
+See [PA-10 Canonical v1/v2 Compatibility Review](pa-10-canonical-v1-v2-compatibility-review.md) and [PA-10.2 Polyphonic Canonical Data Requirements](pa-10-polyphonic-canonical-data-requirements.md) for the current PA-10 boundary, [PA-9 Closure](pa-9-closure.md) for the exact PA-9 runtime/CI/authority boundary, [PA-8 Closure](pa-8-closure.md) for the earlier PA-8 boundary, [PA-7 Closure](pa-7-closure.md) for the earlier PA-7 boundary and [PA-5 + PA-6 Closure](pa-5-pa-6-closure.md) for earlier closure evidence.
 
 ## Status labels
 
@@ -121,6 +127,9 @@ See [PA-9 Closure](pa-9-closure.md) for the exact PA-9 runtime/CI/authority boun
 | PA-7 | `MERGED_INTERNAL` | `GuitarVoicingCandidateModel 1.0.0`; deterministic distinct-string standard-guitar voicing alternatives |
 | PA-8 | `MERGED_INTERNAL` | `LeftHandShapeModel 1.0.0`; deterministic structural finger/barre candidates without playability/final-selection authority |
 | PA-9 | `MERGED_INTERNAL` | `PhysicalPlayabilityValidation 2.0.0`; fixed conservative static shape-policy verdicts without ranking/final-selection authority |
+| PA-10.0 | `MERGED_DOCUMENTATION_ONLY` | Canonical v1/v2 authority inventory and compatibility direction through PR #101 |
+| PA-10.1 | `MERGED_TESTS_ONLY` | Machine-checkable frozen-v1 compatibility characterization through PR #102 |
+| PA-10.2 | `MERGED_DOCUMENTATION_ONLY` | Exact polyphonic canonical data requirements through PR #103 |
 
 ## Current merged public runtime capabilities
 
@@ -157,7 +166,10 @@ See [PA-9 Closure](pa-9-closure.md) for the exact PA-9 runtime/CI/authority boun
 | `GuitarVoicingCandidateModel 1.0.0` | `MERGED_INTERNAL` | PA-7 deterministic distinct-string positions for simultaneous PA-6 KEEP notes; not left-hand/playability/final-selection authority |
 | `LeftHandShapeModel 1.0.0` | `MERGED_INTERNAL` | PA-8 structural finger/barre candidates preserving PA-7 positions; not ergonomic/playability/final-selection authority |
 | `PhysicalPlayabilityValidation 2.0.0` | `MERGED_INTERNAL` | PA-9 fixed conservative static shape-policy verdicts; not universal comfort, ranking, transition or final-selection authority |
-| PA-10 canonical v1/v2 compatibility review | `NOT_STARTED` | Next separate gate; requires explicit Stage Start Approval |
+| PA-10.0 canonical v1/v2 compatibility boundary | `MERGED_DOCUMENTATION_ONLY` | Separate major v2 working direction selected; no v2 implementation/public authority |
+| PA-10.1 v1 compatibility characterization | `MERGED_TESTS_ONLY` | Frozen v1 schema/single-voice/single-staff/fail-closed invariants are machine-checkable |
+| PA-10.2 polyphonic canonical data requirements | `MERGED_DOCUMENTATION_ONLY` | Defines required future source/arrangement/selected-position/fingering/playability provenance without schema implementation |
+| PA-10.3 v1 ↔ v2 compatibility/migration matrix | `NOT_STARTED` | Next separately approved PA-10 slice |
 | Public polyphonic arrangement API | `NOT_IMPLEMENTED` | Planned PA-13 only after prerequisites |
 
 ### PA-5 boundary
@@ -374,13 +386,18 @@ Application/editor/persistence layers may not directly mutate authoritative cano
 8. PA-7 guitar chord/voicing candidates — merged internal through PR #92; closure record PR #93
 9. PA-8 left-hand shape/finger/barre/partial-barre — merged internal through PR #95; closure record PR #96
 10. PA-9 Physical Playability Validator v2 — merged internal through PR #98; closure record PR #99
-11. PA-10 canonical v1/v2 compatibility review — **next separate gate; NOT STARTED**
-12. PA-11 teacher-approved arrangement benchmark
-13. PA-12 internal polyphonic E2E + monophonic compatibility
-14. PA-13 separately approved public arrangement API
-15. PA-14 ScoreMosaic/SesliTab adapter integration
+11. PA-10.0 canonical authority inventory + v1/v2 compatibility direction — merged documentation-only through PR #101
+12. PA-10.1 machine-checkable v1 compatibility characterization — merged tests-only through PR #102
+13. PA-10.2 exact polyphonic canonical data requirements — merged documentation-only through PR #103
+14. PA-10.3 explicit v1 ↔ v2 compatibility/migration matrix — **next separate slice; NOT STARTED**
+15. PA-10.4 minimal `CanonicalTabResult 2.0.0` schema proposal — separately gated
+16. PA-10.5 version dispatch/fail-closed migration contract proposal — separately gated
+17. PA-11 teacher-approved arrangement benchmark
+18. PA-12 internal polyphonic E2E + monophonic compatibility
+19. PA-13 separately approved public arrangement API
+20. PA-14 ScoreMosaic/SesliTab adapter integration
 
-Completion of PA-9 does not authorize PA-10.
+PA-10.0 through PA-10.2 do not authorize PA-10.3 or any later runtime/public slice.
 
 ## Governance / outstanding evidence
 
@@ -390,8 +407,9 @@ Completion of PA-9 does not authorize PA-10.
 - PA-9 exact-head Compatibility #478 is PR-triggered compatibility evidence; post-merge runtime evidence is Tests #672 on exact runtime `main` SHA `9869b7ecf65c9c76da3a25c032f3026a48bce201`.
 - PA-9 closure-record PR #99 exact-head Tests #673 and Compatibility #479 passed; final closure-record post-merge evidence is Tests #674 on `main` SHA `4410f73c03fd08a9af635351e64181da597f3a4d`.
 - no post-merge MusicXML Compatibility run is claimed for either PA-9 runtime merge or closure-record merge.
+- PA-10.2 exact-head Tests #681 and MusicXML Compatibility #483 passed; post-merge Tests #682 passed on exact `main` SHA `93c339195bbce7070d7b40c254a9380380b3edc6`.
 - real uploaded MusicXML has not been executed as genuine PA-9 end-to-end evidence.
 - production playback readiness is not established by the synth diagnostic workflow success.
 - MuseScore command availability does not establish MusicXML semantic round-trip or PDF support.
-- PA-10 is not started and requires separate Stage Start Approval.
+- PA-10.3 is not started and requires separate Stage Start Approval.
 - branch cleanup remains separately gated.
