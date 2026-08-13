@@ -5,9 +5,10 @@ This file is the required starting point for AI agents, coding assistants, revie
 ## Verified runtime snapshot — 2026-08-13
 
 - authoritative branch: `main`
-- PA-6 runtime closure baseline on `main`: `f4055e42d2cd364060e7d99a4efc2add3d8817bd`
-- closure tree: `a0cc5aa6e2ed7928e840cb364f04ee5817bf0d93`
-- latest merged runtime-changing feature: PR #90 — internal `DeterministicReductionPlan 1.0.0`
+- PA-7 runtime closure baseline on `main`: `1f3dc2cf89efab1e258064b6e76eb51daee4252c`
+- runtime closure tree: `2458bf228fe02ecb82359417b7bb5016b6c29f82`
+- PA-7 closure-record baseline on `main`: `6831047db24d2e69167219844b270533cde8e539`
+- latest merged runtime-changing feature: PR #92 — internal `GuitarVoicingCandidateModel 1.0.0`
 - PA-3 `SimultaneousEventModel 1.0.0`: merged through PR #85
 - PA-4 `GuitarArrangementPlan 1.0.0`: merged through PR #87
 - PA-5 `DeterministicVoiceAnalysis 1.0.0`: merged through PR #89
@@ -20,6 +21,15 @@ This file is the required starting point for AI agents, coding assistants, revie
 - PA-6 exact-head MusicXML Compatibility #460: `SUCCESS`
 - PA-6 post-merge Tests #646 on exact `main` SHA `f4055e42d2cd364060e7d99a4efc2add3d8817bd`: `SUCCESS`
 - PA-6 independent final review: no remaining P1/P2 blocker found
+- PA-7 `GuitarVoicingCandidateModel 1.0.0`: merged through PR #92
+- PA-7 exact-head Tests #652: `SUCCESS` on Node.js 18/20/22
+- PA-7 exact-head MusicXML Compatibility #465: workflow `SUCCESS`
+- PA-7 post-merge Tests #653 on exact runtime `main` SHA `1f3dc2cf89efab1e258064b6e76eb51daee4252c`: `SUCCESS`
+- PA-7 independent final review: no remaining P1/P2 blocker found
+- PA-7 closure record: PR #93 — merged documentation-only
+- PA-7 closure-record exact-head Tests #654: `SUCCESS`
+- PA-7 closure-record exact-head MusicXML Compatibility #466: `SUCCESS`
+- PA-7 closure-record post-merge Tests #655 on exact `main` SHA `6831047db24d2e69167219844b270533cde8e539`: `SUCCESS`
 - package version: `0.1.0`
 - package metadata: `private: true`, `UNLICENSED`
 - canonical result contract: `CanonicalTabResult 1.0.0`
@@ -38,12 +48,13 @@ This file is the required starting point for AI agents, coding assistants, revie
 - PA-4: `MERGED_INTERNAL`
 - PA-5: `MERGED_INTERNAL`
 - PA-6: `MERGED_INTERNAL`
-- next separately approved polyphonic gate: **PA-7 guitar chord/voicing candidates**
+- PA-7: `MERGED_INTERNAL`
+- next separately approved polyphonic gate: **PA-8 left-hand shape/finger assignment/barre/partial-barre model**
 - G0.1 administrator-bypass hardening: completed
 
-PA-5 and PA-6 are internal parallel-path foundations only. PA-6 closure does **not** make polyphonic conversion public. The existing public monophonic conversion behavior remains protected and unchanged. PA-7 is not authorized by PA-6 completion or by the PA-6 merge approval.
+PA-5, PA-6 and PA-7 are internal parallel-path foundations only. PA-7 closure does **not** make polyphonic conversion public. The existing public monophonic conversion behavior remains protected and unchanged. PA-8 is not authorized by PA-7 completion or by the PA-7 merge approval.
 
-See [PA-5 + PA-6 Closure](docs/pa-5-pa-6-closure.md) for the exact merge/CI evidence and closure boundary.
+See [PA-7 Closure](docs/pa-7-closure.md) for exact PA-7 merge/CI/authority evidence and [PA-5 + PA-6 Closure](docs/pa-5-pa-6-closure.md) for the earlier closure boundary.
 
 ## Source-of-truth order
 
@@ -52,11 +63,12 @@ When sources disagree, use this order:
 1. merged source code, tests, package metadata and workflows on `main`
 2. runtime contract modules under `src/`
 3. applicable versioned contract documents under `docs/`
-4. `docs/pa-5-pa-6-closure.md`
-5. `docs/current-status.md`
-6. `docs/package-status.md`
-7. `README.md`
-8. older architecture/MVP/historical drafts
+4. `docs/pa-7-closure.md`
+5. `docs/pa-5-pa-6-closure.md`
+6. `docs/current-status.md`
+7. `docs/package-status.md`
+8. `README.md`
+9. older architecture/MVP/historical drafts
 
 `docs/DATA-CONTRACT.md` is a deprecated historical draft and is not the current runtime contract.
 
@@ -153,7 +165,7 @@ Do not expand support by deleting or weakening current `UNSUPPORTED_*` rejection
 - `serializeCanonicalTabResultToMusicXml`
 - `validateMidi`
 
-Observation, feedback, benchmark, shadow-ranking, path-policy and polyphonic-arrangement APIs remain internal. PA-5 and PA-6 did not add package-root exports.
+Observation, feedback, benchmark, shadow-ranking, path-policy and polyphonic-arrangement APIs remain internal. PA-5, PA-6 and PA-7 did not add package-root exports.
 
 ## Non-negotiable architecture rules
 
@@ -179,7 +191,10 @@ Observation, feedback, benchmark, shadow-ranking, path-policy and polyphonic-arr
 20. PA-6 register bounds are deterministic policy, not proof of physical guitar playability.
 21. PA-6 cannot choose strings, frets, fingers, barre shapes, hand positions or chord voicings.
 22. `VOICE_REDISTRIBUTED`, `REVOICED` and `ARPEGGIATED` remain fail-closed/deferred in PA-6 v1.
-23. High-risk changes require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted required CI and separate merge approval.
+23. PA-7 candidates preserve exact PA-6 target MIDI and source/group/omission provenance; they cannot mutate source pitch, octave policy or timing.
+24. PA-7 candidate enumeration is not candidate preference, final voicing selection, left-hand fingering or full physical-playability approval.
+25. PA-7 cannot assign left-hand fingers, barre/partial-barre, hand position or ergonomic approval and cannot silently drop notes when no candidate exists.
+26. High-risk changes require focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted required CI and separate merge approval.
 
 ## Completed security/core foundations
 
@@ -208,6 +223,7 @@ Merged runtime foundations include:
 - internal PA-4 `GuitarArrangementPlan 1.0.0` arrangement-decision/provenance representation
 - internal PA-5 `DeterministicVoiceAnalysis 1.0.0` onset-local source voice/register analysis
 - internal PA-6 `DeterministicReductionPlan 1.0.0` deterministic reduction/octave execution plan
+- internal PA-7 `GuitarVoicingCandidateModel 1.0.0` deterministic distinct-string voicing candidate model
 
 These are current capabilities and must not be marked `NOT_IMPLEMENTED` based only on an old planned directory tree.
 
@@ -249,6 +265,16 @@ Deferred/fail-closed:
 `OCTAVE_DISPLACED` preserves pitch class, uses a non-zero octave shift and selects the nearest pitch-class-equivalent pitch inside the fixed register envelope, with the lower target on exact distance ties. `CHORD_REDUCED` only executes when PA-5 provides one unique melody candidate, one unique bass candidate, at least one inner candidate and no ambiguous outer candidate; it keeps the two unique outer notes and explicitly omits inner notes.
 
 The register envelope is not physical playability proof. PA-6 creates no string/fret/finger/barre/left-hand/chord-voicing authority.
+
+## PA-7 deterministic guitar voicing candidates
+
+PA-7 adds internal `GuitarVoicingCandidateModel 1.0.0` with policy `STANDARD_SIX_STRING_DISTINCT_STRING_1.0`, standard six-string tuning, frets 0–20 and fixed aggregate candidate ceiling 10,000.
+
+PA-7 recomputes/validates its upstream source, simultaneity and PA-6 reduction facts. For each PA-3 simultaneous group with at least two PA-6 `KEEP` notes, it enumerates deterministic assignments in which each active source event is assigned exactly one valid guitar position and no two simultaneous active notes use the same string. Exact PA-6 `targetMidi`, PA-3 group provenance and PA-6 omitted-member provenance are preserved.
+
+More than six active simultaneous notes or a group with no injective distinct-string assignment yields zero candidates rather than silent note dropping. Candidate order is deterministic enumeration, not preference ranking.
+
+PA-7 does not establish left-hand finger numbers, barre/partial-barre, hand position, fret-span comfort, ergonomic/playability approval, final voicing selection, arrangement optimization or public polyphonic output. Those remain PA-8+ authorities.
 
 ## Teacher feedback and fingering foundations
 
@@ -328,7 +354,7 @@ Compatibility evidence currently verifies:
 
 These are compatibility tests, not a production application viewer.
 
-The alphaTab 1.8.4 synthesizer diagnostic remains unverified because the tested headless Chrome runtime encountered an internal recursive `loadedMidiInfo` error before score/MIDI/SoundFont/player readiness. Do not describe playback as production-ready.
+The alphaTab 1.8.4 synthesizer diagnostic remains unverified for production readiness because the tested headless Chrome runtime did not establish score/MIDI/SoundFont/player readiness. Do not describe playback as production-ready merely because the Compatibility workflow concludes `SUCCESS`.
 
 ## MuseScore / PDF status
 
@@ -391,9 +417,9 @@ DeterministicVoiceAnalysis 1.0.0
         ↓
 DeterministicReductionPlan 1.0.0
         ↓
-PA-7 guitar chord/voicing candidates — NOT STARTED
+GuitarVoicingCandidateModel 1.0.0
         ↓
-PA-8 left-hand shape/finger assignment/barre/partial-barre
+PA-8 left-hand shape/finger assignment/barre/partial-barre — NOT STARTED
         ↓
 PA-9 Physical Playability Validator v2
         ↓
@@ -404,7 +430,7 @@ teacher-reviewed TAB-result gate
 
 Original MusicXML is immutable source truth. Arrangement decisions such as omission, octave displacement, voice redistribution, chord reduction, revoicing or arpeggiation must be explicit and provenance-bound.
 
-`CanonicalTabResult 1.0.0` remains unchanged through PA-6. A later PA-10 review decides whether a compatible bridge or new chord-aware canonical version is required.
+`CanonicalTabResult 1.0.0` remains unchanged through PA-7. A later PA-10 review decides whether a compatible bridge or new chord-aware canonical version is required.
 
 ### PA safe sequence
 
@@ -423,8 +449,8 @@ Original MusicXML is immutable source truth. Arrangement decisions such as omiss
 13. PA-4 arrangement-decision + provenance contract — merged internal through PR #87
 14. PA-5 deterministic melody/bass/voice analysis — merged internal through PR #89
 15. PA-6 deterministic reduction/octave rules — merged internal through PR #90
-16. PA-7 guitar chord/voicing candidates — next separate gate; requires explicit Stage Start Approval
-17. PA-8 left-hand shape/finger assignment/barre/partial-barre
+16. PA-7 guitar chord/voicing candidates — merged internal through PR #92; closure record PR #93
+17. PA-8 left-hand shape/finger assignment/barre/partial-barre — next separate gate; requires explicit Stage Start Approval
 18. PA-9 Physical Playability Validator v2
 19. PA-10 canonical v1/v2 compatibility review
 20. PA-11 teacher-approved arrangement benchmark
@@ -432,7 +458,7 @@ Original MusicXML is immutable source truth. Arrangement decisions such as omiss
 22. PA-13 separately approved public arrangement API
 23. PA-14 ScoreMosaic/SesliTab adapter integration
 
-Completion of PA-6 does not authorize PA-7.
+Completion of PA-7 does not authorize PA-8.
 
 ## Application/presentation status
 
@@ -462,13 +488,14 @@ Application UI, renderer, editor and persistence layers are downstream adapters.
 1. PA-1 through PA-4 — completed/verified according to their closure records
 2. PA-5 deterministic voice/register analysis — completed through PR #89
 3. PA-6 deterministic reduction/octave rules — completed through PR #90
-4. PA-5/PA-6 documentation convergence — current closure package
-5. PA-7 guitar chord/voicing candidates — next separate polyphonic gate; not started
-6. Musical Notation Coverage contract — separately gated
-7. MuseScore semantic compatibility gate — separately gated
-8. independent real-world MusicXML E2E fixture gate — separately gated
-9. application/presentation work — downstream and separately gated
-10. production learned/training work — only after durable-storage and lawful-use/privacy prerequisites
+4. PA-7 deterministic guitar voicing candidates — completed through PR #92; closure record PR #93
+5. PA-7 central read-first/status documentation convergence — current docs-only package
+6. PA-8 left-hand shape/finger/barre/partial-barre — next separate polyphonic gate; not started
+7. Musical Notation Coverage contract — separately gated
+8. MuseScore semantic compatibility gate — separately gated
+9. independent real-world MusicXML E2E fixture gate — separately gated
+10. application/presentation work — downstream and separately gated
+11. production learned/training work — only after durable-storage and lawful-use/privacy prerequisites
 
 Each runtime/high-risk package requires focused tests, negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and separate merge approval.
 
@@ -479,7 +506,7 @@ Each runtime/high-risk package requires focused tests, negative/fail-closed test
 - workflow third-party actions are SHA-pinned.
 - G0.1 administrator enforcement is completed.
 - historical branch audit is completed; each cleanup action remains separately gated.
-- no branch cleanup is authorized by PA-6 merge approval.
+- no branch cleanup is authorized by PA-7 merge approval.
 
 ## Safe-development protocol for agents
 
