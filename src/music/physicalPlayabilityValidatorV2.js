@@ -82,6 +82,94 @@ function validateLeftHandIdentity(leftHand) {
   }
 }
 
+function validateOrderedFingerFacts(fretToFingers, sourceGroupId, voicingCandidateId, shapeCandidateId) {
+  const frets = [...fretToFingers.keys()].sort((a, b) => a - b);
+  for (let fretIndex = 1; fretIndex < frets.length; fretIndex += 1) {
+    const lowerFingers = [...fretToFingers.get(frets[fretIndex - 1])];
+    const higherFingers = [...fretToFingers.get(frets[fretIndex])];
+    if (Math.max(...lowerFingers) >= Math.min(...higherFingers)) {
+      throw invalid('PA-9 detected a violation of the PA-8 ordered-finger invariant.', {
+        sourceGroupId,
+        voicingCandidateId,
+        shapeCandidateId,
+      });
+    }
+  }
+}
+
+function validateBarreFacts(shape, sourceGroupId, voicingCandidateId) {
+  for (let index = 0; index < shape.barres.length; index += 1) {
+    const barre = shape.barres[index];
+    if (
+      !barre
+      || (barre.kind !== 'PARTIAL_BARRE' && barre.kind !== 'FULL_BARRE')
+      || !Number.isInteger(barre.finger)
+      || barre.finger < 1
+      || barre.finger > 4
+      || !Number.isInteger(barre.fret)
+      || barre.fret <= 0
+      || !Number.isInteger(barre.startString)
+      || !Number.isInteger(barre.endString)
+      || barre.startString < 1
+      || barre.endString > 6
+      || barre.startString > barre.endString
+      || !Number.isInteger(barre.stringSpan)
+      || barre.stringSpan !== barre.endString - barre.startString + 1
+      || (barre.kind === 'FULL_BARRE' && (barre.startString !== 1 || barre.endString !== 6))
+      || (barre.kind === 'PARTIAL_BARRE' && barre.startString === 1 && barre.endString === 6)
+    ) {
+      throw invalid('PA-9 encountered invalid recomputed PA-8 barre facts.', {
+        sourceGroupId,
+        voicingCandidateId,
+        shapeCandidateId: shape.shapeCandidateId,
+        barreIndex: index,
+      });
+    }
+
+    const barreAssignments = shape.fingerAssignments.filter((assignment) => (
+      assignment.finger === barre.finger && assignment.fret === barre.fret
+    ));
+    if (barreAssignments.length < 2) {
+      throw invalid('PA-9 requires each PA-8 barre to bind at least two active assignments.', {
+        sourceGroupId,
+        voicingCandidateId,
+        shapeCandidateId: shape.shapeCandidateId,
+        barreIndex: index,
+      });
+    }
+    const assignedStrings = barreAssignments.map((assignment) => assignment.string);
+    if (
+      Math.min(...assignedStrings) !== barre.startString
+      || Math.max(...assignedStrings) !== barre.endString
+    ) {
+      throw invalid('PA-9 detected inconsistent PA-8 barre span facts.', {
+        sourceGroupId,
+        voicingCandidateId,
+        shapeCandidateId: shape.shapeCandidateId,
+        barreIndex: index,
+      });
+    }
+
+    for (const assignment of shape.fingerAssignments) {
+      if (assignment.string < barre.startString || assignment.string > barre.endString) {
+        continue;
+      }
+      if (
+        assignment.fret < barre.fret
+        || (assignment.fret === barre.fret && assignment.finger !== barre.finger)
+      ) {
+        throw invalid('PA-9 detected an active-pitch conflict inside a PA-8 barre span.', {
+          sourceGroupId,
+          voicingCandidateId,
+          shapeCandidateId: shape.shapeCandidateId,
+          barreIndex: index,
+          sourceEventId: assignment.sourceEventId,
+        });
+      }
+    }
+  }
+}
+
 function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
   if (
     !shape
@@ -105,6 +193,7 @@ function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
   }
 
   const fingerToFret = new Map();
+  const fretToFingers = new Map();
   const frettedFrets = [];
   const usedFingers = new Set();
 
@@ -163,6 +252,13 @@ function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
       });
     }
     fingerToFret.set(assignment.finger, assignment.fret);
+
+    let fretFingers = fretToFingers.get(assignment.fret);
+    if (!fretFingers) {
+      fretFingers = new Set();
+      fretToFingers.set(assignment.fret, fretFingers);
+    }
+    fretFingers.add(assignment.finger);
     usedFingers.add(assignment.finger);
     frettedFrets.push(assignment.fret);
   }
@@ -184,41 +280,13 @@ function validateShapeFacts(shape, voicingCandidateId, sourceGroupId) {
     });
   }
 
-  const orderedFingerFrets = [...fingerToFret.entries()].sort((a, b) => a[1] - b[1]);
-  for (let index = 1; index < orderedFingerFrets.length; index += 1) {
-    const previous = orderedFingerFrets[index - 1];
-    const current = orderedFingerFrets[index];
-    if (previous[1] < current[1] && previous[0] >= current[0]) {
-      throw invalid('PA-9 detected a violation of the PA-8 ordered-finger invariant.', {
-        sourceGroupId,
-        voicingCandidateId,
-        shapeCandidateId: shape.shapeCandidateId,
-      });
-    }
-  }
-
-  for (let index = 0; index < shape.barres.length; index += 1) {
-    const barre = shape.barres[index];
-    if (
-      !barre
-      || (barre.barreType !== 'PARTIAL_BARRE' && barre.barreType !== 'FULL_BARRE')
-      || !Number.isInteger(barre.finger)
-      || barre.finger < 1
-      || barre.finger > 4
-      || !Number.isInteger(barre.fret)
-      || barre.fret <= 0
-      || !Number.isInteger(barre.fromString)
-      || !Number.isInteger(barre.toString)
-      || barre.fromString < barre.toString
-    ) {
-      throw invalid('PA-9 encountered invalid recomputed PA-8 barre facts.', {
-        sourceGroupId,
-        voicingCandidateId,
-        shapeCandidateId: shape.shapeCandidateId,
-        barreIndex: index,
-      });
-    }
-  }
+  validateOrderedFingerFacts(
+    fretToFingers,
+    sourceGroupId,
+    voicingCandidateId,
+    shape.shapeCandidateId,
+  );
+  validateBarreFacts(shape, sourceGroupId, voicingCandidateId);
 
   return {
     fretSpan,
