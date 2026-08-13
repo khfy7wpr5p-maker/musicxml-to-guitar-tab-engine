@@ -4,9 +4,10 @@ This document records the current package surface, strongest verified runtime ev
 
 ## Snapshot — 2026-08-13
 
-- PA-6 runtime closure baseline on `main`: `f4055e42d2cd364060e7d99a4efc2add3d8817bd`
-- closure Git tree: `a0cc5aa6e2ed7928e840cb364f04ee5817bf0d93`
-- latest merged runtime-changing feature: PR #90 — internal `DeterministicReductionPlan 1.0.0`
+- PA-7 runtime closure baseline on `main`: `1f3dc2cf89efab1e258064b6e76eb51daee4252c`
+- runtime closure Git tree: `2458bf228fe02ecb82359417b7bb5016b6c29f82`
+- PA-7 closure-record baseline on `main`: `6831047db24d2e69167219844b270533cde8e539`
+- latest merged runtime-changing feature: PR #92 — internal `GuitarVoicingCandidateModel 1.0.0`
 - PA-2 sequence: `CLOSED`
 - PA-3 `SimultaneousEventModel 1.0.0`: merged internal through PR #85
 - PA-4 `GuitarArrangementPlan 1.0.0`: merged internal through PR #87
@@ -18,6 +19,14 @@ This document records the current package surface, strongest verified runtime ev
 - PA-6 exact-head Tests #645: `SUCCESS` on Node.js 18/20/22
 - PA-6 exact-head MusicXML Compatibility #460: `SUCCESS`
 - PA-6 post-merge Tests #646: `SUCCESS` on exact `main` SHA `f4055e42d2cd364060e7d99a4efc2add3d8817bd`
+- PA-7 `GuitarVoicingCandidateModel 1.0.0`: merged internal through PR #92
+- PA-7 exact-head Tests #652: `SUCCESS` on Node.js 18/20/22
+- PA-7 exact-head MusicXML Compatibility #465: workflow `SUCCESS`
+- PA-7 post-merge Tests #653: `SUCCESS` on exact runtime `main` SHA `1f3dc2cf89efab1e258064b6e76eb51daee4252c`
+- PA-7 closure record: PR #93, documentation-only, merged
+- PA-7 closure-record exact-head Tests #654: `SUCCESS`
+- PA-7 closure-record exact-head MusicXML Compatibility #466: `SUCCESS`
+- PA-7 closure-record post-merge Tests #655: `SUCCESS` on exact `main` SHA `6831047db24d2e69167219844b270533cde8e539`
 - GitHub repository visibility: `public`
 - package name: `musicxml-to-guitar-tab-engine`
 - package version: `0.1.0`
@@ -29,15 +38,15 @@ This document records the current package surface, strongest verified runtime ev
 - B1 benchmark: `TeacherFingeringBenchmark 1.0.0`, fixed/teacher-approved/evaluation-only
 - B2 harness: `TeacherFingeringBenchmarkEvaluation 1.0.0`, deterministic evaluation-only
 - LR-S0 through LR-S1B.2b: merged internal, no production learned-selection authority
-- next separately approved polyphonic gate: **PA-7 guitar chord/voicing candidates**
+- next separately approved polyphonic gate: **PA-8 left-hand shape/finger/barre/partial-barre model**
 - application UI / PDF / production playback: not implemented
-- real uploaded-file PA-5/PA-6 E2E: not executed
+- real uploaded-file PA-7 E2E: not executed
 
 GitHub repository visibility and npm/package publication state are separate controls. A `public` GitHub repository does **not** change `package.json` `private: true`, does not publish the package to npm and does not create a package release.
 
-PA-5 and PA-6 do not create a public polyphonic API or alter the current public monophonic conversion boundary. PA-7 is not authorized by PA-6 completion.
+PA-5, PA-6 and PA-7 do not create a public polyphonic API or alter the current public monophonic conversion boundary. PA-8 is not authorized by PA-7 completion or by the PA-7 merge approval.
 
-See [PA-5 + PA-6 Closure](pa-5-pa-6-closure.md) for exact closure evidence.
+See [PA-7 Closure](pa-7-closure.md) for exact PA-7 closure evidence and [PA-5 + PA-6 Closure](pa-5-pa-6-closure.md) for the earlier package closures.
 
 ## Package metadata
 
@@ -74,7 +83,7 @@ No public package release is claimed.
 | `serializeCanonicalTabResultToMusicXml` | Deterministic TAB MusicXML serializer |
 | `validateMidi` | MIDI validation helper |
 
-The following remain intentionally internal: EngineError/domain subclasses, GuitarConfiguration metadata, Integration Contract metadata, observation/digest/feature/feedback/admission modules, B1/B2 benchmark/evaluation components, LR shadow/path-policy components and all current polyphonic-arrangement foundations including `PolyphonicSourceModel 1.0.0`, `SimultaneousEventModel 1.0.0`, `GuitarArrangementPlan 1.0.0`, `DeterministicVoiceAnalysis 1.0.0` and `DeterministicReductionPlan 1.0.0`.
+The following remain intentionally internal: EngineError/domain subclasses, GuitarConfiguration metadata, Integration Contract metadata, observation/digest/feature/feedback/admission modules, B1/B2 benchmark/evaluation components, LR shadow/path-policy components and all current polyphonic-arrangement foundations including `PolyphonicSourceModel 1.0.0`, `SimultaneousEventModel 1.0.0`, `GuitarArrangementPlan 1.0.0`, `DeterministicVoiceAnalysis 1.0.0`, `DeterministicReductionPlan 1.0.0` and `GuitarVoicingCandidateModel 1.0.0`.
 
 ## Package capability status
 
@@ -120,8 +129,9 @@ The following remain intentionally internal: EngineError/domain subclasses, Guit
 | PA-4 `GuitarArrangementPlan 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #87 |
 | PA-5 `DeterministicVoiceAnalysis 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #89 |
 | PA-6 `DeterministicReductionPlan 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #90 |
-| PA-7 guitar chord/voicing candidates | `NOT_STARTED` — separate approval required |
-| PA-8+ later polyphonic arrangement gates | `NOT_IMPLEMENTED` |
+| PA-7 `GuitarVoicingCandidateModel 1.0.0` | `VERIFIED_ON_MAIN_INTERNAL` — PR #92 |
+| PA-8 left-hand shape/finger/barre/partial-barre model | `NOT_STARTED` — separate approval required |
+| PA-9+ later polyphonic arrangement gates | `NOT_IMPLEMENTED` |
 | Public polyphonic arrangement API | `NOT_IMPLEMENTED` |
 | alphaTab MusicXML import | `COMPATIBILITY_VERIFIED` |
 | alphaTab SVG rendering | `COMPATIBILITY_VERIFIED` |
@@ -176,6 +186,14 @@ Deferred/fail-closed:
 
 The register envelope is not physical-playability proof. PA-6 does not create string/fret/finger/barre/hand-position/chord-voicing authority.
 
+## PA-7 package boundary
+
+`GuitarVoicingCandidateModel 1.0.0` is internal. It uses policy `STANDARD_SIX_STRING_DISTINCT_STRING_1.0`, standard six-string tuning, frets 0–20 and a fixed aggregate candidate ceiling of 10,000.
+
+For simultaneous PA-6 `KEEP` notes, PA-7 deterministically enumerates exact-target-MIDI string/fret alternatives while preserving PA-3 group provenance and PA-6 omission provenance. Each candidate uses distinct guitar strings; more than six active simultaneous notes or no injective string assignment yields zero candidates rather than silent note dropping.
+
+This is not PA-8/PA-9 authority. PA-7 does not assign left-hand fingers, barre/partial-barre, hand position, ergonomic/playability approval, candidate ranking, final voicing selection or public polyphonic output.
+
 ## Current public musical compatibility boundary
 
 The public package supports the documented one-part, one-staff, one-voice monophonic `score-partwise` scope.
@@ -204,7 +222,7 @@ Current public fail-closed boundaries include:
 - unsupported values such as 32nd rhythms
 - compressed `.mxl`
 
-PA-5/PA-6 did not weaken these rejection rules.
+PA-5/PA-6/PA-7 did not weaken these rejection rules.
 
 ## Output status
 
@@ -223,7 +241,8 @@ PA-5/PA-6 did not weaken these rejection rules.
 | Arrangement decision/provenance plan | Internal only | no application integration |
 | Deterministic voice/register analysis | Internal only (`DeterministicVoiceAnalysis 1.0.0`) | no application integration |
 | Deterministic reduction/octave plan | Internal only (`DeterministicReductionPlan 1.0.0`) | no application integration |
-| Physically validated polyphonic chord voicing | Not implemented; PA-7+ | not implemented |
+| Guitar voicing candidates | Internal only (`GuitarVoicingCandidateModel 1.0.0`) | no application integration |
+| Left-hand validated polyphonic chord voicing | Not implemented; PA-8+ | not implemented |
 | Public executable polyphonic arrangement result | Not implemented | not implemented |
 | Chord-aware canonical result | Not implemented; PA-10 review pending | not implemented |
 
@@ -269,7 +288,7 @@ The isolated compatibility suite verifies:
 - bar/measure cursor
 - beat cursor
 
-The tested alphaTab 1.8.4 synthesizer path remains unverified for production playback due to its headless runtime diagnostic limitation.
+The tested alphaTab 1.8.4 synthesizer path remains unverified for production playback due to its headless runtime diagnostic limitation. Compatibility workflow success must not be treated as production playback readiness.
 
 ## MuseScore compatibility status
 
@@ -283,8 +302,8 @@ MuseScore Studio was not installed in tested local or GitHub-hosted environments
 4. PA-4 arrangement decision/provenance — merged internal through PR #87
 5. PA-5 deterministic voice/register analysis — merged internal through PR #89
 6. PA-6 deterministic reduction/octave rules — merged internal through PR #90
-7. PA-7 guitar chord/voicing candidates — **NOT STARTED; next separate approval**
-8. PA-8 left-hand model — future
+7. PA-7 guitar chord/voicing candidates — merged internal through PR #92; closure record PR #93
+8. PA-8 left-hand model — **NOT STARTED; next separate approval**
 9. PA-9 Physical Playability Validator v2 — future
 10. PA-10 canonical compatibility review — future
 11. PA-11 benchmark — future
@@ -292,14 +311,18 @@ MuseScore Studio was not installed in tested local or GitHub-hosted environments
 13. PA-13 public arrangement API — future/separately approved
 14. PA-14 ScoreMosaic/SesliTab adapters — future
 
-Completion of PA-6 does not authorize PA-7.
+Completion of PA-7 does not authorize PA-8.
 
 ## Verification caveats
 
 - PA-5 and PA-6 exact-head Compatibility evidence is PR-triggered compatibility evidence.
 - PA-5 post-merge evidence is Tests #641 on exact merged `main` SHA.
 - PA-6 post-merge evidence is Tests #646 on exact merged `main` SHA.
-- No post-merge MusicXML Compatibility run is claimed for PA-6.
-- No real previously uploaded Audiveris/Scarlatti MusicXML file was executed through PA-5/PA-6 as genuine runtime E2E evidence.
+- PA-7 exact-head Compatibility #465 and closure-record Compatibility #466 are PR-triggered compatibility evidence.
+- PA-7 runtime post-merge evidence is Tests #653 on exact merged runtime `main` SHA `1f3dc2cf89efab1e258064b6e76eb51daee4252c`.
+- PA-7 closure-record post-merge evidence is Tests #655 on exact `main` SHA `6831047db24d2e69167219844b270533cde8e539`.
+- No post-merge MusicXML Compatibility run is claimed for PA-7 runtime or closure-record merge.
+- The alphaTab synth diagnostic does not establish production playback readiness even when the Compatibility workflow concludes `SUCCESS`.
+- No real previously uploaded Audiveris/Scarlatti MusicXML file was executed through PA-7 as genuine runtime E2E evidence.
 - No public polyphonic conversion authority is claimed.
 - Branch cleanup remains separately gated.
