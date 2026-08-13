@@ -237,6 +237,30 @@ test('PA-9 accepts a structurally valid PA-8 partial barre without gaining ergon
   assert.equal(verdict.barreCount, 1);
 });
 
+test('PA-9 preserves a nonempty structural voicing when every shape is rejected by the static policy', () => {
+  const source = sourceModel(score([
+    note('F', { octave: 2 }),
+    note('D', { octave: 3, alter: 1, chord: true }),
+  ].join('')));
+  const decisions = preserveAllSourceNotes(source);
+  const leftHand = createLeftHandShapeModel(source, decisions);
+  const match = findVoicing(leftHand, [{ string: 6, fret: 1 }, { string: 5, fret: 6 }]);
+  assert.ok(match);
+  assert.ok(match.voicing.shapeCandidateCount > 0);
+
+  const validation = validatePhysicalPlayabilityV2(source, decisions);
+  const voicing = findValidationVoicing(
+    validation,
+    match.group.sourceGroupId,
+    match.voicing.voicingCandidateId,
+  );
+  assert.ok(voicing);
+  assert.equal(voicing.shapeCandidateCount, match.voicing.shapeCandidateCount);
+  assert.equal(voicing.playableShapeCount, 0);
+  assert.equal(voicing.rejectedShapeCount, match.voicing.shapeCandidateCount);
+  assert.ok(voicing.shapeVerdicts.every((verdict) => verdict.status === 'REJECTED'));
+});
+
 test('PA-9 is deterministic, does not mutate caller-owned decisions, and keeps later-gate authority absent', () => {
   const source = sourceModel(score([
     note('F', { octave: 2 }),
