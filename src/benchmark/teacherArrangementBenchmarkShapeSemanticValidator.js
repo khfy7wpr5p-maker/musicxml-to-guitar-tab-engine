@@ -197,6 +197,29 @@ function validateFingerAssignment(assignment, field, position) {
   }
 }
 
+function validateOrderedFrettingFingers(fingerAssignments, field) {
+  for (let leftIndex = 0; leftIndex < fingerAssignments.length; leftIndex += 1) {
+    const left = fingerAssignments[leftIndex];
+    if (left.fret === 0) {
+      continue;
+    }
+    for (let rightIndex = leftIndex + 1; rightIndex < fingerAssignments.length; rightIndex += 1) {
+      const right = fingerAssignments[rightIndex];
+      if (right.fret === 0 || right.fret === left.fret) {
+        continue;
+      }
+      const lower = left.fret < right.fret ? left : right;
+      const higher = left.fret < right.fret ? right : left;
+      if (lower.finger >= higher.finger) {
+        throw invalid(
+          'Across different frets, lower frets must use lower-numbered fingers.',
+          `${field}.fingerAssignments`,
+        );
+      }
+    }
+  }
+}
+
 function deriveBarres(fingerAssignments, positions, field) {
   const fingerFret = new Map();
   const groups = new Map();
@@ -355,6 +378,7 @@ function validateShape(shape, field, sourceSelection, expectedOutcomes) {
       shape.positions[index],
     );
   }
+  validateOrderedFrettingFingers(shape.fingerAssignments, field);
 
   const derivedBarres = deriveBarres(shape.fingerAssignments, shape.positions, field);
   validateProvidedBarres(shape.barres, `${field}.barres`, derivedBarres);
