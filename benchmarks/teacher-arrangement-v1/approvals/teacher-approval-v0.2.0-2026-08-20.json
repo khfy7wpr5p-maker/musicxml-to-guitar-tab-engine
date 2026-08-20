@@ -1,0 +1,33 @@
+{
+  "documentType": "TeacherArrangementBenchmarkApproval",
+  "contractVersion": "1.1.0",
+  "approvalId": "pa11-seed-v1-v0.2.0-approval-2026-08-20",
+  "approvalStatus": "TEACHER_APPROVED_EXACT_ARTIFACT",
+  "effectiveReviewStatus": "teacher-approved",
+  "authority": "evaluation-only",
+  "trainingAuthority": false,
+  "productionAuthority": false,
+  "approvedAt": "2026-08-20T16:01:00+03:00",
+  "approvedArtifact": {
+    "path": "benchmarks/teacher-arrangement-v1/benchmark.proposed.v0.2.0.json",
+    "documentType": "TeacherArrangementBenchmark",
+    "contractVersion": "1.1.0",
+    "benchmarkId": "teacher-arrangement-seed-v1",
+    "benchmarkVersion": "0.2.0",
+    "gitBlobSha": "21a02c053a8bdfee781846a6c7f35b0c66600513"
+  },
+  "explicitTeacherScope": {
+    "case2": {
+      "caseId": "pa11-seed-002-three-note-voicing",
+      "teacherShape": "C",
+      "positionCode": "x32010"
+    },
+    "case3": {
+      "caseId": "pa11-seed-003-conservative-reduction",
+      "teacherShape": "Cmaj7",
+      "positionCode": "x32000"
+    }
+  },
+  "preferredArrangementInference": false,
+  "approvalAppliesOnlyToExactGitBlob": true
+}
