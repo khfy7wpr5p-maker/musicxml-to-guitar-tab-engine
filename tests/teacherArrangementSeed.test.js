@@ -5,6 +5,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
+const { createMusicXmlProcessingRuntime } = require('../src/parser/musicxmlSemanticResourceLimits');
+const { projectParsedMusicXmlToPolyphonicSourceModel } = require('../src/parser/polyphonicMusicXmlProjector');
+const { createLeftHandShapeModel } = require('../src/music/leftHandShapeModel');
+const { validatePhysicalPlayabilityV2 } = require('../src/music/physicalPlayabilityValidatorV2');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const BENCHMARK_PATH = path.join(
@@ -164,6 +169,78 @@ test('PA-11.1 complete proposals preserve exact coverage and physical selected-p
         assert.deepEqual(arrangement.selectedShapes, []);
         assert.ok(retained.every((outcome) => outcome.selectedShapeId === null));
       }
+    }
+  }
+});
+
+function buildSourceModel(fixturePath) {
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(fs.readFileSync(fixturePath, 'utf8'), {}, runtime);
+  return projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+}
+
+function rawArrangementDecisions(arrangement) {
+  return arrangement.decisions.map((decision) => ({
+    decisionType: decision.decisionType,
+    sourceEventIds: decision.sourceEventIds,
+    sourceGroupId: decision.sourceGroupId,
+  }));
+}
+
+function samePositions(actual, expected) {
+  return JSON.stringify(actual.map(({ sourceEventId, targetMidi, string, fret }) => ({
+    sourceEventId, targetMidi, string, fret,
+  }))) === JSON.stringify(expected);
+}
+
+function sameFingerAssignments(actual, expected) {
+  return JSON.stringify(actual.map(({ sourceEventId, targetMidi, string, fret, finger }) => ({
+    sourceEventId, targetMidi, string, fret, finger,
+  }))) === JSON.stringify(expected);
+}
+
+test('PA-11.1 multi-note proposed shapes are reproduced and accepted by current PA-8/PA-9 runtime', () => {
+  const benchmark = readBenchmark();
+
+  for (const item of benchmark.cases) {
+    const fixturePath = path.join(REPO_ROOT, item.source.path);
+    const source = buildSourceModel(fixturePath);
+
+    for (const arrangement of item.acceptedArrangements) {
+      if (arrangement.selectedShapes.length === 0) {
+        continue;
+      }
+
+      const decisions = rawArrangementDecisions(arrangement);
+      const leftHand = createLeftHandShapeModel(source, decisions);
+      const validation = validatePhysicalPlayabilityV2(source, decisions);
+
+      assert.equal(arrangement.selectedShapes.length, 1);
+      const expectedShape = arrangement.selectedShapes[0];
+      const group = leftHand.groups.find((entry) => entry.sourceGroupId === expectedShape.sourceGroupId);
+      assert.ok(group, `${item.caseId}/${arrangement.arrangementId}: PA-8 group missing`);
+
+      const voicing = group.voicingCandidates.find((entry) => samePositions(entry.positions, expectedShape.positions));
+      assert.ok(voicing, `${item.caseId}/${arrangement.arrangementId}: PA-8 voicing missing`);
+
+      const shape = voicing.shapeCandidates.find((entry) => (
+        sameFingerAssignments(entry.fingerAssignments, expectedShape.fingerAssignments)
+        && JSON.stringify(entry.barres) === JSON.stringify(expectedShape.barres)
+      ));
+      assert.ok(shape, `${item.caseId}/${arrangement.arrangementId}: PA-8 shape missing`);
+
+      const validationGroup = validation.groups.find((entry) => entry.sourceGroupId === expectedShape.sourceGroupId);
+      assert.ok(validationGroup, `${item.caseId}/${arrangement.arrangementId}: PA-9 group missing`);
+      const validationVoicing = validationGroup.voicingCandidates.find(
+        (entry) => entry.voicingCandidateId === voicing.voicingCandidateId,
+      );
+      assert.ok(validationVoicing, `${item.caseId}/${arrangement.arrangementId}: PA-9 voicing missing`);
+      const verdict = validationVoicing.shapeVerdicts.find(
+        (entry) => entry.shapeCandidateId === shape.shapeCandidateId,
+      );
+      assert.ok(verdict, `${item.caseId}/${arrangement.arrangementId}: PA-9 verdict missing`);
+      assert.equal(verdict.status, 'PLAYABLE_WITHIN_POLICY');
+      assert.deepEqual(verdict.reasonCodes, []);
     }
   }
 });
