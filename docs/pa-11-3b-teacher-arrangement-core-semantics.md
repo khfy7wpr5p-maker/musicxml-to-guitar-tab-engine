@@ -18,9 +18,12 @@ It validates:
 
 - exact guitar tuning/fret record and current PA-9 physical-policy identity;
 - sourceSelection part/measure/event identity and uniqueness;
+- decision identity provenance against the same source part;
+- sourceGroupId provenance against the same source part and measure;
 - exactly one arrangement decision covering each selected source event;
 - exactly one note outcome for each selected source event;
 - decision/outcome identity and decision-type agreement;
+- PRESERVED and OCTAVE_DISPLACED outcomes cannot be marked omitted;
 - omitted-note null facts;
 - PRESERVED and OCTAVE_DISPLACED pitch invariants;
 - retained target-MIDI ↔ selection string/fret round-trip;
