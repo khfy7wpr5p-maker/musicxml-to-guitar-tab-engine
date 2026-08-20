@@ -70,6 +70,71 @@ test('PA-11.3C enforces open-string finger zero', () => {
   );
 });
 
+test('PA-11.3C enforces ordered fretting fingers across different frets', () => {
+  const benchmark = readBenchmark();
+  const shape = benchmark.cases[1].acceptedArrangements[1].selectedShapes[0];
+  shape.fingerAssignments[0].finger = 2;
+  shape.fingerAssignments[1].finger = 3;
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkShapeSemantics(benchmark),
+    'cases[1].acceptedArrangements[1].selectedShapes[0].fingerAssignments',
+  );
+});
+
+test('PA-11.3C rejects two selected positions on the same string', () => {
+  const benchmark = readBenchmark();
+  const arrangement = benchmark.cases[1].acceptedArrangements[1];
+  arrangement.noteOutcomes[0].selectedPosition = { string: 3, fret: 5 };
+  arrangement.selectedShapes[0].positions[0].string = 3;
+  arrangement.selectedShapes[0].positions[0].fret = 5;
+  arrangement.selectedShapes[0].fingerAssignments[0].string = 3;
+  arrangement.selectedShapes[0].fingerAssignments[0].fret = 5;
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkShapeSemantics(benchmark),
+    'cases[1].acceptedArrangements[1].selectedShapes[0].positions[1].string',
+  );
+});
+
+test('PA-11.3C rejects a barre that would alter an active lower-fret pitch', () => {
+  const benchmark = readBenchmark();
+  const arrangement = benchmark.cases[1].acceptedArrangements[0];
+  const shape = arrangement.selectedShapes[0];
+
+  for (const decision of arrangement.decisions) {
+    decision.decisionType = 'REVOICED';
+  }
+  for (const outcome of arrangement.noteOutcomes) {
+    outcome.decisionType = 'REVOICED';
+  }
+
+  const targets = [
+    { targetMidi: 60, string: 3, fret: 5, finger: 2 },
+    { targetMidi: 69, string: 1, fret: 5, finger: 2 },
+    { targetMidi: 62, string: 2, fret: 3, finger: 1 },
+  ];
+
+  for (let index = 0; index < targets.length; index += 1) {
+    const target = targets[index];
+    arrangement.noteOutcomes[index].targetMidi = target.targetMidi;
+    arrangement.noteOutcomes[index].selectedPosition = {
+      string: target.string,
+      fret: target.fret,
+    };
+    shape.positions[index].targetMidi = target.targetMidi;
+    shape.positions[index].string = target.string;
+    shape.positions[index].fret = target.fret;
+    shape.fingerAssignments[index].targetMidi = target.targetMidi;
+    shape.fingerAssignments[index].string = target.string;
+    shape.fingerAssignments[index].fret = target.fret;
+    shape.fingerAssignments[index].finger = target.finger;
+  }
+
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkShapeSemantics(benchmark),
+    'cases[1].acceptedArrangements[0].selectedShapes[0].barres',
+  );
+});
+
 test('PA-11.3C rejects stored barres that do not equal deterministic finger-derived facts', () => {
   const benchmark = readBenchmark();
   benchmark.cases[0].acceptedArrangements[1].selectedShapes[0].barres[0].startString = 1;
