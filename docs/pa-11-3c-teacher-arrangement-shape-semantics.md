@@ -24,6 +24,7 @@ It validates:
 - finger assignments exactly match shape positions;
 - open strings use finger `0` and fretted positions use fingers `1..4`;
 - one fretting finger is not assigned to multiple frets in one shape;
+- across different frets, lower frets use lower-numbered fingers than higher frets;
 - deterministic barre facts are derived from same-finger/same-fret assignments;
 - a derived barre may not alter an active lower-fret/open pitch inside its span;
 - same-fret active pitches inside the span use the same barre finger;
