@@ -183,7 +183,12 @@ function validateSourceSelection(sourceSelection, caseField) {
   assertExactDataFields(sourceSelection, ['partId', 'measureIndex', 'sourceEventIds'], field);
   requireId(sourceSelection.partId, `${field}.partId`, /^[A-Za-z0-9._-]{1,64}$/);
   requireInteger(sourceSelection.measureIndex, `${field}.measureIndex`, 0, 1000000);
-  assertDenseNativeArray(sourceSelection.sourceEventIds, `${field}.sourceEventIds`, 1, MAX_SOURCE_EVENTS_PER_CASE);
+  assertDenseNativeArray(
+    sourceSelection.sourceEventIds,
+    `${field}.sourceEventIds`,
+    1,
+    MAX_SOURCE_EVENTS_PER_CASE,
+  );
   const seen = new Set();
   for (let index = 0; index < sourceSelection.sourceEventIds.length; index += 1) {
     const eventField = `${field}.sourceEventIds[${index}]`;
@@ -200,6 +205,15 @@ function validateSourceSelection(sourceSelection, caseField) {
   return seen;
 }
 
+function sourceIdentityFromEvents(sourceEvents) {
+  const firstEventId = sourceEvents.values().next().value;
+  const match = EVENT_ID_PATTERN.exec(firstEventId);
+  return {
+    partId: match[1],
+    measureIndex: Number(match[2]),
+  };
+}
+
 function validatePosition(position, field, targetMidi, guitar, tuning) {
   assertExactDataFields(position, ['string', 'fret'], field);
   requireInteger(position.string, `${field}.string`, 1, 6);
@@ -214,12 +228,26 @@ function validatePosition(position, field, targetMidi, guitar, tuning) {
 }
 
 function validateDecision(decision, field, sourceEvents) {
-  assertExactDataFields(decision, ['decisionId', 'decisionType', 'sourceEventIds', 'sourceGroupId'], field);
-  requireId(decision.decisionId, `${field}.decisionId`, DECISION_ID_PATTERN);
+  assertExactDataFields(
+    decision,
+    ['decisionId', 'decisionType', 'sourceEventIds', 'sourceGroupId'],
+    field,
+  );
+  const sourceIdentity = sourceIdentityFromEvents(sourceEvents);
+  const decisionId = requireId(decision.decisionId, `${field}.decisionId`, DECISION_ID_PATTERN);
+  const decisionMatch = DECISION_ID_PATTERN.exec(decisionId);
+  if (decisionMatch[1] !== sourceIdentity.partId) {
+    throw invalid('decisionId part identity must match sourceSelection.', `${field}.decisionId`);
+  }
   if (!DECISION_TYPES.has(decision.decisionType)) {
     throw invalid('Unsupported arrangement decision type.', `${field}.decisionType`);
   }
-  assertDenseNativeArray(decision.sourceEventIds, `${field}.sourceEventIds`, 1, MAX_SOURCE_EVENTS_PER_CASE);
+  assertDenseNativeArray(
+    decision.sourceEventIds,
+    `${field}.sourceEventIds`,
+    1,
+    MAX_SOURCE_EVENTS_PER_CASE,
+  );
   const local = new Set();
   for (let index = 0; index < decision.sourceEventIds.length; index += 1) {
     const eventField = `${field}.sourceEventIds[${index}]`;
@@ -233,14 +261,33 @@ function validateDecision(decision, field, sourceEvents) {
     local.add(eventId);
   }
   if (decision.sourceGroupId !== null) {
-    requireId(decision.sourceGroupId, `${field}.sourceGroupId`, GROUP_ID_PATTERN);
+    const groupId = requireId(decision.sourceGroupId, `${field}.sourceGroupId`, GROUP_ID_PATTERN);
+    const groupMatch = GROUP_ID_PATTERN.exec(groupId);
+    if (
+      groupMatch[1] !== sourceIdentity.partId
+      || Number(groupMatch[2]) !== sourceIdentity.measureIndex
+    ) {
+      throw invalid(
+        'sourceGroupId part/measure identity must match sourceSelection.',
+        `${field}.sourceGroupId`,
+      );
+    }
   }
 }
 
 function validateOutcome(outcome, field, sourceEvents, decisionById, guitar, tuning) {
   assertExactDataFields(
     outcome,
-    ['sourceEventId', 'decisionId', 'decisionType', 'disposition', 'sourceMidi', 'targetMidi', 'selectedPosition', 'selectedShapeId'],
+    [
+      'sourceEventId',
+      'decisionId',
+      'decisionType',
+      'disposition',
+      'sourceMidi',
+      'targetMidi',
+      'selectedPosition',
+      'selectedShapeId',
+    ],
     field,
   );
   const eventId = requireId(outcome.sourceEventId, `${field}.sourceEventId`, EVENT_ID_PATTERN);
@@ -259,17 +306,35 @@ function validateOutcome(outcome, field, sourceEvents, decisionById, guitar, tun
     throw invalid('Unsupported note disposition.', `${field}.disposition`);
   }
   requireInteger(outcome.sourceMidi, `${field}.sourceMidi`, 0, 127);
+
   if (outcome.disposition === 'OMITTED') {
-    if (outcome.targetMidi !== null || outcome.selectedPosition !== null || outcome.selectedShapeId !== null) {
+    if (outcome.decisionType === 'PRESERVED' || outcome.decisionType === 'OCTAVE_DISPLACED') {
+      throw invalid(
+        `${outcome.decisionType} decisions require a retained note outcome.`,
+        `${field}.disposition`,
+      );
+    }
+    if (
+      outcome.targetMidi !== null
+      || outcome.selectedPosition !== null
+      || outcome.selectedShapeId !== null
+    ) {
       throw invalid('Omitted notes must not fabricate target/position/shape facts.', field);
     }
     return;
   }
+
   requireInteger(outcome.targetMidi, `${field}.targetMidi`, 0, 127);
   if (outcome.selectedPosition === null) {
     throw invalid('Retained notes require one selectedPosition.', `${field}.selectedPosition`);
   }
-  validatePosition(outcome.selectedPosition, `${field}.selectedPosition`, outcome.targetMidi, guitar, tuning);
+  validatePosition(
+    outcome.selectedPosition,
+    `${field}.selectedPosition`,
+    outcome.targetMidi,
+    guitar,
+    tuning,
+  );
   if (outcome.selectedShapeId !== null) {
     requireId(outcome.selectedShapeId, `${field}.selectedShapeId`);
   }
@@ -279,7 +344,10 @@ function validateOutcome(outcome, field, sourceEvents, decisionById, guitar, tun
   if (outcome.decisionType === 'OCTAVE_DISPLACED') {
     const delta = outcome.targetMidi - outcome.sourceMidi;
     if (delta === 0 || delta % 12 !== 0) {
-      throw invalid('OCTAVE_DISPLACED target must differ by a non-zero whole octave.', `${field}.targetMidi`);
+      throw invalid(
+        'OCTAVE_DISPLACED target must differ by a non-zero whole octave.',
+        `${field}.targetMidi`,
+      );
     }
   }
   if (outcome.decisionType === 'OMITTED') {
@@ -288,12 +356,24 @@ function validateOutcome(outcome, field, sourceEvents, decisionById, guitar, tun
 }
 
 function validateArrangementCore(arrangement, field, sourceEvents, guitar, tuning) {
-  assertExactDataFields(arrangement, ['arrangementId', 'decisions', 'noteOutcomes', 'selectedShapes', 'reviewNotesCode'], field);
+  assertExactDataFields(
+    arrangement,
+    ['arrangementId', 'decisions', 'noteOutcomes', 'selectedShapes', 'reviewNotesCode'],
+    field,
+  );
   requireId(arrangement.arrangementId, `${field}.arrangementId`);
   if (arrangement.reviewNotesCode !== null) {
-    throw invalid('Initial PA-11 core semantics accept reviewNotesCode=null only.', `${field}.reviewNotesCode`);
+    throw invalid(
+      'Initial PA-11 core semantics accept reviewNotesCode=null only.',
+      `${field}.reviewNotesCode`,
+    );
   }
-  assertDenseNativeArray(arrangement.decisions, `${field}.decisions`, 1, MAX_DECISIONS_PER_ARRANGEMENT);
+  assertDenseNativeArray(
+    arrangement.decisions,
+    `${field}.decisions`,
+    1,
+    MAX_DECISIONS_PER_ARRANGEMENT,
+  );
   const decisionById = new Map();
   const covered = new Set();
   for (let index = 0; index < arrangement.decisions.length; index += 1) {
@@ -305,35 +385,60 @@ function validateArrangementCore(arrangement, field, sourceEvents, guitar, tunin
     }
     for (const eventId of decision.sourceEventIds) {
       if (covered.has(eventId)) {
-        throw invalid('Each source event must be covered by exactly one decision.', `${decisionField}.sourceEventIds`);
+        throw invalid(
+          'Each source event must be covered by exactly one decision.',
+          `${decisionField}.sourceEventIds`,
+        );
       }
       covered.add(eventId);
     }
     decisionById.set(decision.decisionId, decision);
   }
   if (covered.size !== sourceEvents.size) {
-    throw invalid('Decisions must cover every sourceSelection event exactly once.', `${field}.decisions`);
+    throw invalid(
+      'Decisions must cover every sourceSelection event exactly once.',
+      `${field}.decisions`,
+    );
   }
 
-  assertDenseNativeArray(arrangement.noteOutcomes, `${field}.noteOutcomes`, sourceEvents.size, sourceEvents.size);
+  assertDenseNativeArray(
+    arrangement.noteOutcomes,
+    `${field}.noteOutcomes`,
+    sourceEvents.size,
+    sourceEvents.size,
+  );
   const outcomeEvents = new Set();
   for (let index = 0; index < arrangement.noteOutcomes.length; index += 1) {
     const outcome = arrangement.noteOutcomes[index];
     const outcomeField = `${field}.noteOutcomes[${index}]`;
     validateOutcome(outcome, outcomeField, sourceEvents, decisionById, guitar, tuning);
     if (outcomeEvents.has(outcome.sourceEventId)) {
-      throw invalid('Each source event must have exactly one noteOutcome.', `${outcomeField}.sourceEventId`);
+      throw invalid(
+        'Each source event must have exactly one noteOutcome.',
+        `${outcomeField}.sourceEventId`,
+      );
     }
     outcomeEvents.add(outcome.sourceEventId);
   }
   if (outcomeEvents.size !== sourceEvents.size) {
-    throw invalid('noteOutcomes must cover every sourceSelection event exactly once.', `${field}.noteOutcomes`);
+    throw invalid(
+      'noteOutcomes must cover every sourceSelection event exactly once.',
+      `${field}.noteOutcomes`,
+    );
   }
 
-  assertDenseNativeArray(arrangement.selectedShapes, `${field}.selectedShapes`, 0, MAX_SHAPES_PER_ARRANGEMENT);
+  assertDenseNativeArray(
+    arrangement.selectedShapes,
+    `${field}.selectedShapes`,
+    0,
+    MAX_SHAPES_PER_ARRANGEMENT,
+  );
   for (let index = 0; index < arrangement.selectedShapes.length; index += 1) {
     if (!isPlainObject(arrangement.selectedShapes[index])) {
-      throw invalid('selectedShapes entries must be non-proxy plain objects.', `${field}.selectedShapes[${index}]`);
+      throw invalid(
+        'selectedShapes entries must be non-proxy plain objects.',
+        `${field}.selectedShapes[${index}]`,
+      );
     }
   }
 }
@@ -342,10 +447,14 @@ function validateTeacherArrangementBenchmarkCoreSemantics(benchmark) {
   try {
     validateTeacherArrangementBenchmarkAdmission(benchmark);
   } catch (error) {
-    throw invalid('Benchmark failed PA-11.3A admission before core semantic validation.', 'benchmark', {
-      causeCode: error && error.code,
-      causeField: error && error.details && error.details.field,
-    });
+    throw invalid(
+      'Benchmark failed PA-11.3A admission before core semantic validation.',
+      'benchmark',
+      {
+        causeCode: error && error.code,
+        causeField: error && error.details && error.details.field,
+      },
+    );
   }
   const tuning = validateGuitar(benchmark.guitar);
   validatePhysicalPolicy(benchmark.physicalPolicy);
@@ -353,7 +462,11 @@ function validateTeacherArrangementBenchmarkCoreSemantics(benchmark) {
     const benchmarkCase = benchmark.cases[caseIndex];
     const caseField = `cases[${caseIndex}]`;
     const sourceEvents = validateSourceSelection(benchmarkCase.sourceSelection, caseField);
-    for (let arrangementIndex = 0; arrangementIndex < benchmarkCase.acceptedArrangements.length; arrangementIndex += 1) {
+    for (
+      let arrangementIndex = 0;
+      arrangementIndex < benchmarkCase.acceptedArrangements.length;
+      arrangementIndex += 1
+    ) {
       validateArrangementCore(
         benchmarkCase.acceptedArrangements[arrangementIndex],
         `${caseField}.acceptedArrangements[${arrangementIndex}]`,
