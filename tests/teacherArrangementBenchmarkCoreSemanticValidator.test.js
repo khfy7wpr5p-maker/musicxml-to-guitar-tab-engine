@@ -13,7 +13,13 @@ const {
   assertTeacherApprovedArrangementBenchmarkAdmission,
 } = require('../src/benchmark/teacherArrangementBenchmarkAdmission');
 
-const BENCHMARK_PATH = path.join(__dirname, '..', 'benchmarks', 'teacher-arrangement-v1', 'benchmark.proposed.json');
+const BENCHMARK_PATH = path.join(
+  __dirname,
+  '..',
+  'benchmarks',
+  'teacher-arrangement-v1',
+  'benchmark.proposed.json',
+);
 
 function readBenchmark() {
   return JSON.parse(fs.readFileSync(BENCHMARK_PATH, 'utf8'));
@@ -68,6 +74,58 @@ test('PA-11.3B rejects fabricated omitted facts and invalid octave displacement'
   expectInvalid(
     () => validateTeacherArrangementBenchmarkCoreSemantics(octave),
     'cases[3].acceptedArrangements[0].noteOutcomes[0].targetMidi',
+  );
+});
+
+test('PA-11.3B rejects PRESERVED or OCTAVE_DISPLACED outcomes marked omitted', () => {
+  const preserved = readBenchmark();
+  const preservedOutcome = preserved.cases[0].acceptedArrangements[0].noteOutcomes[0];
+  preservedOutcome.disposition = 'OMITTED';
+  preservedOutcome.targetMidi = null;
+  preservedOutcome.selectedPosition = null;
+  preservedOutcome.selectedShapeId = null;
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkCoreSemantics(preserved),
+    'cases[0].acceptedArrangements[0].noteOutcomes[0].disposition',
+  );
+
+  const octave = readBenchmark();
+  const octaveOutcome = octave.cases[3].acceptedArrangements[0].noteOutcomes[0];
+  octaveOutcome.disposition = 'OMITTED';
+  octaveOutcome.targetMidi = null;
+  octaveOutcome.selectedPosition = null;
+  octaveOutcome.selectedShapeId = null;
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkCoreSemantics(octave),
+    'cases[3].acceptedArrangements[0].noteOutcomes[0].disposition',
+  );
+});
+
+test('PA-11.3B binds decision and group provenance to sourceSelection identity', () => {
+  const wrongDecisionPart = readBenchmark();
+  wrongDecisionPart.cases[0].acceptedArrangements[0].decisions[0].decisionId =
+    'P2:arrangement-decision:0';
+  wrongDecisionPart.cases[0].acceptedArrangements[0].noteOutcomes[0].decisionId =
+    'P2:arrangement-decision:0';
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkCoreSemantics(wrongDecisionPart),
+    'cases[0].acceptedArrangements[0].decisions[0].decisionId',
+  );
+
+  const wrongGroup = readBenchmark();
+  wrongGroup.cases[2].acceptedArrangements[0].decisions[0].sourceGroupId =
+    'P2:measure:0:simultaneous:0';
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkCoreSemantics(wrongGroup),
+    'cases[2].acceptedArrangements[0].decisions[0].sourceGroupId',
+  );
+
+  const wrongMeasure = readBenchmark();
+  wrongMeasure.cases[2].acceptedArrangements[0].decisions[0].sourceGroupId =
+    'P1:measure:1:simultaneous:0';
+  expectInvalid(
+    () => validateTeacherArrangementBenchmarkCoreSemantics(wrongMeasure),
+    'cases[2].acceptedArrangements[0].decisions[0].sourceGroupId',
   );
 });
 
