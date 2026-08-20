@@ -47,11 +47,11 @@ test('PA-11.3G rejects broken baseline references', () => {
 
 test('PA-11.3G rejects duplicate or incomplete realized-tone mapping coverage', () => {
   const duplicate = clone(json('benchmark'));
-  duplicate.cases[1].sourceMappings[1].realizedToneIds[0] = duplicate.cases[1].sourceMappings[0].realizedToneIds[0];
+  duplicate.cases[1].acceptedArrangements[0].sourceMappings[1].realizedToneIds[0] = duplicate.cases[1].acceptedArrangements[0].sourceMappings[0].realizedToneIds[0];
   expectSemanticFailure(duplicate);
 
   const incomplete = clone(json('benchmark'));
-  incomplete.cases[1].sourceMappings[0].realizedToneIds.pop();
+  incomplete.cases[1].acceptedArrangements[0].sourceMappings[0].realizedToneIds.pop();
   expectSemanticFailure(incomplete);
 });
 
