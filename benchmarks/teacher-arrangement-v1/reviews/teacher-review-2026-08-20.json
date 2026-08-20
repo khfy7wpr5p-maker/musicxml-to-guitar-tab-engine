@@ -1,0 +1,91 @@
+{
+  "documentType": "TeacherArrangementReviewRecord",
+  "contractVersion": "1.0.0",
+  "reviewRecordId": "pa11-seed-v1-review-2026-08-20",
+  "reviewResult": "PASS_WITH_REQUIRED_BENCHMARK_REVISION",
+  "authority": "evaluation-review-only",
+  "trainingAuthority": false,
+  "productionAuthority": false,
+  "teacherApprovedBenchmarkCreated": false,
+  "reviewedBenchmark": {
+    "path": "benchmarks/teacher-arrangement-v1/benchmark.proposed.json",
+    "benchmarkId": "teacher-arrangement-seed-v1",
+    "benchmarkVersion": "0.1.0",
+    "reviewStatusObserved": "proposed",
+    "repositoryCommitSha": "69b92fe4801c3c8c6e252d2e8177b6f7241d9cf2",
+    "gitBlobSha": "81f921dee9e02f43ee3917ef81868e7300f796df"
+  },
+  "cases": [
+    {
+      "caseId": "pa11-seed-001-two-note-open-vs-barre",
+      "verdict": "PASS_AS_PRESENTED",
+      "acceptedPresentedSet": true,
+      "preferredArrangementId": null,
+      "teacherDirectionCode": null,
+      "teacherRequestedShape": null,
+      "requiredFutureDecisionTypes": [],
+      "schemaGapCodes": []
+    },
+    {
+      "caseId": "pa11-seed-002-three-note-voicing",
+      "verdict": "REVISE_TO_TEACHER_SHAPE",
+      "acceptedPresentedSet": false,
+      "preferredArrangementId": null,
+      "teacherDirectionCode": "OPEN_C_MAJOR_X32010",
+      "teacherRequestedShape": {
+        "label": "C",
+        "positionCode": "x32010",
+        "strings": [
+          {"string": 6, "state": "MUTED", "fret": null, "finger": null, "midi": null},
+          {"string": 5, "state": "SOUNDED", "fret": 3, "finger": 3, "midi": 48},
+          {"string": 4, "state": "SOUNDED", "fret": 2, "finger": 2, "midi": 52},
+          {"string": 3, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 55},
+          {"string": 2, "state": "SOUNDED", "fret": 1, "finger": 1, "midi": 60},
+          {"string": 1, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 64}
+        ],
+        "barres": []
+      },
+      "requiredFutureDecisionTypes": ["VOICE_REDISTRIBUTED", "REVOICED"],
+      "schemaGapCodes": [
+        "REQUIRES_ADDITIONAL_REALIZED_TONES",
+        "REQUIRES_NON_BIJECTIVE_SOURCE_TO_OUTPUT_MAPPING"
+      ]
+    },
+    {
+      "caseId": "pa11-seed-003-conservative-reduction",
+      "verdict": "REVISE_TO_TEACHER_SHAPE",
+      "acceptedPresentedSet": false,
+      "preferredArrangementId": null,
+      "teacherDirectionCode": "OPEN_CMAJ7_X32000",
+      "teacherRequestedShape": {
+        "label": "Cmaj7",
+        "positionCode": "x32000",
+        "strings": [
+          {"string": 6, "state": "MUTED", "fret": null, "finger": null, "midi": null},
+          {"string": 5, "state": "SOUNDED", "fret": 3, "finger": 3, "midi": 48},
+          {"string": 4, "state": "SOUNDED", "fret": 2, "finger": 2, "midi": 52},
+          {"string": 3, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 55},
+          {"string": 2, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 59},
+          {"string": 1, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 64}
+        ],
+        "barres": []
+      },
+      "requiredFutureDecisionTypes": ["VOICE_REDISTRIBUTED", "REVOICED"],
+      "schemaGapCodes": [
+        "REQUIRES_ADDITIONAL_REALIZED_TONES",
+        "REQUIRES_NON_BIJECTIVE_SOURCE_TO_OUTPUT_MAPPING"
+      ]
+    },
+    {
+      "caseId": "pa11-seed-004-octave-displacement",
+      "verdict": "PASS_AS_PRESENTED",
+      "acceptedPresentedSet": true,
+      "preferredArrangementId": null,
+      "teacherDirectionCode": null,
+      "teacherRequestedShape": null,
+      "requiredFutureDecisionTypes": [],
+      "schemaGapCodes": []
+    }
+  ],
+  "nextRequiredState": "CREATE_NEW_PROPOSED_BENCHMARK_VERSION_FOR_EXACT_TEACHER_REVIEW"
+}
