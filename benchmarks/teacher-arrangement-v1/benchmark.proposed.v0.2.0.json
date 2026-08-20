@@ -1,0 +1,216 @@
+{
+  "documentType": "TeacherArrangementBenchmark",
+  "contractVersion": "1.1.0",
+  "benchmarkId": "teacher-arrangement-seed-v1",
+  "benchmarkVersion": "0.2.0",
+  "reviewStatus": "proposed",
+  "supportStatus": "PROPOSED_EVALUATION_SCHEMA_ONLY",
+  "authority": "evaluation-only",
+  "trainingAuthority": false,
+  "productionAuthority": false,
+  "baseBenchmark": {
+    "path": "benchmarks/teacher-arrangement-v1/benchmark.proposed.json",
+    "contractVersion": "1.0.0",
+    "benchmarkVersion": "0.1.0",
+    "gitBlobSha": "81f921dee9e02f43ee3917ef81868e7300f796df"
+  },
+  "reviewRecord": {
+    "path": "benchmarks/teacher-arrangement-v1/reviews/teacher-review-2026-08-20.json",
+    "contractVersion": "1.0.0",
+    "reviewRecordId": "pa11-seed-v1-review-2026-08-20",
+    "gitBlobSha": "8654cd68f1b8def22e38a501242afe22cf468322"
+  },
+  "guitar": {
+    "tuning": [
+      {"string": 1, "midi": 64},
+      {"string": 2, "midi": 59},
+      {"string": 3, "midi": 55},
+      {"string": 4, "midi": 50},
+      {"string": 5, "midi": 45},
+      {"string": 6, "midi": 40}
+    ],
+    "minimumFret": 0,
+    "maximumFret": 20
+  },
+  "physicalPolicy": {
+    "documentType": "PhysicalPlayabilityValidation",
+    "contractVersion": "2.0.0",
+    "policy": "CONSERVATIVE_STATIC_LEFT_HAND_2.0"
+  },
+  "cases": [
+    {
+      "caseId": "pa11-seed-001-two-note-open-vs-barre",
+      "source": {
+        "path": "benchmarks/teacher-arrangement-v1/fixtures/two-note-interval.musicxml",
+        "sha256": "45fa2347f046f322d09be552895e6b6de2ce89c8ba14e1916272e5eb8328e6be",
+        "policy": "self-authored"
+      },
+      "sourceSelection": {
+        "partId": "P1",
+        "measureIndex": 0,
+        "sourceEventIds": ["P1:measure:0:note:0", "P1:measure:0:note:1"]
+      },
+      "acceptedArrangements": [
+        {
+          "arrangementId": "pa11-seed-001-arr-a-open",
+          "arrangementMode": "BASELINE_REFERENCE",
+          "baselineArrangementId": "pa11-seed-001-arr-a-open"
+        },
+        {
+          "arrangementId": "pa11-seed-001-arr-b-barre",
+          "arrangementMode": "BASELINE_REFERENCE",
+          "baselineArrangementId": "pa11-seed-001-arr-b-barre"
+        }
+      ],
+      "preferredArrangementId": null
+    },
+    {
+      "caseId": "pa11-seed-002-three-note-voicing",
+      "source": {
+        "path": "benchmarks/teacher-arrangement-v1/fixtures/three-note-triad.musicxml",
+        "sha256": "583f4a22359ca9ddc5b24ad1911566bdaeb0c91f40001d70dda139b6b7a77c95",
+        "policy": "self-authored"
+      },
+      "sourceSelection": {
+        "partId": "P1",
+        "measureIndex": 0,
+        "sourceEventIds": ["P1:measure:0:note:0", "P1:measure:0:note:1", "P1:measure:0:note:2"]
+      },
+      "acceptedArrangements": [
+        {
+          "arrangementId": "pa11-seed-002-arr-teacher-open-c",
+          "arrangementMode": "REALIZED_VOICING",
+          "decision": {
+            "decisionId": "P1:arrangement-decision:0",
+            "decisionType": "REVOICED",
+            "supportingDecisionTypes": ["VOICE_REDISTRIBUTED"],
+            "sourceEventIds": ["P1:measure:0:note:0", "P1:measure:0:note:1", "P1:measure:0:note:2"],
+            "sourceGroupId": "P1:measure:0:simultaneous:0"
+          },
+          "sourceMappings": [
+            {
+              "sourceEventId": "P1:measure:0:note:0",
+              "sourceMidi": 60,
+              "realizedToneIds": ["pa11-002-tone-c3", "pa11-002-tone-c4"]
+            },
+            {
+              "sourceEventId": "P1:measure:0:note:1",
+              "sourceMidi": 64,
+              "realizedToneIds": ["pa11-002-tone-e3", "pa11-002-tone-e4"]
+            },
+            {
+              "sourceEventId": "P1:measure:0:note:2",
+              "sourceMidi": 67,
+              "realizedToneIds": ["pa11-002-tone-g3"]
+            }
+          ],
+          "realizedTones": [
+            {"realizedToneId": "pa11-002-tone-c3", "sourceEventId": "P1:measure:0:note:0", "targetMidi": 48, "string": 5, "fret": 3, "finger": 3},
+            {"realizedToneId": "pa11-002-tone-e3", "sourceEventId": "P1:measure:0:note:1", "targetMidi": 52, "string": 4, "fret": 2, "finger": 2},
+            {"realizedToneId": "pa11-002-tone-g3", "sourceEventId": "P1:measure:0:note:2", "targetMidi": 55, "string": 3, "fret": 0, "finger": 0},
+            {"realizedToneId": "pa11-002-tone-c4", "sourceEventId": "P1:measure:0:note:0", "targetMidi": 60, "string": 2, "fret": 1, "finger": 1},
+            {"realizedToneId": "pa11-002-tone-e4", "sourceEventId": "P1:measure:0:note:1", "targetMidi": 64, "string": 1, "fret": 0, "finger": 0}
+          ],
+          "selectedShape": {
+            "shapeId": "pa11-seed-002-arr-teacher-open-c-shape-0",
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "label": "C",
+            "positionCode": "x32010",
+            "strings": [
+              {"string": 6, "state": "MUTED", "fret": null, "finger": null, "midi": null},
+              {"string": 5, "state": "SOUNDED", "fret": 3, "finger": 3, "midi": 48},
+              {"string": 4, "state": "SOUNDED", "fret": 2, "finger": 2, "midi": 52},
+              {"string": 3, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 55},
+              {"string": 2, "state": "SOUNDED", "fret": 1, "finger": 1, "midi": 60},
+              {"string": 1, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 64}
+            ],
+            "realizedToneIds": ["pa11-002-tone-c3", "pa11-002-tone-e3", "pa11-002-tone-g3", "pa11-002-tone-c4", "pa11-002-tone-e4"],
+            "barres": [],
+            "physicalStatus": "PLAYABLE_WITHIN_POLICY"
+          },
+          "reviewNotesCode": "TEACHER_OPEN_C_MAJOR"
+        }
+      ],
+      "preferredArrangementId": null
+    },
+    {
+      "caseId": "pa11-seed-003-conservative-reduction",
+      "source": {
+        "path": "benchmarks/teacher-arrangement-v1/fixtures/four-note-reduction.musicxml",
+        "sha256": "2ebbdb7fc1da9884d16502849aafefa0b50a0bbcfdde6058481d314d12d38913",
+        "policy": "self-authored"
+      },
+      "sourceSelection": {
+        "partId": "P1",
+        "measureIndex": 0,
+        "sourceEventIds": ["P1:measure:0:note:0", "P1:measure:0:note:1", "P1:measure:0:note:2", "P1:measure:0:note:3"]
+      },
+      "acceptedArrangements": [
+        {
+          "arrangementId": "pa11-seed-003-arr-teacher-open-cmaj7",
+          "arrangementMode": "REALIZED_VOICING",
+          "decision": {
+            "decisionId": "P1:arrangement-decision:0",
+            "decisionType": "REVOICED",
+            "supportingDecisionTypes": ["VOICE_REDISTRIBUTED"],
+            "sourceEventIds": ["P1:measure:0:note:0", "P1:measure:0:note:1", "P1:measure:0:note:2", "P1:measure:0:note:3"],
+            "sourceGroupId": "P1:measure:0:simultaneous:0"
+          },
+          "sourceMappings": [
+            {"sourceEventId": "P1:measure:0:note:0", "sourceMidi": 60, "realizedToneIds": ["pa11-003-tone-c3"]},
+            {"sourceEventId": "P1:measure:0:note:1", "sourceMidi": 64, "realizedToneIds": ["pa11-003-tone-e3", "pa11-003-tone-e4"]},
+            {"sourceEventId": "P1:measure:0:note:2", "sourceMidi": 67, "realizedToneIds": ["pa11-003-tone-g3"]},
+            {"sourceEventId": "P1:measure:0:note:3", "sourceMidi": 71, "realizedToneIds": ["pa11-003-tone-b3"]}
+          ],
+          "realizedTones": [
+            {"realizedToneId": "pa11-003-tone-c3", "sourceEventId": "P1:measure:0:note:0", "targetMidi": 48, "string": 5, "fret": 3, "finger": 3},
+            {"realizedToneId": "pa11-003-tone-e3", "sourceEventId": "P1:measure:0:note:1", "targetMidi": 52, "string": 4, "fret": 2, "finger": 2},
+            {"realizedToneId": "pa11-003-tone-g3", "sourceEventId": "P1:measure:0:note:2", "targetMidi": 55, "string": 3, "fret": 0, "finger": 0},
+            {"realizedToneId": "pa11-003-tone-b3", "sourceEventId": "P1:measure:0:note:3", "targetMidi": 59, "string": 2, "fret": 0, "finger": 0},
+            {"realizedToneId": "pa11-003-tone-e4", "sourceEventId": "P1:measure:0:note:1", "targetMidi": 64, "string": 1, "fret": 0, "finger": 0}
+          ],
+          "selectedShape": {
+            "shapeId": "pa11-seed-003-arr-teacher-open-cmaj7-shape-0",
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "label": "Cmaj7",
+            "positionCode": "x32000",
+            "strings": [
+              {"string": 6, "state": "MUTED", "fret": null, "finger": null, "midi": null},
+              {"string": 5, "state": "SOUNDED", "fret": 3, "finger": 3, "midi": 48},
+              {"string": 4, "state": "SOUNDED", "fret": 2, "finger": 2, "midi": 52},
+              {"string": 3, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 55},
+              {"string": 2, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 59},
+              {"string": 1, "state": "SOUNDED", "fret": 0, "finger": 0, "midi": 64}
+            ],
+            "realizedToneIds": ["pa11-003-tone-c3", "pa11-003-tone-e3", "pa11-003-tone-g3", "pa11-003-tone-b3", "pa11-003-tone-e4"],
+            "barres": [],
+            "physicalStatus": "PLAYABLE_WITHIN_POLICY"
+          },
+          "reviewNotesCode": "TEACHER_OPEN_CMAJ7"
+        }
+      ],
+      "preferredArrangementId": null
+    },
+    {
+      "caseId": "pa11-seed-004-octave-displacement",
+      "source": {
+        "path": "benchmarks/teacher-arrangement-v1/fixtures/high-note-octave.musicxml",
+        "sha256": "f2acf732eb1138ee559b6743e20d1d09970dfd7b46db1e001c8d65e0a3af7190",
+        "policy": "self-authored"
+      },
+      "sourceSelection": {
+        "partId": "P1",
+        "measureIndex": 0,
+        "sourceEventIds": ["P1:measure:0:note:0"]
+      },
+      "acceptedArrangements": [
+        {
+          "arrangementId": "pa11-seed-004-arr-a-down-octave",
+          "arrangementMode": "BASELINE_REFERENCE",
+          "baselineArrangementId": "pa11-seed-004-arr-a-down-octave"
+        }
+      ],
+      "preferredArrangementId": null
+    }
+  ]
+}
