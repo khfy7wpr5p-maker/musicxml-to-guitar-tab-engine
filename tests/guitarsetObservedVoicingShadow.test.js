@@ -127,6 +127,7 @@ test('real PA-7 0..19 candidate groups can be scored without influencing authori
   assert.equal(report.candidateCount, runtimeModel.candidateCount);
   assert.equal(report.scoredGroupCount, 1);
   assert.equal(report.unsupportedGroupCount, 0);
+  assert.equal(report.noCandidateGroupCount, 0);
   assert.equal(report.groups[0].shadowScored, true);
   assert.equal(report.groups[0].candidateScores.length, runtimeModel.groups[0].candidateCount);
   assert.equal(report.candidateMutationAuthorized, false);
@@ -151,6 +152,7 @@ test('a real PA-7 fret-20 candidate blocks the whole group without truncation', 
   assert.equal(report.candidateCount, runtimeModel.candidateCount);
   assert.equal(report.scoredGroupCount, 0);
   assert.equal(report.unsupportedGroupCount, 1);
+  assert.equal(report.noCandidateGroupCount, 0);
   assert.equal(report.groups[0].status, 'SHADOW_NOT_SCORED_MODEL_DOMAIN_INCOMPLETE');
   assert.equal(report.groups[0].shadowScored, false);
   assert.equal(report.groups[0].modelDomainComplete, false);
@@ -160,11 +162,42 @@ test('a real PA-7 fret-20 candidate blocks the whole group without truncation', 
   assert.equal(report.groups[0].candidateCount, runtimeModel.groups[0].candidateCount);
 });
 
+test('a real PA-7 zero-candidate group is reported fail-closed instead of scored', () => {
+  const runtimeModel = buildDyad('E', 2, 'E', 2);
+  assert.equal(runtimeModel.groupCount, 1);
+  assert.equal(runtimeModel.groups[0].candidateCount, 0);
+  assert.equal(runtimeModel.candidateCount, 0);
+
+  const report = createGuitarSetObservedVoicingShadowReport(runtimeModel, modelArtifact);
+  assert.equal(report.groupCount, 1);
+  assert.equal(report.candidateCount, 0);
+  assert.equal(report.scoredGroupCount, 0);
+  assert.equal(report.unsupportedGroupCount, 1);
+  assert.equal(report.noCandidateGroupCount, 1);
+  assert.equal(report.groups[0].status, 'SHADOW_NOT_SCORED_NO_AUTHORITATIVE_CANDIDATES');
+  assert.equal(report.groups[0].shadowScored, false);
+  assert.equal(report.groups[0].modelDomainComplete, true);
+  assert.equal(report.groups[0].outOfModelDomainCandidateCount, 0);
+  assert.deepEqual(report.groups[0].candidateScores, []);
+  assert.equal(report.groups[0].topCandidateId, null);
+  assert.equal(report.authoritativeDecisionEffectAuthorized, false);
+  assert.equal(report.runtimeConnectionAuthorized, false);
+});
+
 test('model parameter tampering is rejected even if the claimed artifact ID is left unchanged', () => {
   const tampered = JSON.parse(JSON.stringify(modelArtifact));
   tampered.parameters.logistic_coef_hex[0] = '0x1.0000000000000p+0';
   assert.throws(
     () => validateModelArtifact(tampered),
     /transport digest drift/i,
+  );
+});
+
+test('model provenance metadata tampering is rejected independently of parameter transport', () => {
+  const tampered = JSON.parse(JSON.stringify(modelArtifact));
+  tampered.source_archive_sha256 = '0'.repeat(64);
+  assert.throws(
+    () => validateModelArtifact(tampered),
+    /metadata drift/i,
   );
 });
