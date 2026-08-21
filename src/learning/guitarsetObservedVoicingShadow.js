@@ -21,6 +21,12 @@ const EXPECTED_FEATURE_SCHEMA_SHA256 = '05f8fda622f3901869a149db3e2cca2baf1310f4
 const EXPECTED_PROTOCOL_SHA256 = '1cbb3d219e8009c90c71075019a69a55c06a2893c12bd50264e66eda956dbc2d';
 const EXPECTED_CROSS_REPO_REVIEW_SHA256 = '7a8158b295912df0fe743f605df799362fcc164f01e3d5357a62e5e3835af789';
 const EXPECTED_MODEL_TRANSPORT_SHA256 = '205c5dad7331bbf04ea6628cdc0075803eb4b38917b1e1c7488afe393c0f71e7';
+const EXPECTED_SOURCE_ARCHIVE_SHA256 = '06dc776d1de92021632e30795f0d4f38534fe01ca5342a164e80e8cd287980fe';
+const EXPECTED_SELECTED_PAIR_IDENTITY_SHA256 = '728ace31810106c9d4ccae7cf5a15cfdf1402b59a5631fe61bbd5c8aad96acb4';
+const EXPECTED_SPLIT_VERSION = 'GUITARSET-SPLIT.v1';
+const EXPECTED_AMBIGUOUS_EVENT_COUNT = 7919;
+const EXPECTED_SELECTED_PAIR_COUNT = 166601;
+const EXPECTED_SYMMETRIC_TRAINING_ROW_COUNT = 333202;
 const MODEL_MAX_FRET = 19;
 const FEATURE_COUNT = 28;
 
@@ -137,24 +143,29 @@ function validateModelArtifact(artifact) {
   ];
   assertExactKeys(artifact, topLevelFields, 'modelArtifact');
 
-  if (artifact.schema !== 'st-guitar-guitarset-observed-voicing-development-model-v1') {
-    throw invalid('Unsupported retained model artifact schema.', 'modelArtifact.schema');
+  const exactMetadata = [
+    ['schema', 'st-guitar-guitarset-observed-voicing-development-model-v1'],
+    ['model_version', 'GUITARSET-OBSERVED-VOICING-MODEL.v1'],
+    ['artifact_sha256', EXPECTED_MODEL_ARTIFACT_SHA256],
+    ['feature_schema_sha256', EXPECTED_FEATURE_SCHEMA_SHA256],
+    ['protocol_sha256', EXPECTED_PROTOCOL_SHA256],
+    ['source_archive_sha256', EXPECTED_SOURCE_ARCHIVE_SHA256],
+    ['split_version', EXPECTED_SPLIT_VERSION],
+    ['selected_pair_identity_sha256', EXPECTED_SELECTED_PAIR_IDENTITY_SHA256],
+    ['ambiguous_event_count', EXPECTED_AMBIGUOUS_EVENT_COUNT],
+    ['selected_pair_count', EXPECTED_SELECTED_PAIR_COUNT],
+    ['symmetric_training_row_count', EXPECTED_SYMMETRIC_TRAINING_ROW_COUNT],
+    ['scoring', 'dot((features-mean)/scale, coef)'],
+  ];
+  for (const [field, expected] of exactMetadata) {
+    if (artifact[field] !== expected) {
+      throw invalid('Retained model artifact metadata drift.', `modelArtifact.${field}`, {
+        expected,
+        actual: artifact[field],
+      });
+    }
   }
-  if (artifact.model_version !== 'GUITARSET-OBSERVED-VOICING-MODEL.v1') {
-    throw invalid('Retained model version drift.', 'modelArtifact.model_version');
-  }
-  if (artifact.artifact_sha256 !== EXPECTED_MODEL_ARTIFACT_SHA256) {
-    throw invalid('Retained model artifact identity drift.', 'modelArtifact.artifact_sha256');
-  }
-  if (artifact.feature_schema_sha256 !== EXPECTED_FEATURE_SCHEMA_SHA256) {
-    throw invalid('Retained model feature schema drift.', 'modelArtifact.feature_schema_sha256');
-  }
-  if (artifact.protocol_sha256 !== EXPECTED_PROTOCOL_SHA256) {
-    throw invalid('Retained model preregistration identity drift.', 'modelArtifact.protocol_sha256');
-  }
-  if (artifact.scoring !== 'dot((features-mean)/scale, coef)') {
-    throw invalid('Retained model scoring contract drift.', 'modelArtifact.scoring');
-  }
+
   if (
     artifact.checkpoint_authorized !== false
     || artifact.runtime_connection_authorized !== false
@@ -165,6 +176,7 @@ function validateModelArtifact(artifact) {
   }
   if (
     !Array.isArray(artifact.training_performers)
+    || artifact.training_performers.length !== 4
     || artifact.training_performers.join(',') !== '00,01,04,05'
   ) {
     throw invalid('Retained model training performer identity drift.', 'modelArtifact.training_performers');
@@ -231,9 +243,18 @@ function validateModelArtifact(artifact) {
     });
   }
 
-  const mean = meansHex.map((entry, index) => parsePythonHexFloat(entry, `modelArtifact.parameters.scaler_mean_hex[${index}]`));
-  const scale = scalesHex.map((entry, index) => parsePythonHexFloat(entry, `modelArtifact.parameters.scaler_scale_hex[${index}]`));
-  const coefficient = coefficientsHex.map((entry, index) => parsePythonHexFloat(entry, `modelArtifact.parameters.logistic_coef_hex[${index}]`));
+  const mean = meansHex.map((entry, index) => parsePythonHexFloat(
+    entry,
+    `modelArtifact.parameters.scaler_mean_hex[${index}]`,
+  ));
+  const scale = scalesHex.map((entry, index) => parsePythonHexFloat(
+    entry,
+    `modelArtifact.parameters.scaler_scale_hex[${index}]`,
+  ));
+  const coefficient = coefficientsHex.map((entry, index) => parsePythonHexFloat(
+    entry,
+    `modelArtifact.parameters.logistic_coef_hex[${index}]`,
+  ));
   if (scale.some((value) => !(value > 0))) {
     throw invalid('Scaler values must be strictly positive.', 'modelArtifact.parameters.scaler_scale_hex');
   }
@@ -344,17 +365,21 @@ function createGuitarSetObservedVoicingFeatureVector(candidate) {
   return Object.freeze(values);
 }
 
-function scoreGuitarSetObservedVoicingCandidate(candidate, modelArtifact) {
-  const model = validateModelArtifact(modelArtifact);
+function scoreWithValidatedModel(candidate, retainedModel) {
   const features = createGuitarSetObservedVoicingFeatureVector(candidate);
   let score = 0;
   for (let index = 0; index < FEATURE_COUNT; index += 1) {
-    score += ((features[index] - model.mean[index]) / model.scale[index]) * model.coefficient[index];
+    score += ((features[index] - retainedModel.mean[index]) / retainedModel.scale[index])
+      * retainedModel.coefficient[index];
   }
   if (!Number.isFinite(score)) {
     throw invalid('GuitarSet shadow score is not finite.', 'score');
   }
   return score;
+}
+
+function scoreGuitarSetObservedVoicingCandidate(candidate, modelArtifact) {
+  return scoreWithValidatedModel(candidate, validateModelArtifact(modelArtifact));
 }
 
 function validateRuntimeCandidateModel(model) {
@@ -382,7 +407,9 @@ function validateRuntimeCandidateModel(model) {
   }
   if (
     !Number.isSafeInteger(model.groupCount)
+    || model.groupCount < 0
     || !Number.isSafeInteger(model.candidateCount)
+    || model.candidateCount < 0
     || !Array.isArray(model.groups)
     || model.groups.length !== model.groupCount
     || model.candidateCount > MAX_GUITAR_VOICING_CANDIDATES
@@ -394,6 +421,9 @@ function validateRuntimeCandidateModel(model) {
 
 function normalizeRuntimeGroup(group, groupIndex) {
   assertPlainObject(group, `voicingCandidateModel.groups[${groupIndex}]`);
+  if (typeof group.sourceGroupId !== 'string' || group.sourceGroupId.length === 0) {
+    throw invalid('PA-7 sourceGroupId must be a non-empty string.', `voicingCandidateModel.groups[${groupIndex}].sourceGroupId`);
+  }
   if (!Array.isArray(group.targetMidis) || group.targetMidis.length < 2 || group.targetMidis.length > 6) {
     throw invalid('PA-7 shadow group must contain 2..6 target MIDIs.', `voicingCandidateModel.groups[${groupIndex}].targetMidis`);
   }
@@ -401,7 +431,12 @@ function normalizeRuntimeGroup(group, groupIndex) {
   if (targetMidis.some((value) => !Number.isInteger(value) || value < 0 || value > 127)) {
     throw invalid('PA-7 target MIDIs are invalid.', `voicingCandidateModel.groups[${groupIndex}].targetMidis`);
   }
-  if (!Number.isSafeInteger(group.candidateCount) || !Array.isArray(group.candidates) || group.candidates.length !== group.candidateCount) {
+  if (
+    !Number.isSafeInteger(group.candidateCount)
+    || group.candidateCount < 0
+    || !Array.isArray(group.candidates)
+    || group.candidates.length !== group.candidateCount
+  ) {
     throw invalid('PA-7 candidateCount must match candidates.length.', `voicingCandidateModel.groups[${groupIndex}]`);
   }
 
@@ -411,24 +446,39 @@ function normalizeRuntimeGroup(group, groupIndex) {
   for (let candidateIndex = 0; candidateIndex < group.candidates.length; candidateIndex += 1) {
     const candidate = group.candidates[candidateIndex];
     assertPlainObject(candidate, `group.candidates[${candidateIndex}]`);
-    if (typeof candidate.candidateId !== 'string' || candidate.candidateId.length === 0 || candidateIds.has(candidate.candidateId)) {
+    if (
+      typeof candidate.candidateId !== 'string'
+      || candidate.candidateId.length === 0
+      || candidateIds.has(candidate.candidateId)
+    ) {
       throw invalid('PA-7 candidateId must be a unique non-empty string.', `group.candidates[${candidateIndex}].candidateId`);
     }
     candidateIds.add(candidate.candidateId);
-    if (!Number.isSafeInteger(candidate.positionCount) || !Array.isArray(candidate.positions) || candidate.positions.length !== candidate.positionCount) {
+    if (
+      !Number.isSafeInteger(candidate.positionCount)
+      || candidate.positionCount < 1
+      || !Array.isArray(candidate.positions)
+      || candidate.positions.length !== candidate.positionCount
+    ) {
       throw invalid('PA-7 positionCount must match positions.length.', `group.candidates[${candidateIndex}]`);
     }
     const rows = candidate.positions.map((position, positionIndex) => {
       assertPlainObject(position, `group.candidates[${candidateIndex}].positions[${positionIndex}]`);
       if (typeof position.sourceEventId !== 'string' || position.sourceEventId.length === 0) {
-        throw invalid('PA-7 sourceEventId must be a non-empty string.', `group.candidates[${candidateIndex}].positions[${positionIndex}].sourceEventId`);
+        throw invalid(
+          'PA-7 sourceEventId must be a non-empty string.',
+          `group.candidates[${candidateIndex}].positions[${positionIndex}].sourceEventId`,
+        );
       }
       return [position.targetMidi, position.string, position.fret];
     });
     const canonical = canonicalizeTriples(rows, `group.candidates[${candidateIndex}]`);
     const pitches = canonical.map((row) => row[0]).sort((a, b) => a - b);
     if (pitches.length !== targetMidis.length || pitches.some((value, index) => value !== targetMidis[index])) {
-      throw invalid('PA-7 candidate does not preserve the exact target MIDI multiset.', `group.candidates[${candidateIndex}]`);
+      throw invalid(
+        'PA-7 candidate does not preserve the exact target MIDI multiset.',
+        `group.candidates[${candidateIndex}]`,
+      );
     }
     const key = JSON.stringify(canonical);
     if (canonicalKeys.has(key)) {
@@ -447,18 +497,37 @@ function createGuitarSetObservedVoicingShadowReport(voicingCandidateModel, model
   let aggregateCandidateCount = 0;
   let scoredGroupCount = 0;
   let unsupportedGroupCount = 0;
+  let noCandidateGroupCount = 0;
 
   for (let groupIndex = 0; groupIndex < runtimeModel.groups.length; groupIndex += 1) {
     const sourceGroup = runtimeModel.groups[groupIndex];
     const normalized = normalizeRuntimeGroup(sourceGroup, groupIndex);
     aggregateCandidateCount += normalized.candidates.length;
-    const outOfDomain = normalized.candidates.filter((entry) => entry.canonical.some((row) => row[2] > MODEL_MAX_FRET));
     const base = {
       sourceGroupId: sourceGroup.sourceGroupId,
       candidateCount: normalized.candidates.length,
       targetMidis: normalized.targetMidis,
       authoritativeDecisionEffectAuthorized: false,
     };
+
+    if (normalized.candidates.length === 0) {
+      unsupportedGroupCount += 1;
+      noCandidateGroupCount += 1;
+      groups.push({
+        ...base,
+        status: 'SHADOW_NOT_SCORED_NO_AUTHORITATIVE_CANDIDATES',
+        shadowScored: false,
+        modelDomainComplete: true,
+        outOfModelDomainCandidateCount: 0,
+        topCandidateId: null,
+        candidateScores: [],
+      });
+      continue;
+    }
+
+    const outOfDomain = normalized.candidates.filter(
+      (entry) => entry.canonical.some((row) => row[2] > MODEL_MAX_FRET),
+    );
     if (outOfDomain.length > 0) {
       unsupportedGroupCount += 1;
       groups.push({
@@ -476,7 +545,7 @@ function createGuitarSetObservedVoicingShadowReport(voicingCandidateModel, model
     const scored = normalized.candidates.map((entry) => ({
       candidateId: entry.candidateId,
       canonical: entry.canonical,
-      score: scoreGuitarSetObservedVoicingCandidate(entry.canonical, modelArtifact),
+      score: scoreWithValidatedModel(entry.canonical, retainedModel),
     }));
     scored.sort((left, right) => {
       if (left.score !== right.score) {
@@ -491,7 +560,7 @@ function createGuitarSetObservedVoicingShadowReport(voicingCandidateModel, model
       shadowScored: true,
       modelDomainComplete: true,
       outOfModelDomainCandidateCount: 0,
-      topCandidateId: scored[0] ? scored[0].candidateId : null,
+      topCandidateId: scored[0].candidateId,
       candidateScores: scored.map((entry, index) => ({
         candidateId: entry.candidateId,
         rank: index + 1,
@@ -522,6 +591,7 @@ function createGuitarSetObservedVoicingShadowReport(voicingCandidateModel, model
     candidateCount: aggregateCandidateCount,
     scoredGroupCount,
     unsupportedGroupCount,
+    noCandidateGroupCount,
     groups,
     candidateMutationAuthorized: false,
     candidateFilteringAuthorized: false,
