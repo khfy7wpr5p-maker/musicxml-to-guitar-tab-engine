@@ -61,10 +61,7 @@ function selectedObservation() {
       caseIds: ['case-a', 'case-b'],
     },
     cases: [
-      {
-        caseId: 'case-b',
-        result: null,
-      },
+      { caseId: 'case-b', result: null },
       {
         caseId: 'case-a',
         result: {
@@ -99,10 +96,7 @@ test('PA-11.3J emits PA-11.3I-compatible no-result observations without gold ans
   assert.equal(report.caseCount, 4);
   assert.equal(report.matchedCaseCount, 0);
   assert.equal(report.unmatchedCount, 4);
-  assert.deepEqual(
-    report.cases.map((entry) => entry.classification),
-    Array(4).fill(MATCH_CLASSIFICATION.UNMATCHED),
-  );
+  assert.deepEqual(report.cases.map((entry) => entry.classification), Array(4).fill(MATCH_CLASSIFICATION.UNMATCHED));
 });
 
 test('PA-11.3J orders engine cases by evaluation scope and generates local tone IDs', () => {
@@ -118,43 +112,42 @@ test('PA-11.3J orders engine cases by evaluation scope and generates local tone 
 test('PA-11.3J rejects gold-bearing or otherwise unknown producer fields', () => {
   const resultLeak = selectedObservation();
   resultLeak.cases[1].result.arrangementId = 'teacher-gold-id';
-  assert.throws(
-    () => createTeacherArrangementObservedOutput(resultLeak),
-    (error) => error instanceof IndependentObservedOutputProducerError,
-  );
+  assert.throws(() => createTeacherArrangementObservedOutput(resultLeak), (error) => error instanceof IndependentObservedOutputProducerError);
 
   const scopeLeak = selectedObservation();
   scopeLeak.evaluationScope.acceptedArrangements = [];
-  assert.throws(
-    () => createTeacherArrangementObservedOutput(scopeLeak),
-    (error) => error instanceof IndependentObservedOutputProducerError,
-  );
+  assert.throws(() => createTeacherArrangementObservedOutput(scopeLeak), (error) => error instanceof IndependentObservedOutputProducerError);
 });
 
 test('PA-11.3J rejects source-outcome/selected-tone provenance disagreement', () => {
   const input = selectedObservation();
   input.cases[1].result.sourceOutcomes[0].targetMidis = [48];
-  assert.throws(
-    () => createTeacherArrangementObservedOutput(input),
-    (error) => error instanceof IndependentObservedOutputProducerError,
-  );
+  assert.throws(() => createTeacherArrangementObservedOutput(input), (error) => error instanceof IndependentObservedOutputProducerError);
 });
 
-test('PA-11.3J fails closed without executing accessor-backed fields', () => {
+test('PA-11.3J fails closed without executing accessor-backed object fields', () => {
   const input = selectedObservation();
   let executed = false;
   Object.defineProperty(input.cases[0], 'caseId', {
     enumerable: true,
     configurable: true,
-    get() {
-      executed = true;
-      return 'case-b';
-    },
+    get() { executed = true; return 'case-b'; },
   });
-  assert.throws(
-    () => createTeacherArrangementObservedOutput(input),
-    (error) => error instanceof IndependentObservedOutputProducerError,
-  );
+  assert.throws(() => createTeacherArrangementObservedOutput(input), (error) => error instanceof IndependentObservedOutputProducerError);
+  assert.equal(executed, false);
+});
+
+test('PA-11.3J fails closed without executing accessor-backed array elements', () => {
+  const input = selectedObservation();
+  let executed = false;
+  const tones = input.cases[1].result.selectedTones;
+  const original = tones[0];
+  Object.defineProperty(tones, '0', {
+    enumerable: true,
+    configurable: true,
+    get() { executed = true; return original; },
+  });
+  assert.throws(() => createTeacherArrangementObservedOutput(input), (error) => error instanceof IndependentObservedOutputProducerError);
   assert.equal(executed, false);
 });
 
