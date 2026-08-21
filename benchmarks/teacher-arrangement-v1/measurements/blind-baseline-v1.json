@@ -1,0 +1,40 @@
+{
+  "documentType": "TeacherArrangementBlindBaselineMeasurement",
+  "contractVersion": "1.0.0",
+  "mode": "evaluation-only",
+  "authority": "none",
+  "benchmarkId": "teacher-arrangement-seed-v1",
+  "benchmarkVersion": "0.2.0",
+  "benchmarkGitBlobSha": "21a02c053a8bdfee781846a6c7f35b0c66600513",
+  "approvalGitBlobSha": "21e76f6f81ad22754b73e17253b413cc0ef9aebd",
+  "effectiveReviewStatus": "teacher-approved",
+  "selectorPolicy": "PRESERVE_OR_OCTAVE_MIN_ERGONOMIC_1.0",
+  "caseCount": 4,
+  "matchedCaseCount": 2,
+  "matchedCaseRate": 0.5,
+  "counts": {
+    "preferredMatchCount": 0,
+    "acceptableMatchCount": 2,
+    "physicallyValidNotApprovedCount": 2,
+    "invalidCount": 0,
+    "unmatchedCount": 0
+  },
+  "cases": [
+    {
+      "caseId": "pa11-seed-001-two-note-open-vs-barre",
+      "classification": "ACCEPTABLE_MATCH"
+    },
+    {
+      "caseId": "pa11-seed-002-three-note-voicing",
+      "classification": "PHYSICALLY_VALID_NOT_APPROVED"
+    },
+    {
+      "caseId": "pa11-seed-003-conservative-reduction",
+      "classification": "PHYSICALLY_VALID_NOT_APPROVED"
+    },
+    {
+      "caseId": "pa11-seed-004-octave-displacement",
+      "classification": "ACCEPTABLE_MATCH"
+    }
+  ]
+}
