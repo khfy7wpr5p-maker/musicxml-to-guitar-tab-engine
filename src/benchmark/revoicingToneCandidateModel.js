@@ -198,7 +198,8 @@ function buildGroup(group, sourceEventById) {
 }
 
 function createRevoicingToneCandidateModel(sourceModel, runtime = null) {
-  const source = validatePolyphonicSourceModel(sourceModel, runtime);
+  validatePolyphonicSourceModel(sourceModel, runtime);
+  const source = sourceModel;
   const simultaneous = createSimultaneousEventModel(source, runtime);
   const sourceEventById = buildSourceEventIndex(source);
   const groups = [];
