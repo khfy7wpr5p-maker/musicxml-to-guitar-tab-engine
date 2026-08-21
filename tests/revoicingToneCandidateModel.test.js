@@ -103,7 +103,7 @@ function assertCandidateInvariants(model) {
         assert.equal(candidate.sourceMidi, source.sourceMidi);
         assert.equal(candidate.sourcePitchClass, source.sourcePitchClass);
         assert.equal(((candidate.targetMidi % 12) + 12) % 12, source.sourcePitchClass);
-        assert.equal(candidate.octaveShiftSemitones % 12, 0);
+        assert.equal(Math.abs(candidate.octaveShiftSemitones % 12), 0);
         assert.equal(positionToMidi({ string: candidate.string, fret: candidate.fret }), candidate.targetMidi);
         assert.ok(candidate.fret >= 0 && candidate.fret <= 20);
         const key = `${candidate.string}:${candidate.fret}`;
