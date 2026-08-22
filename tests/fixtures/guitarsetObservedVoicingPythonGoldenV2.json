@@ -1,0 +1,60 @@
+{
+  "schema": "guitarset-observed-voicing-python-golden-v2",
+  "source_model_artifact_sha256": "7a56436c27ee6d996a49e7f989d37d7ffff187232277095b176c3c395c432314",
+  "source_shadow_integration_review_evidence_sha256": "f42809c1ca9d5f6ff1c62dd072c91a9195bb46e1714e88bd84e8a5a57eef9140",
+  "feature_schema_sha256": "617981e90cce46c941596d1bd50ffffff64e6816c59d8f0dbed1acd6d8938285",
+  "protocol_sha256": "db67d88c4889a2b8c63411cd1e9bbd7481248dfbdd76da67f5df60b3871b4c02",
+  "candidate_fret_domain": [0, 20],
+  "source_observed_fret_domain": [0, 19],
+  "fret20_quality_authority": false,
+  "python_score_tolerance": 1e-12,
+  "cases": [
+    {
+      "id": "C_MAJOR_0",
+      "candidate": [[48,5,3],[52,4,2],[55,3,0],[60,2,1],[64,1,0]],
+      "expected_score": 0.667005771002092
+    },
+    {
+      "id": "C_MAJOR_1",
+      "candidate": [[48,5,3],[52,4,2],[55,6,15],[60,2,1],[64,1,0]],
+      "expected_score": -25.456123049060263
+    },
+    {
+      "id": "C_MAJOR_2",
+      "candidate": [[48,5,3],[52,4,2],[55,6,15],[60,2,1],[64,3,9]],
+      "expected_score": -22.270407494011224
+    },
+    {
+      "id": "C_MAJOR_5",
+      "candidate": [[48,5,3],[52,6,12],[55,3,0],[60,2,1],[64,1,0]],
+      "expected_score": -18.658026775479915
+    },
+    {
+      "id": "C_MAJOR_10",
+      "candidate": [[48,5,3],[52,6,12],[55,4,5],[60,2,1],[64,3,9]],
+      "expected_score": -13.481805022852452
+    },
+    {
+      "id": "FRET19_BOUNDARY",
+      "candidate": [[59,6,19],[64,1,0]],
+      "expected_score": -20.182736267171634
+    },
+    {
+      "id": "FRET20_BOUNDARY",
+      "candidate": [[60,6,20],[64,5,19]],
+      "expected_score": -9.841512171065999
+    }
+  ],
+  "ranking_groups": [
+    {
+      "id": "C_MAJOR",
+      "case_ids": ["C_MAJOR_0","C_MAJOR_1","C_MAJOR_2","C_MAJOR_5","C_MAJOR_10"],
+      "expected_order": ["C_MAJOR_0","C_MAJOR_10","C_MAJOR_5","C_MAJOR_2","C_MAJOR_1"]
+    },
+    {
+      "id": "HIGH_BOUNDARY",
+      "case_ids": ["FRET19_BOUNDARY","FRET20_BOUNDARY"],
+      "expected_order": ["FRET20_BOUNDARY","FRET19_BOUNDARY"]
+    }
+  ]
+}
