@@ -14,11 +14,10 @@ The immutable historical shadow evidence is bound to the exact engine revision t
 
 - exact-main engine commit: `a2d4e9461382d5c4fdf49d04c5d949b2f40bbc35`
 - shadow adapter/source-module version: `1.0.0`
-- retained model version: `0.1.0-development`
 - retained model artifact SHA-256: `5d109e3b46ef286439f00ad6fa5885fc7bdf13e070974c49040c27b007461869`
 - frozen feature schema SHA-256: `05f8fda622f3901869a149db3e2cca2baf1310f4834d39e278e36428ae48cd38`
 - frozen protocol SHA-256: `1cbb3d219e8009c90c71075019a69a55c06a2893c12bd50264e66eda956dbc2d`
-- cross-repository review evidence SHA-256: `cc11c59016e5faa5bac64d4dea1f82eea5a7e24d4fd4cc0d4601975113052e39`
+- cross-repository review evidence SHA-256: `7a8158b295912df0fe743f605df799362fcc164f01e3d5357a62e5e3835af789`
 - immutable evidence artifact: `evidence/offline-shadow/exact-main/a2d4e9461382d5c4fdf49d04c5d949b2f40bbc35/controlled-offline-shadow-evidence.v1.json`
 
 The historical artifact is byte-SHA sealed and its integrity tests load the committed artifact directly. They do not recompute historical exact-main evidence through the current runner.
