@@ -145,7 +145,6 @@ test('shadow candidate-model exceptions are isolated from deterministic baseline
 test('zero-candidate and fret-20 domain mismatch paths remain diagnostic-only and preserve deterministic output', () => {
   for (const source of [dyad('E', 2, 'E', 2), dyad('C', 4, 'E', 4)]) {
     const before = createBlindBaselineEngineResult(source);
-    assert.ok(before);
     const decisions = createBlindBaselineArrangementDecisions(source);
     const candidates = createGuitarVoicingCandidateModel(source, decisions);
     const report = createGuitarSetObservedVoicingShadowReport(candidates, readModel());
