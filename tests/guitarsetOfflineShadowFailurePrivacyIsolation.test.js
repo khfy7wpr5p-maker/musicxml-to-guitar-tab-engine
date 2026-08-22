@@ -138,7 +138,9 @@ test('shadow candidate-model exceptions are isolated from deterministic baseline
   assertDeterministicBaselineUnchanged(
     source,
     () => createGuitarSetObservedVoicingShadowReport(malformed, readModel()),
-    /candidateCount|candidates\.length/i,
+    (error) => error
+      && error.code === 'INVALID_GUITARSET_OBSERVED_VOICING_SHADOW_INPUT'
+      && /deeply frozen PA-7 output/i.test(error.message),
   );
 });
 
