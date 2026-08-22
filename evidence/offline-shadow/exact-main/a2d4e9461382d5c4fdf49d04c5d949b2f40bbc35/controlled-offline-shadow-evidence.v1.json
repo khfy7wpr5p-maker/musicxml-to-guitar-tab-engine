@@ -1,0 +1,217 @@
+{
+  "documentType": "ImmutableControlledOfflineGuitarSetShadowEvidenceSeal",
+  "schemaVersion": "1.0.0",
+  "captureProvenance": {
+    "repository": "khfy7wpr5p-maker/musicxml-to-guitar-tab-engine",
+    "sourcePullRequestNumber": 130,
+    "sourceHeadSha": "fe568d80c5e72a7043e03b61ee1c3c6283e8039a",
+    "sourceBaseSha": "a2d4e9461382d5c4fdf49d04c5d949b2f40bbc35",
+    "sourceWorkflowRunId": 32553990747,
+    "sourceNode20JobId": 96985192408,
+    "captureMethod": "PR_CI_EXACT_MAIN_CONTROLLED_OFFLINE"
+  },
+  "evidence": {
+    "documentType": "ControlledOfflineGuitarSetShadowEvidence",
+    "contractVersion": "1.0.0",
+    "mode": "CONTROLLED_OFFLINE_PROJECT_SHADOW_EVIDENCE",
+    "engineCommitSha": "a2d4e9461382d5c4fdf49d04c5d949b2f40bbc35",
+    "adapterVersion": "1.0.0",
+    "modelArtifactSha256": "5d109e3b46ef286439f00ad6fa5885fc7bdf13e070974c49040c27b007461869",
+    "featureSchemaSha256": "05f8fda622f3901869a149db3e2cca2baf1310f4834d39e278e36428ae48cd38",
+    "protocolSha256": "1cbb3d219e8009c90c71075019a69a55c06a2893c12bd50264e66eda956dbc2d",
+    "crossRepoReviewEvidenceSha256": "7a8158b295912df0fe743f605df799362fcc164f01e3d5357a62e5e3835af789",
+    "fixtureEvidence": [
+      {
+        "evaluationId": "pa11-two-note-interval",
+        "inputSha256": "45fa2347f046f322d09be552895e6b6de2ce89c8ba14e1916272e5eb8328e6be",
+        "groupCount": 1,
+        "candidateCount": 21,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 0,
+        "modelDomainIncompleteGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_NOT_SCORED_MODEL_DOMAIN_INCOMPLETE",
+            "candidateCountBeforeShadow": 21,
+            "candidateCountAfterShadow": 21,
+            "candidateSetSha256": "c8e10037b4e070df57e7652792949610f28e70ca92090b1b2fc18d71da1a6d9a",
+            "shadowRankingSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowScored": false,
+            "modelDomainComplete": false,
+            "outOfModelDomainCandidateCount": 5,
+            "topShadowCandidateId": null,
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "comparison": "NOT_COMPARABLE",
+            "top1Top2Margin": null
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-three-note-triad",
+        "inputSha256": "583f4a22359ca9ddc5b24ad1911566bdaeb0c91f40001d70dda139b6b7a77c95",
+        "groupCount": 1,
+        "candidateCount": 55,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 0,
+        "modelDomainIncompleteGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_NOT_SCORED_MODEL_DOMAIN_INCOMPLETE",
+            "candidateCountBeforeShadow": 55,
+            "candidateCountAfterShadow": 55,
+            "candidateSetSha256": "818905ed27127daec6accdbbd3ae49e76483a5019cdf4a90be24db0f18257b75",
+            "shadowRankingSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowScored": false,
+            "modelDomainComplete": false,
+            "outOfModelDomainCandidateCount": 16,
+            "topShadowCandidateId": null,
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:18",
+            "comparison": "NOT_COMPARABLE",
+            "top1Top2Margin": null
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-four-note-reduction",
+        "inputSha256": "2ebbdb7fc1da9884d16502849aafefa0b50a0bbcfdde6058481d314d12d38913",
+        "groupCount": 1,
+        "candidateCount": 73,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 0,
+        "modelDomainIncompleteGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_NOT_SCORED_MODEL_DOMAIN_INCOMPLETE",
+            "candidateCountBeforeShadow": 73,
+            "candidateCountAfterShadow": 73,
+            "candidateSetSha256": "7e6ed41e7959016a8de326a220e8b742cda75e0c7d8263a13b2afb24cbb55eea",
+            "shadowRankingSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowScored": false,
+            "modelDomainComplete": false,
+            "outOfModelDomainCandidateCount": 27,
+            "topShadowCandidateId": null,
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:17",
+            "comparison": "NOT_COMPARABLE",
+            "top1Top2Margin": null
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-high-note-octave",
+        "inputSha256": "f2acf732eb1138ee559b6743e20d1d09970dfd7b46db1e001c8d65e0a3af7190",
+        "groupCount": 0,
+        "candidateCount": 0,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 0,
+        "modelDomainIncompleteGroupCount": 0,
+        "groups": []
+      },
+      {
+        "evaluationId": "shadow-control-in-domain-c3-e3",
+        "inputSha256": "94ef64c61a89f7bbb276fd9097f29a3077844154e157aafc5d0fd54ccbd4fdd7",
+        "groupCount": 1,
+        "candidateCount": 4,
+        "scoredGroupCount": 1,
+        "noCandidateGroupCount": 0,
+        "modelDomainIncompleteGroupCount": 0,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_SCORED_OFFLINE_NON_AUTHORITATIVE",
+            "candidateCountBeforeShadow": 4,
+            "candidateCountAfterShadow": 4,
+            "candidateSetSha256": "b80a4d5e57bf9e03f7bfa912bff3c948db26195dfaddc0debcf5619deb3c623a",
+            "shadowRankingSha256": "feaf611613ed3732504bafc76ad214c481d2e9a14ad79339d02b9a372e95c0ee",
+            "shadowScored": true,
+            "modelDomainComplete": true,
+            "outOfModelDomainCandidateCount": 0,
+            "topShadowCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "comparison": "AGREE",
+            "top1Top2Margin": 0.452842290727
+          }
+        ]
+      },
+      {
+        "evaluationId": "shadow-control-zero-candidate-e2-e2",
+        "inputSha256": "cf1c9b2445cbb17bee6dd15ffd0eca42e6c1b3e4e86f8df55d3a31fccc9c283f",
+        "groupCount": 1,
+        "candidateCount": 0,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 1,
+        "modelDomainIncompleteGroupCount": 0,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_NOT_SCORED_NO_AUTHORITATIVE_CANDIDATES",
+            "candidateCountBeforeShadow": 0,
+            "candidateCountAfterShadow": 0,
+            "candidateSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowRankingSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowScored": false,
+            "modelDomainComplete": true,
+            "outOfModelDomainCandidateCount": 0,
+            "topShadowCandidateId": null,
+            "baselineCandidateId": null,
+            "comparison": "NOT_COMPARABLE",
+            "top1Top2Margin": null
+          }
+        ]
+      }
+    ],
+    "metrics": {
+      "fixtureCount": 6,
+      "totalGroupCount": 5,
+      "totalCandidateCount": 153,
+      "scoredGroupCount": 1,
+      "noCandidateGroupCount": 1,
+      "modelDomainIncompleteGroupCount": 3,
+      "scorableGroupRate": 0.2,
+      "noCandidateGroupRate": 0.2,
+      "modelDomainIncompleteRate": 0.6,
+      "candidateCountPreservationRate": 1,
+      "baselineComparableGroupCount": 1,
+      "top1AgreementCount": 1,
+      "top1AgreementRate": 1,
+      "disagreementCount": 0,
+      "disagreementIds": [],
+      "top1Top2MarginSummary": {
+        "count": 1,
+        "minimum": 0.452842290727,
+        "maximum": 0.452842290727,
+        "mean": 0.452842290727
+      },
+      "shadowErrorCount": 0
+    },
+    "controlledOfflineExecution": true,
+    "liveShadowExecutionAuthorized": false,
+    "runtimeConnectionAuthorized": false,
+    "authoritativeDecisionEffectAuthorized": false,
+    "canonicalResultEffectAuthorized": false,
+    "tabOutputEffectAuthorized": false,
+    "checkpointMutationAuthorized": false,
+    "refitAuthorized": false,
+    "productionAuthorized": false,
+    "runDigestSha256": "bcf85e6c41cf9e63acb340b9fc1eebd8c9e61559306584537249750b186ba898"
+  },
+  "determinism": {
+    "repetitions": 10,
+    "deterministic": true,
+    "evidenceRunDigestSha256": "bcf85e6c41cf9e63acb340b9fc1eebd8c9e61559306584537249750b186ba898",
+    "determinismDigestSha256": "3c52cc85ba7a4ee1db53ab744eaeaf7e0c3ec5563862ab4e39436cb65d470669"
+  },
+  "sealPolicy": {
+    "historicalEvidenceRecomputationAuthorized": false,
+    "currentRunnerRequiredForVerification": false,
+    "rawMusicXmlIncluded": false,
+    "originalLocalPathIncluded": false,
+    "userFilenameIncluded": false,
+    "teacherLabelsIncluded": false,
+    "validationLabelsIncluded": false,
+    "finalLabelsIncluded": false,
+    "networkTelemetryIncluded": false
+  }
+}
