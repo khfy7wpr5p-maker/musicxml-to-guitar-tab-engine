@@ -1,0 +1,38 @@
+{
+  "documentType": "ControlledOfflineGuitarSetShadowFixtureManifest",
+  "contractVersion": "1.0.0",
+  "sourcePolicy": "REPOSITORY_OWNED_SELF_AUTHORED_NON_LIVE_ONLY",
+  "teacherLabelsIncluded": false,
+  "fixtures": [
+    {
+      "evaluationId": "pa11-two-note-interval",
+      "path": "benchmarks/teacher-arrangement-v1/fixtures/two-note-interval.musicxml",
+      "sha256": "45fa2347f046f322d09be552895e6b6de2ce89c8ba14e1916272e5eb8328e6be"
+    },
+    {
+      "evaluationId": "pa11-three-note-triad",
+      "path": "benchmarks/teacher-arrangement-v1/fixtures/three-note-triad.musicxml",
+      "sha256": "583f4a22359ca9ddc5b24ad1911566bdaeb0c91f40001d70dda139b6b7a77c95"
+    },
+    {
+      "evaluationId": "pa11-four-note-reduction",
+      "path": "benchmarks/teacher-arrangement-v1/fixtures/four-note-reduction.musicxml",
+      "sha256": "2ebbdb7fc1da9884d16502849aafefa0b50a0bbcfdde6058481d314d12d38913"
+    },
+    {
+      "evaluationId": "pa11-high-note-octave",
+      "path": "benchmarks/teacher-arrangement-v1/fixtures/high-note-octave.musicxml",
+      "sha256": "f2acf732eb1138ee559b6743e20d1d09970dfd7b46db1e001c8d65e0a3af7190"
+    },
+    {
+      "evaluationId": "shadow-control-in-domain-c3-e3",
+      "path": "benchmarks/guitarset-shadow/fixtures/in-domain-c3-e3-dyad.musicxml",
+      "sha256": "94ef64c61a89f7bbb276fd9097f29a3077844154e157aafc5d0fd54ccbd4fdd7"
+    },
+    {
+      "evaluationId": "shadow-control-zero-candidate-e2-e2",
+      "path": "benchmarks/guitarset-shadow/fixtures/zero-candidate-e2-e2-dyad.musicxml",
+      "sha256": "cf1c9b2445cbb17bee6dd15ffd0eca42e6c1b3e4e86f8df55d3a31fccc9c283f"
+    }
+  ]
+}
