@@ -88,7 +88,10 @@ function isDeeplyFrozen(value, seen = new WeakSet()) {
   if (!value || typeof value !== 'object') {
     return true;
   }
-  if (seen.has(value) || !Object.isFrozen(value)) {
+  if (seen.has(value)) {
+    return true;
+  }
+  if (!Object.isFrozen(value)) {
     return false;
   }
   seen.add(value);
