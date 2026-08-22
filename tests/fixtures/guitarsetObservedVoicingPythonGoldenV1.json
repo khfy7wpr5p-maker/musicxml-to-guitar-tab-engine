@@ -1,0 +1,45 @@
+{
+  "schema": "guitarset-observed-voicing-python-golden-v1",
+  "source_model_artifact_sha256": "5d109e3b46ef286439f00ad6fa5885fc7bdf13e070974c49040c27b007461869",
+  "feature_schema_sha256": "05f8fda622f3901869a149db3e2cca2baf1310f4834d39e278e36428ae48cd38",
+  "python_score_tolerance": 1e-12,
+  "cases": [
+    {
+      "id": "C_MAJOR_0",
+      "candidate": [[48,5,3],[52,4,2],[55,3,0],[60,2,1],[64,1,0]],
+      "expected_score": 0.09392139176175326
+    },
+    {
+      "id": "C_MAJOR_1",
+      "candidate": [[48,5,3],[52,4,2],[55,6,15],[60,2,1],[64,1,0]],
+      "expected_score": -25.876906164165263
+    },
+    {
+      "id": "C_MAJOR_2",
+      "candidate": [[48,5,3],[52,4,2],[55,6,15],[60,2,1],[64,3,9]],
+      "expected_score": -22.727578387185275
+    },
+    {
+      "id": "C_MAJOR_5",
+      "candidate": [[48,5,3],[52,6,12],[55,3,0],[60,2,1],[64,1,0]],
+      "expected_score": -19.16895401511055
+    },
+    {
+      "id": "C_MAJOR_10",
+      "candidate": [[48,5,3],[52,6,12],[55,4,5],[60,2,1],[64,3,9]],
+      "expected_score": -13.988448847856027
+    },
+    {
+      "id": "FRET19_BOUNDARY",
+      "candidate": [[59,6,19],[64,1,0]],
+      "expected_score": -20.196023760608508
+    }
+  ],
+  "ranking_groups": [
+    {
+      "id": "C_MAJOR",
+      "case_ids": ["C_MAJOR_0","C_MAJOR_1","C_MAJOR_2","C_MAJOR_5","C_MAJOR_10"],
+      "expected_order": ["C_MAJOR_0","C_MAJOR_10","C_MAJOR_5","C_MAJOR_2","C_MAJOR_1"]
+    }
+  ]
+}
