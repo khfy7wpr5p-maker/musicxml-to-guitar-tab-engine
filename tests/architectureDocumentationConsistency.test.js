@@ -46,6 +46,9 @@ test('active architecture documents describe the actually merged PA and GuitarSe
       'GUITARSET-OBSERVED-VOICING-MODEL.v2',
       'CanonicalTabResult 1.0.0',
       'fret20QualityAuthority=false',
+      'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE',
+      'RUNTIME_SHADOW_CONNECTION_REVIEW',
+      'evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json',
     ]) {
       assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
     }
@@ -58,6 +61,10 @@ test('central architecture documents do not retain known stale next-stage claims
     'PA-8 is not authorized by PA-7 closure',
     'next separately approved PA-10 slice: **PA-10.3',
     'PA-10 status: `IN_PROGRESS`; PA-10.0 through PA-10.2 are merged',
+    'Next gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
+    'Next learned-evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
+    'Next learned-model evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
+    '🟡 NEXT GATE',
   ];
 
   for (const relativePath of ARCHITECTURE_DOCS) {
@@ -118,10 +125,21 @@ test('merged internal architecture exists while v2 shadow remains outside packag
   }
 });
 
-test('architecture keeps v2 controlled offline execution as the next evidence gate, not a completed runtime capability', () => {
+test('architecture records completed v2 offline evidence without granting runtime authority', () => {
+  const artifactPath = path.join(
+    REPO_ROOT,
+    'evidence',
+    'offline-shadow',
+    'exact-main',
+    'acdb66e2bb2ad809ab45fc7c2183d84280d61ad7',
+    'controlled-offline-shadow-evidence.v2.json',
+  );
+  assert.equal(fs.existsSync(artifactPath), true, 'immutable v2 evidence must exist');
+
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
-    assert.ok(text.includes('GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE'), `${relativePath} next gate`);
+    assert.ok(text.includes('GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE'), `${relativePath} completed evidence marker`);
+    assert.ok(text.includes('RUNTIME_SHADOW_CONNECTION_REVIEW'), `${relativePath} human next gate`);
     assert.ok(text.includes('runtime connection: false'), `${relativePath} runtime boundary`);
     assert.ok(text.includes('production: false'), `${relativePath} production boundary`);
   }

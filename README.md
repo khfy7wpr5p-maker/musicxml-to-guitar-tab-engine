@@ -134,7 +134,11 @@ Historical GuitarSet model v1 was scientifically valid for a candidate domain of
 
 A separately preregistered `GUITARSET-OBSERVED-VOICING-MODEL.v2` was trained/evaluated with candidate domain 0..20 while the observed positive-gold domain remains 0..19. The v2 research checkpoint completed preregistration, DEVELOPMENT, one-shot VALIDATION, one-shot UNTOUCHED_FINAL, retention review, and cross-repo shadow-integration review.
 
-PR #136 merged an isolated Node v2 adapter with frozen Python↔Node feature/score/ranking parity and real PA-7 fret-20 candidate coverage. It does not add runtime wiring.
+PR #136 merged the isolated Node v2 parity adapter. Controlled exact-main execution was later completed and sealed as `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE` against engine commit `acdb66e2bb2ad809ab45fc7c2183d84280d61ad7`.
+
+Immutable artifact: `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json` (byte SHA-256 `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`).
+
+Sealed diagnostics: 6 fixtures, 5 groups, 4/4 candidate-bearing groups scored, 153/153 candidates preserved, one zero-candidate NO_SCORE group, 1/4 baseline agreement, three recorded disagreements, 48 fret-20 candidates, zero shadow errors, and 10/10 deterministic reproduction.
 
 Scientific safety boundary:
 
@@ -142,20 +146,19 @@ Scientific safety boundary:
 - observed positive-gold domain: 0..19
 - `fret20QualityAuthority=false`
 - candidate mutation/filter/truncation: false
+- controlled repository-fixture execution: complete
 - live/user input: false
 - runtime connection: false
 - authoritative optimizer/canonical/TAB effect: false
 - production: false
 
-Next learned-model gate:
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`.
 
-`GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`
-
-This gate is fixture-only, controlled, diagnostic, and non-authoritative. It must measure v2 coverage/NO_SCORE, baseline agreement/disagreement, candidate preservation, failure isolation, privacy, and deterministic reproduction before any later runtime-shadow review.
+The completed evidence does not authorize normal-runtime wiring, user-file evaluation, final-selector influence, canonical/TAB effects, checkpoint mutation/refit, or production.
 
 ## Compatibility and presentation
 
-Latest PR #136 verification:
+PR #136 adapter-parity verification baseline:
 
 - Tests #764: PASS on Node.js 18/20/22
 - MusicXML Compatibility #533: PASS

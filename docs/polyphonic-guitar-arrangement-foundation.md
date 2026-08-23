@@ -94,22 +94,22 @@ PA-11 is evaluation infrastructure. Exact teacher review/approval is bound to im
 
 Historical GuitarSet v1 uses candidate domain 0..19 and remains immutable scientific evidence. PA-7 uses 0..20, which exposed a deliberate v1 domain mismatch in controlled shadow evidence.
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` was separately preregistered for candidate domain 0..20. PR #136 merged an isolated Node adapter proving Python↔Node 28D feature/score/ranking parity and full scoring of PA-7 fret-20 candidates without deleting or truncating candidate groups.
+`GUITARSET-OBSERVED-VOICING-MODEL.v2` was separately preregistered for candidate domain 0..20. Python↔Node parity and exact-main controlled-offline execution are complete without deleting, filtering, truncating or generating PA-7 candidates.
+
+Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`. The artifact `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json` is byte-sealed to `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba` and records 4/4 candidate-bearing coverage, 153/153 candidate preservation, three baseline disagreements, 48 fret-20 candidates, zero shadow errors, and 10/10 determinism.
 
 Observed positive gold remains 0..19, therefore `fret20QualityAuthority=false`.
 
 Authority remains:
 
-- shadow execution: false at the PR #136 adapter boundary
+- controlled repository-fixture execution: complete
 - live/user input: false
 - runtime connection: false
 - optimizer/final-selection effect: false
 - canonical/TAB effect: false
 - production: false
 
-Next learned-evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`.
-
-That gate may run only fixed repository-owned fixtures and record diagnostics. It cannot become the final selector.
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`. The evidence cannot become the final selector.
 
 ## Missing core capability: final polyphonic selection
 

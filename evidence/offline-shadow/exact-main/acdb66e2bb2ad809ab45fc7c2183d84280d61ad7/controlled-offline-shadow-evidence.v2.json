@@ -1,0 +1,270 @@
+{
+  "documentType": "ImmutableControlledOfflineGuitarSetV2ShadowEvidenceSeal",
+  "schemaVersion": "1.0.0",
+  "captureProvenance": {
+    "repository": "khfy7wpr5p-maker/musicxml-to-guitar-tab-engine",
+    "sourcePullRequestNumber": 142,
+    "sourceHeadSha": "c7ccc955c6c98706eb041d9c5866d5217db42e9f",
+    "sourceBaseSha": "acdb66e2bb2ad809ab45fc7c2183d84280d61ad7",
+    "sourceWorkflowRunId": 32651523727,
+    "sourceNode22JobId": 97223773950,
+    "captureMethod": "PR_CI_EXACT_MAIN_CONTROLLED_OFFLINE_V2"
+  },
+  "evidence": {
+    "documentType": "ControlledOfflineGuitarSetV2ShadowEvidence",
+    "contractVersion": "1.0.0",
+    "mode": "GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE",
+    "engineCommitSha": "acdb66e2bb2ad809ab45fc7c2183d84280d61ad7",
+    "fixtureManifestSha256": "8f2600b3e6934bfd1220a0ed7ee127e10d9bdb38913b4605f1553c4c8d97a55f",
+    "adapterVersion": "2.0.0",
+    "modelArtifactSha256": "7a56436c27ee6d996a49e7f989d37d7ffff187232277095b176c3c395c432314",
+    "modelTransportSha256": "6f71e1aef2b4b858a4b8c19a205e269e0fa9d4b3b35b8b703bc2e13e58d27955",
+    "featureSchemaSha256": "617981e90cce46c941596d1bd50ffffff64e6816c59d8f0dbed1acd6d8938285",
+    "protocolSha256": "db67d88c4889a2b8c63411cd1e9bbd7481248dfbdd76da67f5df60b3871b4c02",
+    "shadowIntegrationReviewEvidenceSha256": "f42809c1ca9d5f6ff1c62dd072c91a9195bb46e1714e88bd84e8a5a57eef9140",
+    "candidateFretDomain": [
+      0,
+      20
+    ],
+    "sourceObservedFretDomain": [
+      0,
+      19
+    ],
+    "fixtureEvidence": [
+      {
+        "evaluationId": "pa11-two-note-interval",
+        "inputSha256": "45fa2347f046f322d09be552895e6b6de2ce89c8ba14e1916272e5eb8328e6be",
+        "groupCount": 1,
+        "candidateCount": 21,
+        "candidateCountAfterShadow": 21,
+        "scoredGroupCount": 1,
+        "noCandidateGroupCount": 0,
+        "fret20CandidateCount": 5,
+        "fret20CandidateGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_SCORED_OFFLINE_NON_AUTHORITATIVE_V2",
+            "candidateCountBeforeShadow": 21,
+            "candidateCountAfterShadow": 21,
+            "candidateSetSha256": "c8e10037b4e070df57e7652792949610f28e70ca92090b1b2fc18d71da1a6d9a",
+            "shadowRankingSha256": "e8b1e613288fa221bb32c4264abc1726ad9e1b07e99e16f01524cde7988aabf6",
+            "shadowScored": true,
+            "modelDomainComplete": true,
+            "fret20CandidateCount": 5,
+            "topShadowCandidateId": "P1:measure:0:simultaneous:0:voicing:5",
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "comparison": "DISAGREE",
+            "top1Top2Margin": 0.828126474104
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-three-note-triad",
+        "inputSha256": "583f4a22359ca9ddc5b24ad1911566bdaeb0c91f40001d70dda139b6b7a77c95",
+        "groupCount": 1,
+        "candidateCount": 55,
+        "candidateCountAfterShadow": 55,
+        "scoredGroupCount": 1,
+        "noCandidateGroupCount": 0,
+        "fret20CandidateCount": 16,
+        "fret20CandidateGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_SCORED_OFFLINE_NON_AUTHORITATIVE_V2",
+            "candidateCountBeforeShadow": 55,
+            "candidateCountAfterShadow": 55,
+            "candidateSetSha256": "818905ed27127daec6accdbbd3ae49e76483a5019cdf4a90be24db0f18257b75",
+            "shadowRankingSha256": "8eee780b3c3ee3ac3bec4487b58e1122945d8ff269a4d25ec11b94f55740a293",
+            "shadowScored": true,
+            "modelDomainComplete": true,
+            "fret20CandidateCount": 16,
+            "topShadowCandidateId": "P1:measure:0:simultaneous:0:voicing:11",
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:18",
+            "comparison": "DISAGREE",
+            "top1Top2Margin": 1.047070659022
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-four-note-reduction",
+        "inputSha256": "2ebbdb7fc1da9884d16502849aafefa0b50a0bbcfdde6058481d314d12d38913",
+        "groupCount": 1,
+        "candidateCount": 73,
+        "candidateCountAfterShadow": 73,
+        "scoredGroupCount": 1,
+        "noCandidateGroupCount": 0,
+        "fret20CandidateCount": 27,
+        "fret20CandidateGroupCount": 1,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_SCORED_OFFLINE_NON_AUTHORITATIVE_V2",
+            "candidateCountBeforeShadow": 73,
+            "candidateCountAfterShadow": 73,
+            "candidateSetSha256": "7e6ed41e7959016a8de326a220e8b742cda75e0c7d8263a13b2afb24cbb55eea",
+            "shadowRankingSha256": "58bea804d25cbaafc8eca0af71bc7cc313b17669b04ebca1162ab34aa9ca6d41",
+            "shadowScored": true,
+            "modelDomainComplete": true,
+            "fret20CandidateCount": 27,
+            "topShadowCandidateId": "P1:measure:0:simultaneous:0:voicing:21",
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:17",
+            "comparison": "DISAGREE",
+            "top1Top2Margin": 3.628871628623
+          }
+        ]
+      },
+      {
+        "evaluationId": "pa11-high-note-octave",
+        "inputSha256": "f2acf732eb1138ee559b6743e20d1d09970dfd7b46db1e001c8d65e0a3af7190",
+        "groupCount": 0,
+        "candidateCount": 0,
+        "candidateCountAfterShadow": 0,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 0,
+        "fret20CandidateCount": 0,
+        "fret20CandidateGroupCount": 0,
+        "groups": []
+      },
+      {
+        "evaluationId": "shadow-control-in-domain-c3-e3",
+        "inputSha256": "94ef64c61a89f7bbb276fd9097f29a3077844154e157aafc5d0fd54ccbd4fdd7",
+        "groupCount": 1,
+        "candidateCount": 4,
+        "candidateCountAfterShadow": 4,
+        "scoredGroupCount": 1,
+        "noCandidateGroupCount": 0,
+        "fret20CandidateCount": 0,
+        "fret20CandidateGroupCount": 0,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_SCORED_OFFLINE_NON_AUTHORITATIVE_V2",
+            "candidateCountBeforeShadow": 4,
+            "candidateCountAfterShadow": 4,
+            "candidateSetSha256": "b80a4d5e57bf9e03f7bfa912bff3c948db26195dfaddc0debcf5619deb3c623a",
+            "shadowRankingSha256": "6873b7cc2aff59a2fecbd531db91c6d2a52140e54bb7b822ebb46d78337d3f9c",
+            "shadowScored": true,
+            "modelDomainComplete": true,
+            "fret20CandidateCount": 0,
+            "topShadowCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "baselineCandidateId": "P1:measure:0:simultaneous:0:voicing:0",
+            "comparison": "AGREE",
+            "top1Top2Margin": 0.431699683208
+          }
+        ]
+      },
+      {
+        "evaluationId": "shadow-control-zero-candidate-e2-e2",
+        "inputSha256": "cf1c9b2445cbb17bee6dd15ffd0eca42e6c1b3e4e86f8df55d3a31fccc9c283f",
+        "groupCount": 1,
+        "candidateCount": 0,
+        "candidateCountAfterShadow": 0,
+        "scoredGroupCount": 0,
+        "noCandidateGroupCount": 1,
+        "fret20CandidateCount": 0,
+        "fret20CandidateGroupCount": 0,
+        "groups": [
+          {
+            "sourceGroupId": "P1:measure:0:simultaneous:0",
+            "status": "SHADOW_NOT_SCORED_NO_AUTHORITATIVE_CANDIDATES",
+            "candidateCountBeforeShadow": 0,
+            "candidateCountAfterShadow": 0,
+            "candidateSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowRankingSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "shadowScored": false,
+            "modelDomainComplete": true,
+            "fret20CandidateCount": 0,
+            "topShadowCandidateId": null,
+            "baselineCandidateId": null,
+            "comparison": "NOT_COMPARABLE",
+            "top1Top2Margin": null
+          }
+        ]
+      }
+    ],
+    "metrics": {
+      "fixtureCount": 6,
+      "totalGroupCount": 5,
+      "totalCandidateCount": 153,
+      "totalCandidateCountAfterShadow": 153,
+      "candidateBearingGroupCount": 4,
+      "scoredGroupCount": 4,
+      "noCandidateGroupCount": 1,
+      "noScoreGroupCount": 1,
+      "candidateBearingScorableRate": 1,
+      "noScoreRate": 0.2,
+      "candidateCountPreservationRate": 1,
+      "fret20CandidateCount": 48,
+      "fret20CandidateGroupCount": 3,
+      "baselineComparableGroupCount": 4,
+      "top1AgreementCount": 1,
+      "top1AgreementRate": 0.25,
+      "disagreementCount": 3,
+      "disagreementIds": [
+        "pa11-two-note-interval:P1:measure:0:simultaneous:0",
+        "pa11-three-note-triad:P1:measure:0:simultaneous:0",
+        "pa11-four-note-reduction:P1:measure:0:simultaneous:0"
+      ],
+      "top1Top2MarginSummary": {
+        "count": 4,
+        "minimum": 0.431699683208,
+        "maximum": 3.628871628623,
+        "mean": 1.483942111239
+      },
+      "shadowErrorCount": 0
+    },
+    "controlledOfflineExecution": true,
+    "liveOrUserInputAuthorized": false,
+    "runtimeConnectionAuthorized": false,
+    "candidateMutationAuthorized": false,
+    "candidateFilteringAuthorized": false,
+    "candidateGenerationAuthorized": false,
+    "authoritativeDecisionEffectAuthorized": false,
+    "canonicalResultEffectAuthorized": false,
+    "tabOutputEffectAuthorized": false,
+    "checkpointMutationAuthorized": false,
+    "refitAuthorized": false,
+    "fret20CandidateScoringAuthorized": true,
+    "fret20QualityAuthority": false,
+    "networkOrTelemetryAuthorized": false,
+    "productionAuthorized": false,
+    "runDigestSha256": "855e62f2dddece4ad7d3008c915418611dc59fcd06cfc1bfdbc22060755d0bed"
+  },
+  "determinism": {
+    "documentType": "ControlledOfflineGuitarSetV2ShadowDeterminismEvidence",
+    "contractVersion": "1.0.0",
+    "engineCommitSha": "acdb66e2bb2ad809ab45fc7c2183d84280d61ad7",
+    "fixtureManifestSha256": "8f2600b3e6934bfd1220a0ed7ee127e10d9bdb38913b4605f1553c4c8d97a55f",
+    "repetitions": 10,
+    "deterministic": true,
+    "evidenceRunDigestSha256": "855e62f2dddece4ad7d3008c915418611dc59fcd06cfc1bfdbc22060755d0bed",
+    "fixtureCount": 6,
+    "totalGroupCount": 5,
+    "totalCandidateCount": 153,
+    "candidateBearingScorableRate": 1,
+    "candidateCountPreservationRate": 1,
+    "fret20CandidateCount": 48,
+    "controlledOfflineExecution": true,
+    "liveOrUserInputAuthorized": false,
+    "runtimeConnectionAuthorized": false,
+    "authoritativeDecisionEffectAuthorized": false,
+    "canonicalResultEffectAuthorized": false,
+    "tabOutputEffectAuthorized": false,
+    "fret20QualityAuthority": false,
+    "productionAuthorized": false,
+    "determinismDigestSha256": "6b67196a87046916bb1411e8ecfb826f92a5e8c8ebd4243e0278a7070769a791"
+  },
+  "sealPolicy": {
+    "historicalEvidenceRecomputationAuthorized": false,
+    "currentRunnerRequiredForVerification": false,
+    "rawMusicXmlIncluded": false,
+    "originalLocalPathIncluded": false,
+    "userFilenameIncluded": false,
+    "teacherLabelsIncluded": false,
+    "validationLabelsIncluded": false,
+    "finalLabelsIncluded": false,
+    "networkTelemetryIncluded": false
+  }
+}

@@ -82,16 +82,19 @@ Neither renderer may recalculate, replace or correct engine fingering. A rendere
 
 The repository now also contains merged internal PA-8 `LeftHandShapeModel 1.0.0`, PA-9 `PhysicalPlayabilityValidation 2.0.0`, PA-10.5 canonical-v2 dispatch design, and PA-11.4A evaluation-only revoicing candidates. None is package-root public and none changes the public writer contract.
 
-PR #136 additionally contains the isolated `GUITARSET-OBSERVED-VOICING-MODEL.v2` offline/parity adapter. Candidate domain 0..20 matches PA-7, but observed positive GuitarSet gold remains 0..19, so `fret20QualityAuthority=false`. The adapter has no public writer or runtime connection.
+The isolated `GUITARSET-OBSERVED-VOICING-MODEL.v2` adapter has completed Python↔Node parity and exact-main controlled-offline evidence. Candidate domain 0..20 matches PA-7, but observed positive GuitarSet gold remains 0..19, so `fret20QualityAuthority=false`.
 
-Next learned-model evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`.
+Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`; immutable artifact `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`, byte SHA-256 `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`.
 
 Current learned authority remains:
 
+- controlled repository-fixture execution: complete
 - live/user input: false
 - runtime connection: false
 - authoritative optimizer/canonical/TAB effect: false
 - production: false
+
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`.
 
 ## Compatibility fixtures
 

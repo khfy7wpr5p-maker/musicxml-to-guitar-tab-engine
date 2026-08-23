@@ -108,22 +108,24 @@ Teacher benchmark evidence is independent evaluation truth, not training data an
 
 Historical GuitarSet v1 is scientifically bound to candidate frets 0..19. Exact v1 offline evidence remains historical and must not be rewritten.
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` is separately preregistered for candidate domain 0..20. PR #136 merged only an isolated offline/parity adapter. Python and Node feature/score/ranking parity and real PA-7 fret-20 candidate scoring are verified.
+`GUITARSET-OBSERVED-VOICING-MODEL.v2` uses candidate domain 0..20. Python↔Node parity and exact-main controlled-offline execution are complete.
+
+Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
+
+The immutable artifact `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json` is byte-sealed to `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba` and binds engine commit `acdb66e2bb2ad809ab45fc7c2183d84280d61ad7`. It records 4/4 candidate-bearing coverage, 153/153 candidate preservation, one explicit zero-candidate NO_SCORE group, 1/4 baseline agreement, three disagreements, 48 fret-20 candidates, zero shadow errors, and 10/10 determinism.
 
 Safety facts:
 
 - observed positive-gold domain: 0..19;
 - `fret20QualityAuthority=false`;
 - candidate mutation/filter/truncation: false;
-- shadow execution: false at the PR #136 adapter boundary;
+- controlled repository-fixture execution: complete;
 - live/user input: false;
 - runtime connection: false;
 - authoritative optimizer/canonical/TAB effect: false;
 - production: false.
 
-Next gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`.
-
-That fixture-only gate may measure coverage, NO_SCORE, baseline agreement/disagreement, margins, candidate preservation, failure/privacy isolation and 10/10 determinism. It cannot wire the model into normal conversion.
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`. The seal cannot wire the model into normal conversion.
 
 ## 8. Public compatibility boundary
 
