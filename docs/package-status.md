@@ -49,7 +49,9 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 | Deterministic cost + DP optimizer | ✅ VERIFIED |
 | CanonicalTabResult 1.0.0 | ✅ PUBLIC |
 | JSON / ASCII / TAB MusicXML writers | ✅ PUBLIC |
-| PA-1 through PA-9 | ✅ INTERNAL |
+| PA-1 through PA-7 source/reduction/voicing foundations | ✅ INTERNAL |
+| PA-8 `LeftHandShapeModel 1.0.0` | ✅ INTERNAL |
+| PA-9 `PhysicalPlayabilityValidation 2.0.0` | ✅ INTERNAL |
 | PA-10.3 compatibility/migration matrix | ✅ MERGED DOC |
 | PA-10.4 CanonicalTabResult 2.0 proposal | ✅ MERGED DOC |
 | PA-10.5 version-dispatch contract | ✅ MERGED DOC |
