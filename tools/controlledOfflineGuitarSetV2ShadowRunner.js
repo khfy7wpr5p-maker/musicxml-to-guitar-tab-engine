@@ -28,15 +28,19 @@ const {
   createGuitarSetVoicingModelV2ShadowReport,
 } = require('../src/learning/guitarsetVoicingModelV2Shadow');
 const {
-  loadControlledOfflineFixtureInputs,
+  validateManifest,
+  loadControlledOfflineFixtureInputs: loadReviewedFixtureInputs,
 } = require('./controlledOfflineGuitarSetShadowRunner');
 
 const CONTROLLED_OFFLINE_V2_SHADOW_EVIDENCE_VERSION = '1.0.0';
 const CONTROLLED_OFFLINE_V2_SHADOW_DETERMINISM_VERSION = '1.0.0';
+const EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256 =
+  '8f2600b3e6934bfd1220a0ed7ee127e10d9bdb38913b4605f1553c4c8d97a55f';
 const MIN_DETERMINISM_REPETITIONS = 10;
 const MAX_DETERMINISM_REPETITIONS = 25;
 const MAX_FIXTURE_COUNT = 16;
 const MAX_FIXTURE_BYTES = 1024 * 1024;
+const reviewedFixtureSets = new WeakSet();
 
 class ControlledOfflineGuitarSetV2ShadowRunnerError extends Error {
   constructor(message, code = 'INVALID_CONTROLLED_OFFLINE_V2_SHADOW_INPUT', details = {}) {
@@ -129,6 +133,35 @@ function assertCommitSha(value) {
   return value;
 }
 
+function loadControlledOfflineV2FixtureInputs(repositoryRoot, manifest) {
+  let normalizedManifest;
+  try {
+    normalizedManifest = validateManifest(manifest);
+  } catch (error) {
+    throw hardStop('Controlled v2 fixture manifest validation failed.', {
+      causeCode: error && typeof error.code === 'string' ? error.code : null,
+    });
+  }
+  const manifestSha256 = sha256Json(normalizedManifest);
+  if (manifestSha256 !== EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256) {
+    throw hardStop('Controlled v2 fixture manifest identity drift.', {
+      expectedSha256: EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
+      actualSha256: manifestSha256,
+    });
+  }
+  const fixtures = loadReviewedFixtureInputs(repositoryRoot, manifest);
+  reviewedFixtureSets.add(fixtures);
+  return fixtures;
+}
+
+function assertReviewedFixtureSet(fixtures) {
+  if (!reviewedFixtureSets.has(fixtures)) {
+    throw hardStop('Controlled v2 offline fixtures are not bound to the reviewed manifest.', {
+      expectedManifestSha256: EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
+    });
+  }
+}
+
 function validateFixtureInput(entry, index) {
   const field = `fixtures[${index}]`;
   assertExactKeys(entry, ['evaluationId', 'expectedSha256', 'musicXml'], field);
@@ -211,6 +244,29 @@ function matchBaselineCandidate(group, baselineResult) {
   return null;
 }
 
+function assertExactCandidateScoreCoverage(authoritativeGroup, shadowGroup, evaluationId) {
+  if (authoritativeGroup.candidateCount === 0) {
+    if (shadowGroup.candidateScores.length !== 0 || shadowGroup.shadowScored !== false) {
+      throw hardStop('V2 zero-candidate group produced shadow scores.', {
+        evaluationId,
+        sourceGroupId: shadowGroup.sourceGroupId,
+      });
+    }
+    return;
+  }
+  const expectedIds = authoritativeGroup.candidates.map((candidate) => candidate.candidateId).sort();
+  const actualIds = shadowGroup.candidateScores.map((entry) => entry.candidateId).sort();
+  if (
+    actualIds.length !== expectedIds.length
+    || actualIds.some((candidateId, index) => candidateId !== expectedIds[index])
+  ) {
+    throw hardStop('V2 shadow ranking does not cover the exact authoritative candidate set.', {
+      evaluationId,
+      sourceGroupId: shadowGroup.sourceGroupId,
+    });
+  }
+}
+
 function summarizeFixture(evaluationId, inputSha256, source, modelArtifact) {
   const decisions = createBlindBaselineArrangementDecisions(source);
   const voicingModel = createGuitarVoicingCandidateModel(source, decisions);
@@ -218,16 +274,31 @@ function summarizeFixture(evaluationId, inputSha256, source, modelArtifact) {
   const shadowReport = createGuitarSetVoicingModelV2ShadowReport(voicingModel, modelArtifact);
 
   if (
-    shadowReport.groupCount !== voicingModel.groupCount
+    shadowReport.mode !== 'OFFLINE_ADAPTER_PARITY_ONLY'
+    || shadowReport.groupCount !== voicingModel.groupCount
     || shadowReport.candidateCount !== voicingModel.candidateCount
   ) {
-    throw hardStop('V2 shadow adapter changed authoritative candidate counts.', {
+    throw hardStop('V2 shadow adapter identity/count boundary drift.', {
       evaluationId,
       expectedGroupCount: voicingModel.groupCount,
       actualGroupCount: shadowReport.groupCount,
       expectedCandidateCount: voicingModel.candidateCount,
       actualCandidateCount: shadowReport.candidateCount,
     });
+  }
+  if (
+    shadowReport.candidateMutationAuthorized !== false
+    || shadowReport.candidateFilteringAuthorized !== false
+    || shadowReport.candidateGenerationAuthorized !== false
+    || shadowReport.liveOrUserInputAuthorized !== false
+    || shadowReport.runtimeConnectionAuthorized !== false
+    || shadowReport.authoritativeDecisionEffectAuthorized !== false
+    || shadowReport.canonicalResultEffectAuthorized !== false
+    || shadowReport.tabOutputEffectAuthorized !== false
+    || shadowReport.fret20QualityAuthority !== false
+    || shadowReport.productionAuthorized !== false
+  ) {
+    throw hardStop('V2 shadow adapter authority boundary drift.', { evaluationId });
   }
 
   const authoritativeByGroup = new Map(
@@ -248,6 +319,7 @@ function summarizeFixture(evaluationId, inputSha256, source, modelArtifact) {
         sourceGroupId: shadowGroup.sourceGroupId,
       });
     }
+    assertExactCandidateScoreCoverage(authoritativeGroup, shadowGroup, evaluationId);
 
     const baselineCandidateId = matchBaselineCandidate(authoritativeGroup, baselineResult);
     const topShadowCandidateId = shadowGroup.topCandidateId;
@@ -288,6 +360,7 @@ function summarizeFixture(evaluationId, inputSha256, source, modelArtifact) {
     inputSha256,
     groupCount: voicingModel.groupCount,
     candidateCount: voicingModel.candidateCount,
+    candidateCountAfterShadow: groups.reduce((sum, group) => sum + group.candidateCountAfterShadow, 0),
     scoredGroupCount: shadowReport.scoredGroupCount,
     noCandidateGroupCount: shadowReport.noCandidateGroupCount,
     fret20CandidateCount: shadowReport.fret20CandidateCount,
@@ -307,6 +380,7 @@ function createControlledOfflineV2ShadowEvidence({
       field: 'fixtures',
     });
   }
+  assertReviewedFixtureSet(fixtures);
 
   let validatedModel;
   try {
@@ -327,14 +401,23 @@ function createControlledOfflineV2ShadowEvidence({
     }
     seenIds.add(input.evaluationId);
 
-    const runtime = createMusicXmlProcessingRuntime();
-    const parsed = parseParsedMusicXmlDocument(input.musicXml, {}, runtime);
-    const source = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
-    return summarizeFixture(input.evaluationId, input.inputSha256, source, modelArtifact);
+    try {
+      const runtime = createMusicXmlProcessingRuntime();
+      const parsed = parseParsedMusicXmlDocument(input.musicXml, {}, runtime);
+      const source = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+      return summarizeFixture(input.evaluationId, input.inputSha256, source, modelArtifact);
+    } catch (error) {
+      if (error instanceof ControlledOfflineGuitarSetV2ShadowRunnerError) throw error;
+      throw hardStop('Controlled v2 offline fixture execution failed.', {
+        evaluationId: input.evaluationId,
+        causeCode: error && typeof error.code === 'string' ? error.code : null,
+      });
+    }
   });
 
   let totalGroupCount = 0;
   let totalCandidateCount = 0;
+  let totalCandidateCountAfterShadow = 0;
   let scoredGroupCount = 0;
   let noCandidateGroupCount = 0;
   let fret20CandidateCount = 0;
@@ -347,6 +430,7 @@ function createControlledOfflineV2ShadowEvidence({
   for (const fixture of fixtureEvidence) {
     totalGroupCount += fixture.groupCount;
     totalCandidateCount += fixture.candidateCount;
+    totalCandidateCountAfterShadow += fixture.candidateCountAfterShadow;
     scoredGroupCount += fixture.scoredGroupCount;
     noCandidateGroupCount += fixture.noCandidateGroupCount;
     fret20CandidateCount += fixture.fret20CandidateCount;
@@ -383,6 +467,12 @@ function createControlledOfflineV2ShadowEvidence({
       scoredGroupCount,
     });
   }
+  if (totalCandidateCountAfterShadow !== totalCandidateCount) {
+    throw hardStop('V2 controlled offline aggregate candidate-count preservation failed.', {
+      before: totalCandidateCount,
+      after: totalCandidateCountAfterShadow,
+    });
+  }
 
   const marginSummary = margins.length === 0
     ? Object.freeze({ count: 0, minimum: null, maximum: null, mean: null })
@@ -397,13 +487,14 @@ function createControlledOfflineV2ShadowEvidence({
     fixtureCount: fixtureEvidence.length,
     totalGroupCount,
     totalCandidateCount,
+    totalCandidateCountAfterShadow,
     candidateBearingGroupCount,
     scoredGroupCount,
     noCandidateGroupCount,
     noScoreGroupCount: noCandidateGroupCount,
     candidateBearingScorableRate: normalizeRate(scoredGroupCount, candidateBearingGroupCount),
     noScoreRate: normalizeRate(noCandidateGroupCount, totalGroupCount),
-    candidateCountPreservationRate: 1,
+    candidateCountPreservationRate: normalizeRate(totalCandidateCountAfterShadow, totalCandidateCount),
     fret20CandidateCount,
     fret20CandidateGroupCount,
     baselineComparableGroupCount,
@@ -420,6 +511,7 @@ function createControlledOfflineV2ShadowEvidence({
     contractVersion: CONTROLLED_OFFLINE_V2_SHADOW_EVIDENCE_VERSION,
     mode: 'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE',
     engineCommitSha,
+    fixtureManifestSha256: EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
     adapterVersion: GUITARSET_VOICING_MODEL_V2_SHADOW_VERSION,
     modelArtifactSha256: validatedModel.artifactSha256,
     modelTransportSha256: validatedModel.transportSha256,
@@ -468,6 +560,7 @@ function verifyControlledOfflineV2ShadowDeterminism({
       field: 'repetitions',
     });
   }
+  assertReviewedFixtureSet(fixtures);
 
   const first = createControlledOfflineV2ShadowEvidence({
     engineCommitSha,
@@ -493,6 +586,7 @@ function verifyControlledOfflineV2ShadowDeterminism({
     documentType: 'ControlledOfflineGuitarSetV2ShadowDeterminismEvidence',
     contractVersion: CONTROLLED_OFFLINE_V2_SHADOW_DETERMINISM_VERSION,
     engineCommitSha,
+    fixtureManifestSha256: EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
     repetitions,
     deterministic: true,
     evidenceRunDigestSha256: first.runDigestSha256,
@@ -521,6 +615,7 @@ function verifyControlledOfflineV2ShadowDeterminism({
 module.exports = {
   CONTROLLED_OFFLINE_V2_SHADOW_EVIDENCE_VERSION,
   CONTROLLED_OFFLINE_V2_SHADOW_DETERMINISM_VERSION,
+  EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
   MIN_DETERMINISM_REPETITIONS,
   MAX_DETERMINISM_REPETITIONS,
   EXPECTED_MODEL_ARTIFACT_SHA256,
@@ -528,7 +623,7 @@ module.exports = {
   EXPECTED_PROTOCOL_SHA256,
   EXPECTED_MODEL_TRANSPORT_SHA256,
   ControlledOfflineGuitarSetV2ShadowRunnerError,
-  loadControlledOfflineFixtureInputs,
+  loadControlledOfflineV2FixtureInputs,
   createControlledOfflineV2ShadowEvidence,
   verifyControlledOfflineV2ShadowDeterminism,
 };
