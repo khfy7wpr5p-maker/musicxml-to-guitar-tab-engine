@@ -26,10 +26,20 @@ test('locked production dependencies have declared license records', () => {
   const lock = JSON.parse(read('package-lock.json'));
   const inventory = JSON.parse(read('third_party/dependency-licenses.json'));
   const records = new Map(inventory.components.map((item) => [`${item.name}@${item.version}`, item]));
-  assert.equal(lock.packages['node_modules/saxes'].version, '6.0.0');
-  assert.equal(lock.packages['node_modules/xmlchars'].version, '2.2.0');
-  assert.ok(records.has('saxes@6.0.0'));
-  assert.ok(records.has('xmlchars@2.2.0'));
+  const productionPackages = Object.entries(lock.packages)
+    .filter(([packagePath, metadata]) => packagePath && metadata.dev !== true)
+    .map(([packagePath, metadata]) => ({
+      name: packagePath.split('node_modules/').at(-1),
+      version: metadata.version
+    }));
+
+  assert.ok(productionPackages.length > 0);
+  for (const dependency of productionPackages) {
+    assert.ok(
+      records.has(`${dependency.name}@${dependency.version}`),
+      `missing license inventory record for ${dependency.name}@${dependency.version}`
+    );
+  }
 });
 
 test('model and dataset boundaries remain explicit', () => {
