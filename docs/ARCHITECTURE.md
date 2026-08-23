@@ -141,17 +141,45 @@ TAB MusicXML
 
 PR #136 Tests #764 and MusicXML Compatibility #533 passed. alphaTab import, SVG render and browser renderer/cursor are compatibility-verified. Synth remains diagnostic, MuseScore semantic round-trip remains unverified, and PDF/application UI/persistence are not implemented. Renderers have no fingering authority.
 
+### Preserved external-renderer / PDF security requirements
+
+Any future MuseScore or external renderer adapter must preserve these controls unless a separately approved security review replaces them with equal-or-stronger controls:
+
+- resolve only an explicitly approved renderer executable/version; user-supplied executable paths are not authority;
+- invoke without a shell and with a fixed allowlisted argument shape; user-controlled command fragments/flags are forbidden;
+- require no renderer network access and disable network access where deployment permits;
+- use a job-owned isolated temporary directory; never inspect unrelated directories or share writable temp storage with unrelated services;
+- reject path traversal and unsafe symlink/file-replacement conditions before read/write/delete/publish operations;
+- never overwrite original MusicXML or caller-owned artifacts; renderer output is always a new derived artifact;
+- cleanup only current-job files/directories on success, failure and timeout paths;
+- enforce hard process timeout, process-tree termination where required and bounded concurrency; stronger CPU/memory ceilings belong at OS/container/worker boundary when needed;
+- bound captured stdout/stderr and generated output size;
+- validate claimed PDF output as non-empty and at minimum verify `%PDF-` signature plus configured type/size ceilings;
+- missing renderer, unsupported version, spawn failure, timeout, invalid/empty output, path mismatch and cleanup failure must produce explicit fail-closed adapter errors;
+- renderer/PDF failure must not destroy or invalidate an already valid deterministic core result, JSON, ASCII TAB or TAB MusicXML output;
+- errors must avoid leaking secrets, credentials, unrestricted environment data, arbitrary filesystem contents or unnecessary command details;
+- third-party renderer/tool versions and workflow actions remain reviewed and pinned/controlled under supply-chain policy;
+- production rendering should use a separately bounded worker/service where stronger process/filesystem isolation is needed, with no unrelated writable mounts, secrets or deployment authority.
+
+A future renderer gate needs negative evidence for missing/unsupported executable, argument/path injection, traversal/symlink escape, timeout/termination, excessive output/logs, empty/invalid PDF, unrelated-file preservation, current-job-only cleanup, and proof that core MusicXML/TAB outputs survive renderer failure.
+
+These are architecture requirements only; they do not make MuseScore or PDF a current runtime capability.
+
 ## 10. Non-negotiable safety rules
 
 1. Original MusicXML is immutable source truth.
 2. XML/resource/deadline/cancellation hostile-input limits remain fail-closed.
 3. Parsing never chooses guitar positions.
-4. Physical validity precedes learned scoring.
-5. Deterministic public optimization remains reproducible.
-6. Teacher approval cannot make an impossible shape physically valid.
-7. Teacher review is not training consent.
-8. Evaluation benchmarks remain separate from training.
-9. Learned models cannot fabricate notes/candidates or bypass physical validation.
-10. Historical sealed evidence is immutable evidence, not a mutable status file.
-11. Canonical-v2 design does not imply runtime-v2 implementation.
-12. Runtime shadow, final selection, public polyphony and production are separately gated.
+4. Structural XML validation and musical semantic projection remain separate.
+5. Physical validity precedes learned scoring.
+6. Deterministic public optimization remains reproducible and the mandatory fallback.
+7. External systems integrate only through explicit versioned contracts/adapters.
+8. Teacher approval cannot make an impossible shape physically valid and is not training consent.
+9. Digests prove content correspondence, not trusted producer identity.
+10. Fixed evaluation benchmarks remain separate from training.
+11. PA-7 candidate order is deterministic enumeration, not preference/final selection.
+12. Application UI/renderers/editors/persistence cannot directly mutate authoritative canonical objects.
+13. Historical sealed evidence is immutable evidence, not a mutable status file.
+14. Canonical-v2 design does not imply runtime-v2 implementation.
+15. High-risk runtime changes require focused negative/fail-closed tests, full regression, relevant compatibility/E2E evidence, GitHub-hosted CI and explicit authority review.
+16. Runtime shadow, final selection, public polyphony and production are separately gated.
