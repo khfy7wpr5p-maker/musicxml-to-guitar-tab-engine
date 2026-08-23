@@ -149,7 +149,7 @@ function loadControlledOfflineV2FixtureInputs(repositoryRoot, manifest) {
       actualSha256: manifestSha256,
     });
   }
-  const fixtures = loadReviewedFixtureInputs(repositoryRoot, manifest);
+  const fixtures = loadReviewedFixtureInputs(repositoryRoot, normalizedManifest);
   reviewedFixtureSets.add(fixtures);
   return fixtures;
 }
