@@ -14,7 +14,7 @@ Current package metadata:
 
 - version: `0.1.0`
 - `private: true`
-- license: `UNLICENSED`
+- license: `SEE LICENSE IN LICENSE`
 - Node.js >=18
 - runtime dependency: `saxes@6.0.0`
 
@@ -203,3 +203,13 @@ When documents disagree, use:
 Historical versioned PA contracts, closure records, and sealed v1 shadow evidence retain their original stage-specific statements. They are evidence, not a live status dashboard.
 
 See `AI_CONTEXT.md`, `docs/ARCHITECTURE.md`, `docs/current-status.md`, `docs/package-status.md`, `docs/polyphonic-guitar-arrangement-foundation.md`, and `docs/musicxml-compatibility.md` for the converged active architecture surfaces.
+
+## Licensing
+
+First-party software is available under the PolyForm Noncommercial License
+1.0.0. Commercial use requires a separate signed agreement; see
+[`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md). Scope, model/data boundaries,
+third-party notices, and contributor terms are documented in
+[`LICENSE-SCOPE.md`](LICENSE-SCOPE.md), [`MODEL-LICENSE.md`](MODEL-LICENSE.md),
+[`DATASET-LICENSES.md`](DATASET-LICENSES.md), and
+[`CONTRIBUTING.md`](CONTRIBUTING.md).

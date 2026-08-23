@@ -8,7 +8,7 @@ This is the active read-first status for coding agents and reviewers. Historical
 
 ## Executable authority
 
-Current package metadata: version `0.1.0`, `private: true`, `UNLICENSED`, Node.js >=18.
+Current package metadata: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
 
 The public conversion path remains deterministic and monophonic:
 
