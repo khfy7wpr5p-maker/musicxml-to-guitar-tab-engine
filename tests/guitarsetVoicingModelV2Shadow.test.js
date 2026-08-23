@@ -32,9 +32,9 @@ const pythonGolden = JSON.parse(
 function score(body) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
-  <part-list><score-part id="P1"><part-name>GuitarSet v2 shadow</part-name></score-part-list>
+  <part-list><score-part id="P1"><part-name>GuitarSet v2 shadow</part-name></score-part></part-list>
   <part id="P1"><measure number="1">
-    <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+    <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
     ${body}
   </measure></part>
 </score-partwise>`;
