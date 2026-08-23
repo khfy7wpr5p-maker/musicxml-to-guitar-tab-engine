@@ -8,6 +8,8 @@ Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merge
 
 This audit compares the executable repository state on the convergence base against the active architecture/status documentation. Historical versioned contracts, closure records, and sealed scientific evidence remain immutable historical records and are not rewritten by the convergence work.
 
+The seven active dashboard/read-first documents are intentionally compacted into a current canonical snapshot instead of preserving stale stage-status prose as live guidance. Their complete pre-convergence contents remain immutable in Git at convergence base `200d55ebc4863471c8c50b59e9ba6a6115806dd6`; versioned PA contracts, closure records and sealed scientific evidence remain unchanged on the new branch. Therefore the convergence removes stale live guidance without rewriting historical evidence.
+
 ## Findings before convergence
 
 1. `README.md` still described PA-7 as the latest merged polyphonic capability and PA-8 as the next gate, although PA-8 and PA-9 are merged internal capabilities.
@@ -33,6 +35,20 @@ The convergence must preserve:
 - `fret20QualityAuthority=false` because positive observed GuitarSet gold remains 0..19;
 - `runtime connection: false`;
 - `production: false`.
+
+## Test contract
+
+`tests/architectureDocumentationConsistency.test.js` binds the live snapshot to executable facts rather than documentation alone. It verifies:
+
+- all active architecture documents identify the same convergence base and PR #136;
+- PA-8, PA-9, PA-10.5, PA-11.4A and GuitarSet v2 state are represented;
+- known stale next-stage claims are absent from the active documents;
+- `package.json` metadata and exact package-root export set remain unchanged;
+- merged PA-8/PA-9/PA-11.4A/v2 adapter modules actually exist;
+- internal modules remain absent from package-root exports;
+- v2 controlled offline execution is documented as the next evidence gate, not runtime authority.
+
+Red-first evidence: on superseded draft PR #137 head `f99af98be564b0f1ae9c0fe1eea5c4ec0352dee8`, Tests #766 and MusicXML Compatibility #534 failed against the stale documents as intended.
 
 ## Next gate after convergence
 
