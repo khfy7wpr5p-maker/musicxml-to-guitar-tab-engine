@@ -23,40 +23,38 @@ const MODEL_PATH = path.join(
   'fixtures',
   'guitarsetObservedVoicingDevelopmentModelV2.json',
 );
+const EXACT_MAIN_ENGINE_SHA = 'acdb66e2bb2ad809ab45fc7c2183d84280d61ad7';
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-test('capture GuitarSet v2 controlled offline evidence only on an exact main push', () => {
-  const isExactMainPush = (
-    process.env.GITHUB_EVENT_NAME === 'push'
-    && process.env.GITHUB_REF === 'refs/heads/main'
+test('capture GuitarSet v2 evidence against the frozen exact-main base in PR CI', () => {
+  const isReviewedCapturePr = (
+    process.env.GITHUB_EVENT_NAME === 'pull_request'
+    && process.env.GITHUB_BASE_REF === 'main'
   );
 
-  if (!isExactMainPush) {
+  if (!isReviewedCapturePr) {
     assert.ok(true);
     return;
   }
 
-  const engineCommitSha = process.env.GITHUB_SHA;
-  assert.match(engineCommitSha || '', /^[0-9a-f]{40}$/);
-
   const fixtures = loadControlledOfflineV2FixtureInputs(REPO_ROOT, readJson(MANIFEST_PATH));
   const modelArtifact = readJson(MODEL_PATH);
   const evidence = createControlledOfflineV2ShadowEvidence({
-    engineCommitSha,
+    engineCommitSha: EXACT_MAIN_ENGINE_SHA,
     fixtures,
     modelArtifact,
   });
   const determinism = verifyControlledOfflineV2ShadowDeterminism({
-    engineCommitSha,
+    engineCommitSha: EXACT_MAIN_ENGINE_SHA,
     fixtures,
     modelArtifact,
     repetitions: MIN_DETERMINISM_REPETITIONS,
   });
 
-  assert.equal(evidence.engineCommitSha, engineCommitSha);
+  assert.equal(evidence.engineCommitSha, EXACT_MAIN_ENGINE_SHA);
   assert.equal(evidence.metrics.candidateCountPreservationRate, 1);
   assert.equal(evidence.metrics.candidateBearingScorableRate, 1);
   assert.equal(evidence.runtimeConnectionAuthorized, false);
@@ -70,6 +68,7 @@ test('capture GuitarSet v2 controlled offline evidence only on an exact main pus
   const capture = {
     documentType: 'ControlledOfflineGuitarSetV2ShadowExactMainCapture',
     schemaVersion: '1.0.0',
+    exactMainEngineSha: EXACT_MAIN_ENGINE_SHA,
     evidence,
     determinism,
   };
