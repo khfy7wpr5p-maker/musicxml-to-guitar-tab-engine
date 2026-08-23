@@ -78,7 +78,7 @@ test('central architecture documents do not retain known stale next-stage claims
 test('documented package boundary matches executable package metadata and public API', () => {
   assert.equal(packageJson.version, '0.1.0');
   assert.equal(packageJson.private, true);
-  assert.equal(packageJson.license, 'UNLICENSED');
+  assert.equal(packageJson.license, 'SEE LICENSE IN LICENSE');
   assert.equal(packageJson.engines.node, '>=18');
 
   const expectedExports = [
@@ -99,7 +99,7 @@ test('documented package boundary matches executable package metadata and public
 
   for (const relativePath of ['README.md', 'AI_CONTEXT.md', 'docs/package-status.md']) {
     const text = read(relativePath);
-    for (const required of ['0.1.0', 'private: true', 'UNLICENSED', 'Node.js >=18']) {
+    for (const required of ['0.1.0', 'private: true', 'SEE LICENSE IN LICENSE', 'Node.js >=18']) {
       assert.ok(text.includes(required), `${relativePath} must document ${required}`);
     }
   }

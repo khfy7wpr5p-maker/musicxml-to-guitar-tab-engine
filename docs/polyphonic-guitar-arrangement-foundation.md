@@ -8,7 +8,7 @@ Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merge
 
 This is the active architecture view for the internal polyphonic-arrangement path. It does not replace the current public monophonic conversion API. `CanonicalTabResult 1.0.0` remains the public TAB authority.
 
-Package context: version `0.1.0`, `private: true`, `UNLICENSED`, Node.js >=18.
+Package context: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
 
 ## Implemented internal chain
 

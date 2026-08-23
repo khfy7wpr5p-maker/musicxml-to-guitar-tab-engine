@@ -8,7 +8,7 @@ Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merge
 
 The system deliberately separates the protected public deterministic path from internal polyphonic, teacher-evaluation, and learned/shadow paths. `CanonicalTabResult 1.0.0` remains the only public TAB authority. No internal helper becomes authoritative merely because it is merged on `main`.
 
-Package: version `0.1.0`, `private: true`, `UNLICENSED`, Node.js >=18.
+Package: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
 
 ## 2. Public deterministic engine
 

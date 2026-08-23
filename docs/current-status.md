@@ -21,7 +21,7 @@ Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merge
 | Public polyphonic API | 🔒 NOT IMPLEMENTED |
 | Production playback/PDF/application | 🔒 NOT READY |
 
-Package metadata: version `0.1.0`, `private: true`, `UNLICENSED`, Node.js >=18.
+Package metadata: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
 
 ## Public runtime
 
