@@ -2,13 +2,15 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   CONTROLLED_OFFLINE_V2_SHADOW_EVIDENCE_VERSION,
   CONTROLLED_OFFLINE_V2_SHADOW_DETERMINISM_VERSION,
+  EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256,
   MIN_DETERMINISM_REPETITIONS,
-  loadControlledOfflineFixtureInputs,
+  loadControlledOfflineV2FixtureInputs,
   createControlledOfflineV2ShadowEvidence,
   verifyControlledOfflineV2ShadowDeterminism,
 } = require('../tools/controlledOfflineGuitarSetV2ShadowRunner');
@@ -39,20 +41,25 @@ function readJson(filePath) {
 }
 
 function fixtureInputs() {
-  return loadControlledOfflineFixtureInputs(REPO_ROOT, readJson(MANIFEST_PATH));
+  return loadControlledOfflineV2FixtureInputs(REPO_ROOT, readJson(MANIFEST_PATH));
 }
 
 function modelArtifact() {
   return readJson(MODEL_PATH);
 }
 
-test('v2 controlled offline runner consumes only the existing SHA-sealed non-live manifest', () => {
+function sha256Utf8(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+test('v2 controlled offline runner is bound to the exact reviewed SHA-sealed non-live manifest', () => {
   const manifest = readJson(MANIFEST_PATH);
   assert.equal(manifest.documentType, 'ControlledOfflineGuitarSetShadowFixtureManifest');
   assert.equal(manifest.contractVersion, '1.0.0');
   assert.equal(manifest.sourcePolicy, 'REPOSITORY_OWNED_SELF_AUTHORED_NON_LIVE_ONLY');
   assert.equal(manifest.teacherLabelsIncluded, false);
   assert.equal(manifest.fixtures.length, 6);
+  assert.match(EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256, /^[0-9a-f]{64}$/);
 
   const inputs = fixtureInputs();
   assert.equal(inputs.length, 6);
@@ -60,6 +67,64 @@ test('v2 controlled offline runner consumes only the existing SHA-sealed non-liv
   assert.equal(
     manifest.fixtures.some((entry) => /approvals|reviews|benchmark\.proposed/i.test(entry.path)),
     false,
+  );
+});
+
+test('v2 manifest identity drift hard-stops before controlled evidence creation', () => {
+  const manifest = readJson(MANIFEST_PATH);
+  manifest.fixtures[0].evaluationId = 'reviewed-fixture-identity-drift';
+
+  assert.throws(
+    () => loadControlledOfflineV2FixtureInputs(REPO_ROOT, manifest),
+    (error) => (
+      error
+      && error.code === 'CONTROLLED_OFFLINE_V2_SHADOW_HARD_STOP'
+      && /manifest identity drift/i.test(error.message)
+    ),
+  );
+});
+
+test('direct self-consistent MusicXML cannot bypass reviewed-manifest provenance', () => {
+  const manifest = readJson(MANIFEST_PATH);
+  const fixturePath = path.join(REPO_ROOT, ...manifest.fixtures[0].path.split('/'));
+  const musicXml = fs.readFileSync(fixturePath, 'utf8');
+  const forgedFixtures = Object.freeze([
+    Object.freeze({
+      evaluationId: 'forged-self-consistent-input',
+      expectedSha256: sha256Utf8(musicXml),
+      musicXml,
+    }),
+  ]);
+
+  assert.throws(
+    () => createControlledOfflineV2ShadowEvidence({
+      engineCommitSha: ENGINE_SHA,
+      fixtures: forgedFixtures,
+      modelArtifact: modelArtifact(),
+    }),
+    (error) => (
+      error
+      && error.code === 'CONTROLLED_OFFLINE_V2_SHADOW_HARD_STOP'
+      && /reviewed manifest/i.test(error.message)
+    ),
+  );
+});
+
+test('copying reviewed fixture objects into a new array loses controlled provenance', () => {
+  const reviewed = fixtureInputs();
+  const copied = Object.freeze([...reviewed]);
+
+  assert.throws(
+    () => createControlledOfflineV2ShadowEvidence({
+      engineCommitSha: ENGINE_SHA,
+      fixtures: copied,
+      modelArtifact: modelArtifact(),
+    }),
+    (error) => (
+      error
+      && error.code === 'CONTROLLED_OFFLINE_V2_SHADOW_HARD_STOP'
+      && /reviewed manifest/i.test(error.message)
+    ),
   );
 });
 
@@ -74,6 +139,7 @@ test('v2 controlled offline evidence scores every candidate-bearing group and pr
   assert.equal(evidence.contractVersion, CONTROLLED_OFFLINE_V2_SHADOW_EVIDENCE_VERSION);
   assert.equal(evidence.mode, 'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE');
   assert.equal(evidence.engineCommitSha, ENGINE_SHA);
+  assert.equal(evidence.fixtureManifestSha256, EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256);
   assert.deepEqual(evidence.candidateFretDomain, [0, 20]);
   assert.deepEqual(evidence.sourceObservedFretDomain, [0, 19]);
   assert.equal(evidence.metrics.fixtureCount, 6);
@@ -81,6 +147,7 @@ test('v2 controlled offline evidence scores every candidate-bearing group and pr
   assert.equal(evidence.metrics.scoredGroupCount, evidence.metrics.candidateBearingGroupCount);
   assert.equal(evidence.metrics.candidateBearingScorableRate, 1);
   assert.equal(evidence.metrics.noScoreGroupCount, evidence.metrics.noCandidateGroupCount);
+  assert.equal(evidence.metrics.totalCandidateCountAfterShadow, evidence.metrics.totalCandidateCount);
   assert.equal(evidence.metrics.candidateCountPreservationRate, 1);
   assert.equal(evidence.metrics.shadowErrorCount, 0);
   assert.ok(evidence.metrics.fret20CandidateCount >= 1);
@@ -139,15 +206,17 @@ test('v2 controlled offline evidence keeps all runtime and production authority 
 });
 
 test('v2 controlled offline fixed set reproduces exactly across the required 10/10 determinism gate', () => {
+  const inputs = fixtureInputs();
   const result = verifyControlledOfflineV2ShadowDeterminism({
     engineCommitSha: ENGINE_SHA,
-    fixtures: fixtureInputs(),
+    fixtures: inputs,
     modelArtifact: modelArtifact(),
     repetitions: MIN_DETERMINISM_REPETITIONS,
   });
 
   assert.equal(result.documentType, 'ControlledOfflineGuitarSetV2ShadowDeterminismEvidence');
   assert.equal(result.contractVersion, CONTROLLED_OFFLINE_V2_SHADOW_DETERMINISM_VERSION);
+  assert.equal(result.fixtureManifestSha256, EXPECTED_CONTROLLED_OFFLINE_FIXTURE_MANIFEST_SHA256);
   assert.equal(result.repetitions, 10);
   assert.equal(result.deterministic, true);
   assert.equal(result.fixtureCount, 6);
@@ -189,6 +258,7 @@ test('v2 controlled offline runner has no network client or ordinary package-roo
   assert.doesNotMatch(source, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|axios)\b/);
 
   const packageRoot = require('../src');
+  assert.equal(Object.hasOwn(packageRoot, 'loadControlledOfflineV2FixtureInputs'), false);
   assert.equal(Object.hasOwn(packageRoot, 'createControlledOfflineV2ShadowEvidence'), false);
   assert.equal(Object.hasOwn(packageRoot, 'verifyControlledOfflineV2ShadowDeterminism'), false);
 });
