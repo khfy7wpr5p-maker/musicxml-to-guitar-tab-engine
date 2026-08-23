@@ -49,27 +49,36 @@ PA-11 includes immutable teacher review/approval binding, evaluation admission/s
 
 Historical v1 is a 0..19 candidate-domain model and its exact offline evidence remains historical. Engine PA-7 is 0..20, so v1 correctly held domain-incomplete groups rather than clipping/truncating them.
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` was separately preregistered for candidate domain 0..20. Training/evaluation/retention and cross-repo shadow-integration review passed. PR #136 merged the isolated v2 Node adapter and Python↔Node 28D feature/score/ranking parity.
+`GUITARSET-OBSERVED-VOICING-MODEL.v2` was separately preregistered for candidate domain 0..20. Training/evaluation/retention, cross-repo review, Node parity, and exact-main controlled-offline evidence are complete.
+
+Current evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
+
+- exact engine revision: `acdb66e2bb2ad809ab45fc7c2183d84280d61ad7`;
+- immutable artifact: `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`;
+- artifact byte SHA-256: `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`;
+- coverage: 4/4 candidate-bearing groups scored;
+- candidate preservation: 153/153;
+- all-group NO_SCORE: 1/5, caused by the explicit zero-candidate control;
+- baseline comparison: 1 agreement and 3 disagreements across 4 comparable groups;
+- fret-20 candidates scored: 48, with `fret20QualityAuthority=false`;
+- deterministic reproduction: 10/10;
+- shadow errors: 0.
 
 Scientific/authority boundary:
 
 - positive observed GuitarSet gold remains frets 0..19;
-- `fret20QualityAuthority=false`;
-- fret-20 candidate scoring is allowed only as preregistered candidate-domain compatibility;
 - candidate mutation/filter/truncation: false;
-- shadow execution: false at the PR #136 adapter boundary;
+- controlled repository-fixture execution: complete;
 - live/user input: false;
 - runtime connection: false;
 - authoritative optimizer/canonical/TAB effect: false;
 - production: false.
 
-Next gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`.
-
-That gate must remain repository-fixture-only and diagnostic. It may measure candidate-bearing coverage, NO_SCORE, baseline agreement/disagreement, margins, fret-20 candidate exposure, candidate preservation, failure/privacy isolation and 10/10 determinism. It may not connect to normal runtime or change TAB.
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`. It is not authorized by this closeout.
 
 ## Compatibility status
 
-PR #136 exact-head evidence: Tests #764 ✅ and MusicXML Compatibility #533 ✅. The required matrix covers Node.js 18/20/22 plus alphaTab import/SVG; the Node 22 browser job validates renderer/cursor. The alphaTab synth command is diagnostic with `continue-on-error` and is not production playback evidence. MuseScore CI currently checks command availability only; semantic import/re-export/round-trip and PDF remain unverified/not implemented.
+PR #136 adapter-parity baseline: Tests #764 ✅ and MusicXML Compatibility #533 ✅. The required matrix covers Node.js 18/20/22 plus alphaTab import/SVG; the Node 22 browser job validates renderer/cursor. The alphaTab synth command is diagnostic with `continue-on-error` and is not production playback evidence. MuseScore CI currently checks command availability only; semantic import/re-export/round-trip and PDF remain unverified/not implemented.
 
 ## Non-negotiable rules
 

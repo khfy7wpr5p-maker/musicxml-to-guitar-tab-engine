@@ -60,8 +60,8 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 | PA-11 teacher evaluation | ✅ through PA-11.4A |
 | Production polyphonic final selector | 🔒 NOT IMPLEMENTED |
 | Public polyphonic arrangement API | 🔒 NOT IMPLEMENTED |
-| GuitarSet v2 offline adapter parity | ✅ PR #136 |
-| GuitarSet v2 controlled offline execution | 🟡 NEXT GATE |
+| GuitarSet v2 offline adapter parity | ✅ COMPLETE |
+| GuitarSet v2 controlled offline execution | ✅ GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE |
 | Runtime learned selection | 🔒 CLOSED |
 | Production playback | 🔒 NOT VERIFIED |
 | MuseScore semantic round-trip | 🔒 NOT VERIFIED |
@@ -70,21 +70,30 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 
 ## GuitarSet v2 package boundary
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` candidate domain is 0..20 and matches PA-7. PR #136 verifies frozen Python↔Node features/scores/ranking and fret-20 candidate scoring. Observed positive GuitarSet gold remains 0..19, therefore `fret20QualityAuthority=false`.
+`GUITARSET-OBSERVED-VOICING-MODEL.v2` candidate domain is 0..20 and matches PA-7. Python↔Node parity and exact-main controlled-offline evidence are complete. Observed positive GuitarSet gold remains 0..19, therefore `fret20QualityAuthority=false`.
 
-The v2 adapter is internal and isolated:
+Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
 
-- shadow execution: false at the PR #136 adapter boundary
+- immutable artifact: `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
+- artifact byte SHA-256: `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`
+- exact engine commit: `acdb66e2bb2ad809ab45fc7c2183d84280d61ad7`
+- candidate-bearing coverage: 4/4
+- candidate preservation: 153/153
+- determinism: 10/10
+
+The v2 path remains internal and isolated:
+
+- controlled repository-fixture execution: complete
 - live/user input: false
 - runtime connection: false
 - authoritative optimizer/canonical/TAB effect: false
 - production: false
 
-Next gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`.
+Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`.
 
 ## Compatibility verification
 
-PR #136 exact-head evidence:
+PR #136 adapter-parity baseline:
 
 - Tests #764: PASS on Node.js 18/20/22
 - MusicXML Compatibility #533: PASS
