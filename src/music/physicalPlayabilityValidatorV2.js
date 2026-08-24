@@ -8,6 +8,7 @@ const {
   LEFT_HAND_SHAPE_POLICY,
   MAX_LEFT_HAND_SHAPE_CANDIDATES,
   createLeftHandShapeModel,
+  isAuthenticLeftHandShapeModelSnapshot,
 } = require('./leftHandShapeModel');
 
 const PHYSICAL_PLAYABILITY_VALIDATION_VERSION = '2.0.0';
@@ -88,9 +89,10 @@ function validateLeftHandIdentity(leftHand) {
     || leftHand.voicingCandidateCount < 0
     || !Number.isInteger(leftHand.shapeCandidateCount)
     || leftHand.shapeCandidateCount < 0
+    || !isAuthenticLeftHandShapeModelSnapshot(leftHand)
     || !isDeeplyFrozen(leftHand)
   ) {
-    throw invalid('PA-9 requires the deeply immutable PA-8 left-hand snapshot.');
+    throw invalid('PA-9 requires an authentic, deeply immutable PA-8 left-hand snapshot.');
   }
 }
 

@@ -29,6 +29,7 @@ const GUITAR_VOICING_CANDIDATE_MODEL_VERSION = '1.0.0';
 const GUITAR_VOICING_CANDIDATE_MODEL_DOCUMENT_TYPE = 'GuitarVoicingCandidateModel';
 const GUITAR_VOICING_CANDIDATE_POLICY = 'STANDARD_SIX_STRING_DISTINCT_STRING_1.0';
 const MAX_GUITAR_VOICING_CANDIDATES = 10_000;
+const authenticGuitarVoicingCandidateModelSnapshots = new WeakSet();
 
 class GuitarVoicingCandidateModelError extends EngineError {
   constructor(message, code = 'INVALID_GUITAR_VOICING_CANDIDATE_MODEL', details = {}) {
@@ -61,6 +62,11 @@ function checkpoint(runtime, phase, details = {}) {
   if (runtime) {
     runtime.checkpoint(phase, details);
   }
+}
+
+function isAuthenticGuitarVoicingCandidateModelSnapshot(value) {
+  return Boolean(value && typeof value === 'object'
+    && authenticGuitarVoicingCandidateModelSnapshots.has(value));
 }
 
 function buildInstructionIndex(reduction, runtime) {
@@ -302,7 +308,7 @@ function createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, ru
     candidateCount: counter.count,
   });
 
-  return Object.freeze({
+  const snapshot = Object.freeze({
     documentType: GUITAR_VOICING_CANDIDATE_MODEL_DOCUMENT_TYPE,
     contractVersion: GUITAR_VOICING_CANDIDATE_MODEL_VERSION,
     policy: GUITAR_VOICING_CANDIDATE_POLICY,
@@ -326,6 +332,8 @@ function createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, ru
     candidateCount: counter.count,
     groups: Object.freeze(groups),
   });
+  authenticGuitarVoicingCandidateModelSnapshots.add(snapshot);
+  return snapshot;
 }
 
 module.exports = {
@@ -335,4 +343,5 @@ module.exports = {
   MAX_GUITAR_VOICING_CANDIDATES,
   GuitarVoicingCandidateModelError,
   createGuitarVoicingCandidateModel,
+  isAuthenticGuitarVoicingCandidateModelSnapshot,
 };

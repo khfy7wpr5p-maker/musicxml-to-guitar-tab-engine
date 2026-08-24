@@ -10,6 +10,7 @@ const {
   GUITAR_VOICING_CANDIDATE_MODEL_DOCUMENT_TYPE,
   GUITAR_VOICING_CANDIDATE_POLICY,
   createGuitarVoicingCandidateModel,
+  isAuthenticGuitarVoicingCandidateModelSnapshot,
 } = require('./guitarVoicingCandidateModel');
 
 const LEFT_HAND_SHAPE_MODEL_VERSION = '1.0.0';
@@ -20,6 +21,7 @@ const MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS = 100_000;
 const OPEN_STRING_FINGER = 0;
 const MIN_FRETTING_FINGER = 1;
 const MAX_FRETTING_FINGER = 4;
+const authenticLeftHandShapeModelSnapshots = new WeakSet();
 
 class LeftHandShapeModelError extends EngineError {
   constructor(message, code = 'INVALID_LEFT_HAND_SHAPE_MODEL', details = {}) {
@@ -77,6 +79,11 @@ function isDeeplyFrozen(value, seen = new WeakSet()) {
   return true;
 }
 
+function isAuthenticLeftHandShapeModelSnapshot(value) {
+  return Boolean(value && typeof value === 'object'
+    && authenticLeftHandShapeModelSnapshots.has(value));
+}
+
 function validateVoicingModel(voicing) {
   if (
     !voicing
@@ -84,9 +91,10 @@ function validateVoicingModel(voicing) {
     || voicing.contractVersion !== GUITAR_VOICING_CANDIDATE_MODEL_VERSION
     || voicing.policy !== GUITAR_VOICING_CANDIDATE_POLICY
     || !Array.isArray(voicing.groups)
+    || !isAuthenticGuitarVoicingCandidateModelSnapshot(voicing)
     || !isDeeplyFrozen(voicing)
   ) {
-    throw invalid('PA-8 requires the deeply immutable PA-7 voicing candidate snapshot.');
+    throw invalid('PA-8 requires an authentic, deeply immutable PA-7 voicing candidate snapshot.');
   }
 }
 
@@ -361,7 +369,7 @@ function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime =
     assignmentAttemptCount: counters.assignmentAttempts,
   });
 
-  return Object.freeze({
+  const snapshot = Object.freeze({
     documentType: LEFT_HAND_SHAPE_MODEL_DOCUMENT_TYPE,
     contractVersion: LEFT_HAND_SHAPE_MODEL_VERSION,
     policy: LEFT_HAND_SHAPE_POLICY,
@@ -380,6 +388,8 @@ function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime =
     shapeCandidateCount: counters.shapeCandidates,
     groups: Object.freeze(groups),
   });
+  authenticLeftHandShapeModelSnapshots.add(snapshot);
+  return snapshot;
 }
 
 function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = null) {
@@ -396,4 +406,5 @@ module.exports = {
   LeftHandShapeModelError,
   createLeftHandShapeModel,
   createLeftHandShapeModelFromVoicingCandidateSnapshot,
+  isAuthenticLeftHandShapeModelSnapshot,
 };

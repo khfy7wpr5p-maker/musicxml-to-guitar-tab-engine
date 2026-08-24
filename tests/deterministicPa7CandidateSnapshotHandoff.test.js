@@ -24,6 +24,9 @@ const {
   DETERMINISTIC_PA7_CANDIDATE_SNAPSHOT_HANDOFF_POLICY,
   createDeterministicPa7CandidateSnapshotHandoff,
 } = require('../src/music/deterministicPa7CandidateSnapshotHandoff');
+const {
+  createMusicXmlProcessingRuntime,
+} = require('../src/parser/musicxmlSemanticResourceLimits');
 
 function pitch(step, midi) {
   return {
@@ -101,6 +104,13 @@ function deeplyFrozen(value, seen = new WeakSet()) {
   return Object.values(value).every((nested) => deeplyFrozen(nested, seen));
 }
 
+function freezeRecursively(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return value;
+  seen.add(value);
+  for (const nested of Object.values(value)) freezeRecursively(nested, seen);
+  return Object.freeze(value);
+}
+
 function candidateIdsFromPa7(snapshot) {
   return snapshot.groups.map((group) => ({
     sourceGroupId: group.sourceGroupId,
@@ -124,11 +134,12 @@ function candidateIdsFromPa9(snapshot) {
 
 test('PA-7 handoff generates candidates once and preserves exact identity/order through PA-8 and PA-9', () => {
   const phases = [];
-  const runtime = {
-    checkpoint(phase) {
+  const runtime = createMusicXmlProcessingRuntime({}, {
+    clock(phase) {
       phases.push(phase);
+      return 0;
     },
-  };
+  });
   const source = createSource();
   const decisions = createDecisions();
   const handoff = createDeterministicPa7CandidateSnapshotHandoff(source, decisions, runtime);
@@ -168,7 +179,7 @@ test('PA-7 handoff generates candidates once and preserves exact identity/order 
   assert.equal(handoff.candidateCount, handoff.physicalPlayabilitySnapshot.voicingCandidateCount);
 });
 
-test('snapshot consumers reject mutable PA-7 and PA-8 lookalikes fail-closed', () => {
+test('snapshot consumers reject mutable and deeply frozen unauthenticated lookalikes fail-closed', () => {
   const source = createSource();
   const decisions = createDecisions();
   const pa7 = createGuitarVoicingCandidateModel(source, decisions);
@@ -179,10 +190,26 @@ test('snapshot consumers reject mutable PA-7 and PA-8 lookalikes fail-closed', (
     (error) => error && error.code === 'INVALID_LEFT_HAND_SHAPE_MODEL',
   );
 
+  const forgedPa7 = JSON.parse(JSON.stringify(pa7));
+  forgedPa7.groups[0].candidates[0].candidateId = 'forged:pa-7:candidate';
+  freezeRecursively(forgedPa7);
+  assert.throws(
+    () => createLeftHandShapeModelFromVoicingCandidateSnapshot(forgedPa7),
+    (error) => error && error.code === 'INVALID_LEFT_HAND_SHAPE_MODEL',
+  );
+
   const pa8 = createLeftHandShapeModelFromVoicingCandidateSnapshot(pa7);
   const mutablePa8 = JSON.parse(JSON.stringify(pa8));
   assert.throws(
     () => validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(mutablePa8),
+    (error) => error && error.code === 'INVALID_PHYSICAL_PLAYABILITY_VALIDATION',
+  );
+
+  const forgedPa8 = JSON.parse(JSON.stringify(pa8));
+  forgedPa8.groups[0].voicingCandidates[0].voicingCandidateId = 'forged:pa-8:candidate';
+  freezeRecursively(forgedPa8);
+  assert.throws(
+    () => validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(forgedPa8),
     (error) => error && error.code === 'INVALID_PHYSICAL_PLAYABILITY_VALIDATION',
   );
 });
