@@ -44,6 +44,8 @@ PA-10.3 defines v1↔v2 coexistence/migration rules, PA-10.4 proposes minimal `C
 
 ## GuitarSet v2 state
 
+Retained model identity is `GUITARSET-OBSERVED-VOICING-MODEL.v2`.
+
 Controlled offline status remains `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
 
 Historical sealed evidence remains:
