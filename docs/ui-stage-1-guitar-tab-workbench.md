@@ -33,7 +33,8 @@ The page intentionally targets a same-origin `/api/upload` host seam rather than
 - issue text is rendered only through `textContent`; no runtime issue or MusicXML field is inserted as HTML;
 - no browser persistence, cookies, localStorage, sessionStorage or IndexedDB are introduced;
 - no engine, learning or canonical internal module is imported into browser code;
-- renderer/player errors surface in the issue panel rather than silently changing the score.
+- renderer/player errors surface in the issue panel rather than silently changing the score;
+- starting a new upload hides the previous rendered score and disables transport; a BLOCKED or failed upload keeps it hidden so stale notation cannot be mistaken for the current document.
 
 ## Viewer and playback
 
@@ -43,7 +44,7 @@ Play and Stop call alphaTab's player API. Existing alphaTab synth diagnostics re
 
 ## Cursor and issue panel
 
-Player position events update a visible measure/tick status. The workbench can focus a structured issue location by `measureIndex` or measure number and moves alphaTab's tick cursor to the first musical beat of that measure.
+Player position events update a visible measure/tick status. For a current PASS renderer document, the workbench can focus a structured issue location by `measureIndex` or numeric measure number and moves alphaTab's tick cursor to the first musical beat of that measure. A BLOCKED document still reports its issue location in the side panel, but measure focus stays disabled because no trusted renderer document exists for that failed upload.
 
 The side panel consumes only `preflight.issues`. A blocked conversion does not invent or repair notes; it displays the runtime's structured error and leaves musical authority with the engine.
 
@@ -55,7 +56,7 @@ Required gates for this slice:
 - static workbench contract test proving required controls, local-only assets, no HTML injection APIs, no browser persistence and no internal-engine browser import;
 - existing alphaTab importer/SVG/v2/PA-12 compatibility gates;
 - existing browser renderer/cursor smoke;
-- new Guitar TAB Workbench browser smoke proving a real raw MusicXML upload through `processMusicXmlUpload`, renderer output with one guitar track and two staves, visible standard notation + TAB, standard tuning, SVG render, measure focus and structured issue-panel behavior;
+- new Guitar TAB Workbench browser smoke proving a real raw MusicXML upload through `processMusicXmlUpload`, renderer output with one guitar track and two staves, visible standard notation + TAB, standard tuning, SVG render, measure focus for a current renderer issue, and fail-closed hiding for a BLOCKED upload;
 - alphaTab synthesizer diagnostic remains visible and non-authoritative for runner-specific audio readiness.
 
 ## Structured edit gate — next
