@@ -67,7 +67,7 @@ function locateAlphaTab() {
   assert.equal(packageJson.version, expectedAlphaTabVersion, 'GitHub Pages preview must use the pinned alphaTab version.');
   const licensePath = findLicense(packageRoot);
   assert.ok(licensePath, 'alphaTab license text must be available for redistribution.');
-  return { distRoot, packageRoot, packageJsonPath, licensePath, version: packageJson.version };
+  return { entry, distRoot, packageRoot, packageJsonPath, licensePath, version: packageJson.version };
 }
 
 function previewConfigSource() {
@@ -112,6 +112,9 @@ function main() {
   const assetsOut = path.join(siteRoot, 'assets');
   fs.cpSync(workbenchSourceRoot, workbenchOut, { recursive: true });
   fs.cpSync(alphaTab.distRoot, assetsOut, { recursive: true });
+  // Preserve the Workbench's stable lowercase same-origin entry path even if the
+  // upstream package entry uses a different filename/casing on Linux.
+  fs.copyFileSync(alphaTab.entry, path.join(assetsOut, 'alphatab.js'));
 
   writeUtf8(path.join(workbenchOut, 'preview-config.js'), previewConfigSource());
   writeUtf8(path.join(siteRoot, 'preview/demo.json'), previewJson);
