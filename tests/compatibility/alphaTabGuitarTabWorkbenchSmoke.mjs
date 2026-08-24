@@ -10,9 +10,7 @@ import puppeteer from 'puppeteer-core';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '../..');
-const {
-  processMusicXmlUpload,
-} = require('../../src/app/musicXmlUploadRuntime');
+const { processMusicXmlUpload } = require('../../src/app/musicXmlUploadRuntime');
 
 const browserExecutable = process.env.BROWSER_EXECUTABLE;
 assert.ok(browserExecutable && fs.existsSync(browserExecutable));
@@ -75,10 +73,10 @@ function testPage() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const state = window.__workbenchSmoke = {done:false,error:null,uploadCalls:0};
-  const fail = error => { state.error = error?.stack || String(error); state.done = true; };
+  const smoke = window.__workbenchSmoke = {error:null,uploadCalls:0};
+  const fail = error => { smoke.error = error?.stack || String(error); };
   const upload = async file => {
-    state.uploadCalls += 1;
+    smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
       method:'POST', headers:{'content-type':'application/octet-stream'}, body:await file.arrayBuffer()
     });
@@ -87,16 +85,15 @@ function testPage() {
     return payload;
   };
   try {
-    const root = document.querySelector('[data-guitar-tab-workbench]');
-    const workbench = window.__workbench = GuitarTabWorkbench.mount({
-      root,
+    window.__workbench = GuitarTabWorkbench.mount({
+      root:document.querySelector('[data-guitar-tab-workbench]'),
       alphaTab:window.alphaTab,
       upload,
       assetBaseUrl:'/assets',
       scriptFileUrl:window.location.origin + '/assets/alphatab.js',
       playerMode:window.alphaTab.PlayerMode.EnabledExternalMedia,
     });
-    workbench.api.error.on(fail);
+    window.__workbench.api.error.on(fail);
   } catch(error) { fail(error); }
 })();
 </script>`;
@@ -128,7 +125,6 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (url.pathname === '/api/upload' && request.method === 'POST') {
-    const fileName = url.searchParams.get('fileName') || '';
     const chunks = [];
     let total = 0;
     let oversized = false;
@@ -136,9 +132,9 @@ const server = http.createServer((request, response) => {
       total += chunk.length;
       if (total > 5 * 1024 * 1024) {
         oversized = true;
-        return;
+      } else {
+        chunks.push(chunk);
       }
-      chunks.push(chunk);
     });
     request.on('end', () => {
       if (oversized) {
@@ -148,7 +144,7 @@ const server = http.createServer((request, response) => {
       }
       try {
         const result = processMusicXmlUpload({
-          fileName,
+          fileName: url.searchParams.get('fileName') || '',
           bytes: Buffer.concat(chunks),
         });
         response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
@@ -169,8 +165,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (url.pathname.startsWith('/assets/')) {
-    const relativePath = url.pathname.slice('/assets/'.length);
-    const filePath = resolveAlphaTabAsset(relativePath);
+    const filePath = resolveAlphaTabAsset(url.pathname.slice('/assets/'.length));
     if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       response.writeHead(200, {
         'content-type': contentType(filePath),
@@ -204,15 +199,14 @@ try {
   page.on('console', message => messages.push(`${message.type()}: ${message.text()}`));
   page.on('pageerror', error => messages.push(`pageerror: ${error.stack || error.message}`));
 
-  await page.goto(`http://127.0.0.1:${address.port}/`, {
-    waitUntil:'networkidle0',timeout:30000,
-  });
+  await page.goto(`http://127.0.0.1:${address.port}/`, {waitUntil:'networkidle0',timeout:30000});
   await page.waitForFunction(() => Boolean(window.__workbench), {timeout:10000});
 
   const loadOutcome = await page.evaluate(async () => {
     const response = await fetch('/fixture.musicxml');
-    const bytes = await response.arrayBuffer();
-    const file = new File([bytes], 'fixture.musicxml', {type:'application/vnd.recordare.musicxml+xml'});
+    const file = new File([await response.arrayBuffer()], 'fixture.musicxml', {
+      type:'application/vnd.recordare.musicxml+xml',
+    });
     const accepted = await window.__workbench.loadFile(file);
     return {accepted,snapshot:window.__workbench.snapshot()};
   });
@@ -220,44 +214,19 @@ try {
   assert.equal(loadOutcome.snapshot.runtimeResult.status,'PASS');
   assert.equal(loadOutcome.snapshot.runtimeResult.route,'MONO_V1');
 
-  let renderWaitError = null;
-  try {
-    await page.waitForFunction(
-      () => window.__workbenchSmoke?.error
-        || (window.__workbench?.snapshot().scoreLoaded === true
-          && document.querySelectorAll('[data-role="score"] svg').length > 0),
-      {timeout:30000},
-    );
-  } catch (error) {
-    renderWaitError = error;
-  }
-  const renderDiagnostic = await page.evaluate(() => ({
-    snapshot:window.__workbench?.snapshot(),
-    smoke:window.__workbenchSmoke,
-    svgCount:document.querySelectorAll('[data-role="score"] svg').length,
-    scoreText:document.querySelector('[data-role="score"]')?.textContent?.slice(0,500) || '',
-    statusText:document.querySelector('[data-role="document-status"]')?.textContent || '',
-    issueText:document.querySelector('[data-role="issues"]')?.textContent || '',
-  }));
-  if (renderWaitError || renderDiagnostic.smoke?.error) {
-    process.stdout.write(`${JSON.stringify({
-      phase:'render-wait',
-      browser:await browser.version(),
-      browserMessages:messages,
-      renderWaitError:renderWaitError?.message || null,
-      renderDiagnostic,
-    })}\n`);
-  }
-  assert.equal(renderWaitError,null,renderWaitError?.message || 'render wait failed');
-  assert.equal(renderDiagnostic.smoke.error,null,renderDiagnostic.smoke.error || messages.join('\n'));
-
-  await new Promise(resolve => setTimeout(resolve, 250));
+  await page.waitForFunction(
+    () => window.__workbenchSmoke?.error
+      || (window.__workbench?.snapshot().scoreLoaded === true
+        && document.querySelectorAll('[data-role="score"] svg').length > 0),
+    {timeout:30000},
+  );
   const passState = await page.evaluate(() => {
     const snapshot = window.__workbench.snapshot();
     const track = window.__workbench.api.score.tracks[0];
     return {
       snapshot,
       uploadCalls:window.__workbenchSmoke.uploadCalls,
+      error:window.__workbenchSmoke.error,
       notationVisible:track.staves[0].showStandardNotation,
       tabVisible:track.staves[1].showTablature,
       tuning:[...track.staves[1].tuning],
@@ -265,25 +234,45 @@ try {
       issueText:document.querySelector('[data-role="issues"]').textContent,
     };
   });
-
-  assert.equal(passState.snapshot.runtimeResult.status,'PASS');
+  assert.equal(passState.error,null,passState.error || messages.join('\n'));
   assert.equal(passState.uploadCalls,1);
   assert.equal(passState.snapshot.scoreTracks,1);
   assert.equal(passState.snapshot.scoreStaves,2);
   assert.equal(passState.snapshot.scoreMeasures,2);
+  assert.equal(passState.snapshot.scoreHidden,false);
   assert.equal(passState.notationVisible,true);
   assert.equal(passState.tabVisible,true);
   assert.deepEqual(passState.tuning,[64,59,55,50,45,40]);
   assert.ok(passState.svgCount > 0);
   assert.match(passState.issueText,/No blocking issues/);
 
-  const focused = await page.evaluate(() => {
-    const result = window.__workbench.focusMeasure({measureIndex:1});
-    return {result,snapshot:window.__workbench.snapshot(),text:document.querySelector('[data-role="cursor-status"]').textContent};
+  await page.evaluate(() => {
+    const current = window.__workbench.snapshot().runtimeResult;
+    window.__workbench.loadRuntimeResult({
+      ...current,
+      preflight:{
+        ...current.preflight,
+        status:'WARNING',
+        issues:[{
+          severity:'warning',
+          category:'quality',
+          code:'TEST_MEASURE_WARNING',
+          message:'Review this measure.',
+          location:{measure:2,measureIndex:1,eventIndex:1},
+        }],
+      },
+    });
   });
-  assert.equal(focused.result,true);
-  assert.equal(focused.snapshot.currentMeasureIndex,1);
-  assert.match(focused.text,/Measure 2/);
+  await page.waitForFunction(() => window.__workbench?.snapshot().scoreLoaded === true, {timeout:30000});
+  await page.click('.workbench-issue__button');
+  const warningFocus = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    issueText:document.querySelector('[data-role="issues"]').textContent,
+    cursorText:document.querySelector('[data-role="cursor-status"]').textContent,
+  }));
+  assert.match(warningFocus.issueText,/TEST_MEASURE_WARNING/);
+  assert.equal(warningFocus.snapshot.currentMeasureIndex,1);
+  assert.match(warningFocus.cursorText,/Measure 2/);
 
   await page.evaluate(() => {
     window.__workbench.loadRuntimeResult({
@@ -291,43 +280,40 @@ try {
       route:'MONO_V1',
       preflight:{issues:[{
         severity:'error',
-        category:'playability',
+        category:'content',
         code:'UNPLAYABLE_TEST_NOTE',
         message:'A test note cannot be placed safely.',
-        location:{measure:2,measureIndex:1,eventIndex:1,sourceEventId:'test-event'},
+        location:{measure:2,eventIndex:1},
       }]},
       musicXml:null,
     });
   });
-  const blockedState = await page.evaluate(() => ({
+  const blocked = await page.evaluate(() => ({
     snapshot:window.__workbench.snapshot(),
     issueText:document.querySelector('[data-role="issues"]').textContent,
-    issueButtonCount:document.querySelectorAll('.workbench-issue__button').length,
+    focusResult:window.__workbench.focusMeasure({measureIndex:1}),
   }));
-  assert.equal(blockedState.snapshot.runtimeResult.status,'BLOCKED');
-  assert.equal(blockedState.snapshot.issueCount,1);
-  assert.equal(blockedState.issueButtonCount,1);
-  assert.match(blockedState.issueText,/UNPLAYABLE_TEST_NOTE/);
-  assert.match(blockedState.issueText,/measure 2/);
-
-  await page.click('.workbench-issue__button');
-  const issueFocus = await page.evaluate(() => window.__workbench.snapshot());
-  assert.equal(issueFocus.currentMeasureIndex,1);
+  assert.equal(blocked.snapshot.runtimeResult.status,'BLOCKED');
+  assert.equal(blocked.snapshot.scoreLoaded,false);
+  assert.equal(blocked.snapshot.scoreHidden,true);
+  assert.equal(blocked.snapshot.scoreTracks,0);
+  assert.equal(blocked.snapshot.playDisabled,true);
+  assert.equal(blocked.snapshot.stopDisabled,true);
+  assert.equal(blocked.focusResult,false);
+  assert.match(blocked.issueText,/UNPLAYABLE_TEST_NOTE/);
+  assert.match(blocked.issueText,/measure 2/);
 
   await page.screenshot({path:screenshotPath,fullPage:true});
   assert.ok(fs.statSync(screenshotPath).size > 0);
 
-  const finalState = await page.evaluate(() => ({
-    workbench:window.__workbench.snapshot(),
-    smoke:window.__workbenchSmoke,
-  }));
   process.stdout.write(`${JSON.stringify({
     browser:await browser.version(),
     screenshotPath,
     browserMessages:messages,
-    ...finalState,
+    pass:passState.snapshot,
+    warningFocus:warningFocus.snapshot,
+    blocked:blocked.snapshot,
   })}\n`);
-  assert.equal(finalState.smoke.error,null,finalState.smoke.error || messages.join('\n'));
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
