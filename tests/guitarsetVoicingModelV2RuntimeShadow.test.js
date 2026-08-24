@@ -5,6 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {
+  PROCESSING_DEADLINE_EXCEEDED,
+} = require('../src/core/processingRuntime');
+const {
   parseParsedMusicXmlDocument,
 } = require('../src/parser/parsedMusicXmlDocument');
 const {
@@ -14,11 +17,16 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../src/parser/polyphonicMusicXmlProjector');
 const {
+  createBlindBaselineEngineExecution,
   createBlindBaselineEngineResult,
 } = require('../src/benchmark/blindBaselineEngineObserver');
 const {
+  createGuitarSetVoicingModelV2ShadowReport,
+} = require('../src/learning/guitarsetVoicingModelV2Shadow');
+const {
   GUITARSET_V2_RUNTIME_SHADOW_CONNECTION_GATE,
   GUITARSET_V2_RUNTIME_SHADOW_CONNECTION_POLICY,
+  observeGuitarSetVoicingModelV2RuntimeShadow,
   createBlindBaselineGuitarSetV2RuntimeShadowObservation,
 } = require('../src/learning/guitarsetVoicingModelV2RuntimeShadow');
 const modelArtifact = require('./fixtures/guitarsetObservedVoicingDevelopmentModelV2.json');
@@ -89,6 +97,8 @@ test('enabled runtime shadow scores a detached PA-7 read-copy while deterministi
     phases.filter((phase) => phase === 'guitar-voicing-candidate-model:start').length,
     1,
   );
+  assert.ok(phases.includes('guitarset-v2-runtime-shadow:copy'));
+  assert.ok(phases.includes('guitarset-v2-runtime-shadow:score-candidate'));
   assert.equal(observation.samePa7LineageUsedForDeterministicSelectionAndShadow, true);
   assert.equal(observation.deterministicSelectionEffectFromShadowAuthorized, false);
   assert.equal(observation.canonicalResultEffectAuthorized, false);
@@ -113,7 +123,31 @@ test('enabled runtime shadow scores a detached PA-7 read-copy while deterministi
   assertNoDecisionAuthority(shadow);
 });
 
-test('runtime shadow model/artifact failure is isolated from the deterministic result', () => {
+test('runtime-budgeted report remains exactly score/rank compatible with the sealed offline v2 adapter', () => {
+  const source = sourceModel('three-note-triad.musicxml');
+  const execution = createBlindBaselineEngineExecution(source);
+  assert.ok(execution.handoff);
+
+  const runtime = createMusicXmlProcessingRuntime({}, {
+    clock() {
+      return 0;
+    },
+  });
+  const runtimeObservation = observeGuitarSetVoicingModelV2RuntimeShadow(
+    execution.handoff,
+    modelArtifact,
+    { enabled: true, runtime },
+  );
+  const offlineReport = createGuitarSetVoicingModelV2ShadowReport(
+    execution.handoff.voicingCandidateSnapshot,
+    modelArtifact,
+  );
+
+  assert.equal(runtimeObservation.status, 'RUNTIME_SHADOW_SCORED_NON_AUTHORITATIVE');
+  assert.deepEqual(runtimeObservation.shadowReport, offlineReport);
+});
+
+test('runtime shadow model/artifact failure preserves completed read-copy state and deterministic result', () => {
   const source = sourceModel('three-note-triad.musicxml');
   const expected = createBlindBaselineEngineResult(source);
   const observation = createBlindBaselineGuitarSetV2RuntimeShadowObservation(source, {
@@ -124,12 +158,37 @@ test('runtime shadow model/artifact failure is isolated from the deterministic r
   assert.deepEqual(observation.deterministicResult, expected);
   assert.equal(observation.shadowObservation.status, 'RUNTIME_SHADOW_FAILURE_ISOLATED');
   assert.equal(observation.shadowObservation.shadowExecutionOccurred, false);
+  assert.equal(observation.shadowObservation.candidateReadCopyCreated, true);
   assert.equal(observation.shadowObservation.shadowReport, null);
   assert.equal(
     observation.shadowObservation.isolatedErrorCode,
     'INVALID_GUITARSET_VOICING_MODEL_V2_SHADOW_INPUT',
   );
   assertNoDecisionAuthority(observation.shadowObservation);
+});
+
+test('runtime shadow scoring obeys ProcessingRuntime deadline and does not downgrade it to diagnostic failure', () => {
+  const source = sourceModel('two-note-interval.musicxml');
+  const execution = createBlindBaselineEngineExecution(source);
+  assert.ok(execution.handoff);
+
+  const runtime = createMusicXmlProcessingRuntime(
+    { maxProcessingMilliseconds: 100 },
+    {
+      clock(phase) {
+        return phase === 'guitarset-v2-runtime-shadow:score-candidate' ? 1000 : 0;
+      },
+    },
+  );
+
+  assert.throws(
+    () => observeGuitarSetVoicingModelV2RuntimeShadow(
+      execution.handoff,
+      modelArtifact,
+      { enabled: true, runtime },
+    ),
+    (error) => error && error.code === PROCESSING_DEADLINE_EXCEEDED,
+  );
 });
 
 test('singleton deterministic path remains outside PA-7 runtime shadow scoring', () => {
