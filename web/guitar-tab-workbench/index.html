@@ -3,128 +3,136 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f5f8">
+  <link rel="icon" href="data:,">
   <title>Guitar TAB Workbench</title>
-  <link rel="stylesheet" href="/workbench/workbench.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./shell.css">
+  <link rel="stylesheet" href="./workbench.css">
 </head>
 <body>
-  <main class="workbench" data-guitar-tab-workbench>
-    <header class="workbench-toolbar">
-      <div class="workbench-title-group">
-        <h1>Guitar TAB Workbench</h1>
-        <p>Secure MusicXML → standard notation + rhythmic TAB</p>
+  <main class="workbench" data-guitar-tab-workbench data-mode="runtime">
+    <header class="workbench-appbar">
+      <div class="workbench-brand">
+        <div class="workbench-brand__mark" aria-hidden="true">GT</div>
+        <div>
+          <h1>Guitar TAB Workbench</h1>
+          <p>MusicXML → standard notation + rhythmic guitar TAB</p>
+        </div>
       </div>
-      <label class="workbench-file-label">
-        <span>Open MusicXML</span>
-        <input data-role="musicxml-file" type="file" accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml,application/xml,text/xml">
-      </label>
-      <div class="workbench-transport" aria-label="Playback controls">
-        <button data-role="play" type="button" disabled>Play</button>
-        <button data-role="stop" type="button" disabled>Stop</button>
+
+      <div class="workbench-appbar__status" aria-live="polite">
+        <span class="workbench-chip workbench-chip--mode" data-role="mode-badge" data-mode="runtime">RUNTIME</span>
+        <span class="workbench-chip">
+          <span>Document</span>
+          <strong data-role="document-status">EMPTY</strong>
+        </span>
       </div>
     </header>
 
-    <section class="workbench-meta" aria-live="polite">
-      <span>Document: <strong data-role="document-status">EMPTY</strong></span>
-      <span>Route: <strong data-role="route-status">UNRESOLVED</strong></span>
-      <span>Cursor: <strong data-role="cursor-status">No active measure</strong></span>
+    <section class="workbench-toolbar" aria-label="Document and playback controls">
+      <div class="workbench-toolbar__group workbench-toolbar__group--grow">
+        <label class="workbench-file-label" data-role="runtime-upload-action">
+          <span>Open MusicXML</span>
+          <input data-role="musicxml-file" type="file" accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml,application/xml,text/xml">
+        </label>
+        <button class="workbench-demo-button" data-role="load-demo" type="button" hidden>Reload preview demo</button>
+      </div>
+
+      <div class="workbench-toolbar__group workbench-transport" aria-label="Playback controls">
+        <button data-role="play" type="button" disabled>Play</button>
+        <button data-role="stop" type="button" disabled>Stop</button>
+      </div>
+
+      <div class="workbench-toolbar__group workbench-toolbar__readouts workbench-meta" aria-live="polite">
+        <span class="workbench-readout">Route <strong data-role="route-status">UNRESOLVED</strong></span>
+        <span class="workbench-readout">Cursor <strong data-role="cursor-status">No active measure</strong></span>
+      </div>
     </section>
 
-    <div class="workbench-grid">
-      <section class="workbench-score-panel" aria-label="Standard notation and rhythmic TAB">
-        <div class="workbench-score" data-role="score"></div>
-      </section>
+    <p class="workbench-preview-notice" data-role="preview-notice" hidden>
+      Static preview mode uses a CI-generated demo result. Local MusicXML upload and structured edits are not sent anywhere from this page.
+    </p>
 
-      <aside class="workbench-sidebar" aria-label="Workbench inspector">
-        <section class="workbench-editor" aria-label="Structured note editor">
-          <div class="workbench-editor__heading">
-            <h2>Note editor</h2>
-            <strong data-role="selected-note">None</strong>
+    <div class="workbench-body">
+      <nav class="workbench-toolrail" aria-label="Workbench sections">
+        <span class="workbench-toolrail__label">View</span>
+        <a href="#score-workspace" aria-current="page">Score</a>
+        <a href="#workbench-inspector">Review</a>
+        <span class="workbench-toolrail__label">Flow</span>
+        <a href="#workbench-inspector">Issues</a>
+      </nav>
+
+      <div class="workbench-grid">
+        <section class="workbench-score-panel" id="score-workspace" aria-label="Standard notation and rhythmic TAB">
+          <div class="workbench-section-heading">
+            <h2>Score</h2>
+            <span>Standard notation + rhythmic TAB</span>
           </div>
-          <p class="workbench-editor__status" data-role="edit-status" aria-live="polite">
-            Select a note in the score or TAB.
-          </p>
-          <div class="workbench-editor__controls">
-            <label>
-              <span>Step</span>
-              <select data-role="edit-step" disabled>
-                <option>A</option><option>B</option><option selected>C</option>
-                <option>D</option><option>E</option><option>F</option><option>G</option>
-              </select>
-            </label>
-            <label>
-              <span>Accidental</span>
-              <select data-role="edit-alter" disabled>
-                <option value="-2">bb</option>
-                <option value="-1">b</option>
-                <option value="0" selected>natural</option>
-                <option value="1">#</option>
-                <option value="2">##</option>
-              </select>
-            </label>
-            <label>
-              <span>Octave</span>
-              <input data-role="edit-octave" type="number" min="-1" max="9" step="1" value="4" disabled>
-            </label>
-          </div>
-          <div class="workbench-editor__actions">
-            <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
-            <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
-          </div>
+          <div class="workbench-score" data-role="score"></div>
         </section>
 
-        <section class="workbench-issues" aria-label="MusicXML issues">
-          <div class="workbench-issues__heading">
-            <h2>Issues</h2>
-            <span data-role="issue-count">0</span>
-          </div>
-          <ol data-role="issues"></ol>
-        </section>
-      </aside>
+        <aside class="workbench-sidebar" id="workbench-inspector" aria-label="Workbench inspector">
+          <section class="workbench-editor" aria-label="Structured note editor">
+            <div class="workbench-editor__heading">
+              <h2>Note editor</h2>
+              <strong data-role="selected-note">None</strong>
+            </div>
+            <p class="workbench-editor__status" data-role="edit-status" aria-live="polite">
+              Select a note in the score or TAB.
+            </p>
+            <div class="workbench-editor__controls">
+              <label>
+                <span>Step</span>
+                <select data-role="edit-step" disabled>
+                  <option>A</option><option>B</option><option selected>C</option>
+                  <option>D</option><option>E</option><option>F</option><option>G</option>
+                </select>
+              </label>
+              <label>
+                <span>Accidental</span>
+                <select data-role="edit-alter" disabled>
+                  <option value="-2">bb</option>
+                  <option value="-1">b</option>
+                  <option value="0" selected>natural</option>
+                  <option value="1">#</option>
+                  <option value="2">##</option>
+                </select>
+              </label>
+              <label>
+                <span>Octave</span>
+                <input data-role="edit-octave" type="number" min="-1" max="9" step="1" value="4" disabled>
+              </label>
+            </div>
+            <div class="workbench-editor__actions">
+              <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
+              <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
+            </div>
+          </section>
+
+          <section class="workbench-issues" aria-label="MusicXML issues">
+            <div class="workbench-issues__heading">
+              <h2>Issues</h2>
+              <span data-role="issue-count">0</span>
+            </div>
+            <ol data-role="issues"></ol>
+          </section>
+        </aside>
+      </div>
     </div>
+
+    <footer class="workbench-statusbar">
+      <span data-role="mode-description">Runtime host · bounded upload/edit API required</span>
+      <span>Standard six-string guitar · E2 A2 D3 G3 B3 E4</span>
+      <span>Deterministic TAB authority</span>
+    </footer>
   </main>
 
-  <script src="/assets/alphatab.js"></script>
-  <script src="/workbench/workbench.js"></script>
-  <script>
-    (() => {
-      const root = document.querySelector('[data-guitar-tab-workbench]');
-
-      const upload = async (file, ownedBytes) => {
-        const response = await fetch(`/api/upload?fileName=${encodeURIComponent(file.name)}`, {
-          method: 'POST',
-          headers: {'content-type': 'application/octet-stream'},
-          body: ownedBytes,
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload?.message || 'Upload request failed.');
-        return payload;
-      };
-
-      const edit = async (request) => {
-        const form = new FormData();
-        form.append(
-          'source',
-          new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
-          request.fileName,
-        );
-        form.append('expectedInputSha256', request.expectedInputSha256);
-        form.append('commands', JSON.stringify(request.commands));
-        const response = await fetch('/api/edit', {method: 'POST', body: form});
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload?.message || 'Edit request failed.');
-        return payload;
-      };
-
-      window.__workbench = GuitarTabWorkbench.mount({
-        root,
-        alphaTab: window.alphaTab,
-        upload,
-        edit,
-        assetBaseUrl: '/assets',
-        scriptFileUrl: window.location.origin + '/assets/alphatab.js',
-        soundFontUrl: window.location.origin + '/assets/soundfont/sonivox.sf2',
-      });
-    })();
-  </script>
+  <script src="../assets/alphatab.js"></script>
+  <script src="./workbench.js"></script>
+  <script src="./host-adapters.js"></script>
+  <script src="./host-controller.js"></script>
+  <script src="./preview-config.js"></script>
+  <script src="./boot.js"></script>
 </body>
 </html>
