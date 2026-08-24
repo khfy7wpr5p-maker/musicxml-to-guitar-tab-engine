@@ -178,7 +178,6 @@
         && state.runtimeResult?.status === 'PASS'
         && state.runtimeResult?.route === 'MONO_V1'
         && state.selectedEvent
-        && !state.selectedEvent.tied
         && session.sourceBytes
         && session.expectedInputSha256
         && session.commands.length < MAX_REVISION_COMMANDS,
@@ -323,12 +322,12 @@
       editAlter.value = String(event.pitch.alter);
       editOctave.value = String(event.pitch.octave);
       if (state.selectedEvent.tied) {
-        setText(editStatus, 'Tied-note editing is blocked until tie-chain revisions are supported.');
+        setText(editStatus, `Ready · tied chain validated on Apply · revision ${state.revisionNumber}`);
       } else {
         setText(editStatus, `Ready · revision ${state.revisionNumber}`);
       }
       updateControls();
-      return !state.selectedEvent.tied;
+      return true;
     }
 
     function selectEventByIdentity(identity) {
@@ -474,10 +473,6 @@
 
     async function applySelectedEdit() {
       if (!canEdit()) return false;
-      if (state.selectedEvent.tied) {
-        setText(editStatus, 'Tied-note editing is not enabled.');
-        return false;
-      }
 
       let pitch;
       try {
