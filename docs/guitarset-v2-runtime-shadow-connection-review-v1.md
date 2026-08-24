@@ -30,16 +30,16 @@ authentic immutable DeterministicPa7CandidateSnapshotHandoff
         ├─→ PA-8 → PA-9 → deterministic baseline selection
         └─→ detached deeply frozen PA-7 read-copy
               ↓
-            sealed GuitarSet v2 adapter
+            sealed GuitarSet v2 feature/model contract
               ↓
-            diagnostic score/evidence only
+            runtime-budgeted diagnostic score/evidence only
 ```
 
 The reviewed engine bridge is:
 
 `src/learning/guitarsetVoicingModelV2RuntimeShadow.js`
 
-The underlying adapter is:
+The sealed v2 model/feature implementation remains:
 
 `src/learning/guitarsetVoicingModelV2Shadow.js`
 
@@ -53,9 +53,13 @@ No other ordinary runtime source is allowed to import/activate the adapter or br
 4. Candidate group identity, candidate IDs, count/order and sourceEventId/targetMidi/string/fret facts are preserved before scoring.
 5. Shadow scoring cannot generate, mutate, filter, delete or feed ranking into deterministic selection.
 6. Model/artifact/scoring failures are isolated as diagnostic evidence; deterministic output survives unchanged.
-7. Default behavior performs no shadow scoring and does not require model-artifact validation.
-8. Singleton/no-PA-7 paths remain outside runtime-shadow scoring.
-9. `CanonicalTabResult 1.0.0`, writers and package-root API remain unchanged.
+7. A successfully created read-copy remains reported as created even if later model validation/scoring fails.
+8. ProcessingRuntime checkpoints cover shadow copy, copy verification, model validation, per-candidate scoring, ranking, report verification and freezing.
+9. `PROCESSING_ABORTED`, `PROCESSING_DEADLINE_EXCEEDED` and invalid runtime-configuration errors propagate as runtime-safety failures; they are not downgraded to diagnostic shadow failures.
+10. Default behavior performs no shadow scoring and does not require model-artifact validation.
+11. Singleton/no-PA-7 paths remain outside runtime-shadow scoring.
+12. `CanonicalTabResult 1.0.0`, writers and package-root API remain unchanged.
+13. Runtime-budgeted score/rank output must remain exactly compatible with the sealed offline v2 report for the same PA-7 snapshot/model artifact.
 
 ## Authority matrix
 
@@ -81,6 +85,10 @@ Live/user input: false.
 Authoritative optimizer/canonical/TAB effect: false.
 Production: false.
 
+## Runtime safety boundary
+
+Shadow work is part of the caller-supplied `ProcessingRuntime` budget when enabled. The bridge performs checkpoints throughout candidate-copy and candidate-scoring work instead of checking only before/after the shadow stage. Deadline, cancellation and runtime-configuration failures propagate normally, preserving the engine's safety contract. Learned/model-specific failures remain isolated because they carry no deterministic authority.
+
 ## Scientific boundary
 
 Candidate domain is 0..20, but positive observed GuitarSet gold remains 0..19. Scoring fret-20 candidates is permitted as preregistered candidate-domain diagnostics; it does not create positive-gold quality evidence. `fret20QualityAuthority=false` remains mandatory.
@@ -100,6 +108,8 @@ Before merge, the exact PR head must pass:
 - MuseScore availability probe;
 - package-root/public API regression;
 - runtime-shadow isolation/default-off/failure-isolation tests;
+- runtime deadline propagation test;
+- runtime-vs-offline score/rank exact parity test;
 - architecture documentation consistency.
 
-Any deterministic output drift, candidate identity drift, public API exposure, learned decision effect, live/user-input enablement, model identity drift or failed mandatory CI is a fail-closed stop condition.
+Any deterministic output drift, candidate identity drift, public API exposure, learned decision effect, live/user-input enablement, model identity drift, swallowed runtime-safety error or failed mandatory CI is a fail-closed stop condition.
