@@ -37,6 +37,20 @@
     return payload;
   }
 
+  function createEditForm(request, label) {
+    assert(request && typeof request === 'object', `${label} request is required.`);
+    assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
+    const form = new FormData();
+    form.append(
+      'source',
+      new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
+      request.fileName,
+    );
+    form.append('expectedInputSha256', request.expectedInputSha256);
+    form.append('commands', JSON.stringify(request.commands));
+    return form;
+  }
+
   function createRuntimeApiAdapter(options = {}) {
     const apiBaseUrl = normalizeSameOriginPath(options.apiBaseUrl, '/api', 'apiBaseUrl');
 
@@ -53,18 +67,18 @@
         return readJsonResponse(response, 'Upload request failed.');
       },
       async edit(request) {
-        assert(request && typeof request === 'object', 'Runtime edit request is required.');
-        assert(request.bytes instanceof Uint8Array, 'Runtime edit requires owned source bytes.');
-        const form = new FormData();
-        form.append(
-          'source',
-          new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
-          request.fileName,
-        );
-        form.append('expectedInputSha256', request.expectedInputSha256);
-        form.append('commands', JSON.stringify(request.commands));
-        const response = await fetch(`${apiBaseUrl}/edit`, {method: 'POST', body: form});
+        const response = await fetch(`${apiBaseUrl}/edit`, {
+          method: 'POST',
+          body: createEditForm(request, 'Runtime edit'),
+        });
         return readJsonResponse(response, 'Edit request failed.');
+      },
+      async polyphonicEdit(request) {
+        const response = await fetch(`${apiBaseUrl}/edit/poly-v2`, {
+          method: 'POST',
+          body: createEditForm(request, 'POLY_V2 edit'),
+        });
+        return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },
       loadPreview: null,
     });
@@ -87,6 +101,9 @@
         throw readOnlyError();
       },
       async edit() {
+        throw readOnlyError();
+      },
+      async polyphonicEdit() {
         throw readOnlyError();
       },
       async loadPreview() {
