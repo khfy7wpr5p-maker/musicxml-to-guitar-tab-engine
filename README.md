@@ -84,7 +84,7 @@ authentic immutable single-generation PA-7 handoff
               ↓
             GuitarSet v2 runtime-shadow score/evidence only
 
-PA-10 canonical-v2 design/compatibility: 10.0–10.5 merged contracts
+PA-10 canonical-v2 design/compatibility: PA-10.0–PA-10.5 merged contracts
 PA-11 teacher-approved evaluation: through PA-11.4A
 future final polyphonic selector: not implemented
 future PA-12 internal E2E: not activated
