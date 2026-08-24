@@ -143,7 +143,9 @@ function normalizeUpload(upload) {
     throw invalidRequest('bytes must be a Buffer or Uint8Array.', { field: 'bytes' });
   }
 
-  const exactBytes = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // Own the upload bytes before hashing or invoking any caller-controlled runtime
+  // callback. Buffer.from(Uint8Array) copies instead of sharing its backing store.
+  const exactBytes = Buffer.from(bytes);
   return {
     fileName,
     bytes: exactBytes,

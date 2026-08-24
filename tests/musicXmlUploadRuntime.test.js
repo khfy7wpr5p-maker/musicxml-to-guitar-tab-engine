@@ -17,6 +17,9 @@ const {
   convertMusicXmlToCanonicalTab,
 } = require('../src/core/conversionPipeline');
 const {
+  createProcessingRuntime,
+} = require('../src/core/processingRuntime');
+const {
   serializeCanonicalTabResultToMusicXml,
 } = require('../src/writers/canonicalTabMusicXmlWriter');
 
@@ -47,6 +50,36 @@ test('secure upload runtime preserves the exact monophonic v1 result and emits r
   assert.equal(result.musicXml, serializeCanonicalTabResultToMusicXml(direct.canonicalTabResult));
   assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
   assert.equal(Object.isFrozen(result), true);
+});
+
+test('upload identity and conversion use an owned snapshot when caller bytes mutate', () => {
+  const original = fixture('parser-single-voice.musicxml');
+  const mutable = new Uint8Array(original);
+  let mutated = false;
+  const runtime = createProcessingRuntime({}, {
+    clock: (phase) => {
+      if (!mutated && phase === 'app-upload:start') {
+        mutable.fill(0);
+        mutated = true;
+      }
+      return 0;
+    },
+  });
+
+  const result = processMusicXmlUpload({
+    fileName: 'mutable.musicxml',
+    bytes: mutable,
+  }, {}, runtime);
+
+  assert.equal(mutated, true);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+  assert.equal(result.input.byteLength, original.byteLength);
+  assert.equal(result.input.sha256, sha256(original));
+  assert.deepEqual(
+    result.canonicalTabResult,
+    convertMusicXmlToCanonicalTab(original).canonicalTabResult,
+  );
 });
 
 test('automatic dispatcher sends multi-voice MusicXML through PA-12 v2 without silent note loss or transposition', () => {
