@@ -31,6 +31,7 @@ test('active architecture documents converge on the PR #145 base and PR #146 run
     assert.ok(text.includes(CONVERGENCE_BASE), `${relativePath} convergence base`);
     assert.ok(text.includes('PR #145'), `${relativePath} PR #145 base`);
     assert.ok(text.includes('PR #146'), `${relativePath} PR #146 runtime-shadow review`);
+    assert.ok(text.includes('PR #150'), `${relativePath} PR #150 PA-12 implementation`);
   }
   assert.equal(fs.existsSync(path.join(REPO_ROOT, REVIEW_DOC)), true, `${REVIEW_DOC} must exist`);
 });
@@ -43,8 +44,10 @@ test('active architecture documents describe the merged PA state and reviewed in
       'PA-9',
       'PA-10.5',
       'PA-11.4A',
+      'PA-12',
       'GUITARSET-OBSERVED-VOICING-MODEL.v2',
       'CanonicalTabResult 1.0.0',
+      'CanonicalTabResult 2.0.0',
       'fret20QualityAuthority=false',
       'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE',
       'ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1',
@@ -71,6 +74,10 @@ test('live architecture documents do not retain the superseded runtime-closed re
     'runtime shadow connection | 🔒 closed',
     'next human/consequential gate: `runtime_shadow_connection_review`',
     'runtime connection remains closed',
+    'future internal pa-12 e2e',
+    'future pa-12 internal e2e',
+    'pa-12 internal polyphonic e2e: 🔒 not activated',
+    '`canonicaltabresult 2.0.0` runtime/validator | 🔒 not implemented',
   ];
 
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {

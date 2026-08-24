@@ -2,7 +2,7 @@
 
 <!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 This is the active read-first status for coding agents and reviewers. Historical versioned contracts, closure records and sealed scientific evidence remain exact historical records and are not rewritten when the live architecture advances.
 
@@ -36,11 +36,12 @@ MusicXML → XML safety/ProcessingBudget → ParsedMusicXmlDocument 1.0.0
 - PA-9 `PhysicalPlayabilityValidation 2.0.0`: ✅ internal
 - PA-10.0–PA-10.5: ✅ merged canonical-v2 compatibility/design contracts
 - PA-11 evaluation chain: ✅ merged through PA-11.4A
-- final polyphonic selector: 🔒 not implemented
-- PA-12 internal polyphonic E2E: 🔒 not activated
+- deterministic final polyphonic selector: ✅ internal, non-ML and fail-closed
+- `CanonicalTabResult 2.0.0` runtime/validator/writer: ✅ internal
+- PA-12 internal polyphonic E2E: ✅ implemented, non-public
 - PA-13 public polyphonic API: 🔒 not implemented
 
-PA-10.3 defines v1↔v2 coexistence/migration rules, PA-10.4 proposes minimal `CanonicalTabResult 2.0.0`, and PA-10.5 defines exact-version fail-closed dispatch. None creates runtime/public v2 authority.
+PA-10.3 defines v1↔v2 coexistence/migration rules, PA-10.4 defines minimal `CanonicalTabResult 2.0.0`, and PA-10.5 defines exact-version fail-closed dispatch. The internal v2 runtime/writer and PA-12 path create no package-root/public v2 authority; the public dispatcher remains separately gated.
 
 ## GuitarSet v2 state
 
@@ -110,7 +111,7 @@ MuseScore semantic import/re-export/round-trip and production PDF remain unverif
 10. Fixed evaluation benchmarks remain separate from training data.
 11. Learned/shadow modules may score only pre-existing valid candidates and cannot fabricate, delete, filter or mutate them.
 12. Historical evidence must not be silently regenerated under a newer model/protocol.
-13. `CanonicalTabResult 2.0.0` design documents do not create runtime v2 authority.
+13. Internal `CanonicalTabResult 2.0.0` runtime and PA-12 do not create package-root/public v2 authority.
 14. Runtime shadow connection does not imply final-selection authority.
 15. Live/user-input shadow activation, learned decision authority, public polyphony, production playback/PDF and release remain separate consequential gates.
 

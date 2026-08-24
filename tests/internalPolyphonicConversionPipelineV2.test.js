@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const publicApi = require('../src');
 const {
+  PROCESSING_DEADLINE_EXCEEDED,
   createProcessingRuntime,
 } = require('../src/core/processingRuntime');
 const {
@@ -73,8 +74,11 @@ test('PA-12 runs raw multi-voice MusicXML through one bounded internal v2 pipeli
     'xml:start',
     'polyphonic-projector:start',
     'canonical-tab-result-v2:start',
-    'deterministic-polyphonic-final-selection:start',
+    'deterministic-final-selection:start',
     'internal-polyphonic-v2:canonical',
+    'canonical-tab-musicxml-v2:start',
+    'canonical-tab-musicxml-v2:measure',
+    'canonical-tab-musicxml-v2:complete',
     'internal-polyphonic-v2:complete',
   ]) {
     assert.equal(phases.includes(requiredPhase), true, `missing shared runtime phase: ${requiredPhase}`);
@@ -83,6 +87,31 @@ test('PA-12 runs raw multi-voice MusicXML through one bounded internal v2 pipeli
   const repeated = convertMusicXmlToInternalPolyphonicTabV2(input, decisions);
   assert.deepEqual(repeated.canonicalTabResult, result.canonicalTabResult);
   assert.equal(repeated.musicXml, result.musicXml);
+});
+
+test('PA-12 enforces the shared processing deadline during MusicXML serialization', () => {
+  const runtime = createProcessingRuntime(
+    { maxProcessingMilliseconds: 100 },
+    {
+      clock(phase) {
+        return phase === 'canonical-tab-musicxml-v2:fragment' ? 101 : 0;
+      },
+    },
+  );
+
+  assert.throws(
+    () => convertMusicXmlToInternalPolyphonicTabV2(
+      fixture('pa12-polyphonic-e2e.musicxml'),
+      preservedDecisions(8),
+      {},
+      runtime,
+    ),
+    (error) => {
+      assert.equal(error.code, PROCESSING_DEADLINE_EXCEEDED);
+      assert.equal(error.details.phase, 'canonical-tab-musicxml-v2:fragment');
+      return true;
+    },
+  );
 });
 
 test('PA-12 internal execution does not drift public monophonic conversion or package-root exports', () => {

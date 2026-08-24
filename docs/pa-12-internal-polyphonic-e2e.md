@@ -24,7 +24,7 @@ raw MusicXML bytes/string
   -> MusicXML 4.0 standard-notation + TAB output
 ```
 
-One caller-supplied `ProcessingRuntime` is reused across the parse, projection, canonical production and final-selection stages so deadline/cancellation accounting cannot be reset between internal stages.
+One caller-supplied `ProcessingRuntime` is reused across parsing, projection, canonical production, final selection and MusicXML writer loops so deadline/cancellation accounting cannot be reset between internal stages or bypassed during serialization.
 
 ## Arrangement authority
 
@@ -61,7 +61,7 @@ PA-12 may close only when one exact PR head proves all of the following:
 3. every retained note has exact selected string/fret truth;
 4. selected multi-note shapes remain PA-9 `PLAYABLE_WITHIN_POLICY`;
 5. repeated execution produces identical canonical and MusicXML values;
-6. one shared ProcessingRuntime spans the complete internal path;
+6. one shared ProcessingRuntime spans the complete internal path, including MusicXML writer loops;
 7. retained sustained overlap fails closed;
 8. the public monophonic conversion result is unchanged before/after internal PA-12 execution;
 9. package-root exports are byte-for-byte/semantically unchanged as an API set and expose no PA-12/v2 function;

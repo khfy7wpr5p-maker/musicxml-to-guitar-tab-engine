@@ -95,6 +95,7 @@ function convertMusicXmlToInternalPolyphonicTabV2(
   const musicXml = serializeCanonicalTabResultV2ToMusicXml(
     canonicalTabResult,
     normalized.writer,
+    processing,
   );
   const outputBytes = Buffer.byteLength(musicXml, 'utf8');
   if (outputBytes > MAX_INTERNAL_POLYPHONIC_MUSICXML_OUTPUT_BYTES) {

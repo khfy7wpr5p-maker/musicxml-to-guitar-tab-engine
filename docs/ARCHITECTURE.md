@@ -2,7 +2,7 @@
 
 <!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 ## 1. Authority model
 
@@ -72,12 +72,13 @@ authentic immutable single-generation PA-7 handoff
 
 PA-10 canonical-v2 design/compatibility contracts through PA-10.5
 PA-11 independent teacher-evaluation infrastructure through PA-11.4A
-future final polyphonic selector
-future CanonicalTabResult 2.0.0 runtime
-future PA-12 E2E / PA-13 public polyphonic API
+internal deterministic final polyphonic selector
+internal CanonicalTabResult 2.0.0 runtime/writer
+PA-12 internal E2E
+future PA-13 public polyphonic API
 ```
 
-PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are contract/design evidence. PA-11 is evaluation infrastructure through PA-11.4A. Final production arrangement selection remains unimplemented.
+PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are contract/design evidence. PA-11 is evaluation infrastructure through PA-11.4A. The deterministic final selector and PA-12 path are internal, explicit-decision, non-ML and fail-closed. Production/public arrangement authority remains unimplemented.
 
 ## 4. PA responsibilities
 
@@ -93,6 +94,8 @@ PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are c
 - **PA-10.5:** exact-version fail-closed dispatch contract only.
 - **PA-11:** teacher-reviewed evaluation/replay/scoring; no production selection.
 - **PA-11.4A:** evaluation-only revoicing tone candidate atoms; no complete production voicing selection.
+- **Deterministic final selector:** selects only from physically validated candidates under explicit PA-4 decisions and fails closed on unsupported sustained overlap.
+- **PA-12:** integrates bounded raw MusicXML through internal `CanonicalTabResult 2.0.0` and its MusicXML writer under one shared runtime budget; it is not package-root exported.
 
 ## 5. Runtime shadow architecture
 
@@ -126,7 +129,7 @@ The retained development artifact and underlying parity adapter retain their own
 
 ## 6. Canonical v1/v2 boundary
 
-Current runtime implements/publishes only `CanonicalTabResult 1.0.0` for supported monophonic conversion. PA-10 documentation defines future polyphonic requirements but there is no runtime v2 validator, dispatcher, migration engine, v2 writer or package-root polyphonic API.
+The public runtime implements/publishes only `CanonicalTabResult 1.0.0` for supported monophonic conversion. Internal code now implements the exact `CanonicalTabResult 2.0.0` producer/validator and MusicXML writer used by PA-12. There is still no public v1/v2 dispatcher, migration engine or package-root polyphonic API.
 
 ## 7. Teacher evaluation architecture
 
@@ -165,5 +168,5 @@ Renderers are downstream presentation adapters with no fingering authority. Muse
 9. Learned models cannot create/delete/filter/truncate/mutate PA-7 candidates.
 10. Runtime shadow scoring cannot feed deterministic selection without a separate authority gate.
 11. Historical sealed evidence is immutable evidence, not a mutable status file.
-12. Canonical-v2 design does not imply runtime-v2 implementation.
+12. Internal canonical-v2 implementation does not imply package-root/public v2 authority.
 13. Live/user-input shadow activation, learned selection authority, public polyphony and production are separate consequential gates.

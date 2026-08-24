@@ -2,7 +2,7 @@
 
 <!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 ## Purpose and boundary
 
@@ -46,8 +46,9 @@ authentic immutable single-generation PA-7 handoff
 
 PA-10 canonical-v2 compatibility/design through PA-10.5
 PA-11 teacher-approved evaluation through PA-11.4A
-future final polyphonic selector
-future internal PA-12 E2E
+internal deterministic final polyphonic selector
+internal CanonicalTabResult 2.0.0 runtime/writer
+PA-12 internal E2E
 future public PA-13 polyphonic API
 ```
 
@@ -80,8 +81,8 @@ Builds structural left-hand finger/barre candidates while preserving PA-7 positi
 ### PA-9
 Replays/revalidates PA-8 under `CONSERVATIVE_STATIC_LEFT_HAND_2.0`. `PLAYABLE_WITHIN_POLICY` is a bounded static policy verdict, not universal comfort/anatomy/tempo truth.
 
-### PA-10 / PA-11
-PA-10.0–PA-10.5 define future canonical-v2 compatibility/design only. PA-11 is independent evaluation infrastructure through PA-11.4A. Neither creates a production selector.
+### PA-10 / PA-11 / PA-12
+PA-10.0–PA-10.5 define canonical-v2 compatibility/design. PA-11 is independent evaluation infrastructure through PA-11.4A. The deterministic final selector and PA-12 implement a bounded internal path under explicit PA-4 decisions; they create no production/public or learned authority.
 
 ## Runtime shadow in relation to PA-7
 
@@ -118,24 +119,22 @@ Immutable evidence:
 
 It records 4/4 candidate-bearing coverage, 153/153 candidate preservation, three baseline disagreements, 48 fret-20 candidates, zero shadow errors and 10/10 determinism.
 
-## Missing core capability: final polyphonic selection
+## Internal final-selection boundary
 
-The architecture has source truth, deterministic reduction, guitar candidate generation, structural fingering, physical validation, teacher evaluation and learned diagnostic scoring. What remains absent is a production final selector that safely decides among complete playable arrangement alternatives across local and transition/path context.
+The internal deterministic selector chooses from physically validated candidates under explicit PA-4 decisions and fails closed where complete sustained-hand occupancy is not modeled. What remains absent is production/public selector authority across richer local and transition/path context.
 
 A future selector must separately define and verify candidate admissibility/abstention, deterministic fallback, temporal transition costs, revoicing semantics, sustained-sonority interaction, complete shape selection, teacher-evaluation independence, any learned-score authority tier and audit provenance.
 
-## Future canonical/public path
+## Remaining public path
 
 ```text
-approved internal final selector
+implemented internal final selector
  ↓
-separately implemented CanonicalTabResult 2.0.0 validator/runtime
+implemented internal CanonicalTabResult 2.0.0 validator/runtime/writer
  ↓
-exact version dispatcher
+implemented PA-12 internal E2E + monophonic regression
  ↓
-polyphonic writers/compatibility evidence
- ↓
-PA-12 internal E2E + monophonic regression
+future exact public version dispatcher
  ↓
 PA-13 public polyphonic API
 ```
