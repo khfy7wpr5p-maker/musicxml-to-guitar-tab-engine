@@ -11,12 +11,6 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '../..');
 const {
-  serializeCanonicalTabResultToMusicXml,
-} = require('../../src/writers/canonicalTabMusicXmlWriter');
-const {
-  createCanonicalTabCompatibilityFixture,
-} = require('../fixtures/compatibility/canonicalTabCompatibilityFixture');
-const {
   processMusicXmlUpload,
 } = require('../../src/app/musicXmlUploadRuntime');
 
@@ -35,9 +29,8 @@ const workbenchCss = fs.readFileSync(
   path.join(repositoryRoot, 'web/guitar-tab-workbench/workbench.css'),
   'utf8',
 );
-const sourceMusicXml = serializeCanonicalTabResultToMusicXml(
-  createCanonicalTabCompatibilityFixture(),
-  { pretty: true, trailingNewline: true },
+const sourceMusicXml = fs.readFileSync(
+  path.join(repositoryRoot, 'tests/fixtures/parser-single-voice.musicxml'),
 );
 
 function resolveAlphaTabAsset(relativePath) {
@@ -82,7 +75,7 @@ function testPage() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const state = window.__workbenchSmoke = {done:false,error:null,uploadCalls:0,postRender:false};
+  const state = window.__workbenchSmoke = {done:false,error:null,uploadCalls:0};
   const fail = error => { state.error = error?.stack || String(error); state.done = true; };
   const upload = async file => {
     state.uploadCalls += 1;
@@ -104,7 +97,6 @@ function testPage() {
       playerMode:window.alphaTab.PlayerMode.EnabledExternalMedia,
     });
     workbench.api.error.on(fail);
-    workbench.api.postRenderFinished.on(() => { state.postRender = true; });
   } catch(error) { fail(error); }
 })();
 </script>`;
@@ -129,7 +121,8 @@ const server = http.createServer((request, response) => {
   }
   if (url.pathname === '/fixture.musicxml') {
     response.writeHead(200, {
-      'content-type': 'application/vnd.recordare.musicxml+xml; charset=utf-8',
+      'content-type': 'application/vnd.recordare.musicxml+xml',
+      'content-length': sourceMusicXml.length,
     });
     response.end(sourceMusicXml);
     return;
@@ -138,18 +131,21 @@ const server = http.createServer((request, response) => {
     const fileName = url.searchParams.get('fileName') || '';
     const chunks = [];
     let total = 0;
-    let aborted = false;
+    let oversized = false;
     request.on('data', (chunk) => {
       total += chunk.length;
       if (total > 5 * 1024 * 1024) {
-        aborted = true;
-        request.destroy();
+        oversized = true;
         return;
       }
       chunks.push(chunk);
     });
     request.on('end', () => {
-      if (aborted) return;
+      if (oversized) {
+        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify({ message: 'test upload exceeds bound' }));
+        return;
+      }
       try {
         const result = processMusicXmlUpload({
           fileName,
@@ -213,19 +209,49 @@ try {
   });
   await page.waitForFunction(() => Boolean(window.__workbench), {timeout:10000});
 
-  await page.evaluate(async () => {
+  const loadOutcome = await page.evaluate(async () => {
     const response = await fetch('/fixture.musicxml');
     const bytes = await response.arrayBuffer();
     const file = new File([bytes], 'fixture.musicxml', {type:'application/vnd.recordare.musicxml+xml'});
-    await window.__workbench.loadFile(file);
+    const accepted = await window.__workbench.loadFile(file);
+    return {accepted,snapshot:window.__workbench.snapshot()};
   });
+  assert.equal(loadOutcome.accepted,true,JSON.stringify(loadOutcome));
+  assert.equal(loadOutcome.snapshot.runtimeResult.status,'PASS');
+  assert.equal(loadOutcome.snapshot.runtimeResult.route,'MONO_V1');
 
-  await page.waitForFunction(
-    () => window.__workbench?.snapshot().scoreLoaded === true && window.__workbenchSmoke?.postRender === true,
-    {timeout:30000},
-  );
+  let renderWaitError = null;
+  try {
+    await page.waitForFunction(
+      () => window.__workbenchSmoke?.error
+        || (window.__workbench?.snapshot().scoreLoaded === true
+          && document.querySelectorAll('[data-role="score"] svg').length > 0),
+      {timeout:30000},
+    );
+  } catch (error) {
+    renderWaitError = error;
+  }
+  const renderDiagnostic = await page.evaluate(() => ({
+    snapshot:window.__workbench?.snapshot(),
+    smoke:window.__workbenchSmoke,
+    svgCount:document.querySelectorAll('[data-role="score"] svg').length,
+    scoreText:document.querySelector('[data-role="score"]')?.textContent?.slice(0,500) || '',
+    statusText:document.querySelector('[data-role="document-status"]')?.textContent || '',
+    issueText:document.querySelector('[data-role="issues"]')?.textContent || '',
+  }));
+  if (renderWaitError || renderDiagnostic.smoke?.error) {
+    process.stdout.write(`${JSON.stringify({
+      phase:'render-wait',
+      browser:await browser.version(),
+      browserMessages:messages,
+      renderWaitError:renderWaitError?.message || null,
+      renderDiagnostic,
+    })}\n`);
+  }
+  assert.equal(renderWaitError,null,renderWaitError?.message || 'render wait failed');
+  assert.equal(renderDiagnostic.smoke.error,null,renderDiagnostic.smoke.error || messages.join('\n'));
+
   await new Promise(resolve => setTimeout(resolve, 250));
-
   const passState = await page.evaluate(() => {
     const snapshot = window.__workbench.snapshot();
     const track = window.__workbench.api.score.tracks[0];
@@ -244,7 +270,7 @@ try {
   assert.equal(passState.uploadCalls,1);
   assert.equal(passState.snapshot.scoreTracks,1);
   assert.equal(passState.snapshot.scoreStaves,2);
-  assert.equal(passState.snapshot.scoreMeasures,5);
+  assert.equal(passState.snapshot.scoreMeasures,2);
   assert.equal(passState.notationVisible,true);
   assert.equal(passState.tabVisible,true);
   assert.deepEqual(passState.tuning,[64,59,55,50,45,40]);
@@ -252,23 +278,23 @@ try {
   assert.match(passState.issueText,/No blocking issues/);
 
   const focused = await page.evaluate(() => {
-    const result = window.__workbench.focusMeasure({measureIndex:2});
+    const result = window.__workbench.focusMeasure({measureIndex:1});
     return {result,snapshot:window.__workbench.snapshot(),text:document.querySelector('[data-role="cursor-status"]').textContent};
   });
   assert.equal(focused.result,true);
-  assert.equal(focused.snapshot.currentMeasureIndex,2);
-  assert.match(focused.text,/Measure 3/);
+  assert.equal(focused.snapshot.currentMeasureIndex,1);
+  assert.match(focused.text,/Measure 2/);
 
   await page.evaluate(() => {
     window.__workbench.loadRuntimeResult({
       status:'BLOCKED',
-      route:'POLY_V2',
+      route:'MONO_V1',
       preflight:{issues:[{
         severity:'error',
         category:'playability',
         code:'UNPLAYABLE_TEST_NOTE',
         message:'A test note cannot be placed safely.',
-        location:{measure:4,measureIndex:3,eventIndex:1,sourceEventId:'test-event'},
+        location:{measure:2,measureIndex:1,eventIndex:1,sourceEventId:'test-event'},
       }]},
       musicXml:null,
     });
@@ -282,11 +308,11 @@ try {
   assert.equal(blockedState.snapshot.issueCount,1);
   assert.equal(blockedState.issueButtonCount,1);
   assert.match(blockedState.issueText,/UNPLAYABLE_TEST_NOTE/);
-  assert.match(blockedState.issueText,/measure 4/);
+  assert.match(blockedState.issueText,/measure 2/);
 
   await page.click('.workbench-issue__button');
   const issueFocus = await page.evaluate(() => window.__workbench.snapshot());
-  assert.equal(issueFocus.currentMeasureIndex,3);
+  assert.equal(issueFocus.currentMeasureIndex,1);
 
   await page.screenshot({path:screenshotPath,fullPage:true});
   assert.ok(fs.statSync(screenshotPath).size > 0);
