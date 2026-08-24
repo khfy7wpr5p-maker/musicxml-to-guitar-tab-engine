@@ -55,18 +55,19 @@ test('v2 writer emits deterministic parseable two-staff MusicXML from selected c
   }
 });
 
-test('v2 writer preserves target pitches and source timing while omission remains explicit absence', () => {
-  const result = createCanonicalTabV2CompatibilityFixture();
-  const mutable = JSON.parse(JSON.stringify(result));
+test('v2 writer preserves a valid octave-displaced target pitch and selected position', () => {
+  const mutable = JSON.parse(JSON.stringify(createCanonicalTabV2CompatibilityFixture()));
   const target = mutable.noteDispositions.find((entry) => entry.sourceEventId.endsWith(':note:4'));
   target.targetPitch = { step: 'A', alter: 0, octave: 3, midi: 57, written: 'A3' };
   target.octaveShiftSemitones = -12;
   target.ruleId = 'OCTAVE_NEAREST_IN_REGISTER';
+  target.selectedPosition = { string: 3, fret: 2 };
   const sourceDecision = mutable.arrangementDecisions.find((entry) => entry.sourceEventIds.includes(target.sourceEventId));
   sourceDecision.decisionType = 'OCTAVE_DISPLACED';
 
   const xml = serializeCanonicalTabResultV2ToMusicXml(mutable);
   assert.equal(count(xml, /<step>A<\/step>/g), 2);
+  assert.match(xml, /<string>3<\/string><fret>2<\/fret>/);
   assert.equal(count(xml, /<octave>4<\/octave>/g) >= 1, true);
   assert.equal(count(xml, /<octave>3<\/octave>/g) >= 1, true);
 });
@@ -84,7 +85,7 @@ test('v2 writer supports pretty/trailing-newline options without mutating the ca
   assert.equal(Object.isFrozen(result), true);
 });
 
-test('v2 writer rejects v1 artifacts and hostile or semantically mutated v2 values fail closed', () => {
+test('v2 writer rejects v1 artifacts and semantically mutated v2 values fail closed', () => {
   expectWriterCode(
     () => serializeCanonicalTabResultV2ToMusicXml(createCanonicalTabCompatibilityFixture()),
     'INVALID_CANONICAL_TAB_MUSICXML_V2_RESULT',
