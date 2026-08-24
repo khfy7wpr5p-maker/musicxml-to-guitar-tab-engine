@@ -291,6 +291,30 @@ test('TAB mirror normalization rejects a partial staff reset and unsupported tec
   }
 });
 
+test('TAB mirror normalization rejects late clef and transpose declarations', () => {
+  const first = processMusicXmlUpload({
+    fileName: 'poly.xml',
+    bytes: fixture('pa12-polyphonic-e2e.musicxml'),
+  });
+  const transpose = first.musicXml.match(/<transpose number="1">.*?<\/transpose>/s)[0];
+  const withoutInitialTranspose = first.musicXml.replace(transpose, '');
+  const firstNoteEnd = withoutInitialTranspose.indexOf('</note>') + '</note>'.length;
+  const lateTranspose = `${withoutInitialTranspose.slice(0, firstNoteEnd)}<attributes>${transpose}</attributes>${withoutInitialTranspose.slice(firstNoteEnd)}`;
+  const lateTabClef = first.musicXml
+    .replace('<clef number="2"><sign>TAB</sign>', '<clef number="2"><sign>G</sign>')
+    .replace('</note>', '</note><attributes><clef number="2"><sign>TAB</sign><line>5</line></clef></attributes>');
+
+  for (const [fileName, musicXml] of [
+    ['late-transpose.musicxml', lateTranspose],
+    ['late-tab-clef.musicxml', lateTabClef],
+  ]) {
+    const result = processMusicXmlUpload({ fileName, bytes: Buffer.from(musicXml) });
+    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+    assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
+    assert.equal(result.canonicalTabResult, null);
+  }
+});
+
 test('upload boundary rejects non-MusicXML file extensions before conversion', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlUpload({ fileName: 'score.txt', bytes });

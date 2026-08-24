@@ -65,22 +65,27 @@ function cloneNode(node, overrides = {}) {
   };
 }
 
-function hasTabClefForStaffTwo(parsedDocument) {
-  const pending = [parsedDocument.root];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    if (
-      node.name === 'clef'
-      && (getAttribute(node, 'number') || '1') === '2'
-      && directChildren(node, 'sign').some((sign) => sign.text.trim().toUpperCase() === 'TAB')
-    ) {
-      return true;
-    }
-    for (let index = node.children.length - 1; index >= 0; index -= 1) {
-      pending.push(node.children[index]);
-    }
-  }
-  return false;
+function initialWriterAttributes(measureNodes) {
+  const firstMeasureChildren = measureNodes[0].children.filter(
+    (child) => child.uri === measureNodes[0].uri,
+  );
+  if (firstMeasureChildren[0]?.name !== 'attributes') return null;
+
+  const attributesNodes = measureNodes.flatMap((measure) => directChildren(measure, 'attributes'));
+  if (attributesNodes.length !== 1 || attributesNodes[0] !== firstMeasureChildren[0]) return null;
+
+  const attributes = attributesNodes[0];
+  const declaredStaves = directChildren(attributes, 'staves');
+  if (declaredStaves.length !== 1 || scalarInteger(declaredStaves[0]) !== 2) return null;
+
+  const staffTwoClefs = directChildren(attributes, 'clef').filter(
+    (clef) => (getAttribute(clef, 'number') || '1') === '2',
+  );
+  if (staffTwoClefs.length !== 1) return null;
+  const signs = directChildren(staffTwoClefs[0], 'sign');
+  if (signs.length !== 1 || signs[0].text.trim().toUpperCase() !== 'TAB') return null;
+
+  return attributes;
 }
 
 function notationPitchOctaveShift(attributesNodes) {
@@ -361,8 +366,6 @@ function exactModelsMatch(notationModel, tabModel) {
 }
 
 function tryProjectExactTabStaffMirror(parsedDocument, runtime) {
-  if (!hasTabClefForStaffTwo(parsedDocument)) return null;
-
   const root = parsedDocument.root;
   if (
     root.children.some(
@@ -393,12 +396,9 @@ function tryProjectExactTabStaffMirror(parsedDocument, runtime) {
 
   const measureNodes = directChildren(parts[0], 'measure');
   if (measureNodes.length === 0) return null;
-  const attributesNodes = measureNodes.flatMap((measure) => directChildren(measure, 'attributes'));
-  const declaredStaves = attributesNodes.flatMap((attributes) => directChildren(attributes, 'staves'));
-  if (declaredStaves.length === 0 || declaredStaves.some((staves) => scalarInteger(staves) !== 2)) {
-    return null;
-  }
-  const notationOctaveShift = notationPitchOctaveShift(attributesNodes);
+  const initialAttributes = initialWriterAttributes(measureNodes);
+  if (!initialAttributes) return null;
+  const notationOctaveShift = notationPitchOctaveShift([initialAttributes]);
   if (notationOctaveShift === null) return null;
 
   const notationMeasures = [];
