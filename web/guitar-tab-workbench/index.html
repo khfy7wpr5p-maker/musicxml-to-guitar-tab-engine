@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guitar TAB Workbench</title>
+  <link rel="stylesheet" href="/workbench/workbench.css">
+</head>
+<body>
+  <main class="workbench" data-guitar-tab-workbench>
+    <header class="workbench-toolbar">
+      <div class="workbench-title-group">
+        <h1>Guitar TAB Workbench</h1>
+        <p>Secure MusicXML → standard notation + rhythmic TAB</p>
+      </div>
+      <label class="workbench-file-label">
+        <span>Open MusicXML</span>
+        <input data-role="musicxml-file" type="file" accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml,application/xml,text/xml">
+      </label>
+      <div class="workbench-transport" aria-label="Playback controls">
+        <button data-role="play" type="button" disabled>Play</button>
+        <button data-role="stop" type="button" disabled>Stop</button>
+      </div>
+    </header>
+
+    <section class="workbench-meta" aria-live="polite">
+      <span>Document: <strong data-role="document-status">EMPTY</strong></span>
+      <span>Route: <strong data-role="route-status">UNRESOLVED</strong></span>
+      <span>Cursor: <strong data-role="cursor-status">No active measure</strong></span>
+    </section>
+
+    <div class="workbench-grid">
+      <section class="workbench-score-panel" aria-label="Standard notation and rhythmic TAB">
+        <div class="workbench-score" data-role="score"></div>
+      </section>
+
+      <aside class="workbench-issues" aria-label="MusicXML issues">
+        <div class="workbench-issues__heading">
+          <h2>Issues</h2>
+          <span data-role="issue-count">0</span>
+        </div>
+        <ol data-role="issues"></ol>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/assets/alphatab.js"></script>
+  <script src="/workbench/workbench.js"></script>
+  <script>
+    (() => {
+      const root = document.querySelector('[data-guitar-tab-workbench]');
+      const upload = async (file) => {
+        const bytes = await file.arrayBuffer();
+        const response = await fetch(`/api/upload?fileName=${encodeURIComponent(file.name)}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/octet-stream'},
+          body: bytes,
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.message || 'Upload request failed.');
+        return payload;
+      };
+
+      window.__workbench = GuitarTabWorkbench.mount({
+        root,
+        alphaTab: window.alphaTab,
+        upload,
+        assetBaseUrl: '/assets',
+        scriptFileUrl: window.location.origin + '/assets/alphatab.js',
+        soundFontUrl: window.location.origin + '/assets/soundfont/sonivox.sf2',
+      });
+    })();
+  </script>
+</body>
+</html>
