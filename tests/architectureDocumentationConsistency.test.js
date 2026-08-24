@@ -48,13 +48,19 @@ test('active architecture documents describe the merged PA state and reviewed in
       'fret20QualityAuthority=false',
       'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE',
       'ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1',
-      'runtime shadow connection: internal default-off',
-      'live/user input: false',
-      'authoritative optimizer/canonical/TAB effect: false',
-      'production: false',
       'evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json',
     ]) {
       assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
+    }
+
+    const lowerText = text.toLowerCase();
+    for (const required of [
+      'runtime shadow connection: internal default-off',
+      'live/user input: false',
+      'authoritative optimizer/canonical/tab effect: false',
+      'production: false',
+    ]) {
+      assert.ok(lowerText.includes(required), `${relativePath} must mention ${required}`);
     }
   }
 });
@@ -62,15 +68,15 @@ test('active architecture documents describe the merged PA state and reviewed in
 test('live architecture documents do not retain the superseded runtime-closed review state', () => {
   const forbidden = [
     'runtime connection: false',
-    'Runtime shadow connection | 🔒 CLOSED',
-    'Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`',
+    'runtime shadow connection | 🔒 closed',
+    'next human/consequential gate: `runtime_shadow_connection_review`',
     'runtime connection remains closed',
   ];
 
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
-    const text = read(relativePath);
+    const lowerText = read(relativePath).toLowerCase();
     for (const stale of forbidden) {
-      assert.equal(text.includes(stale), false, `${relativePath} contains stale claim: ${stale}`);
+      assert.equal(lowerText.includes(stale), false, `${relativePath} contains stale claim: ${stale}`);
     }
   }
 });
@@ -136,12 +142,17 @@ test('runtime-shadow review record preserves sealed identities and non-authorita
     '617981e90cce46c941596d1bd50ffffff64e6816c59d8f0dbed1acd6d8938285',
     'db67d88c4889a2b8c63411cd1e9bbd7481248dfbdd76da67f5df60b3871b4c02',
     'f42809c1ca9d5f6ff1c62dd072c91a9195bb46e1714e88bd84e8a5a57eef9140',
-    'runtime shadow connection: internal default-off',
-    'live/user input: false',
-    'Authoritative optimizer/canonical/TAB effect: false',
-    'Production: false',
     'fret20QualityAuthority',
   ]) {
     assert.ok(text.includes(required), `${REVIEW_DOC} must mention ${required}`);
+  }
+  const lowerText = text.toLowerCase();
+  for (const required of [
+    'runtime shadow connection: internal default-off',
+    'live/user input: false',
+    'authoritative optimizer/canonical/tab effect: false',
+    'production: false',
+  ]) {
+    assert.ok(lowerText.includes(required), `${REVIEW_DOC} must mention ${required}`);
   }
 });
