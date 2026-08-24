@@ -113,6 +113,9 @@ jobs:
           ALPHATAB_WORKBENCH_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-guitar-tab-workbench.png
         run: node tests/compatibility/alphaTabGuitarTabWorkbenchSmoke.mjs
 
+      - name: Run Guitar TAB Workbench atomic tie-chain edit smoke test
+        run: node tests/compatibility/alphaTabGuitarTabTieChainWorkbenchSmoke.mjs
+
       - name: Run alphaTab browser synthesizer diagnostic
         continue-on-error: true
         run: node tests/compatibility/alphaTabBrowserSynthSmoke.mjs
