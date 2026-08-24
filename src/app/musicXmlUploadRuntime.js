@@ -37,6 +37,19 @@ const MUSICXML_UPLOAD_ROUTE = Object.freeze({
 });
 const ALLOWED_UPLOAD_EXTENSIONS = Object.freeze(['.musicxml', '.xml']);
 const MAX_UPLOAD_FILE_NAME_LENGTH = 255;
+const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
+const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  'buffer',
+).get;
+const TYPED_ARRAY_BYTE_OFFSET_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  'byteOffset',
+).get;
+const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  'byteLength',
+).get;
 
 const STANDARD_GUITAR = createGuitarConfiguration();
 let STANDARD_GUITAR_MINIMUM_MIDI = Number.POSITIVE_INFINITY;
@@ -143,11 +156,43 @@ function normalizeUpload(upload) {
     throw invalidRequest('bytes must be a Buffer or Uint8Array.', { field: 'bytes' });
   }
 
-  // Own the upload bytes before hashing or invoking any caller-controlled runtime
-  // callback. Buffer.from(Uint8Array) copies instead of sharing its backing store.
-  const exactBytes = Buffer.from(bytes);
+  let backingBuffer;
+  let byteOffset;
+  let byteLength;
+  try {
+    backingBuffer = Reflect.apply(TYPED_ARRAY_BUFFER_GETTER, bytes, []);
+    byteOffset = Reflect.apply(TYPED_ARRAY_BYTE_OFFSET_GETTER, bytes, []);
+    byteLength = Reflect.apply(TYPED_ARRAY_BYTE_LENGTH_GETTER, bytes, []);
+  } catch {
+    throw invalidRequest('bytes must be an attached Buffer or Uint8Array.', { field: 'bytes' });
+  }
+  if (
+    typeof SharedArrayBuffer === 'function'
+    && backingBuffer instanceof SharedArrayBuffer
+  ) {
+    throw invalidRequest('bytes must not use shared memory.', { field: 'bytes' });
+  }
+
+  // Enforce the resource ceiling before allocating the owned snapshot. Oversized
+  // uploads are rejected without hashing or copying caller-controlled storage.
+  if (byteLength > DEFAULT_MAX_XML_BYTES) {
+    return {
+      fileName,
+      byteLength,
+      bytes: null,
+    };
+  }
+
+  let exactBytes;
+  try {
+    const plainView = new Uint8Array(backingBuffer, byteOffset, byteLength);
+    exactBytes = Buffer.from(plainView);
+  } catch {
+    throw invalidRequest('bytes must be an attached Buffer or Uint8Array.', { field: 'bytes' });
+  }
   return {
     fileName,
+    byteLength,
     bytes: exactBytes,
   };
 }
@@ -165,6 +210,14 @@ function createInputIdentity(fileName, bytes) {
     fileName,
     byteLength: bytes.byteLength,
     sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+  });
+}
+
+function createOversizedInputIdentity(fileName, byteLength) {
+  return Object.freeze({
+    fileName,
+    byteLength,
+    sha256: null,
   });
 }
 
@@ -456,21 +509,11 @@ function publicNormalization(normalization) {
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const normalizedUpload = normalizeUpload(upload);
   const normalizedOptions = normalizeOptions(options);
-  const identity = createInputIdentity(normalizedUpload.fileName, normalizedUpload.bytes);
-  const extension = extensionOf(normalizedUpload.fileName);
+  const identity = normalizedUpload.bytes === null
+    ? createOversizedInputIdentity(normalizedUpload.fileName, normalizedUpload.byteLength)
+    : createInputIdentity(normalizedUpload.fileName, normalizedUpload.bytes);
 
-  if (!extension) {
-    return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.UNRESOLVED, {
-      severity: 'error',
-      category: 'capability',
-      code: 'UNSUPPORTED_UPLOAD_EXTENSION',
-      message: 'Only .xml and .musicxml uploads are accepted.',
-      location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
-      details: { allowedExtensions: ALLOWED_UPLOAD_EXTENSIONS },
-    });
-  }
-
-  if (normalizedUpload.bytes.byteLength > DEFAULT_MAX_XML_BYTES) {
+  if (normalizedUpload.bytes === null) {
     return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.UNRESOLVED, {
       severity: 'error',
       category: 'safety',
@@ -479,8 +522,20 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
       details: {
         maxBytes: DEFAULT_MAX_XML_BYTES,
-        byteLength: normalizedUpload.bytes.byteLength,
+        byteLength: normalizedUpload.byteLength,
       },
+    });
+  }
+
+  const extension = extensionOf(normalizedUpload.fileName);
+  if (!extension) {
+    return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.UNRESOLVED, {
+      severity: 'error',
+      category: 'capability',
+      code: 'UNSUPPORTED_UPLOAD_EXTENSION',
+      message: 'Only .xml and .musicxml uploads are accepted.',
+      location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
+      details: { allowedExtensions: ALLOWED_UPLOAD_EXTENSIONS },
     });
   }
 
