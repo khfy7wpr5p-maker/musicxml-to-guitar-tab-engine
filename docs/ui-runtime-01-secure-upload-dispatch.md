@@ -39,7 +39,8 @@ The current PA-2 semantic profile is still intentionally narrow; real-world Guit
 
 - `status`: `PASS` or `BLOCKED`
 - `route`: `MONO_V1`, `POLY_V2`, or `UNRESOLVED`
-- exact input identity (`fileName`, `byteLength`, `sha256`)
+- exact input identity (`fileName`, `byteLength`, `sha256`) for bounded uploads;
+- oversized inputs are rejected before copying or hashing and report `sha256: null`;
 - structured preflight/issues with measure/event fields when available
 - representation-normalization facts
 - canonical result on success

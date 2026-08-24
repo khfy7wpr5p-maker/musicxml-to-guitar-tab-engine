@@ -17,8 +17,14 @@ const {
   convertMusicXmlToCanonicalTab,
 } = require('../src/core/conversionPipeline');
 const {
+  createProcessingRuntime,
+} = require('../src/core/processingRuntime');
+const {
   serializeCanonicalTabResultToMusicXml,
 } = require('../src/writers/canonicalTabMusicXmlWriter');
+const {
+  DEFAULT_MAX_XML_BYTES,
+} = require('../src/validation/xmlSafety');
 
 function fixture(name) {
   return fs.readFileSync(path.join(__dirname, 'fixtures', name));
@@ -47,6 +53,114 @@ test('secure upload runtime preserves the exact monophonic v1 result and emits r
   assert.equal(result.musicXml, serializeCanonicalTabResultToMusicXml(direct.canonicalTabResult));
   assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
   assert.equal(Object.isFrozen(result), true);
+});
+
+test('upload identity and conversion use an owned snapshot when caller bytes mutate', () => {
+  const original = fixture('parser-single-voice.musicxml');
+  const mutable = new Uint8Array(original);
+  let mutated = false;
+  const runtime = createProcessingRuntime({}, {
+    clock: (phase) => {
+      if (!mutated && phase === 'app-upload:start') {
+        mutable.fill(0);
+        mutated = true;
+      }
+      return 0;
+    },
+  });
+
+  const result = processMusicXmlUpload({
+    fileName: 'mutable.musicxml',
+    bytes: mutable,
+  }, {}, runtime);
+
+  assert.equal(mutated, true);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+  assert.equal(result.input.byteLength, original.byteLength);
+  assert.equal(result.input.sha256, sha256(original));
+  assert.deepEqual(
+    result.canonicalTabResult,
+    convertMusicXmlToCanonicalTab(original).canonicalTabResult,
+  );
+});
+
+test('upload snapshot does not invoke Uint8Array subclass coercion hooks', () => {
+  const original = fixture('parser-single-voice.musicxml');
+  let invoked = false;
+  class HostileUint8Array extends Uint8Array {
+    valueOf() {
+      invoked = true;
+      throw new Error('caller hook must not run');
+    }
+
+    get length() {
+      invoked = true;
+      throw new Error('caller hook must not run');
+    }
+  }
+  const hostile = new HostileUint8Array(original);
+
+  const result = processMusicXmlUpload({
+    fileName: 'hostile-subclass.musicxml',
+    bytes: hostile,
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.input.sha256, sha256(original));
+});
+
+test('oversized upload is rejected before snapshot allocation or hashing', () => {
+  let invoked = false;
+  class OversizedUint8Array extends Uint8Array {
+    valueOf() {
+      invoked = true;
+      throw new Error('caller hook must not run');
+    }
+  }
+  const oversized = new OversizedUint8Array(DEFAULT_MAX_XML_BYTES + 1);
+
+  const result = processMusicXmlUpload({
+    fileName: 'oversized.musicxml',
+    bytes: oversized,
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'FILE_TOO_LARGE');
+  assert.equal(result.input.byteLength, DEFAULT_MAX_XML_BYTES + 1);
+  assert.equal(result.input.sha256, null);
+});
+
+test('shared-memory upload storage is rejected before hashing or conversion', () => {
+  if (typeof SharedArrayBuffer !== 'function') return;
+  const shared = new Uint8Array(new SharedArrayBuffer(8));
+
+  assert.throws(
+    () => processMusicXmlUpload({ fileName: 'shared.musicxml', bytes: shared }),
+    (error) => {
+      assert.ok(error instanceof MusicXmlUploadRuntimeError);
+      assert.equal(error.code, 'INVALID_UPLOAD_REQUEST');
+      assert.match(error.message, /shared memory/);
+      return true;
+    },
+  );
+});
+
+test('detached upload storage is rejected as an invalid request', () => {
+  const detached = new Uint8Array(fixture('parser-single-voice.musicxml'));
+  structuredClone(detached.buffer, { transfer: [detached.buffer] });
+
+  assert.throws(
+    () => processMusicXmlUpload({ fileName: 'detached.musicxml', bytes: detached }),
+    (error) => {
+      assert.ok(error instanceof MusicXmlUploadRuntimeError);
+      assert.equal(error.code, 'INVALID_UPLOAD_REQUEST');
+      assert.match(error.message, /attached/);
+      return true;
+    },
+  );
 });
 
 test('automatic dispatcher sends multi-voice MusicXML through PA-12 v2 without silent note loss or transposition', () => {
