@@ -50,6 +50,16 @@ const requestedPaths = [];
 const server = http.createServer((request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1');
   requestedPaths.push(url.pathname);
+
+  // Chromium may probe the conventional favicon path even when the page does
+  // not declare one. Treat that browser-generated request as an empty resource
+  // so any other missing Workbench asset still surfaces as a strict 404/error.
+  if (url.pathname === '/favicon.ico') {
+    response.writeHead(204, {'cache-control': 'no-store'});
+    response.end();
+    return;
+  }
+
   const filePath = resolveStaticPath(url.pathname);
   if (!filePath) {
     response.writeHead(404, {'content-type': 'text/plain; charset=utf-8'});
