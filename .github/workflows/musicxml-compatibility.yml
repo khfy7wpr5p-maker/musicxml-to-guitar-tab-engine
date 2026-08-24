@@ -113,6 +113,14 @@ jobs:
           ALPHATAB_WORKBENCH_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-guitar-tab-workbench.png
         run: node tests/compatibility/alphaTabGuitarTabWorkbenchSmoke.mjs
 
+      - name: Build static GitHub Pages Workbench preview
+        run: node scripts/build-github-pages-preview.js
+
+      - name: Run static GitHub Pages Workbench preview smoke test
+        env:
+          ALPHATAB_PAGES_PREVIEW_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-pages-preview.png
+        run: node tests/compatibility/alphaTabPagesPreviewSmoke.mjs
+
       - name: Run alphaTab browser synthesizer diagnostic
         continue-on-error: true
         run: node tests/compatibility/alphaTabBrowserSynthSmoke.mjs
@@ -132,6 +140,15 @@ jobs:
         with:
           name: alphatab-guitar-tab-workbench
           path: ${{ runner.temp }}/alphatab-guitar-tab-workbench.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload GitHub Pages Workbench preview screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: alphatab-pages-preview
+          path: ${{ runner.temp }}/alphatab-pages-preview.png
           if-no-files-found: warn
           retention-days: 14
 
