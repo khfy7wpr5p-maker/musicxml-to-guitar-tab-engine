@@ -41,6 +41,22 @@ function request(bytes, commands, overrides = {}) {
   };
 }
 
+function validTieSource() {
+  return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><tie type="start"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><tie type="stop"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
+    </measure>
+  </part>
+</score-partwise>`);
+}
+
 test('structured note revision changes source pitch and regenerates the entire TAB result', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlNoteEdit(request(bytes, [
@@ -54,6 +70,7 @@ test('structured note revision changes source pitch and regenerates the entire T
   assert.equal(result.revision.appliedEdits[0].eventId, 'm1-e1');
   assert.equal(result.revision.appliedEdits[0].beforePitch.written, 'D#4');
   assert.equal(result.revision.appliedEdits[0].afterPitch.written, 'D4');
+  assert.equal(result.revision.appliedEdits[0].affectedEventCount, 1);
   assert.equal(result.canonicalTabResult.measures[0].events[1].pitch.written, 'D4');
   assert.ok(result.canonicalTabResult.measures[0].events[1].selectedPosition);
   assert.match(result.musicXml, /<score-partwise\b/);
@@ -152,17 +169,40 @@ test('stale source identity blocks revision before musical mutation', () => {
   assert.equal(result.musicXml, null);
 });
 
-test('tied notes fail closed until coordinated tie-chain editing exists', () => {
+test('validated adjacent tie chains are edited atomically and keep one regenerated guitar position', () => {
+  const bytes = validTieSource();
+  const result = processMusicXmlNoteEdit(request(bytes, [
+    command(0, 0, 'D', 0, 4),
+  ], { fileName: 'valid-tie.musicxml' }));
+
+  assert.equal(result.status, MUSICXML_NOTE_EDIT_STATUS.PASS);
+  const edit = result.revision.appliedEdits[0];
+  assert.equal(edit.commandType, 'REPLACE_TIE_CHAIN_PITCH');
+  assert.equal(edit.affectedEventCount, 2);
+  assert.deepEqual(edit.affectedEvents.map((entry) => entry.eventId), ['m1-e0', 'm2-e0']);
+  assert.equal(result.canonicalTabResult.measures[0].events[0].pitch.written, 'D4');
+  assert.equal(result.canonicalTabResult.measures[1].events[0].pitch.written, 'D4');
+  assert.deepEqual(
+    result.canonicalTabResult.measures[0].events[0].selectedPosition,
+    result.canonicalTabResult.measures[1].events[0].selectedPosition,
+  );
+  assert.match(result.musicXml, /<tie type="start"\/>/);
+  assert.match(result.musicXml, /<tie type="stop"\/>/);
+});
+
+test('non-contiguous or malformed tie chains fail closed instead of changing only one endpoint', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlNoteEdit(request(bytes, [
     command(0, 0, 'D', 0, 4),
   ]));
 
   assert.equal(result.status, MUSICXML_NOTE_EDIT_STATUS.BLOCKED);
-  assert.equal(result.preflight.issues[0].code, 'EDIT_TIED_NOTE_NOT_SUPPORTED');
-  assert.equal(result.preflight.issues[0].category, 'capability');
+  assert.equal(result.preflight.issues[0].code, 'INVALID_TIE_CHAIN');
+  assert.equal(result.preflight.issues[0].category, 'content');
   assert.equal(result.preflight.issues[0].location.measureIndex, 0);
   assert.equal(result.preflight.issues[0].location.eventIndex, 0);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
 });
 
 test('rests cannot be targeted by a pitch revision', () => {

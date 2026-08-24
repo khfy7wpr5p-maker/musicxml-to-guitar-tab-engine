@@ -16,7 +16,7 @@ const {
   processMusicXmlUpload,
 } = require('./musicXmlUploadRuntime');
 
-const MUSICXML_NOTE_EDIT_RUNTIME_VERSION = '1.0.0';
+const MUSICXML_NOTE_EDIT_RUNTIME_VERSION = '1.1.0';
 const MUSICXML_NOTE_EDIT_RUNTIME_DOCUMENT_TYPE = 'MusicXmlNoteEditRuntimeResult';
 const MUSICXML_NOTE_EDIT_STATUS = Object.freeze({ PASS: 'PASS', BLOCKED: 'BLOCKED' });
 const MAX_FILE_NAME_LENGTH = 255;
@@ -345,6 +345,139 @@ function blocked(identity, route, blockingIssue, revision = null) {
   });
 }
 
+function samePitch(left, right) {
+  return Boolean(
+    left
+    && right
+    && left.step === right.step
+    && left.alter === right.alter
+    && left.octave === right.octave
+    && left.midi === right.midi,
+  );
+}
+
+function flattenEventReferences(parsedDocument) {
+  const references = [];
+  for (let measureIndex = 0; measureIndex < parsedDocument.measures.length; measureIndex += 1) {
+    const measure = parsedDocument.measures[measureIndex];
+    for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      references.push({
+        measure,
+        event: measure.events[eventIndex],
+        measureIndex,
+        eventIndex,
+      });
+    }
+  }
+  return references;
+}
+
+function areTieAdjacent(left, right) {
+  if (!left || !right) return false;
+  const leftEnd = left.event.start.divisions + left.event.rhythm.durationDivisions;
+  if (left.measureIndex === right.measureIndex) {
+    return leftEnd === right.event.start.divisions;
+  }
+  return Boolean(
+    right.measureIndex === left.measureIndex + 1
+    && leftEnd === left.measure.actualDurationDivisions
+    && right.event.start.divisions === 0,
+  );
+}
+
+function invalidTieChain(message, details) {
+  return new MusicXmlNoteEditRuntimeError(message, 'INVALID_TIE_CHAIN', details);
+}
+
+function resolveTieChain(revisedParsed, targetRef, baseDetails) {
+  const { event } = targetRef;
+  if (!event.rhythm?.tieStart && !event.rhythm?.tieStop) return [targetRef];
+
+  const references = flattenEventReferences(revisedParsed);
+  let cursor = references.findIndex((candidate) => candidate.event === event);
+  if (cursor < 0) {
+    throw invalidTieChain('The tied-note target is not present in the parsed event sequence.', baseDetails);
+  }
+
+  let first = cursor;
+  while (references[first].event.rhythm?.tieStop) {
+    const current = references[first];
+    const previous = references[first - 1];
+    if (
+      !previous
+      || previous.event.type !== 'note'
+      || !previous.event.rhythm?.tieStart
+      || !samePitch(previous.event.pitch, current.event.pitch)
+      || !areTieAdjacent(previous, current)
+    ) {
+      throw invalidTieChain(
+        'Tie-stop event does not have one immediately adjacent matching tie-start predecessor.',
+        {
+          ...baseDetails,
+          chainEventId: current.event.eventId,
+          chainMeasureIndex: current.measureIndex,
+          chainEventIndex: current.eventIndex,
+        },
+      );
+    }
+    first -= 1;
+  }
+
+  let last = cursor;
+  while (references[last].event.rhythm?.tieStart) {
+    const current = references[last];
+    const next = references[last + 1];
+    if (
+      !next
+      || next.event.type !== 'note'
+      || !next.event.rhythm?.tieStop
+      || !samePitch(current.event.pitch, next.event.pitch)
+      || !areTieAdjacent(current, next)
+    ) {
+      throw invalidTieChain(
+        'Tie-start event does not have one immediately adjacent matching tie-stop successor.',
+        {
+          ...baseDetails,
+          chainEventId: current.event.eventId,
+          chainMeasureIndex: current.measureIndex,
+          chainEventIndex: current.eventIndex,
+        },
+      );
+    }
+    last += 1;
+  }
+
+  const chain = references.slice(first, last + 1);
+  if (chain.length < 2) {
+    throw invalidTieChain('A tied note must resolve to at least two adjacent note events.', baseDetails);
+  }
+  for (let index = 0; index < chain.length; index += 1) {
+    const member = chain[index];
+    if (member.event.type !== 'note' || !samePitch(member.event.pitch, event.pitch)) {
+      throw invalidTieChain('Tie-chain members must remain pitch-identical note events.', {
+        ...baseDetails,
+        chainEventId: member.event.eventId,
+        chainMeasureIndex: member.measureIndex,
+        chainEventIndex: member.eventIndex,
+      });
+    }
+    const expectedStop = index > 0;
+    const expectedStart = index < chain.length - 1;
+    if (
+      Boolean(member.event.rhythm?.tieStop) !== expectedStop
+      || Boolean(member.event.rhythm?.tieStart) !== expectedStart
+    ) {
+      throw invalidTieChain('Tie-chain start/stop markers are not internally consistent.', {
+        ...baseDetails,
+        chainEventId: member.event.eventId,
+        chainMeasureIndex: member.measureIndex,
+        chainEventIndex: member.eventIndex,
+      });
+    }
+  }
+  return chain;
+}
+
 function applyRevisionCommand(revisedParsed, command, revisionIndex) {
   const measure = revisedParsed.measures[command.measureIndex];
   const event = measure?.events?.[command.eventIndex];
@@ -377,33 +510,78 @@ function applyRevisionCommand(revisedParsed, command, revisionIndex) {
       { ...baseDetails, eventType: event.type },
     );
   }
-  if (event.rhythm?.tieStart || event.rhythm?.tieStop) {
-    throw new MusicXmlNoteEditRuntimeError(
-      'Editing a tied note requires a coordinated tie-chain revision and is not enabled in this gate.',
-      'EDIT_TIED_NOTE_NOT_SUPPORTED',
-      {
-        ...baseDetails,
-        tieStart: Boolean(event.rhythm.tieStart),
-        tieStop: Boolean(event.rhythm.tieStop),
-      },
-    );
-  }
 
+  const targetRef = { measure, event, measureIndex: command.measureIndex, eventIndex: command.eventIndex };
+  const chain = resolveTieChain(revisedParsed, targetRef, baseDetails);
   const beforePitch = clonePlainData(event.pitch);
-  event.pitch = clonePlainData(command.pitch);
+  const affectedEvents = chain.map((member) => {
+    const memberBefore = clonePlainData(member.event.pitch);
+    member.event.pitch = clonePlainData(command.pitch);
+    return {
+      measureIndex: member.measureIndex,
+      visibleMeasureNumber: member.measure.number,
+      eventIndex: member.eventIndex,
+      eventId: member.event.eventId,
+      beforePitch: memberBefore,
+      afterPitch: clonePlainData(command.pitch),
+    };
+  });
+
   return {
     revisionIndex,
-    commandType: 'REPLACE_PITCH',
+    commandType: chain.length > 1 ? 'REPLACE_TIE_CHAIN_PITCH' : 'REPLACE_PITCH',
     measureIndex: command.measureIndex,
     visibleMeasureNumber: measure.number,
     eventIndex: command.eventIndex,
     eventId: command.eventId,
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
+    affectedEventCount: affectedEvents.length,
+    affectedEvents,
     changed: beforePitch.step !== command.pitch.step
       || beforePitch.alter !== command.pitch.alter
       || beforePitch.octave !== command.pitch.octave,
   };
+}
+
+function selectedPositionFor(canonicalTabResult, affectedEvent) {
+  const event = canonicalTabResult.measures?.[affectedEvent.measureIndex]?.events?.[affectedEvent.eventIndex];
+  if (!event || event.eventId !== affectedEvent.eventId || event.type !== 'note') {
+    throw new MusicXmlNoteEditRuntimeError(
+      'Tie-chain event identity changed during canonical regeneration.',
+      'TIE_CHAIN_REGENERATION_MISMATCH',
+      affectedEvent,
+    );
+  }
+  return event.selectedPosition;
+}
+
+function assertTieChainFingeringContinuity(canonicalTabResult, appliedEdits) {
+  for (const edit of appliedEdits) {
+    if (edit.commandType !== 'REPLACE_TIE_CHAIN_PITCH') continue;
+    const positions = edit.affectedEvents.map((member) => selectedPositionFor(canonicalTabResult, member));
+    const first = positions[0];
+    if (!first || !Number.isSafeInteger(first.string) || !Number.isSafeInteger(first.fret)) {
+      throw new MusicXmlNoteEditRuntimeError(
+        'Regenerated tie chain is missing a concrete guitar position.',
+        'TIE_CHAIN_FINGERING_INCONSISTENT',
+        { revisionIndex: edit.revisionIndex, eventId: edit.eventId },
+      );
+    }
+    for (let index = 1; index < positions.length; index += 1) {
+      if (!positions[index] || positions[index].string !== first.string || positions[index].fret !== first.fret) {
+        throw new MusicXmlNoteEditRuntimeError(
+          'Regenerated tie-chain members must remain on one guitar string and fret.',
+          'TIE_CHAIN_FINGERING_INCONSISTENT',
+          {
+            revisionIndex: edit.revisionIndex,
+            eventId: edit.eventId,
+            affectedEventCount: positions.length,
+          },
+        );
+      }
+    }
+  }
 }
 
 function processMusicXmlNoteEdit(request, options = {}, runtime = null) {
@@ -503,6 +681,7 @@ function processMusicXmlNoteEdit(request, options = {}, runtime = null) {
     });
     const canonicalDocument = createCanonicalMusicDocument(revisedParsed);
     const canonicalTabResult = createCanonicalTabResult(canonicalDocument, {}, processing);
+    assertTieChainFingeringContinuity(canonicalTabResult, appliedEdits);
     const musicXml = serializeCanonicalTabResultToMusicXml(canonicalTabResult);
     processing.checkpoint('app-note-edit:complete', {
       revisionCount: normalized.commands.length,
