@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '../..');
 const { processMusicXmlUpload } = require('../../src/app/musicXmlUploadRuntime');
+const { processMusicXmlNoteEdit } = require('../../src/app/musicXmlNoteEditRuntime');
 
 const browserExecutable = process.env.BROWSER_EXECUTABLE;
 assert.ok(browserExecutable && fs.existsSync(browserExecutable));
@@ -48,6 +49,24 @@ function contentType(filePath) {
   return 'application/octet-stream';
 }
 
+function editorMarkup() {
+  return `<section class="workbench-editor">
+    <strong data-role="selected-note">None</strong>
+    <p data-role="edit-status"></p>
+    <select data-role="edit-step" disabled>
+      <option>A</option><option>B</option><option selected>C</option>
+      <option>D</option><option>E</option><option>F</option><option>G</option>
+    </select>
+    <select data-role="edit-alter" disabled>
+      <option value="-2">bb</option><option value="-1">b</option>
+      <option value="0" selected>natural</option><option value="1">#</option><option value="2">##</option>
+    </select>
+    <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
+    <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
+    <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
+  </section>`;
+}
+
 function testPage() {
   return `<!doctype html>
 <meta charset="utf-8">
@@ -66,22 +85,46 @@ function testPage() {
   </section>
   <div class="workbench-grid">
     <section class="workbench-score-panel"><div class="workbench-score" data-role="score"></div></section>
-    <aside class="workbench-issues"><div class="workbench-issues__heading"><h2>Issues</h2><span data-role="issue-count"></span></div><ol data-role="issues"></ol></aside>
+    <aside class="workbench-sidebar">
+      ${editorMarkup()}
+      <section class="workbench-issues">
+        <div class="workbench-issues__heading"><h2>Issues</h2><span data-role="issue-count"></span></div>
+        <ol data-role="issues"></ol>
+      </section>
+    </aside>
   </div>
 </main>
 <script src="/assets/alphatab.js"></script>
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const smoke = window.__workbenchSmoke = {error:null,uploadCalls:0};
+  const smoke = window.__workbenchSmoke = {error:null,uploadCalls:0,editCalls:0};
   const fail = error => { smoke.error = error?.stack || String(error); };
-  const upload = async file => {
+  const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
-      method:'POST', headers:{'content-type':'application/octet-stream'}, body:await file.arrayBuffer()
+      method:'POST', headers:{'content-type':'application/octet-stream'}, body:ownedBytes
     });
     const payload = await response.json();
     if(!response.ok) throw new Error(payload?.message || 'upload failed');
+    return payload;
+  };
+  const edit = async request => {
+    smoke.editCalls += 1;
+    const response = await fetch(
+      '/api/edit?fileName=' + encodeURIComponent(request.fileName)
+        + '&sha=' + encodeURIComponent(request.expectedInputSha256),
+      {
+        method:'POST',
+        headers:{
+          'content-type':'application/octet-stream',
+          'x-st-edit-commands':JSON.stringify(request.commands),
+        },
+        body:request.bytes,
+      },
+    );
+    const payload = await response.json();
+    if(!response.ok) throw new Error(payload?.message || 'edit failed');
     return payload;
   };
   try {
@@ -89,6 +132,7 @@ function testPage() {
       root:document.querySelector('[data-guitar-tab-workbench]'),
       alphaTab:window.alphaTab,
       upload,
+      edit,
       assetBaseUrl:'/assets',
       scriptFileUrl:window.location.origin + '/assets/alphatab.js',
       playerMode:window.alphaTab.PlayerMode.EnabledExternalMedia,
@@ -97,6 +141,28 @@ function testPage() {
   } catch(error) { fail(error); }
 })();
 </script>`;
+}
+
+function collectBody(request, response, onComplete) {
+  const chunks = [];
+  let total = 0;
+  let oversized = false;
+  request.on('data', (chunk) => {
+    total += chunk.length;
+    if (total > 5 * 1024 * 1024) {
+      oversized = true;
+    } else {
+      chunks.push(chunk);
+    }
+  });
+  request.on('end', () => {
+    if (oversized) {
+      response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ message: 'test request exceeds bound' }));
+      return;
+    }
+    onComplete(Buffer.concat(chunks));
+  });
 }
 
 const server = http.createServer((request, response) => {
@@ -125,27 +191,30 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (url.pathname === '/api/upload' && request.method === 'POST') {
-    const chunks = [];
-    let total = 0;
-    let oversized = false;
-    request.on('data', (chunk) => {
-      total += chunk.length;
-      if (total > 5 * 1024 * 1024) {
-        oversized = true;
-      } else {
-        chunks.push(chunk);
-      }
-    });
-    request.on('end', () => {
-      if (oversized) {
-        response.writeHead(413, { 'content-type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ message: 'test upload exceeds bound' }));
-        return;
-      }
+    collectBody(request, response, (bytes) => {
       try {
         const result = processMusicXmlUpload({
           fileName: url.searchParams.get('fileName') || '',
-          bytes: Buffer.concat(chunks),
+          bytes,
+        });
+        response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify(result));
+      } catch (error) {
+        response.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify({ message: error?.message || String(error) }));
+      }
+    });
+    return;
+  }
+  if (url.pathname === '/api/edit' && request.method === 'POST') {
+    collectBody(request, response, (bytes) => {
+      try {
+        const commands = JSON.parse(String(request.headers['x-st-edit-commands'] || 'null'));
+        const result = processMusicXmlNoteEdit({
+          fileName: url.searchParams.get('fileName') || '',
+          bytes,
+          expectedInputSha256: url.searchParams.get('sha') || '',
+          commands,
         });
         response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
         response.end(JSON.stringify(result));
@@ -213,6 +282,7 @@ try {
   assert.equal(loadOutcome.accepted,true,JSON.stringify(loadOutcome));
   assert.equal(loadOutcome.snapshot.runtimeResult.status,'PASS');
   assert.equal(loadOutcome.snapshot.runtimeResult.route,'MONO_V1');
+  assert.match(loadOutcome.snapshot.sourceSha256,/^[0-9a-f]{64}$/);
 
   await page.waitForFunction(
     () => window.__workbenchSmoke?.error
@@ -220,6 +290,7 @@ try {
         && document.querySelectorAll('[data-role="score"] svg').length > 0),
     {timeout:30000},
   );
+
   const passState = await page.evaluate(() => {
     const snapshot = window.__workbench.snapshot();
     const track = window.__workbench.api.score.tracks[0];
@@ -245,6 +316,101 @@ try {
   assert.deepEqual(passState.tuning,[64,59,55,50,45,40]);
   assert.ok(passState.svgCount > 0);
   assert.match(passState.issueText,/No blocking issues/);
+
+  const selected = await page.evaluate(() => {
+    const beat = window.__workbench.api.score.tracks[0].staves[0].bars[0].voices[0].beats[1];
+    const note = beat.notes[0];
+    const before = window.__workbench.snapshot().runtimeResult.canonicalTabResult.measures[0].events[1];
+    const accepted = window.__workbench.selectNote(note);
+    return {
+      accepted,
+      beforePitch:before.pitch,
+      beforePosition:before.selectedPosition,
+      snapshot:window.__workbench.snapshot(),
+      selectedText:document.querySelector('[data-role="selected-note"]').textContent,
+      editStatus:document.querySelector('[data-role="edit-status"]').textContent,
+    };
+  });
+  assert.equal(selected.accepted,true);
+  assert.equal(selected.snapshot.selectedEvent.eventId,'m1-e1');
+  assert.equal(selected.snapshot.selectedEvent.pitch.written,'D#4');
+  assert.equal(selected.snapshot.applyEditDisabled,false);
+  assert.match(selected.selectedText,/D#4/);
+  assert.match(selected.editStatus,/Ready/);
+
+  await page.select('[data-role="edit-step"]','G');
+  await page.select('[data-role="edit-alter"]','0');
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '4'; });
+  await page.click('[data-role="apply-edit"]');
+
+  await page.waitForFunction(
+    () => window.__workbenchSmoke?.error
+      || (window.__workbench?.snapshot().revisionNumber === 1
+        && window.__workbench?.snapshot().scoreLoaded === true
+        && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'G4'),
+    {timeout:30000},
+  );
+
+  const edited = await page.evaluate(() => {
+    const snapshot = window.__workbench.snapshot();
+    const event = snapshot.runtimeResult.canonicalTabResult.measures[0].events[1];
+    return {
+      snapshot,
+      eventPitch:event.pitch,
+      eventPosition:event.selectedPosition,
+      editCalls:window.__workbenchSmoke.editCalls,
+      status:document.querySelector('[data-role="edit-status"]').textContent,
+      issueText:document.querySelector('[data-role="issues"]').textContent,
+      svgCount:document.querySelectorAll('[data-role="score"] svg').length,
+    };
+  });
+  assert.equal(edited.snapshot.runtimeResult.status,'PASS');
+  assert.equal(edited.snapshot.revisionNumber,1);
+  assert.equal(edited.snapshot.revisionCommandCount,1);
+  assert.equal(edited.editCalls,1);
+  assert.equal(edited.eventPitch.written,'G4');
+  assert.notDeepEqual(edited.eventPosition,selected.beforePosition);
+  assert.ok(edited.svgCount > 0);
+  assert.match(edited.status,/Applied|Ready/);
+  assert.match(edited.issueText,/No blocking issues/);
+
+  await page.select('[data-role="edit-step"]','C');
+  await page.select('[data-role="edit-alter"]','0');
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '7'; });
+  await page.click('[data-role="apply-edit"]');
+  await page.waitForFunction(
+    () => window.__workbenchSmoke?.editCalls === 2
+      && /Blocked/.test(document.querySelector('[data-role="edit-status"]').textContent),
+    {timeout:30000},
+  );
+
+  const blockedEdit = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    issueText:document.querySelector('[data-role="issues"]').textContent,
+    status:document.querySelector('[data-role="edit-status"]').textContent,
+    scoreVisible:!document.querySelector('[data-role="score"]').hidden,
+  }));
+  assert.equal(blockedEdit.snapshot.revisionNumber,1);
+  assert.equal(blockedEdit.snapshot.revisionCommandCount,1);
+  assert.equal(blockedEdit.snapshot.scoreLoaded,true);
+  assert.equal(blockedEdit.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G4');
+  assert.equal(blockedEdit.scoreVisible,true);
+  assert.match(blockedEdit.status,/Blocked/);
+  assert.match(blockedEdit.issueText,/UNPLAYABLE_NOTE/);
+
+  const tiedSelection = await page.evaluate(() => {
+    const note = window.__workbench.api.score.tracks[0].staves[0].bars[0].voices[0].beats[0].notes[0];
+    const accepted = window.__workbench.selectNote(note);
+    return {
+      accepted,
+      snapshot:window.__workbench.snapshot(),
+      status:document.querySelector('[data-role="edit-status"]').textContent,
+    };
+  });
+  assert.equal(tiedSelection.accepted,false);
+  assert.equal(tiedSelection.snapshot.selectedEvent.eventId,'m1-e0');
+  assert.equal(tiedSelection.snapshot.applyEditDisabled,true);
+  assert.match(tiedSelection.status,/Tied-note editing is blocked/);
 
   await page.evaluate(() => {
     const current = window.__workbench.snapshot().runtimeResult;
@@ -288,20 +454,20 @@ try {
       musicXml:null,
     });
   });
-  const blocked = await page.evaluate(() => ({
+  const blockedLoad = await page.evaluate(() => ({
     snapshot:window.__workbench.snapshot(),
     issueText:document.querySelector('[data-role="issues"]').textContent,
     focusResult:window.__workbench.focusMeasure({measureIndex:1}),
   }));
-  assert.equal(blocked.snapshot.runtimeResult.status,'BLOCKED');
-  assert.equal(blocked.snapshot.scoreLoaded,false);
-  assert.equal(blocked.snapshot.scoreHidden,true);
-  assert.equal(blocked.snapshot.scoreTracks,0);
-  assert.equal(blocked.snapshot.playDisabled,true);
-  assert.equal(blocked.snapshot.stopDisabled,true);
-  assert.equal(blocked.focusResult,false);
-  assert.match(blocked.issueText,/UNPLAYABLE_TEST_NOTE/);
-  assert.match(blocked.issueText,/measure 2/);
+  assert.equal(blockedLoad.snapshot.runtimeResult.status,'BLOCKED');
+  assert.equal(blockedLoad.snapshot.scoreLoaded,false);
+  assert.equal(blockedLoad.snapshot.scoreHidden,true);
+  assert.equal(blockedLoad.snapshot.scoreTracks,0);
+  assert.equal(blockedLoad.snapshot.playDisabled,true);
+  assert.equal(blockedLoad.snapshot.stopDisabled,true);
+  assert.equal(blockedLoad.focusResult,false);
+  assert.match(blockedLoad.issueText,/UNPLAYABLE_TEST_NOTE/);
+  assert.match(blockedLoad.issueText,/measure 2/);
 
   await page.screenshot({path:screenshotPath,fullPage:true});
   assert.ok(fs.statSync(screenshotPath).size > 0);
@@ -311,8 +477,11 @@ try {
     screenshotPath,
     browserMessages:messages,
     pass:passState.snapshot,
+    selected:selected.snapshot,
+    edited:edited.snapshot,
+    blockedEdit:blockedEdit.snapshot,
     warningFocus:warningFocus.snapshot,
-    blocked:blocked.snapshot,
+    blockedLoad:blockedLoad.snapshot,
   })}\n`);
 } finally {
   await browser.close();
