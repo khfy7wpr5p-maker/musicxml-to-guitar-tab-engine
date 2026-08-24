@@ -36,6 +36,20 @@
   }
 
   function cloneCommand(command) {
+    if (command && typeof command.sourceEventId === 'string') {
+      return {
+        measureIndex: command.measureIndex,
+        sourceOrder: command.sourceOrder,
+        sourceEventId: command.sourceEventId,
+        sourceGroupId: command.sourceGroupId,
+        sourceGroupEventIds: [...command.sourceGroupEventIds],
+        pitch: {
+          step: command.pitch.step,
+          alter: command.pitch.alter,
+          octave: command.pitch.octave,
+        },
+      };
+    }
     return {
       measureIndex: command.measureIndex,
       eventIndex: command.eventIndex,
@@ -54,10 +68,15 @@
     const alphaTab = options.alphaTab;
     const upload = options.upload;
     const edit = options.edit;
+    const polyphonicEdit = options.polyphonicEdit;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
     assert(alphaTab && typeof alphaTab.AlphaTabApi === 'function', 'alphaTab is required.');
     assert(typeof upload === 'function', 'A bounded upload function is required.');
     assert(typeof edit === 'function', 'A bounded structured-edit function is required.');
+    assert(
+      polyphonicEdit === undefined || typeof polyphonicEdit === 'function',
+      'polyphonicEdit must be a function when provided.',
+    );
 
     const documentRef = root.ownerDocument;
     const fileInput = root.querySelector('[data-role="musicxml-file"]');
@@ -171,12 +190,18 @@
     }
 
     function canEdit() {
+      const route = state.runtimeResult?.route;
+      const routeReady = route === 'MONO_V1'
+        ? typeof edit === 'function'
+        : route === 'POLY_V2'
+          ? typeof polyphonicEdit === 'function' && !state.selectedEvent?.groupContainsTies
+          : false;
       return Boolean(
         !state.loading
         && !state.editing
         && state.scoreLoaded
         && state.runtimeResult?.status === 'PASS'
-        && state.runtimeResult?.route === 'MONO_V1'
+        && routeReady
         && state.selectedEvent
         && session.sourceBytes
         && session.expectedInputSha256
@@ -195,9 +220,9 @@
       stopButton.disabled = !playbackReady;
       applyEditButton.disabled = !canEdit();
       cancelEditButton.disabled = busy || !state.selectedEvent;
-      editStep.disabled = busy || !state.selectedEvent;
-      editAlter.disabled = busy || !state.selectedEvent;
-      editOctave.disabled = busy || !state.selectedEvent;
+      editStep.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
+      editAlter.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
+      editOctave.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
     }
 
     function measureStarts() {
@@ -238,13 +263,17 @@
       );
     }
 
+    function visibleMeasureNumber(measure) {
+      return measure?.visibleMeasureNumber ?? measure?.number ?? null;
+    }
+
     function focusMeasure(location) {
       if (!state.scoreLoaded || state.runtimeResult?.status !== 'PASS') return false;
       let index = Number.isInteger(location?.measureIndex) ? location.measureIndex : null;
       if (index === null && location?.measure !== null && location?.measure !== undefined) {
         const visible = String(location.measure);
         const measures = state.runtimeResult?.canonicalTabResult?.measures || [];
-        index = measures.findIndex((measure) => String(measure.visibleMeasureNumber) === visible);
+        index = measures.findIndex((measure) => String(visibleMeasureNumber(measure)) === visible);
         if (index < 0) index = null;
       }
       if (index === null || index < 0) return false;
@@ -294,13 +323,14 @@
       }
     }
 
-    function renderSelectedEvent(event, measure) {
+    function renderMonoSelectedEvent(event, measure) {
       if (!event || event.type !== 'note' || !event.pitch) {
         clearSelection('Only note events can be edited.');
         updateControls();
         return false;
       }
       state.selectedEvent = {
+        route: 'MONO_V1',
         measureIndex: measure.measureIndex,
         eventIndex: event.eventIndex,
         eventId: event.eventId,
@@ -313,6 +343,7 @@
           midi: event.pitch.midi,
         },
         tied: Boolean(event.rhythm?.tieStart || event.rhythm?.tieStop),
+        groupContainsTies: false,
       };
       setText(
         selectedNote,
@@ -330,29 +361,213 @@
       return true;
     }
 
-    function selectEventByIdentity(identity) {
-      if (
-        state.runtimeResult?.status !== 'PASS'
-        || state.runtimeResult?.route !== 'MONO_V1'
-      ) {
-        clearSelection('Structured pitch editing is currently available only for MONO_V1 scores.');
+    function polyphonicIndexes() {
+      const canonical = state.runtimeResult?.canonicalTabResult;
+      const dispositions = new Map();
+      for (const entry of canonical?.noteDispositions || []) {
+        if (entry && typeof entry.sourceEventId === 'string') dispositions.set(entry.sourceEventId, entry);
+      }
+      const events = new Map();
+      for (const measure of canonical?.measures || []) {
+        for (const event of measure?.events || []) {
+          if (event && typeof event.sourceEventId === 'string') events.set(event.sourceEventId, event);
+        }
+      }
+      const groupsByEvent = new Map();
+      for (const group of canonical?.simultaneousGroups || []) {
+        if (!group || !Array.isArray(group.sourceEventIds)) continue;
+        for (const sourceEventId of group.sourceEventIds) {
+          if (groupsByEvent.has(sourceEventId)) groupsByEvent.set(sourceEventId, null);
+          else groupsByEvent.set(sourceEventId, group);
+        }
+      }
+      return { canonical, dispositions, events, groupsByEvent };
+    }
+
+    function rendererPitchedOnsetOrdinal(note) {
+      const bar = note?.beat?.voice?.bar;
+      const targetStart = note?.beat?.absolutePlaybackStart;
+      if (!bar || !Array.isArray(bar.voices) || !Number.isFinite(targetStart)) return null;
+      const starts = [];
+      for (const voice of bar.voices) {
+        if (!voice || !Array.isArray(voice.beats)) continue;
+        for (const beat of voice.beats) {
+          if (!beat || !Array.isArray(beat.notes) || beat.notes.length === 0) continue;
+          if (!Number.isFinite(beat.absolutePlaybackStart)) return null;
+          starts.push(beat.absolutePlaybackStart);
+        }
+      }
+      const ordered = [...new Set(starts)].sort((left, right) => left - right);
+      const ordinal = ordered.indexOf(targetStart);
+      if (ordinal < 0) return null;
+      return { ordinal, count: ordered.length };
+    }
+
+    function resolvePolyphonicRendererNote(note, measureIndex) {
+      const mapping = rendererPitchedOnsetOrdinal(note);
+      const midi = note?.realValue;
+      if (!mapping || !Number.isSafeInteger(midi)) return null;
+
+      const { canonical, dispositions, groupsByEvent } = polyphonicIndexes();
+      const measure = canonical?.measures?.[measureIndex];
+      if (!measure || !Array.isArray(measure.events)) return null;
+      const renderedNotes = measure.events.filter((event) => {
+        const disposition = dispositions.get(event?.sourceEventId);
+        return event?.type === 'note'
+          && disposition?.disposition === 'KEEP'
+          && disposition?.targetPitch
+          && Number.isSafeInteger(event.onsetDivisions);
+      });
+      const canonicalOnsets = [...new Set(renderedNotes.map((event) => event.onsetDivisions))]
+        .sort((left, right) => left - right);
+      if (canonicalOnsets.length !== mapping.count || mapping.ordinal >= canonicalOnsets.length) return null;
+      const onsetDivisions = canonicalOnsets[mapping.ordinal];
+      const candidates = renderedNotes.filter((event) => {
+        const disposition = dispositions.get(event.sourceEventId);
+        return event.onsetDivisions === onsetDivisions && disposition.targetPitch.midi === midi;
+      });
+      if (candidates.length !== 1) return null;
+
+      const event = candidates[0];
+      const group = groupsByEvent.get(event.sourceEventId) || null;
+      if (groupsByEvent.has(event.sourceEventId) && group === null) return null;
+      const sourceGroupEventIds = group ? [...group.sourceEventIds] : [event.sourceEventId];
+      if (sourceGroupEventIds.length < 1 || new Set(sourceGroupEventIds).size !== sourceGroupEventIds.length) {
+        return null;
+      }
+      return {
+        measureIndex,
+        sourceOrder: event.sourceOrder,
+        sourceEventId: event.sourceEventId,
+        sourceGroupId: group?.groupId ?? null,
+        sourceGroupEventIds,
+      };
+    }
+
+    function renderPolySelectedEvent(event, measure, groupIdentity) {
+      if (!event || event.type !== 'note' || !event.pitch) {
+        clearSelection('Only pitched POLY_V2 source events can be edited.');
         updateControls();
         return false;
       }
+      const { events } = polyphonicIndexes();
+      const groupMembers = groupIdentity.sourceGroupEventIds.map((sourceEventId) => events.get(sourceEventId));
+      if (groupMembers.some((member) => !member || member.type !== 'note')) {
+        clearSelection('The selected polyphonic group could not be resolved safely.');
+        updateControls();
+        return false;
+      }
+      const groupContainsTies = groupMembers.some((member) => member.tieStart || member.tieStop);
+      const number = visibleMeasureNumber(measure);
+      state.selectedEvent = {
+        route: 'POLY_V2',
+        measureIndex: groupIdentity.measureIndex,
+        sourceOrder: event.sourceOrder,
+        sourceEventId: event.sourceEventId,
+        sourceGroupId: groupIdentity.sourceGroupId,
+        sourceGroupEventIds: [...groupIdentity.sourceGroupEventIds],
+        visibleMeasureNumber: number,
+        pitch: {
+          step: event.pitch.step,
+          alter: event.pitch.alter,
+          octave: event.pitch.octave,
+          written: event.pitch.written,
+          midi: event.pitch.midi,
+        },
+        tied: Boolean(event.tieStart || event.tieStop),
+        groupContainsTies,
+      };
+      setText(
+        selectedNote,
+        `${event.pitch.written} · measure ${number} · source ${event.sourceOrder + 1}`,
+      );
+      editStep.value = event.pitch.step;
+      editAlter.value = String(event.pitch.alter);
+      editOctave.value = String(event.pitch.octave);
+      if (groupContainsTies) {
+        setText(editStatus, 'Blocked · simultaneous group contains tied notes.');
+      } else {
+        setText(
+          editStatus,
+          `Ready · POLY_V2 group ${groupIdentity.sourceGroupEventIds.length} acknowledged · revision ${state.revisionNumber}`,
+        );
+      }
+      updateControls();
+      return true;
+    }
+
+    function selectEventByIdentity(identity) {
+      if (state.runtimeResult?.status !== 'PASS') {
+        clearSelection('Load a valid score before selecting a structured event.');
+        updateControls();
+        return false;
+      }
+      const route = state.runtimeResult.route;
       const measures = state.runtimeResult.canonicalTabResult?.measures;
       if (!Array.isArray(measures)) return false;
-      const measure = measures[identity?.measureIndex];
-      const event = measure?.events?.[identity?.eventIndex];
-      if (
-        !measure
-        || !event
-        || (identity.eventId && event.eventId !== identity.eventId)
-      ) {
-        clearSelection('The selected renderer note could not be matched to the canonical event.');
-        updateControls();
-        return false;
+
+      if (route === 'MONO_V1') {
+        const measure = measures[identity?.measureIndex];
+        const event = measure?.events?.[identity?.eventIndex];
+        if (!measure || !event || (identity.eventId && event.eventId !== identity.eventId)) {
+          clearSelection('The selected renderer note could not be matched to the canonical event.');
+          updateControls();
+          return false;
+        }
+        return renderMonoSelectedEvent(event, measure);
       }
-      return renderSelectedEvent(event, measure);
+
+      if (route === 'POLY_V2') {
+        if (typeof polyphonicEdit !== 'function') {
+          clearSelection('POLY_V2 editing is not connected to this host.');
+          updateControls();
+          return false;
+        }
+        const measure = measures[identity?.measureIndex];
+        const event = measure?.events?.[identity?.sourceOrder];
+        if (
+          !measure
+          || !event
+          || event.sourceOrder !== identity?.sourceOrder
+          || event.sourceEventId !== identity?.sourceEventId
+        ) {
+          clearSelection('The selected renderer note could not be matched to one POLY_V2 source event.');
+          updateControls();
+          return false;
+        }
+        const { groupsByEvent } = polyphonicIndexes();
+        const group = groupsByEvent.get(event.sourceEventId) || null;
+        if (groupsByEvent.has(event.sourceEventId) && group === null) {
+          clearSelection('The selected source event has ambiguous simultaneous-group identity.');
+          updateControls();
+          return false;
+        }
+        const expectedGroupId = group?.groupId ?? null;
+        const expectedIds = group ? [...group.sourceEventIds] : [event.sourceEventId];
+        const acknowledgedIds = Array.isArray(identity?.sourceGroupEventIds)
+          ? identity.sourceGroupEventIds
+          : expectedIds;
+        if (
+          (identity?.sourceGroupId !== undefined && identity.sourceGroupId !== expectedGroupId)
+          || acknowledgedIds.length !== expectedIds.length
+          || acknowledgedIds.some((value, index) => value !== expectedIds[index])
+        ) {
+          clearSelection('The selected source event no longer matches its simultaneous-group identity.');
+          updateControls();
+          return false;
+        }
+        return renderPolySelectedEvent(event, measure, {
+          measureIndex: measure.index,
+          sourceOrder: event.sourceOrder,
+          sourceEventId: event.sourceEventId,
+          sourceGroupId: expectedGroupId,
+          sourceGroupEventIds: expectedIds,
+        });
+      }
+
+      clearSelection('Structured pitch editing is not enabled for this route.');
+      updateControls();
+      return false;
     }
 
     function selectNote(note) {
@@ -360,13 +575,35 @@
       const measureIndex = Number.isInteger(bar?.masterBar?.index)
         ? bar.masterBar.index
         : (Number.isInteger(bar?.index) ? bar.index : null);
-      const eventIndex = Number.isInteger(note?.beat?.index) ? note.beat.index : null;
-      if (measureIndex === null || eventIndex === null) {
-        clearSelection('The clicked note does not expose a stable measure/event location.');
+      if (measureIndex === null) {
+        clearSelection('The clicked note does not expose a stable measure location.');
         updateControls();
         return false;
       }
-      return selectEventByIdentity({ measureIndex, eventIndex });
+
+      if (state.runtimeResult?.route === 'MONO_V1') {
+        const eventIndex = Number.isInteger(note?.beat?.index) ? note.beat.index : null;
+        if (eventIndex === null) {
+          clearSelection('The clicked note does not expose a stable measure/event location.');
+          updateControls();
+          return false;
+        }
+        return selectEventByIdentity({ measureIndex, eventIndex });
+      }
+
+      if (state.runtimeResult?.route === 'POLY_V2') {
+        const identity = resolvePolyphonicRendererNote(note, measureIndex);
+        if (!identity) {
+          clearSelection('POLY_V2 renderer mapping is ambiguous or incomplete; no edit target was selected.');
+          updateControls();
+          return false;
+        }
+        return selectEventByIdentity(identity);
+      }
+
+      clearSelection('Structured pitch editing is not enabled for this route.');
+      updateControls();
+      return false;
     }
 
     function setRuntimeResult(result) {
@@ -390,11 +627,13 @@
         'PASS result is missing renderer MusicXML.',
       );
       clearActiveScoreState();
-      clearSelection(
-        result.route === 'MONO_V1'
-          ? 'Select a note in the score or TAB.'
-          : 'Structured pitch editing is currently available only for MONO_V1 scores.',
-      );
+      if (result.route === 'MONO_V1') {
+        clearSelection('Select a note in the score or TAB.');
+      } else if (result.route === 'POLY_V2' && typeof polyphonicEdit === 'function') {
+        clearSelection('Select a uniquely mappable polyphonic note in the score or TAB.');
+      } else {
+        clearSelection('Structured pitch editing is not connected for this route.');
+      }
       const bytes = new TextEncoder().encode(result.musicXml);
       const accepted = api.load(bytes);
       if (!accepted) throw new Error('alphaTab rejected renderer MusicXML.');
@@ -471,6 +710,42 @@
       return { step, alter, octave };
     }
 
+    function commandForSelection(pitch) {
+      if (state.selectedEvent?.route === 'POLY_V2') {
+        return {
+          measureIndex: state.selectedEvent.measureIndex,
+          sourceOrder: state.selectedEvent.sourceOrder,
+          sourceEventId: state.selectedEvent.sourceEventId,
+          sourceGroupId: state.selectedEvent.sourceGroupId,
+          sourceGroupEventIds: [...state.selectedEvent.sourceGroupEventIds],
+          pitch,
+        };
+      }
+      return {
+        measureIndex: state.selectedEvent.measureIndex,
+        eventIndex: state.selectedEvent.eventIndex,
+        eventId: state.selectedEvent.eventId,
+        pitch,
+      };
+    }
+
+    function selectionIdentityForCommand(command) {
+      if (typeof command.sourceEventId === 'string') {
+        return {
+          measureIndex: command.measureIndex,
+          sourceOrder: command.sourceOrder,
+          sourceEventId: command.sourceEventId,
+          sourceGroupId: command.sourceGroupId,
+          sourceGroupEventIds: [...command.sourceGroupEventIds],
+        };
+      }
+      return {
+        measureIndex: command.measureIndex,
+        eventIndex: command.eventIndex,
+        eventId: command.eventId,
+      };
+    }
+
     async function applySelectedEdit() {
       if (!canEdit()) return false;
 
@@ -482,12 +757,8 @@
         return false;
       }
 
-      const command = {
-        measureIndex: state.selectedEvent.measureIndex,
-        eventIndex: state.selectedEvent.eventIndex,
-        eventId: state.selectedEvent.eventId,
-        pitch,
-      };
+      const route = state.runtimeResult.route;
+      const command = commandForSelection(pitch);
       const pendingCommands = [...session.commands.map(cloneCommand), cloneCommand(command)];
       if (pendingCommands.length > MAX_REVISION_COMMANDS) {
         setText(editStatus, 'Revision limit reached. Reload the source before continuing.');
@@ -495,11 +766,9 @@
         return false;
       }
 
-      const selectionIdentity = {
-        measureIndex: command.measureIndex,
-        eventIndex: command.eventIndex,
-        eventId: command.eventId,
-      };
+      const selectionIdentity = selectionIdentityForCommand(command);
+      const editFunction = route === 'POLY_V2' ? polyphonicEdit : edit;
+      assert(typeof editFunction === 'function', 'Structured edit host is not connected for this route.');
 
       state.editing = true;
       state.lastError = null;
@@ -508,7 +777,7 @@
       updateControls();
 
       try {
-        const result = await edit({
+        const result = await editFunction({
           fileName: session.sourceFileName,
           bytes: new Uint8Array(session.sourceBytes),
           expectedInputSha256: session.expectedInputSha256,
@@ -526,7 +795,7 @@
           return false;
         }
 
-        assert(result.route === 'MONO_V1', 'Structured edit returned an unexpected route.');
+        assert(result.route === route, 'Structured edit returned an unexpected route.');
         assert(
           typeof result.musicXml === 'string' && result.musicXml.length > 0,
           'PASS edit result is missing renderer MusicXML.',
@@ -648,6 +917,9 @@
           selectedEvent: state.selectedEvent
             ? Object.freeze({
               ...state.selectedEvent,
+              sourceGroupEventIds: state.selectedEvent.sourceGroupEventIds
+                ? Object.freeze([...state.selectedEvent.sourceGroupEventIds])
+                : undefined,
               pitch: Object.freeze({ ...state.selectedEvent.pitch }),
             })
             : null,
