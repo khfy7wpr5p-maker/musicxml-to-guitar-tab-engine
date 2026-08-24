@@ -1,6 +1,6 @@
 # UI-RUNTIME-01 — Secure MusicXML Upload + Automatic MONO/POLY Dispatch
 
-Status: implementation under review. This stage does not change the package-root public API.
+Status: active internal application seam. This stage does not change the package-root public API.
 
 ## Goal
 
@@ -27,9 +27,11 @@ Existing XML safety remains authoritative: fatal UTF-8 decoding, entity rejectio
 
 ## Two-staff notation/TAB mirror rule
 
-The runtime contains a conservative normalization hook for MusicXML where staff 2 is explicitly declared as TAB and is an exact event-for-event mirror of staff 1. Only when both conditions are true may staff-2 note events be classified as duplicate representation and marked `OMITTED` for arrangement purposes. This is not musical-note reduction; the resulting writer recreates standard notation + TAB from one musical event stream.
+Before the restricted PA-2 projector runs on the original document, the runtime can derive two independently projected single-staff views when staff 2 has an explicit TAB clef. The views are admitted only for the bounded writer-shaped layout and only when pitch, onset, duration, rest/note identity, chord relation and ties match exactly after the declared zero-chromatic guitar octave transposition is applied. The staff-separating `backup` must also prove an exact cursor reset.
 
-If exact equality is not proven, the two staves remain independent musical source data. No heuristic fuzzy deduplication is allowed.
+When that proof succeeds, staff 2 is classified as duplicate representation before projection and the notation view becomes the single musical source stream; the writer then recreates standard notation + rhythmic TAB. Unknown techniques, malformed presentation metadata, interleaved staff streams, partial cursor resets and near-mirror pitch/rhythm changes all fail closed. No heuristic fuzzy deduplication is allowed.
+
+If exact equality is not proven, the runtime does not discard either staff. The ordinary restricted projector decides whether the unnormalized document is currently supported and otherwise returns a structured capability error.
 
 The current PA-2 semantic profile is still intentionally narrow; real-world Guitar Pro/MusicXML metadata compatibility is a separate follow-up gate and this stage must report unsupported features rather than weaken the parser.
 
@@ -65,6 +67,8 @@ Required before merge:
 
 - mono route is byte-identity tracked and exactly matches the existing v1 canonical result;
 - multi-voice fixture routes through PA-12/v2 with all musical notes kept at zero octave shift;
+- generated notation + TAB MusicXML round-trips through pre-projection exact-mirror normalization;
+- near mirrors, partial staff resets and unsupported TAB techniques fail closed without note loss;
 - unsafe XML and unsupported extensions fail closed;
 - out-of-range polyphonic source pitch reports measure/event evidence and is not displaced;
 - hostile upload object shapes fail closed without invoking accessors;
