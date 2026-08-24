@@ -210,54 +210,72 @@ function deepFreeze(root) {
   return root;
 }
 
-function createBlindBaselineEngineResult(sourceModel) {
-  const source = validatePolyphonicSourceModel(sourceModel);
+function createBlindBaselineEngineExecution(sourceModel, runtime = null) {
+  const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const notes = collectNotes(source);
-  if (notes.length > 6) return null;
+  if (notes.length > 6) {
+    return Object.freeze({ result: null, handoff: null });
+  }
 
   const decisions = createBlindBaselineArrangementDecisions(source);
-  const reduction = createDeterministicReductionPlan(source, decisions);
+  const reduction = createDeterministicReductionPlan(source, decisions, runtime);
   const sourceMidiById = buildSourceMidiIndex(notes);
   const sourceOutcomes = sourceOutcomesFromReduction(reduction, sourceMidiById);
   const retained = reduction.instructions.filter((instruction) => instruction.disposition === 'KEEP');
 
-  if (retained.length === 0 || retained.length > 6) return null;
+  if (retained.length === 0 || retained.length > 6) {
+    return Object.freeze({ result: null, handoff: null });
+  }
 
   if (retained.length === 1) {
     const instruction = retained[0];
     const position = chooseSingletonPosition(instruction.targetMidi);
-    if (!position) return null;
-    return deepFreeze({
-      sourceOutcomes,
-      selectedTones: [{
-        sourceEventId: instruction.sourceEventId,
-        targetMidi: instruction.targetMidi,
-        string: position.string,
-        fret: position.fret,
-        finger: position.fret === 0 ? 0 : null,
-      }],
-      barres: [],
+    if (!position) {
+      return Object.freeze({ result: null, handoff: null });
+    }
+    return Object.freeze({
+      result: deepFreeze({
+        sourceOutcomes,
+        selectedTones: [{
+          sourceEventId: instruction.sourceEventId,
+          targetMidi: instruction.targetMidi,
+          string: position.string,
+          fret: position.fret,
+          finger: position.fret === 0 ? 0 : null,
+        }],
+        barres: [],
+      }),
+      handoff: null,
     });
   }
 
-  const handoff = createDeterministicPa7CandidateSnapshotHandoff(source, decisions);
+  const handoff = createDeterministicPa7CandidateSnapshotHandoff(source, decisions, runtime);
   const selected = choosePlayableShape(
     handoff.leftHandShapeSnapshot,
     handoff.physicalPlayabilitySnapshot,
   );
-  if (!selected) return null;
+  if (!selected) {
+    return Object.freeze({ result: null, handoff });
+  }
 
-  return deepFreeze({
-    sourceOutcomes,
-    selectedTones: selected.shape.fingerAssignments.map((assignment) => ({
-      sourceEventId: assignment.sourceEventId,
-      targetMidi: assignment.targetMidi,
-      string: assignment.string,
-      fret: assignment.fret,
-      finger: assignment.finger,
-    })),
-    barres: selected.shape.barres.map((barre) => ({ ...barre })),
+  return Object.freeze({
+    result: deepFreeze({
+      sourceOutcomes,
+      selectedTones: selected.shape.fingerAssignments.map((assignment) => ({
+        sourceEventId: assignment.sourceEventId,
+        targetMidi: assignment.targetMidi,
+        string: assignment.string,
+        fret: assignment.fret,
+        finger: assignment.finger,
+      })),
+      barres: selected.shape.barres.map((barre) => ({ ...barre })),
+    }),
+    handoff,
   });
+}
+
+function createBlindBaselineEngineResult(sourceModel) {
+  return createBlindBaselineEngineExecution(sourceModel).result;
 }
 
 module.exports = {
@@ -265,5 +283,6 @@ module.exports = {
   BLIND_BASELINE_POLICY,
   BlindBaselineEngineObserverError,
   createBlindBaselineArrangementDecisions,
+  createBlindBaselineEngineExecution,
   createBlindBaselineEngineResult,
 };
