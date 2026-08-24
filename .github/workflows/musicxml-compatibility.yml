@@ -61,7 +61,8 @@ jobs:
         run: node tests/compatibility/alphaTabPa12InternalE2eSmoke.mjs
 
   alphatab-browser:
-    name: alphaTab browser renderer, cursor and Guitar TAB Workbench / Node.js 22
+    # Keep this exact job name: it is a protected-branch required status check.
+    name: alphaTab browser renderer and cursor; synth diagnostic / Node.js 22
     runs-on: ubuntu-latest
 
     env:
