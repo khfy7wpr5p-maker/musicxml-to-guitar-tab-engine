@@ -61,7 +61,7 @@ jobs:
         run: node tests/compatibility/alphaTabPa12InternalE2eSmoke.mjs
 
   alphatab-browser:
-    name: alphaTab browser renderer and cursor; synth diagnostic / Node.js 22
+    name: alphaTab browser renderer, cursor and Guitar TAB Workbench / Node.js 22
     runs-on: ubuntu-latest
 
     env:
@@ -107,6 +107,11 @@ jobs:
           ALPHATAB_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-renderer-cursor.png
         run: node tests/compatibility/alphaTabBrowserRendererCursorValidated.mjs
 
+      - name: Run Guitar TAB Workbench upload, render, cursor and issue smoke test
+        env:
+          ALPHATAB_WORKBENCH_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-guitar-tab-workbench.png
+        run: node tests/compatibility/alphaTabGuitarTabWorkbenchSmoke.mjs
+
       - name: Run alphaTab browser synthesizer diagnostic
         continue-on-error: true
         run: node tests/compatibility/alphaTabBrowserSynthSmoke.mjs
@@ -117,6 +122,15 @@ jobs:
         with:
           name: alphatab-renderer-cursor
           path: ${{ runner.temp }}/alphatab-renderer-cursor.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Guitar TAB Workbench screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: alphatab-guitar-tab-workbench
+          path: ${{ runner.temp }}/alphatab-guitar-tab-workbench.png
           if-no-files-found: warn
           retention-days: 14
 
