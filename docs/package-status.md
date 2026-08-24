@@ -2,7 +2,7 @@
 
 <!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 ## Package metadata
 
@@ -39,7 +39,10 @@ GitHub repository visibility and package publication are distinct. A public repo
 | PA-10.3 compatibility/migration matrix | ✅ MERGED DOC |
 | PA-10.4 CanonicalTabResult 2.0 proposal | ✅ MERGED DOC |
 | PA-10.5 version-dispatch contract | ✅ MERGED DOC |
-| Runtime CanonicalTabResult 2.0 validator | 🔒 NOT IMPLEMENTED |
+| Runtime CanonicalTabResult 2.0.0 producer/validator | ✅ INTERNAL |
+| CanonicalTabResult 2.0.0 MusicXML writer | ✅ INTERNAL |
+| Deterministic final polyphonic selector | ✅ INTERNAL / NON-ML / FAIL-CLOSED |
+| PA-12 internal polyphonic E2E | ✅ INTERNAL / NON-PUBLIC |
 | Runtime v1/v2 dispatcher | 🔒 NOT IMPLEMENTED |
 | PA-11 teacher evaluation | ✅ through PA-11.4A |
 | Production polyphonic final selector | 🔒 NOT IMPLEMENTED |

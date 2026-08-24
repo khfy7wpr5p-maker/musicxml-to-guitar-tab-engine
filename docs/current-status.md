@@ -2,7 +2,7 @@
 
 <!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 ## Executive status
 
@@ -17,8 +17,9 @@ Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merge
 | GuitarSet v2 retained model + engine adapter parity | ✅ COMPLETE |
 | GuitarSet v2 controlled offline execution/evidence | ✅ `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE` |
 | Runtime shadow connection | ✅ INTERNAL / DEFAULT-OFF / NON-AUTHORITATIVE — `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1` |
-| Final polyphonic selector | 🔒 NOT IMPLEMENTED |
-| `CanonicalTabResult 2.0.0` runtime/validator | 🔒 NOT IMPLEMENTED |
+| Deterministic final polyphonic selector | ✅ INTERNAL / NON-ML / FAIL-CLOSED |
+| `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL / NON-PUBLIC |
+| PA-12 internal polyphonic E2E | ✅ IMPLEMENTED / NON-PUBLIC |
 | Public polyphonic API | 🔒 NOT IMPLEMENTED |
 | Production playback/PDF/application | 🔒 NOT READY |
 
@@ -48,8 +49,11 @@ The package-root public API remains exact and contains no polyphonic, PA, benchm
 - PA-10.4 `CanonicalTabResult 2.0.0` proposal ✅ documentation only
 - PA-10.5 exact dispatch contract ✅ documentation only
 - PA-11 evaluation chain ✅ through PA-11.4A
+- deterministic final selector ✅ internal, non-ML, fail-closed on unsupported sustained overlap
+- `CanonicalTabResult 2.0.0` runtime/validator/writer ✅ internal
+- PA-12 raw MusicXML-to-v2-to-MusicXML path ✅ internal
 
-No final selector, public v2 authority or production authority follows automatically from these stages.
+No public v2 API, learned selection authority or production authority follows from these internal stages.
 
 ## Runtime shadow connection
 
@@ -104,11 +108,10 @@ Final merge still requires the same mandatory checks to pass again on the docume
 
 ## Known open architecture gates
 
-1. Complete/approve a final polyphonic selector contract and implementation; the runtime shadow cannot become that selector implicitly.
-2. PA-12 internal polyphonic E2E + monophonic compatibility.
-3. Runtime `CanonicalTabResult 2.0.0` validator/dispatcher/writers if separately approved.
-4. PA-13 public polyphonic API.
-5. Product viewer/playback/PDF/persistence/release layers.
-6. Any future live/user-input shadow activation or learned decision authority requires a separate consequential gate.
+1. Production/public selector authority beyond the current deterministic internal subset; runtime shadow cannot become that selector implicitly.
+2. Runtime v1/v2 public dispatcher if separately approved.
+3. PA-13 public polyphonic API.
+4. Product viewer/playback/PDF/persistence/release layers.
+5. Any future live/user-input shadow activation or learned decision authority requires a separate consequential gate.
 
 Historical versioned contracts, closure records and sealed evidence remain exact historical records; this file is the live convergence view.

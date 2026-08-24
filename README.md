@@ -4,7 +4,7 @@
 
 A security-first deterministic MusicXML → playable six-string guitar TAB engine with separately gated internal polyphonic-arrangement and learned-fingering research paths.
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
 ## Current authority boundary
 
@@ -86,8 +86,9 @@ authentic immutable single-generation PA-7 handoff
 
 PA-10 canonical-v2 design/compatibility: PA-10.0–PA-10.5 merged contracts
 PA-11 teacher-approved evaluation: through PA-11.4A
-future final polyphonic selector: not implemented
-future PA-12 internal E2E: not activated
+internal deterministic final selector: implemented, non-ML and fail-closed
+internal CanonicalTabResult 2.0.0 runtime/writer: implemented
+PA-12 internal E2E: implemented, non-public
 future PA-13 public polyphonic API: not implemented
 ```
 
@@ -148,7 +149,7 @@ MuseScore semantic round-trip, production PDF, production playback and applicati
 8. Fixed teacher benchmarks remain separate from training data.
 9. Learned models may score only existing validated candidates and may not fabricate, delete, filter or mutate notes/positions.
 10. Historical sealed evidence is not recomputed or rewritten to fit later models.
-11. `CanonicalTabResult 2.0.0` documentation does not create runtime/public authority.
+11. Internal `CanonicalTabResult 2.0.0` runtime and PA-12 do not create package-root/public authority.
 12. Runtime shadow connection does not authorize final selection.
 13. Live/user-input shadow activation, learned decision authority, public polyphonic API, playback, PDF and production release are separately gated.
 

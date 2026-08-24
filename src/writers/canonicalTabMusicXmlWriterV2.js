@@ -2,6 +2,7 @@
 
 const { EngineError } = require('../errors/engineError');
 const { parsePitchName } = require('../music/pitch');
+const { isProcessingRuntime } = require('../core/processingRuntime');
 const {
   CANONICAL_TAB_RESULT_V2_VERSION,
   CanonicalTabResultV2ContractError,
@@ -27,6 +28,22 @@ function unsupported(message, details = {}) {
     'UNSUPPORTED_CANONICAL_TAB_MUSICXML_V2_STRUCTURE',
     details,
   );
+}
+
+function validateOptionalRuntime(runtime) {
+  if (runtime === null || runtime === undefined) return null;
+  if (!isProcessingRuntime(runtime)) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'runtime must be a ProcessingRuntime 1.0.0 value.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: 'runtime' },
+    );
+  }
+  return runtime;
+}
+
+function checkpoint(runtime, phase, details = {}) {
+  if (runtime) runtime.checkpoint(phase, details);
 }
 
 function isPlainObject(value) {
@@ -113,13 +130,18 @@ function escapeAttribute(value, path) {
 }
 
 class XmlBuilder {
-  constructor(pretty) {
+  constructor(pretty, runtime) {
     this.pretty = pretty;
+    this.runtime = runtime;
     this.depth = 0;
     this.fragments = [];
   }
 
   line(value) {
+    checkpoint(this.runtime, 'canonical-tab-musicxml-v2:fragment', {
+      fragmentIndex: this.fragments.length,
+      depth: this.depth,
+    });
     this.fragments.push(this.pretty ? `${'  '.repeat(this.depth)}${value}\n` : value);
   }
 
@@ -142,27 +164,47 @@ class XmlBuilder {
   }
 
   toString() {
+    checkpoint(this.runtime, 'canonical-tab-musicxml-v2:join-start', {
+      fragmentCount: this.fragments.length,
+    });
     const value = this.fragments.join('');
-    return this.pretty && value.endsWith('\n') ? value.slice(0, -1) : value;
+    const serialized = this.pretty && value.endsWith('\n') ? value.slice(0, -1) : value;
+    checkpoint(this.runtime, 'canonical-tab-musicxml-v2:join-complete', {
+      fragmentCount: this.fragments.length,
+    });
+    return serialized;
   }
 }
 
-function prepareTuning(result) {
+function prepareTuning(result, runtime) {
   const byString = new Map();
   for (const entry of result.guitar.tuning) {
+    checkpoint(runtime, 'canonical-tab-musicxml-v2:tuning', { string: entry.number });
     byString.set(entry.number, { ...entry, parsedPitch: parsePitchName(entry.pitch) });
   }
   return byString;
 }
 
-function buildDispositionIndex(result) {
-  return new Map(result.noteDispositions.map((entry) => [entry.sourceEventId, entry]));
+function buildDispositionIndex(result, runtime) {
+  const dispositions = new Map();
+  for (let index = 0; index < result.noteDispositions.length; index += 1) {
+    checkpoint(runtime, 'canonical-tab-musicxml-v2:disposition', { index });
+    const entry = result.noteDispositions[index];
+    dispositions.set(entry.sourceEventId, entry);
+  }
+  return dispositions;
 }
 
-function buildFingerIndex(result) {
+function buildFingerIndex(result, runtime) {
   const fingers = new Map();
-  for (const shape of result.selectedShapes) {
-    for (const assignment of shape.fingerAssignments) {
+  for (let shapeIndex = 0; shapeIndex < result.selectedShapes.length; shapeIndex += 1) {
+    const shape = result.selectedShapes[shapeIndex];
+    for (let assignmentIndex = 0; assignmentIndex < shape.fingerAssignments.length; assignmentIndex += 1) {
+      checkpoint(runtime, 'canonical-tab-musicxml-v2:finger-assignment', {
+        shapeIndex,
+        assignmentIndex,
+      });
+      const assignment = shape.fingerAssignments[assignmentIndex];
       if (fingers.has(assignment.sourceEventId)) {
         throw invalid('A source note received more than one selected finger assignment.', {
           sourceEventId: assignment.sourceEventId,
@@ -182,10 +224,16 @@ function compareTrackRecords(left, right) {
   return left.staff - right.staff || left.voice.localeCompare(right.voice);
 }
 
-function collectTrackRecords(result, dispositions) {
+function collectTrackRecords(result, dispositions, runtime) {
   const records = new Map();
-  for (const measure of result.measures) {
-    for (const event of measure.events) {
+  for (let measureIndex = 0; measureIndex < result.measures.length; measureIndex += 1) {
+    const measure = result.measures[measureIndex];
+    for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      checkpoint(runtime, 'canonical-tab-musicxml-v2:track-index-event', {
+        measureIndex,
+        eventIndex,
+      });
+      const event = measure.events[eventIndex];
       const rendered = event.type === 'rest'
         || (dispositions.get(event.sourceEventId) || {}).disposition === 'KEEP';
       if (!rendered) continue;
@@ -320,12 +368,28 @@ function writeBackup(builder, duration) {
   builder.close('backup');
 }
 
-function renderTrack(builder, events, resultIndexes, outputStaff, outputVoice, measure) {
+function renderTrack(
+  builder,
+  events,
+  resultIndexes,
+  outputStaff,
+  outputVoice,
+  measure,
+  runtime,
+  location,
+) {
   let cursor = 0;
   let previousOnset = null;
   let previousWasNote = false;
 
-  for (const event of events) {
+  for (let eventIndex = 0; eventIndex < events.length; eventIndex += 1) {
+    checkpoint(runtime, 'canonical-tab-musicxml-v2:event', {
+      ...location,
+      eventIndex,
+      outputStaff,
+      outputVoice,
+    });
+    const event = events[eventIndex];
     const disposition = event.type === 'note'
       ? resultIndexes.dispositions.get(event.sourceEventId)
       : null;
@@ -388,15 +452,18 @@ function eventsForTrack(measure, track, dispositions) {
     .sort((left, right) => left.onsetDivisions - right.onsetDivisions || left.sourceOrder - right.sourceOrder);
 }
 
-function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {}) {
+function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {}, runtime = null) {
+  const processing = validateOptionalRuntime(runtime);
+  checkpoint(processing, 'canonical-tab-musicxml-v2:start');
   const normalizedOptions = normalizeOptions(options);
   validateResult(canonicalTabResult);
-  const tuningByString = prepareTuning(canonicalTabResult);
-  const dispositions = buildDispositionIndex(canonicalTabResult);
-  const fingers = buildFingerIndex(canonicalTabResult);
-  const tracks = collectTrackRecords(canonicalTabResult, dispositions);
+  checkpoint(processing, 'canonical-tab-musicxml-v2:validated');
+  const tuningByString = prepareTuning(canonicalTabResult, processing);
+  const dispositions = buildDispositionIndex(canonicalTabResult, processing);
+  const fingers = buildFingerIndex(canonicalTabResult, processing);
+  const tracks = collectTrackRecords(canonicalTabResult, dispositions, processing);
   const indexes = { dispositions, fingers };
-  const builder = new XmlBuilder(normalizedOptions.pretty);
+  const builder = new XmlBuilder(normalizedOptions.pretty, processing);
 
   builder.line('<?xml version="1.0" encoding="UTF-8"?>');
   builder.open('score-partwise', ` version="${MUSICXML_VERSION}"`);
@@ -419,6 +486,7 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
   builder.open('part', ' id="P1"');
 
   for (let measureIndex = 0; measureIndex < canonicalTabResult.measures.length; measureIndex += 1) {
+    checkpoint(processing, 'canonical-tab-musicxml-v2:measure', { measureIndex });
     const measure = canonicalTabResult.measures[measureIndex];
     const number = escapeAttribute(measure.number, `canonicalTabResult.measures[${measureIndex}].number`);
     builder.open('measure', ` number="${number}"${measure.implicit ? ' implicit="yes"' : ''}`);
@@ -436,10 +504,24 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
 
     for (let outputStaff = 1; outputStaff <= 2; outputStaff += 1) {
       for (let index = 0; index < activeTracks.length; index += 1) {
+        checkpoint(processing, 'canonical-tab-musicxml-v2:track', {
+          measureIndex,
+          outputStaff,
+          trackIndex: index,
+        });
         if (index > 0) writeBackup(builder, measure.expectedDurationDivisions);
         const entry = activeTracks[index];
         const outputVoice = entry.track.outputVoice + (outputStaff === 2 ? tracks.length : 0);
-        renderTrack(builder, entry.events, indexes, outputStaff, outputVoice, measure);
+        renderTrack(
+          builder,
+          entry.events,
+          indexes,
+          outputStaff,
+          outputVoice,
+          measure,
+          processing,
+          { measureIndex, trackIndex: index },
+        );
       }
       if (outputStaff === 1 && activeTracks.length > 0) {
         writeBackup(builder, measure.expectedDurationDivisions);
@@ -451,6 +533,7 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
   builder.close('part');
   builder.close('score-partwise');
   const xml = builder.toString();
+  checkpoint(processing, 'canonical-tab-musicxml-v2:complete');
   return normalizedOptions.trailingNewline ? `${xml}\n` : xml;
 }
 
