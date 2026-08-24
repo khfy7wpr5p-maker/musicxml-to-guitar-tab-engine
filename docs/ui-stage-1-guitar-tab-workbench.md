@@ -1,6 +1,6 @@
 # UI Stage 1 — Guitar TAB Workbench
 
-Status: active product-UI line built on `UI-RUNTIME-01`.
+Status: merged product-UI foundation built on `UI-RUNTIME-01`; UI Platform 01–05 extends its presentation and preview/deployment shell without changing musical authority.
 
 ## Product target
 
@@ -13,7 +13,7 @@ The first workbench is deliberately narrow:
 5. a side panel that surfaces structured conversion issues and can focus the affected measure;
 6. structured note editing followed by deterministic TAB regeneration.
 
-Items 1–5 are merged. Item 6 is implemented on the structured-edit stage branch for the monophonic v1 route: a rendered note or TAB number is mapped back to a canonical event identity, the requested pitch is submitted as a bounded revision command, and the engine rebuilds the canonical result and renderer MusicXML before the workbench reloads notation and TAB together.
+Items 1–6 are merged for the guarded monophonic v1 route. A rendered note or TAB number is mapped back to a canonical event identity, the requested pitch is submitted as a bounded revision command, and the engine rebuilds the canonical result and renderer MusicXML before the workbench reloads notation and TAB together.
 
 ## Runtime split
 
@@ -27,7 +27,9 @@ Structured edits use a separate host seam and internal application runtime:
 
 The package-root API remains unchanged. PA/v2, GuitarSet shadow, deterministic selector internals and canonical producers are not exposed to the browser.
 
-The page intentionally targets same-origin `/api/upload` and `/api/edit` host seams rather than embedding the engine in browser JavaScript. The edit host contract sends the immutable source bytes, the exact source SHA-256 and the cumulative structured command list. This stage does not authorize a production deployment server or change the production dependency graph.
+The runtime page targets same-origin `/api/upload` and `/api/edit` host seams rather than embedding the engine in browser JavaScript. The edit host contract sends the immutable source bytes, the exact source SHA-256 and the cumulative structured command list.
+
+UI Platform 01–05 adds host adapters and controller facades around this verified browser core. Runtime mode keeps the same host seams. GitHub Pages preview mode is a separate read-only adapter that accepts only a CI-generated PASS result and performs no browser conversion or edit request. See `docs/ui-platform-github-pages-preview.md`.
 
 ## Browser safety rules
 
@@ -43,13 +45,14 @@ The page intentionally targets same-origin `/api/upload` and `/api/edit` host se
 - browser code never edits raw MusicXML and never mutates alphaTab fret/string/pitch data;
 - renderer/player errors surface in the issue panel rather than silently changing the score;
 - starting a new upload hides the previous rendered score and disables transport; a BLOCKED or failed upload keeps it hidden so stale notation cannot be mistaken for the current document;
-- a BLOCKED edit does not replace the current valid score or revision history; it surfaces the structured issue and keeps the last accepted renderer document visible.
+- a BLOCKED edit does not replace the current valid score or revision history; it surfaces the structured issue and keeps the last accepted renderer document visible;
+- Pages preview is visibly labeled, hides runtime upload, has a read-only edit adapter and is generated from a fixed repository fixture in CI.
 
 ## Viewer and playback
 
-`web/guitar-tab-workbench/workbench.js` mounts an alphaTab `AlphaTabApi` with SVG rendering, standard notation + tablature, note bounds, cursor/highlighting and synthesizer playback. The default product configuration uses the pinned same-origin soundfont path. A player-mode injection seam exists only so compatibility CI can exercise render/cursor behavior deterministically without depending on runner audio.
+`web/guitar-tab-workbench/workbench.js` mounts an alphaTab `AlphaTabApi` with SVG rendering, standard notation + tablature, note bounds, cursor/highlighting and synthesizer playback. The default runtime product configuration uses the pinned same-origin soundfont path. A player-mode injection seam exists so compatibility and static-preview CI can exercise render/cursor behavior deterministically without granting audio authority.
 
-Play and Stop call alphaTab's player API. Existing alphaTab synth diagnostics remain the separate browser-audio compatibility evidence.
+Play and Stop call alphaTab's player API. Existing alphaTab synth diagnostics remain separate browser-audio compatibility evidence.
 
 ## Cursor, selection and issue panel
 
@@ -74,18 +77,17 @@ Current deliberate limits:
 
 ## CI evidence
 
-Required gates for this stage:
+Required gates for the Workbench and UI Platform line:
 
-- complete Node 18/20/22 repository tests, including structured-edit runtime tests;
+- complete Node 18/20/22 repository tests, including structured-edit runtime and UI/Pages contract tests;
 - static workbench contract proving required controls, local-only assets, no HTML injection APIs, no browser persistence, no browser MusicXML mutation and no internal-engine browser import;
 - existing alphaTab importer/SVG/v2/PA-12 compatibility gates;
 - existing browser renderer/cursor smoke;
 - Guitar TAB Workbench browser smoke proving real upload through `processMusicXmlUpload`, one guitar track/two staves, visible standard notation + TAB, standard tuning and SVG render;
-- the same browser smoke selects a real alphaTab note model, maps it to canonical `m1-e1`, changes D#4 to G4 through `processMusicXmlNoteEdit`, verifies revision 1, verifies the canonical fingering position changed and verifies the rebuilt notation+TAB document renders;
-- the browser smoke then requests an unplayable C7 edit and proves it is BLOCKED without changing revision 1 or hiding/replacing the accepted G4 score;
-- tied-note selection is proven non-applicable;
+- the same runtime browser smoke proves accepted deterministic note revision/TAB regeneration and blocked-edit score preservation;
+- a separate static Pages browser smoke proves PREVIEW/PASS/MONO_V1, one track/two staves, SVG output, hidden runtime upload, disabled edit authority and zero `/api/` requests;
 - alphaTab synthesizer diagnostic remains visible and non-authoritative for runner-specific audio readiness.
 
 ## Remaining edit expansion
 
-After this monophonic structured-edit gate is merged, later capability stages may add coordinated tie-chain edits and a separately reviewed polyphonic edit contract. Neither expansion may weaken source identity, fail-closed behavior or the rule that TAB is regenerated from musical source rather than patched independently.
+Later capability stages may add coordinated tie-chain edits and a separately reviewed polyphonic edit contract. Neither expansion may weaken source identity, fail-closed behavior or the rule that TAB is regenerated from musical source rather than patched independently.
