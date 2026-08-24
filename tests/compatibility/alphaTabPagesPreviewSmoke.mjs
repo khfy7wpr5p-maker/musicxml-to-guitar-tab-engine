@@ -91,12 +91,14 @@ try {
   await page.goto(`${origin}/workbench/`, {waitUntil: 'networkidle0'});
   await page.waitForFunction(() => {
     const host = window.__workbenchHost;
-    return Boolean(host && host.mode === 'preview' && host.workbench.snapshot().scoreLoaded);
+    const ux = window.__workbenchUx;
+    return Boolean(host && ux && host.mode === 'preview' && host.workbench.snapshot().scoreLoaded);
   }, {timeout: 20000});
 
   const evidence = await page.evaluate(() => {
     const root = document.querySelector('[data-guitar-tab-workbench]');
     const host = window.__workbenchHost;
+    const ux = window.__workbenchUx;
     const snapshot = host.workbench.snapshot();
     return {
       mode: host.mode,
@@ -115,6 +117,12 @@ try {
       svgCount: root?.querySelectorAll('[data-role="score"] svg').length || 0,
       controllerNames: Object.keys(host.controllers || {}).sort(),
       previewText: root?.querySelector('[data-role="mode-description"]')?.textContent || null,
+      tabNames: [...root.querySelectorAll('[data-inspector-tab]')].map((button) => button.dataset.inspectorTab),
+      activeTab: ux.snapshot().activeTab,
+      zoomStatus: root?.querySelector('[data-role="zoom-status"]')?.textContent || null,
+      positionStatus: root?.querySelector('[data-role="position-status"]')?.textContent || null,
+      documentPanelRoute: root?.querySelector('[data-role="document-route"]')?.textContent || null,
+      documentSha: root?.querySelector('[data-role="document-sha"]')?.textContent || null,
     };
   });
 
@@ -134,6 +142,61 @@ try {
   assert.ok(evidence.svgCount > 0);
   assert.deepEqual(evidence.controllerNames, ['document', 'issues', 'playback', 'selection']);
   assert.match(evidence.previewText, /Static CI demo/);
+  assert.deepEqual(evidence.tabNames, ['note', 'fingering', 'issues', 'document']);
+  assert.equal(evidence.activeTab, 'note');
+  assert.equal(evidence.zoomStatus.trim(), '100%');
+  assert.match(evidence.positionStatus, /^\d{2}:\d{2} \/ \d{2}:\d{2}$/);
+  assert.equal(evidence.documentPanelRoute.trim(), 'MONO_V1');
+  assert.match(evidence.documentSha.trim(), /^[0-9a-f]{64}$/);
+
+  await page.click('[data-inspector-tab="issues"]');
+  const tabEvidence = await page.evaluate(() => ({
+    activeTab: window.__workbenchUx.snapshot().activeTab,
+    noteHidden: document.querySelector('[data-inspector-panel="note"]')?.hidden,
+    issuesHidden: document.querySelector('[data-inspector-panel="issues"]')?.hidden,
+    selected: document.querySelector('[data-inspector-tab="issues"]')?.getAttribute('aria-selected'),
+  }));
+  assert.deepEqual(tabEvidence, {
+    activeTab: 'issues',
+    noteHidden: true,
+    issuesHidden: false,
+    selected: 'true',
+  });
+
+  await page.click('[data-role="zoom-in"]');
+  await page.waitForFunction(() => document.querySelector('[data-role="zoom-status"]')?.textContent === '110%');
+  assert.equal(await page.evaluate(() => window.__workbenchUx.snapshot().scale), 1.1);
+
+  await page.click('[data-role="fit-width"]');
+  await page.waitForFunction(() => window.__workbenchUx.snapshot().viewPreset === 'fit-width');
+  const fitWidth = await page.evaluate(() => window.__workbenchUx.snapshot());
+  assert.equal(fitWidth.scale, 1);
+  assert.equal(fitWidth.barsPerRow, -1);
+
+  await page.click('[data-role="fit-page"]');
+  await page.waitForFunction(() => window.__workbenchUx.snapshot().viewPreset === 'fit-page');
+  const fitPage = await page.evaluate(() => window.__workbenchUx.snapshot());
+  assert.equal(fitPage.scale, 0.8);
+  assert.equal(fitPage.barsPerRow, 3);
+
+  await page.select('[data-role="playback-speed"]', '125');
+  assert.equal(await page.evaluate(() => window.__workbenchUx.snapshot().playbackSpeed), 1.25);
+
+  await page.setViewport({width: 720, height: 900, deviceScaleFactor: 1});
+  const responsiveEvidence = await page.evaluate(() => ({
+    compact: window.matchMedia('(max-width: 900px)').matches,
+    toolrailDisplay: getComputedStyle(document.querySelector('.workbench-toolrail')).display,
+    gridColumns: getComputedStyle(document.querySelector('.workbench-grid')).gridTemplateColumns,
+    tabsVisible: getComputedStyle(document.querySelector('.workbench-inspector-tabs')).display !== 'none',
+  }));
+  assert.equal(responsiveEvidence.compact, true);
+  assert.equal(responsiveEvidence.toolrailDisplay, 'none');
+  assert.equal(responsiveEvidence.tabsVisible, true);
+  assert.ok(!responsiveEvidence.gridColumns.includes(' '), `Expected one responsive grid column, got ${responsiveEvidence.gridColumns}`);
+
+  await page.setViewport({width: 1440, height: 1000, deviceScaleFactor: 1});
+  await page.click('[data-inspector-tab="note"]');
+
   assert.equal(requestedPaths.some((pathname) => pathname.startsWith('/api/')), false);
   assert.deepEqual(pageErrors, []);
 
@@ -145,6 +208,8 @@ try {
     scoreTracks: evidence.scoreTracks,
     scoreStaves: evidence.scoreStaves,
     scoreMeasures: evidence.scoreMeasures,
+    inspectorTabs: evidence.tabNames.length,
+    responsive: responsiveEvidence.compact,
     apiRequests: requestedPaths.filter((pathname) => pathname.startsWith('/api/')).length,
     screenshotPath,
   })}\n`);
