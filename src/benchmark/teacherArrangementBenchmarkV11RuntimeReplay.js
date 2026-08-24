@@ -6,8 +6,9 @@ const {
   createSourceEventId,
   createPolyphonicSourceModel,
 } = require('../music/polyphonicSourceModel');
-const { createLeftHandShapeModel } = require('../music/leftHandShapeModel');
-const { validatePhysicalPlayabilityV2 } = require('../music/physicalPlayabilityValidatorV2');
+const {
+  createDeterministicPa7CandidateSnapshotHandoff,
+} = require('../music/deterministicPa7CandidateSnapshotHandoff');
 const {
   assertTeacherApprovedV11BenchmarkSemantics,
 } = require('./teacherArrangementBenchmarkV11Semantics');
@@ -194,10 +195,11 @@ function replayRealizedVoicingShapeEvaluation(arrangement) {
   let leftHand;
   let physical;
   try {
-    leftHand = createLeftHandShapeModel(sourceModel, decisions);
-    physical = validatePhysicalPlayabilityV2(sourceModel, decisions);
+    const handoff = createDeterministicPa7CandidateSnapshotHandoff(sourceModel, decisions);
+    leftHand = handoff.leftHandShapeSnapshot;
+    physical = handoff.physicalPlayabilitySnapshot;
   } catch (error) {
-    throw invalid('Synthetic realized-voicing replay failed in PA-8/PA-9.', 'arrangement', {
+    throw invalid('Synthetic realized-voicing replay failed in PA-7/PA-8/PA-9 handoff.', 'arrangement', {
       causeCode: error && error.code,
     });
   }

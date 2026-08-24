@@ -10,11 +10,8 @@ const {
   createDeterministicReductionPlan,
 } = require('../music/deterministicReductionPlan');
 const {
-  createLeftHandShapeModel,
-} = require('../music/leftHandShapeModel');
-const {
-  validatePhysicalPlayabilityV2,
-} = require('../music/physicalPlayabilityValidatorV2');
+  createDeterministicPa7CandidateSnapshotHandoff,
+} = require('../music/deterministicPa7CandidateSnapshotHandoff');
 
 const BLIND_BASELINE_ENGINE_OBSERVER_VERSION = '1.0.0';
 const BLIND_BASELINE_POLICY = 'PRESERVE_OR_OCTAVE_MIN_ERGONOMIC_1.0';
@@ -243,9 +240,11 @@ function createBlindBaselineEngineResult(sourceModel) {
     });
   }
 
-  const leftHand = createLeftHandShapeModel(source, decisions);
-  const physical = validatePhysicalPlayabilityV2(source, decisions);
-  const selected = choosePlayableShape(leftHand, physical);
+  const handoff = createDeterministicPa7CandidateSnapshotHandoff(source, decisions);
+  const selected = choosePlayableShape(
+    handoff.leftHandShapeSnapshot,
+    handoff.physicalPlayabilitySnapshot,
+  );
   if (!selected) return null;
 
   return deepFreeze({
