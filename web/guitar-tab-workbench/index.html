@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./workbench.css">
 </head>
 <body>
-  <main class="workbench" data-guitar-tab-workbench data-mode="runtime">
+  <main class="workbench" data-guitar-tab-workbench data-mode="runtime" data-view-preset="default" data-selection="none">
     <header class="workbench-appbar">
       <div class="workbench-brand">
         <div class="workbench-brand__mark" aria-hidden="true">GT</div>
@@ -27,10 +27,14 @@
           <span>Document</span>
           <strong data-role="document-status">EMPTY</strong>
         </span>
+        <span class="workbench-chip workbench-chip--selection">
+          <span>Selection</span>
+          <strong data-role="selection-status">None</strong>
+        </span>
       </div>
     </header>
 
-    <section class="workbench-toolbar" aria-label="Document and playback controls">
+    <section class="workbench-toolbar" aria-label="Document, playback and score view controls">
       <div class="workbench-toolbar__group workbench-toolbar__group--grow">
         <label class="workbench-file-label" data-role="runtime-upload-action">
           <span>Open MusicXML</span>
@@ -40,13 +44,33 @@
       </div>
 
       <div class="workbench-toolbar__group workbench-transport" aria-label="Playback controls">
-        <button data-role="play" type="button" disabled>Play</button>
-        <button data-role="stop" type="button" disabled>Stop</button>
+        <button data-role="play" type="button" disabled><span aria-hidden="true">▶</span><span>Play</span></button>
+        <button data-role="stop" type="button" disabled><span aria-hidden="true">■</span><span>Stop</span></button>
+        <label class="workbench-speed-control">
+          <span>Speed</span>
+          <select data-role="playback-speed" aria-label="Playback speed">
+            <option value="50">50%</option>
+            <option value="75">75%</option>
+            <option value="100" selected>100%</option>
+            <option value="125">125%</option>
+            <option value="150">150%</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="workbench-toolbar__group workbench-view-controls" aria-label="Score view controls">
+        <button data-role="zoom-out" type="button" aria-label="Zoom out">−</button>
+        <strong class="workbench-zoom-readout" data-role="zoom-status">100%</strong>
+        <button data-role="zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button data-role="fit-width" type="button">Fit width</button>
+        <button data-role="fit-page" type="button">Fit page</button>
       </div>
 
       <div class="workbench-toolbar__group workbench-toolbar__readouts workbench-meta" aria-live="polite">
         <span class="workbench-readout">Route <strong data-role="route-status">UNRESOLVED</strong></span>
-        <span class="workbench-readout">Cursor <strong data-role="cursor-status">No active measure</strong></span>
+        <span class="workbench-readout">Measure <strong data-role="measure-status">—</strong></span>
+        <span class="workbench-readout">Position <strong data-role="position-status">00:00 / 00:00</strong></span>
+        <span class="workbench-readout workbench-readout--cursor">Cursor <strong data-role="cursor-status">No active measure</strong></span>
       </div>
     </section>
 
@@ -58,22 +82,33 @@
       <nav class="workbench-toolrail" aria-label="Workbench sections">
         <span class="workbench-toolrail__label">View</span>
         <a href="#score-workspace" aria-current="page">Score</a>
-        <a href="#workbench-inspector">Review</a>
+        <a href="#workbench-inspector" data-inspector-open="note">Review</a>
         <span class="workbench-toolrail__label">Flow</span>
-        <a href="#workbench-inspector">Issues</a>
+        <a href="#workbench-inspector" data-inspector-open="issues">Issues</a>
+        <a href="#workbench-inspector" data-inspector-open="fingering">Fingering</a>
       </nav>
 
       <div class="workbench-grid">
         <section class="workbench-score-panel" id="score-workspace" aria-label="Standard notation and rhythmic TAB">
           <div class="workbench-section-heading">
-            <h2>Score</h2>
-            <span>Standard notation + rhythmic TAB</span>
+            <div>
+              <h2>Score</h2>
+              <span>Standard notation + rhythmic TAB</span>
+            </div>
+            <span class="workbench-score-context" data-role="score-context">No score loaded</span>
           </div>
           <div class="workbench-score" data-role="score"></div>
         </section>
 
         <aside class="workbench-sidebar" id="workbench-inspector" aria-label="Workbench inspector">
-          <section class="workbench-editor" aria-label="Structured note editor">
+          <div class="workbench-inspector-tabs" role="tablist" aria-label="Inspector sections">
+            <button id="inspector-tab-note" type="button" role="tab" aria-selected="true" aria-controls="inspector-panel-note" data-inspector-tab="note">Note</button>
+            <button id="inspector-tab-fingering" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-fingering" data-inspector-tab="fingering" tabindex="-1">Fingering</button>
+            <button id="inspector-tab-issues" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-issues" data-inspector-tab="issues" tabindex="-1">Issues <span data-role="issue-count-tab">0</span></button>
+            <button id="inspector-tab-document" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-document" data-inspector-tab="document" tabindex="-1">Document</button>
+          </div>
+
+          <section class="workbench-editor workbench-inspector-panel" id="inspector-panel-note" role="tabpanel" aria-labelledby="inspector-tab-note" data-inspector-panel="note" aria-label="Structured note editor">
             <div class="workbench-editor__heading">
               <h2>Note editor</h2>
               <strong data-role="selected-note">None</strong>
@@ -110,12 +145,40 @@
             </div>
           </section>
 
-          <section class="workbench-issues" aria-label="MusicXML issues">
+          <section class="workbench-inspector-card workbench-inspector-panel" id="inspector-panel-fingering" role="tabpanel" aria-labelledby="inspector-tab-fingering" data-inspector-panel="fingering" hidden>
+            <div class="workbench-inspector-card__heading">
+              <h2>Fingering</h2>
+              <span>Read-only engine result</span>
+            </div>
+            <dl class="workbench-facts">
+              <div><dt>Pitch</dt><dd data-role="fingering-pitch">—</dd></div>
+              <div><dt>String</dt><dd data-role="fingering-string">—</dd></div>
+              <div><dt>Fret</dt><dd data-role="fingering-fret">—</dd></div>
+              <div><dt>Alternatives</dt><dd data-role="fingering-alternatives">—</dd></div>
+              <div class="workbench-facts__wide"><dt>Context</dt><dd data-role="fingering-context">Select a note to inspect the current TAB placement.</dd></div>
+            </dl>
+          </section>
+
+          <section class="workbench-issues workbench-inspector-panel" id="inspector-panel-issues" role="tabpanel" aria-labelledby="inspector-tab-issues" data-inspector-panel="issues" aria-label="MusicXML issues" hidden>
             <div class="workbench-issues__heading">
               <h2>Issues</h2>
               <span data-role="issue-count">0</span>
             </div>
             <ol data-role="issues"></ol>
+          </section>
+
+          <section class="workbench-inspector-card workbench-inspector-panel" id="inspector-panel-document" role="tabpanel" aria-labelledby="inspector-tab-document" data-inspector-panel="document" hidden>
+            <div class="workbench-inspector-card__heading">
+              <h2>Document</h2>
+              <span data-role="document-panel-status">EMPTY</span>
+            </div>
+            <dl class="workbench-facts workbench-facts--document">
+              <div class="workbench-facts__wide"><dt>Source</dt><dd data-role="document-source">No document loaded</dd></div>
+              <div><dt>Route</dt><dd data-role="document-route">UNRESOLVED</dd></div>
+              <div><dt>Revision</dt><dd data-role="document-revision">0</dd></div>
+              <div class="workbench-facts__wide"><dt>Source SHA-256</dt><dd class="workbench-fact-mono" data-role="document-sha">—</dd></div>
+              <div class="workbench-facts__wide"><dt>Authority</dt><dd data-role="document-authority">Deterministic TAB result · browser UI does not mutate TAB directly.</dd></div>
+            </dl>
           </section>
         </aside>
       </div>
@@ -134,5 +197,6 @@
   <script src="./host-controller.js"></script>
   <script src="./preview-config.js"></script>
   <script src="./boot.js"></script>
+  <script src="./ux-controller.js"></script>
 </body>
 </html>
