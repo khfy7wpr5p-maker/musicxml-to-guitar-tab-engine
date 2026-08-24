@@ -57,6 +57,9 @@ jobs:
       - name: Run CanonicalTabResult v2 alphaTab import and SVG smoke test
         run: node tests/compatibility/alphaTabV2MusicXmlSmoke.mjs
 
+      - name: Run PA-12 internal polyphonic E2E alphaTab smoke test
+        run: node tests/compatibility/alphaTabPa12InternalE2eSmoke.mjs
+
   alphatab-browser:
     name: alphaTab browser renderer and cursor; synth diagnostic / Node.js 22
     runs-on: ubuntu-latest
