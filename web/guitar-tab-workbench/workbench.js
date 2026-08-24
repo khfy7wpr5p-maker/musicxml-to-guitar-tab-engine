@@ -103,8 +103,20 @@
       if (element) element.textContent = value;
     }
 
+    function clearActiveScoreState() {
+      state.scoreLoaded = false;
+      state.positionTick = 0;
+      state.currentMeasureIndex = null;
+      state.currentMeasureNumber = null;
+      scoreHost.hidden = true;
+      setText(cursorStatus, 'No active measure');
+    }
+
     function updateControls() {
-      const ready = state.scoreLoaded && state.playerReady && state.runtimeResult?.status === 'PASS';
+      const ready = !state.loading
+        && state.scoreLoaded
+        && state.playerReady
+        && state.runtimeResult?.status === 'PASS';
       playButton.disabled = !ready;
       stopButton.disabled = !ready;
     }
@@ -148,7 +160,7 @@
     }
 
     function focusMeasure(location) {
-      if (!state.scoreLoaded) return false;
+      if (!state.scoreLoaded || state.runtimeResult?.status !== 'PASS') return false;
       let index = Number.isInteger(location?.measureIndex) ? location.measureIndex : null;
       if (index === null && location?.measure !== null && location?.measure !== undefined) {
         const visible = String(location.measure);
@@ -201,10 +213,13 @@
       renderIssues(result.preflight?.issues || []);
 
       if (result.status !== 'PASS') {
+        clearActiveScoreState();
         updateControls();
         return false;
       }
+
       assert(typeof result.musicXml === 'string' && result.musicXml.length > 0, 'PASS result is missing renderer MusicXML.');
+      clearActiveScoreState();
       const bytes = new TextEncoder().encode(result.musicXml);
       const accepted = api.load(bytes);
       if (!accepted) throw new Error('alphaTab rejected renderer MusicXML.');
@@ -219,13 +234,19 @@
       }
 
       state.loading = true;
+      state.runtimeResult = null;
       state.lastError = null;
+      if (state.playerReady) api.stop();
+      clearActiveScoreState();
       setText(documentStatus, 'LOADING');
+      setText(routeStatus, 'UNRESOLVED');
+      updateControls();
       try {
         const result = await upload(file);
         return setRuntimeResult(result);
       } catch (error) {
         state.lastError = error instanceof Error ? error.message : String(error);
+        clearActiveScoreState();
         setText(documentStatus, 'ERROR');
         renderIssues([{
           code: 'WORKBENCH_UPLOAD_FAILED',
@@ -236,6 +257,7 @@
         throw error;
       } finally {
         state.loading = false;
+        updateControls();
       }
     }
 
@@ -260,15 +282,18 @@
 
     api.error.on((error) => {
       state.lastError = error?.message || String(error);
+      clearActiveScoreState();
       setText(documentStatus, 'RENDER_ERROR');
       renderIssues([{
         code: 'ALPHATAB_RENDER_FAILED',
         message: state.lastError,
         location: null,
       }]);
+      updateControls();
     });
     api.scoreLoaded.on(() => {
       state.scoreLoaded = true;
+      scoreHost.hidden = false;
       updateControls();
     });
     api.playerReady.on(() => {
@@ -279,13 +304,13 @@
       state.playerState = event?.state ?? null;
     });
     api.playerPositionChanged.on((event) => {
-      if (Number.isFinite(event?.currentTick)) updateCursorStatus(event.currentTick);
+      if (state.scoreLoaded && Number.isFinite(event?.currentTick)) updateCursorStatus(event.currentTick);
     });
 
+    clearActiveScoreState();
     renderIssues([]);
     setText(documentStatus, 'EMPTY');
     setText(routeStatus, 'UNRESOLVED');
-    setText(cursorStatus, 'No active measure');
     updateControls();
 
     return Object.freeze({
@@ -294,12 +319,13 @@
       loadRuntimeResult: setRuntimeResult,
       focusMeasure,
       snapshot() {
-        const track = api.score?.tracks?.[0];
+        const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
         return Object.freeze({
           ...state,
-          scoreTracks: api.score?.tracks?.length || 0,
-          scoreStaves: track?.staves?.length || 0,
-          scoreMeasures: api.score?.masterBars?.length || 0,
+          scoreTracks: state.scoreLoaded ? (api.score?.tracks?.length || 0) : 0,
+          scoreStaves: state.scoreLoaded ? (track?.staves?.length || 0) : 0,
+          scoreMeasures: state.scoreLoaded ? (api.score?.masterBars?.length || 0) : 0,
+          scoreHidden: scoreHost.hidden,
           playDisabled: playButton.disabled,
           stopDisabled: stopButton.disabled,
         });
