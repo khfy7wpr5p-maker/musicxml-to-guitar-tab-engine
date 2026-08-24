@@ -184,6 +184,113 @@ test('automatic dispatcher sends multi-voice MusicXML through PA-12 v2 without s
   assert.match(result.musicXml, /<score-partwise\b/);
 });
 
+test('engine notation plus TAB output is collapsed before restricted polyphonic projection', () => {
+  const first = processMusicXmlUpload({
+    fileName: 'poly.xml',
+    bytes: fixture('pa12-polyphonic-e2e.musicxml'),
+  });
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.PASS);
+
+  const roundTrip = processMusicXmlUpload({
+    fileName: 'notation-and-tab.musicxml',
+    bytes: Buffer.from(first.musicXml),
+  });
+
+  assert.equal(roundTrip.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(roundTrip.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(roundTrip.normalization, {
+    tabStaffMirrorCollapsed: true,
+    collapsedStaff: 2,
+    omittedRepresentationNoteCount: 8,
+  });
+  assert.equal(roundTrip.canonicalTabResult.noteDispositions.length, 8);
+  assert.equal(
+    roundTrip.canonicalTabResult.noteDispositions.every((entry) => (
+      entry.disposition === 'KEEP' && entry.octaveShiftSemitones === 0
+    )),
+    true,
+  );
+});
+
+test('monophonic writer notation plus TAB output reaches the mirror normalizer', () => {
+  const source = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+</measure></part></score-partwise>`);
+  const first = processMusicXmlUpload({ fileName: 'single.xml', bytes: source });
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+
+  const roundTrip = processMusicXmlUpload({
+    fileName: 'single-notation-tab.musicxml',
+    bytes: Buffer.from(first.musicXml),
+  });
+
+  assert.equal(roundTrip.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(roundTrip.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(roundTrip.normalization, {
+    tabStaffMirrorCollapsed: true,
+    collapsedStaff: 2,
+    omittedRepresentationNoteCount: 1,
+  });
+  assert.equal(roundTrip.canonicalTabResult.noteDispositions.length, 1);
+});
+
+test('near-mirror notation and TAB staves fail closed instead of dropping changed music', () => {
+  const first = processMusicXmlUpload({
+    fileName: 'poly.xml',
+    bytes: fixture('pa12-polyphonic-e2e.musicxml'),
+  });
+  const firstTabStaff = first.musicXml.indexOf('<staff>2</staff>');
+  const octaveStart = first.musicXml.lastIndexOf('<octave>', firstTabStaff) + '<octave>'.length;
+  const octaveEnd = first.musicXml.indexOf('</octave>', octaveStart);
+  const changedOctave = String(Number.parseInt(
+    first.musicXml.slice(octaveStart, octaveEnd),
+    10,
+  ) + 1);
+  const changed = `${first.musicXml.slice(0, octaveStart)}${changedOctave}${first.musicXml.slice(octaveEnd)}`;
+
+  const result = processMusicXmlUpload({
+    fileName: 'changed-tab.musicxml',
+    bytes: Buffer.from(changed),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('TAB mirror normalization rejects a partial staff reset and unsupported technique', () => {
+  const first = processMusicXmlUpload({
+    fileName: 'poly.xml',
+    bytes: fixture('pa12-polyphonic-e2e.musicxml'),
+  });
+  const firstTabStaff = first.musicXml.indexOf('<staff>2</staff>');
+  const boundaryStart = first.musicXml.lastIndexOf('<backup>', firstTabStaff);
+  const boundaryDurationStart = first.musicXml.indexOf('<duration>', boundaryStart)
+    + '<duration>'.length;
+  const boundaryDurationEnd = first.musicXml.indexOf('</duration>', boundaryDurationStart);
+  const partialReset = `${first.musicXml.slice(0, boundaryDurationStart)}12${first.musicXml.slice(boundaryDurationEnd)}`;
+  const unsupportedTechnique = first.musicXml.replace(
+    '<technical>',
+    '<technical><bend><bend-alter>1</bend-alter></bend>',
+  );
+
+  for (const [fileName, musicXml] of [
+    ['partial-reset.musicxml', partialReset],
+    ['unsupported-technique.musicxml', unsupportedTechnique],
+  ]) {
+    const result = processMusicXmlUpload({ fileName, bytes: Buffer.from(musicXml) });
+    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+    assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
+    assert.equal(result.canonicalTabResult, null);
+  }
+});
+
 test('upload boundary rejects non-MusicXML file extensions before conversion', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlUpload({ fileName: 'score.txt', bytes });

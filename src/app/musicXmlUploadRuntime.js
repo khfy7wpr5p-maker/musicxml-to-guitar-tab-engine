@@ -10,6 +10,9 @@ const {
   convertMusicXmlToInternalPolyphonicTabV2,
 } = require('../core/internalPolyphonicConversionPipelineV2');
 const {
+  createCanonicalTabResultV2,
+} = require('../tab/canonicalTabResultV2');
+const {
   parseParsedMusicXmlDocument,
 } = require('../parser/parsedMusicXmlDocument');
 const {
@@ -23,6 +26,12 @@ const {
 const {
   serializeCanonicalTabResultToMusicXml,
 } = require('../writers/canonicalTabMusicXmlWriter');
+const {
+  serializeCanonicalTabResultV2ToMusicXml,
+} = require('../writers/canonicalTabMusicXmlWriterV2');
+const {
+  tryProjectExactTabStaffMirror,
+} = require('./exactTabStaffMirrorNormalizer');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -296,98 +305,12 @@ function isCapabilityOnlyPreflight(preflight) {
   );
 }
 
-function directChildren(node, name) {
-  return node.children.filter((child) => child.name === name && child.uri === node.uri);
-}
-
-function getAttribute(node, name) {
-  const attribute = node.attributes.find(
-    (candidate) => candidate.name === name && candidate.uri.length === 0,
-  );
-  return attribute ? attribute.value : undefined;
-}
-
-function hasExplicitTabClefForStaff(parsedDocument, staffNumber) {
-  const target = String(staffNumber);
-  const pending = [parsedDocument.root];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    if (node.name === 'clef' && (getAttribute(node, 'number') || '1') === target) {
-      const sign = directChildren(node, 'sign')[0];
-      if (sign && sign.text.trim().toUpperCase() === 'TAB') return true;
-    }
-    for (let index = node.children.length - 1; index >= 0; index -= 1) {
-      pending.push(node.children[index]);
-    }
-  }
-  return false;
-}
-
-function sourceEventFingerprint(event) {
-  return JSON.stringify([
-    event.type,
-    event.onsetDivisions,
-    event.durationDivisions,
-    event.type === 'note' ? event.pitch.midi : null,
-    event.tieStart,
-    event.tieStop,
-    event.source.chordWithPrevious,
-  ]);
-}
-
-function detectExactTabStaffMirror(parsedDocument, sourceModel) {
-  if (!hasExplicitTabClefForStaff(parsedDocument, 2)) {
-    return Object.freeze({
-      tabStaffMirrorCollapsed: false,
-      collapsedStaff: null,
-      omittedRepresentationNoteIds: Object.freeze([]),
-    });
-  }
-
-  let staffTwoEventCount = 0;
-  for (const measure of sourceModel.measures) {
-    const staffOne = measure.events
-      .filter((event) => event.staff === 1)
-      .map(sourceEventFingerprint)
-      .sort();
-    const staffTwo = measure.events
-      .filter((event) => event.staff === 2)
-      .map(sourceEventFingerprint)
-      .sort();
-    staffTwoEventCount += staffTwo.length;
-    if (
-      staffOne.length !== staffTwo.length
-      || staffOne.some((fingerprint, index) => fingerprint !== staffTwo[index])
-    ) {
-      return Object.freeze({
-        tabStaffMirrorCollapsed: false,
-        collapsedStaff: null,
-        omittedRepresentationNoteIds: Object.freeze([]),
-      });
-    }
-  }
-
-  if (staffTwoEventCount === 0) {
-    return Object.freeze({
-      tabStaffMirrorCollapsed: false,
-      collapsedStaff: null,
-      omittedRepresentationNoteIds: Object.freeze([]),
-    });
-  }
-
-  const omittedRepresentationNoteIds = [];
-  for (const measure of sourceModel.measures) {
-    for (const event of measure.events) {
-      if (event.type === 'note' && event.staff === 2) {
-        omittedRepresentationNoteIds.push(event.sourceEventId);
-      }
-    }
-  }
-
+function noRepresentationNormalization() {
   return Object.freeze({
-    tabStaffMirrorCollapsed: true,
-    collapsedStaff: 2,
-    omittedRepresentationNoteIds: Object.freeze(omittedRepresentationNoteIds),
+    tabStaffMirrorCollapsed: false,
+    collapsedStaff: null,
+    omittedRepresentationNoteIds: Object.freeze([]),
+    omittedRepresentationNoteCount: 0,
   });
 }
 
@@ -502,8 +425,21 @@ function publicNormalization(normalization) {
   return Object.freeze({
     tabStaffMirrorCollapsed: normalization.tabStaffMirrorCollapsed,
     collapsedStaff: normalization.collapsedStaff,
-    omittedRepresentationNoteCount: normalization.omittedRepresentationNoteIds.length,
+    omittedRepresentationNoteCount: normalization.omittedRepresentationNoteCount
+      ?? normalization.omittedRepresentationNoteIds.length,
   });
+}
+
+function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing) {
+  processing.checkpoint('app-upload:tab-mirror-canonical:start');
+  const canonicalTabResult = createCanonicalTabResultV2(sourceModel, decisions, processing);
+  const musicXml = serializeCanonicalTabResultV2ToMusicXml(
+    canonicalTabResult,
+    {},
+    processing,
+  );
+  processing.checkpoint('app-upload:tab-mirror-canonical:complete');
+  return { canonicalTabResult, musicXml };
 }
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
@@ -607,15 +543,22 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   try {
     processing.checkpoint('app-upload:poly:start');
     const parsedDocument = parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing);
-    const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
-    normalization = detectExactTabStaffMirror(parsedDocument, sourceModel);
+    const projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
+    const sourceModel = projectedMirror
+      ? projectedMirror.sourceModel
+      : projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+    normalization = projectedMirror
+      ? projectedMirror.normalization
+      : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
-    const conversion = convertMusicXmlToInternalPolyphonicTabV2(
-      normalizedUpload.bytes,
-      decisions,
-      {},
-      processing,
-    );
+    const conversion = projectedMirror
+      ? convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing)
+      : convertMusicXmlToInternalPolyphonicTabV2(
+        normalizedUpload.bytes,
+        decisions,
+        {},
+        processing,
+      );
     assertNoSilentMusicalChange(sourceModel, conversion.canonicalTabResult, normalization);
     processing.checkpoint('app-upload:poly-complete');
 
