@@ -4,8 +4,9 @@ const { EngineError } = require('../errors/engineError');
 const { parseParsedMusicXmlDocument } = require('../parser/parsedMusicXmlDocument');
 const { createMusicXmlProcessingRuntime } = require('../parser/musicxmlSemanticResourceLimits');
 const { projectParsedMusicXmlToPolyphonicSourceModel } = require('../parser/polyphonicMusicXmlProjector');
-const { createLeftHandShapeModel } = require('../music/leftHandShapeModel');
-const { validatePhysicalPlayabilityV2 } = require('../music/physicalPlayabilityValidatorV2');
+const {
+  createDeterministicPa7CandidateSnapshotHandoff,
+} = require('../music/deterministicPa7CandidateSnapshotHandoff');
 const { replayTeacherArrangementBenchmarkSources } = require('./teacherArrangementBenchmarkSourceReplay');
 
 const TEACHER_ARRANGEMENT_BENCHMARK_RUNTIME_REPLAY_VERSION = '1.0.0';
@@ -143,10 +144,11 @@ function replayArrangement(benchmarkCase, arrangement, sourceModel, caseIndex, a
   let leftHand;
   let validation;
   try {
-    leftHand = createLeftHandShapeModel(sourceModel, decisions);
-    validation = validatePhysicalPlayabilityV2(sourceModel, decisions);
+    const handoff = createDeterministicPa7CandidateSnapshotHandoff(sourceModel, decisions);
+    leftHand = handoff.leftHandShapeSnapshot;
+    validation = handoff.physicalPlayabilitySnapshot;
   } catch (error) {
-    throw invalid('PA-8/PA-9 runtime replay failed before shape comparison.', field, {
+    throw invalid('PA-7/PA-8/PA-9 runtime replay failed before shape comparison.', field, {
       causeCode: error && error.code,
     });
   }
