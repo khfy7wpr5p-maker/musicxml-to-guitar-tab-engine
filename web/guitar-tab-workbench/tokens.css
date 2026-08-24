@@ -1,0 +1,56 @@
+:root {
+  color-scheme: light;
+
+  --gt-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --gt-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --gt-color-bg: #f3f5f8;
+  --gt-color-surface: #ffffff;
+  --gt-color-surface-subtle: #f8fafc;
+  --gt-color-surface-raised: #ffffff;
+  --gt-color-border: #d9dee7;
+  --gt-color-border-strong: #bec6d2;
+  --gt-color-text: #171a1f;
+  --gt-color-text-muted: #657080;
+  --gt-color-text-soft: #7d8796;
+  --gt-color-accent: #1f5fd6;
+  --gt-color-accent-strong: #174aa9;
+  --gt-color-danger: #9a2b2b;
+  --gt-color-danger-bg: #fff4f4;
+  --gt-color-warning: #8a5a00;
+  --gt-color-warning-bg: #fff8e8;
+  --gt-color-success: #17633a;
+  --gt-color-success-bg: #edf9f2;
+  --gt-color-neutral-bg: #eef2f6;
+
+  --gt-radius-sm: 7px;
+  --gt-radius-md: 10px;
+  --gt-radius-lg: 14px;
+  --gt-radius-pill: 999px;
+
+  --gt-space-1: 4px;
+  --gt-space-2: 8px;
+  --gt-space-3: 12px;
+  --gt-space-4: 16px;
+  --gt-space-5: 20px;
+  --gt-space-6: 24px;
+
+  --gt-shadow-panel: 0 1px 2px rgba(20, 28, 40, .04), 0 8px 24px rgba(20, 28, 40, .05);
+  --gt-focus-ring: 0 0 0 3px rgba(31, 95, 214, .18);
+
+  --gt-appbar-height: 58px;
+  --gt-toolbar-height: 52px;
+  --gt-sidebar-width: 340px;
+  --gt-toolrail-width: 78px;
+  --gt-score-min-width: 720px;
+  --gt-score-min-height: 520px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
