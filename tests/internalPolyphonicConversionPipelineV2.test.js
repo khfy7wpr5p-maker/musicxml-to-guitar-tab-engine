@@ -139,7 +139,7 @@ test('PA-12 fails closed on retained sustained overlap instead of guessing hand 
   );
 });
 
-test('PA-12 rejects unknown pipeline options before processing', () => {
+test('PA-12 rejects unknown and proxy pipeline options before processing', () => {
   assert.throws(
     () => convertMusicXmlToInternalPolyphonicTabV2(
       fixture('pa12-polyphonic-e2e.musicxml'),
@@ -152,4 +152,25 @@ test('PA-12 rejects unknown pipeline options before processing', () => {
       return true;
     },
   );
+
+  let trapCalled = false;
+  const hostileOptions = new Proxy({}, {
+    getPrototypeOf() {
+      trapCalled = true;
+      throw new Error('must not execute');
+    },
+  });
+  assert.throws(
+    () => convertMusicXmlToInternalPolyphonicTabV2(
+      fixture('pa12-polyphonic-e2e.musicxml'),
+      preservedDecisions(8),
+      hostileOptions,
+    ),
+    (error) => {
+      assert.ok(error instanceof InternalPolyphonicConversionV2Error);
+      assert.equal(error.code, 'INVALID_INTERNAL_POLYPHONIC_V2_OPTIONS');
+      return true;
+    },
+  );
+  assert.equal(trapCalled, false);
 });
