@@ -9,33 +9,33 @@ const packageApi = require('..');
 const packageJson = require('../package.json');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const CONVERGENCE_BASE = '200d55ebc4863471c8c50b59e9ba6a6115806dd6';
-const ARCHITECTURE_DOCS = [
+const CONVERGENCE_BASE = '50859edb322e65a3c8d3db74564fef871f10623f';
+const ACTIVE_ARCHITECTURE_DOCS = [
   'README.md',
   'AI_CONTEXT.md',
   'docs/ARCHITECTURE.md',
   'docs/current-status.md',
   'docs/package-status.md',
   'docs/polyphonic-guitar-arrangement-foundation.md',
-  'docs/musicxml-compatibility.md',
 ];
-
-const ACTIVE_ARCHITECTURE_DOCS = ARCHITECTURE_DOCS.slice(0, 6);
+const REVIEW_DOC = 'docs/guitarset-v2-runtime-shadow-connection-review-v1.md';
 
 function read(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
-test('central architecture documents converge on the PR #136 runtime baseline', () => {
-  for (const relativePath of ARCHITECTURE_DOCS) {
+test('active architecture documents converge on the PR #145 base and PR #146 runtime-shadow review', () => {
+  for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
-    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-08-23/, `${relativePath} snapshot marker`);
+    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-08-24/, `${relativePath} snapshot marker`);
     assert.ok(text.includes(CONVERGENCE_BASE), `${relativePath} convergence base`);
-    assert.ok(text.includes('PR #136'), `${relativePath} PR #136 evidence`);
+    assert.ok(text.includes('PR #145'), `${relativePath} PR #145 base`);
+    assert.ok(text.includes('PR #146'), `${relativePath} PR #146 runtime-shadow review`);
   }
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, REVIEW_DOC)), true, `${REVIEW_DOC} must exist`);
 });
 
-test('active architecture documents describe the actually merged PA and GuitarSet v2 state', () => {
+test('active architecture documents describe the merged PA state and reviewed internal runtime-shadow boundary', () => {
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
     for (const required of [
@@ -47,7 +47,11 @@ test('active architecture documents describe the actually merged PA and GuitarSe
       'CanonicalTabResult 1.0.0',
       'fret20QualityAuthority=false',
       'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE',
-      'RUNTIME_SHADOW_CONNECTION_REVIEW',
+      'ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1',
+      'runtime shadow connection: internal default-off',
+      'live/user input: false',
+      'authoritative optimizer/canonical/TAB effect: false',
+      'production: false',
       'evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json',
     ]) {
       assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
@@ -55,19 +59,15 @@ test('active architecture documents describe the actually merged PA and GuitarSe
   }
 });
 
-test('central architecture documents do not retain known stale next-stage claims', () => {
+test('live architecture documents do not retain the superseded runtime-closed review state', () => {
   const forbidden = [
-    'next separately approved polyphonic gate: PA-8',
-    'PA-8 is not authorized by PA-7 closure',
-    'next separately approved PA-10 slice: **PA-10.3',
-    'PA-10 status: `IN_PROGRESS`; PA-10.0 through PA-10.2 are merged',
-    'Next gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
-    'Next learned-evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
-    'Next learned-model evidence gate: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EXECUTION_EVIDENCE`',
-    '🟡 NEXT GATE',
+    'runtime connection: false',
+    'Runtime shadow connection | 🔒 CLOSED',
+    'Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`',
+    'runtime connection remains closed',
   ];
 
-  for (const relativePath of ARCHITECTURE_DOCS) {
+  for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
     for (const stale of forbidden) {
       assert.equal(text.includes(stale), false, `${relativePath} contains stale claim: ${stale}`);
@@ -105,18 +105,21 @@ test('documented package boundary matches executable package metadata and public
   }
 });
 
-test('merged internal architecture exists while v2 shadow remains outside package-root authority', () => {
+test('runtime-shadow implementation remains internal and outside package-root authority', () => {
   for (const relativePath of [
+    'src/music/deterministicPa7CandidateSnapshotHandoff.js',
     'src/music/leftHandShapeModel.js',
     'src/music/physicalPlayabilityValidatorV2.js',
-    'src/benchmark/revoicingToneCandidateModel.js',
     'src/learning/guitarsetVoicingModelV2Shadow.js',
+    'src/learning/guitarsetVoicingModelV2RuntimeShadow.js',
   ]) {
     assert.equal(fs.existsSync(path.join(REPO_ROOT, relativePath)), true, `${relativePath} must exist`);
   }
 
   for (const exportName of [
     'createGuitarSetVoicingModelV2ShadowReport',
+    'createBlindBaselineGuitarSetV2RuntimeShadowObservation',
+    'observeGuitarSetVoicingModelV2RuntimeShadow',
     'createGuitarVoicingCandidateModel',
     'createLeftHandShapeModel',
     'createPhysicalPlayabilityValidationV2',
@@ -125,22 +128,20 @@ test('merged internal architecture exists while v2 shadow remains outside packag
   }
 });
 
-test('architecture records completed v2 offline evidence without granting runtime authority', () => {
-  const artifactPath = path.join(
-    REPO_ROOT,
-    'evidence',
-    'offline-shadow',
-    'exact-main',
-    'acdb66e2bb2ad809ab45fc7c2183d84280d61ad7',
-    'controlled-offline-shadow-evidence.v2.json',
-  );
-  assert.equal(fs.existsSync(artifactPath), true, 'immutable v2 evidence must exist');
-
-  for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
-    const text = read(relativePath);
-    assert.ok(text.includes('GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE'), `${relativePath} completed evidence marker`);
-    assert.ok(text.includes('RUNTIME_SHADOW_CONNECTION_REVIEW'), `${relativePath} human next gate`);
-    assert.ok(text.includes('runtime connection: false'), `${relativePath} runtime boundary`);
-    assert.ok(text.includes('production: false'), `${relativePath} production boundary`);
+test('runtime-shadow review record preserves sealed identities and non-authoritative gates', () => {
+  const text = read(REVIEW_DOC);
+  for (const required of [
+    'ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1',
+    '7a56436c27ee6d996a49e7f989d37d7ffff187232277095b176c3c395c432314',
+    '617981e90cce46c941596d1bd50ffffff64e6816c59d8f0dbed1acd6d8938285',
+    'db67d88c4889a2b8c63411cd1e9bbd7481248dfbdd76da67f5df60b3871b4c02',
+    'f42809c1ca9d5f6ff1c62dd072c91a9195bb46e1714e88bd84e8a5a57eef9140',
+    'runtime shadow connection: internal default-off',
+    'live/user input: false',
+    'Authoritative optimizer/canonical/TAB effect: false',
+    'Production: false',
+    'fret20QualityAuthority',
+  ]) {
+    assert.ok(text.includes(required), `${REVIEW_DOC} must mention ${required}`);
   }
 });
