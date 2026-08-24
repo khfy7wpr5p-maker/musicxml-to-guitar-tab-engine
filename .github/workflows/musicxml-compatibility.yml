@@ -54,6 +54,9 @@ jobs:
       - name: Run alphaTab SVG renderer smoke test
         run: node tests/compatibility/alphaTabSvgRendererSmoke.mjs
 
+      - name: Run CanonicalTabResult v2 alphaTab import and SVG smoke test
+        run: node tests/compatibility/alphaTabV2MusicXmlSmoke.mjs
+
   alphatab-browser:
     name: alphaTab browser renderer and cursor; synth diagnostic / Node.js 22
     runs-on: ubuntu-latest
