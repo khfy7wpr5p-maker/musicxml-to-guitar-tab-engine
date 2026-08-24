@@ -64,6 +64,17 @@ function checkpoint(runtime, phase, details = {}) {
   }
 }
 
+function isDeeplyFrozen(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') return true;
+  if (seen.has(value)) return true;
+  seen.add(value);
+  if (!Object.isFrozen(value)) return false;
+  for (const nested of Object.values(value)) {
+    if (!isDeeplyFrozen(nested, seen)) return false;
+  }
+  return true;
+}
+
 function validateLeftHandIdentity(leftHand) {
   if (
     !leftHand
@@ -77,8 +88,9 @@ function validateLeftHandIdentity(leftHand) {
     || leftHand.voicingCandidateCount < 0
     || !Number.isInteger(leftHand.shapeCandidateCount)
     || leftHand.shapeCandidateCount < 0
+    || !isDeeplyFrozen(leftHand)
   ) {
-    throw invalid('PA-9 received an invalid recomputed PA-8 model identity.');
+    throw invalid('PA-9 requires the deeply immutable PA-8 left-hand snapshot.');
   }
 }
 
@@ -118,7 +130,7 @@ function validateBarreFacts(shape, sourceGroupId, voicingCandidateId) {
       || (barre.kind === 'FULL_BARRE' && (barre.startString !== 1 || barre.endString !== 6))
       || (barre.kind === 'PARTIAL_BARRE' && barre.startString === 1 && barre.endString === 6)
     ) {
-      throw invalid('PA-9 encountered invalid recomputed PA-8 barre facts.', {
+      throw invalid('PA-9 encountered invalid PA-8 snapshot barre facts.', {
         sourceGroupId,
         voicingCandidateId,
         shapeCandidateId: shape.shapeCandidateId,
@@ -151,9 +163,7 @@ function validateBarreFacts(shape, sourceGroupId, voicingCandidateId) {
     }
 
     for (const assignment of shape.fingerAssignments) {
-      if (assignment.string < barre.startString || assignment.string > barre.endString) {
-        continue;
-      }
+      if (assignment.string < barre.startString || assignment.string > barre.endString) continue;
       if (
         assignment.fret < barre.fret
         || (assignment.fret === barre.fret && assignment.finger !== barre.finger)
@@ -187,7 +197,7 @@ function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId)
     || !Number.isInteger(shape.barreCount)
     || shape.barreCount !== shape.barres.length
   ) {
-    throw invalid('PA-9 encountered invalid recomputed PA-8 shape facts.', {
+    throw invalid('PA-9 encountered invalid PA-8 snapshot shape facts.', {
       sourceGroupId,
       voicingCandidateId,
     });
@@ -215,7 +225,7 @@ function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId)
       || assignment.string !== position.string
       || assignment.fret !== position.fret
     ) {
-      throw invalid('PA-9 encountered inconsistent recomputed PA-8 position/assignment provenance.', {
+      throw invalid('PA-9 encountered inconsistent PA-8 snapshot position/assignment provenance.', {
         sourceGroupId,
         voicingCandidateId,
         shapeCandidateId: shape.shapeCandidateId,
@@ -280,7 +290,7 @@ function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId)
     || shape.fretSpan !== fretSpan
     || shape.usedFingerCount !== usedFingers.size
   ) {
-    throw invalid('PA-9 detected inconsistent recomputed PA-8 shape summary facts.', {
+    throw invalid('PA-9 detected inconsistent PA-8 snapshot shape summary facts.', {
       sourceGroupId,
       voicingCandidateId,
       shapeCandidateId: shape.shapeCandidateId,
@@ -309,14 +319,10 @@ function hasFingerReachViolation(fingerToFret) {
     for (let rightIndex = leftIndex + 1; rightIndex < entries.length; rightIndex += 1) {
       const [leftFinger, leftFret] = entries[leftIndex];
       const [rightFinger, rightFret] = entries[rightIndex];
-      if (leftFret === rightFret) {
-        continue;
-      }
+      if (leftFret === rightFret) continue;
       const fretDistance = Math.abs(leftFret - rightFret);
       const fingerNumberDistance = Math.abs(leftFinger - rightFinger);
-      if (fretDistance > fingerNumberDistance + MAXIMUM_EXTRA_FRET_REACH) {
-        return true;
-      }
+      if (fretDistance > fingerNumberDistance + MAXIMUM_EXTRA_FRET_REACH) return true;
     }
   }
   return false;
@@ -325,14 +331,12 @@ function hasFingerReachViolation(fingerToFret) {
 function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId) {
   const facts = validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId);
   const reasonCodes = [];
-
   if (facts.fretSpan > MAXIMUM_STATIC_FRET_SPAN) {
     reasonCodes.push(PLAYABILITY_REJECTION_REASONS.FRET_SPAN_EXCEEDED);
   }
   if (hasFingerReachViolation(facts.fingerToFret)) {
     reasonCodes.push(PLAYABILITY_REJECTION_REASONS.FINGER_REACH_EXCEEDED);
   }
-
   return Object.freeze({
     shapeCandidateId: shape.shapeCandidateId,
     status: reasonCodes.length === 0
@@ -345,10 +349,8 @@ function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId) 
   });
 }
 
-function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtime = null) {
+function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtime = null) {
   checkpoint(runtime, 'physical-playability-v2:start');
-
-  const leftHand = createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime);
   validateLeftHandIdentity(leftHand);
 
   const counters = {
@@ -368,7 +370,7 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
       || !Array.isArray(group.voicingCandidates)
       || group.voicingCandidateCount !== group.voicingCandidates.length
     ) {
-      throw invalid('PA-9 encountered an invalid recomputed PA-8 group.', { groupIndex });
+      throw invalid('PA-9 encountered an invalid PA-8 snapshot group.', { groupIndex });
     }
 
     const voicingCandidates = new Array(group.voicingCandidates.length);
@@ -383,7 +385,7 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
         || !Array.isArray(voicing.shapeCandidates)
         || voicing.shapeCandidateCount !== voicing.shapeCandidates.length
       ) {
-        throw invalid('PA-9 encountered an invalid recomputed PA-8 voicing candidate.', {
+        throw invalid('PA-9 encountered an invalid PA-8 snapshot voicing candidate.', {
           groupIndex,
           voicingIndex,
         });
@@ -445,7 +447,7 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
     counters.voicingCandidates !== leftHand.voicingCandidateCount
     || counters.shapeCandidates !== leftHand.shapeCandidateCount
   ) {
-    throw invalid('PA-9 detected inconsistent recomputed PA-8 aggregate counts.');
+    throw invalid('PA-9 detected inconsistent PA-8 snapshot aggregate counts.');
   }
 
   checkpoint(runtime, 'physical-playability-v2:complete', {
@@ -478,6 +480,11 @@ function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtim
   });
 }
 
+function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtime = null) {
+  const leftHand = createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime);
+  return validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtime);
+}
+
 module.exports = {
   PHYSICAL_PLAYABILITY_VALIDATION_VERSION,
   PHYSICAL_PLAYABILITY_VALIDATION_DOCUMENT_TYPE,
@@ -489,4 +496,5 @@ module.exports = {
   MAX_PHYSICAL_PLAYABILITY_VALIDATIONS,
   PhysicalPlayabilityValidationError,
   validatePhysicalPlayabilityV2,
+  validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot,
 };
