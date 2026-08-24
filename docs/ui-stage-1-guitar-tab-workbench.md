@@ -1,10 +1,10 @@
 # UI Stage 1 — Guitar TAB Workbench
 
-Status: active product-UI line built on `UI-RUNTIME-01`.
+Status: merged product-UI foundation with guarded MONO_V1 structured editing; tie-chain browser enablement is the current follow-up gate.
 
 ## Product target
 
-The first workbench is deliberately narrow:
+The workbench provides:
 
 1. safe `.musicxml` / `.xml` upload;
 2. standard notation above rhythmic guitar TAB;
@@ -13,7 +13,7 @@ The first workbench is deliberately narrow:
 5. a side panel that surfaces structured conversion issues and can focus the affected measure;
 6. structured note editing followed by deterministic TAB regeneration.
 
-Items 1–5 are merged. Item 6 is implemented on the structured-edit stage branch for the monophonic v1 route: a rendered note or TAB number is mapped back to a canonical event identity, the requested pitch is submitted as a bounded revision command, and the engine rebuilds the canonical result and renderer MusicXML before the workbench reloads notation and TAB together.
+Items 1–6 are merged for ordinary MONO_V1 pitch edits. A rendered note or TAB number is mapped back to a canonical event identity, the requested pitch is submitted as a bounded revision command, and the engine rebuilds the canonical result and renderer MusicXML before the workbench reloads notation and TAB together.
 
 ## Runtime split
 
@@ -45,47 +45,52 @@ The page intentionally targets same-origin `/api/upload` and `/api/edit` host se
 - starting a new upload hides the previous rendered score and disables transport; a BLOCKED or failed upload keeps it hidden so stale notation cannot be mistaken for the current document;
 - a BLOCKED edit does not replace the current valid score or revision history; it surfaces the structured issue and keeps the last accepted renderer document visible.
 
-## Viewer and playback
+## Viewer, playback and selection
 
 `web/guitar-tab-workbench/workbench.js` mounts an alphaTab `AlphaTabApi` with SVG rendering, standard notation + tablature, note bounds, cursor/highlighting and synthesizer playback. The default product configuration uses the pinned same-origin soundfont path. A player-mode injection seam exists only so compatibility CI can exercise render/cursor behavior deterministically without depending on runner audio.
 
-Play and Stop call alphaTab's player API. Existing alphaTab synth diagnostics remain the separate browser-audio compatibility evidence.
-
-## Cursor, selection and issue panel
-
 Player position events update a visible measure/tick status. For a current PASS renderer document, the workbench can focus a structured issue location by `measureIndex` or visible measure number and moves alphaTab's tick cursor to the first musical beat of that measure.
 
-alphaTab `noteMouseDown` is enabled through note bounds. On the supported MONO_V1 route, the clicked renderer note is resolved by master-bar index plus beat index and then checked against the current canonical measure/event. Pitch controls are populated only from the canonical event, not from the renderer model. Tied notes remain selectable for diagnosis but their Apply action is disabled until coordinated tie-chain editing exists.
-
-The issue panel consumes only structured runtime issues. A blocked conversion or edit does not invent or repair notes.
+alphaTab `noteMouseDown` is enabled through note bounds. On the supported MONO_V1 route, the clicked renderer note is resolved by master-bar index plus beat index and checked against the current canonical measure/event. Pitch controls are populated only from the canonical event, never from renderer pitch/fret/string data.
 
 ## Structured edit contract
 
-The edit runtime accepts only bounded cumulative `REPLACE_PITCH` commands with matching `measureIndex`, `eventIndex` and deterministic `eventId`. It validates the immutable input SHA, reparses the original source, replays each accepted command, recreates the canonical music document, reruns guitar candidate generation and fingering optimization, serializes a fresh notation+TAB MusicXML document and returns that complete result.
+The edit runtime accepts bounded cumulative pitch-replacement commands with matching `measureIndex`, `eventIndex` and deterministic `eventId`. It validates the immutable input SHA, reparses the original source, replays each accepted command, recreates the canonical music document, reruns guitar candidate generation and fingering optimization, serializes a fresh notation+TAB MusicXML document and returns that complete result.
+
+Ordinary notes produce `REPLACE_PITCH` revisions.
+
+Valid MONO_V1 tie chains are now a separately guarded extension:
+
+- a tied target must resolve to an immediately adjacent, pitch-identical, timing-contiguous chain;
+- tie-start/tie-stop markers must be internally consistent across the complete chain;
+- the requested pitch is applied atomically to every member of the validated chain as `REPLACE_TIE_CHAIN_PITCH`;
+- malformed, non-contiguous, asymmetric or pitch-mismatched chains fail closed with `INVALID_TIE_CHAIN` before any accepted renderer state is replaced;
+- after full TAB regeneration, every member of the tie chain must retain the same selected guitar string and fret, otherwise the revision fails closed with `TIE_CHAIN_FINGERING_INCONSISTENT`.
+
+The browser does not attempt to validate tie topology itself. It enables Apply for a selected tied note and delegates authority to `processMusicXmlNoteEdit`; a BLOCKED response preserves the last accepted score and command history.
 
 Current deliberate limits:
 
 - MONO_V1 only;
 - pitch replacement only;
 - rest targets rejected;
-- tied-note targets rejected until tie-chain revisions are available;
 - out-of-range guitar pitches fail closed; no automatic octave displacement;
-- no independent TAB editing.
+- no independent TAB editing;
+- POLY_V2 structured editing remains a separate future authority gate.
 
 ## CI evidence
 
-Required gates for this stage:
+Required gates for this line:
 
-- complete Node 18/20/22 repository tests, including structured-edit runtime tests;
+- complete Node 18/20/22 repository tests, including structured-edit and tie-chain runtime tests;
 - static workbench contract proving required controls, local-only assets, no HTML injection APIs, no browser persistence, no browser MusicXML mutation and no internal-engine browser import;
 - existing alphaTab importer/SVG/v2/PA-12 compatibility gates;
 - existing browser renderer/cursor smoke;
 - Guitar TAB Workbench browser smoke proving real upload through `processMusicXmlUpload`, one guitar track/two staves, visible standard notation + TAB, standard tuning and SVG render;
-- the same browser smoke selects a real alphaTab note model, maps it to canonical `m1-e1`, changes D#4 to G4 through `processMusicXmlNoteEdit`, verifies revision 1, verifies the canonical fingering position changed and verifies the rebuilt notation+TAB document renders;
-- the browser smoke then requests an unplayable C7 edit and proves it is BLOCKED without changing revision 1 or hiding/replacing the accepted G4 score;
-- tied-note selection is proven non-applicable;
+- ordinary edit browser evidence selects a real alphaTab note, changes D#4 to G4 through `processMusicXmlNoteEdit`, verifies the revision and regenerated fingering, and proves a subsequent unplayable C7 edit is blocked without replacing the accepted score;
+- a dedicated tie-chain browser smoke loads a valid two-measure tied C4, selects the rendered tied note, applies D4 through the same browser edit path, verifies both canonical tie members become D4, verifies `REPLACE_TIE_CHAIN_PITCH`, verifies two affected events, verifies one identical regenerated string/fret across the chain, and verifies the rebuilt notation+TAB renders;
 - alphaTab synthesizer diagnostic remains visible and non-authoritative for runner-specific audio readiness.
 
 ## Remaining edit expansion
 
-After this monophonic structured-edit gate is merged, later capability stages may add coordinated tie-chain edits and a separately reviewed polyphonic edit contract. Neither expansion may weaken source identity, fail-closed behavior or the rule that TAB is regenerated from musical source rather than patched independently.
+The next authority boundary is POLY_V2 structured editing. It must preserve source-event identity across voices/chords, avoid partial chord mutation, rebuild the complete canonical polyphonic result and TAB after every accepted revision, and retain the same fail-closed source-SHA and immutable-replay model. No polyphonic browser write path should be enabled before that contract and its tests are green.
