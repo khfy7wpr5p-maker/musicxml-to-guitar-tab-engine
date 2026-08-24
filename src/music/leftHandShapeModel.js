@@ -66,6 +66,17 @@ function checkpoint(runtime, phase, details = {}) {
   }
 }
 
+function isDeeplyFrozen(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') return true;
+  if (seen.has(value)) return true;
+  seen.add(value);
+  if (!Object.isFrozen(value)) return false;
+  for (const nested of Object.values(value)) {
+    if (!isDeeplyFrozen(nested, seen)) return false;
+  }
+  return true;
+}
+
 function validateVoicingModel(voicing) {
   if (
     !voicing
@@ -73,8 +84,9 @@ function validateVoicingModel(voicing) {
     || voicing.contractVersion !== GUITAR_VOICING_CANDIDATE_MODEL_VERSION
     || voicing.policy !== GUITAR_VOICING_CANDIDATE_POLICY
     || !Array.isArray(voicing.groups)
+    || !isDeeplyFrozen(voicing)
   ) {
-    throw invalid('PA-8 received an invalid recomputed PA-7 voicing model identity.');
+    throw invalid('PA-8 requires the deeply immutable PA-7 voicing candidate snapshot.');
   }
 }
 
@@ -108,14 +120,14 @@ function normalizePositions(candidate, sourceGroupId) {
       || position.fret < DEFAULT_FRET_RANGE.minimumFret
       || position.fret > DEFAULT_FRET_RANGE.maximumFret
     ) {
-      throw invalid('PA-8 encountered invalid recomputed PA-7 position facts.', {
+      throw invalid('PA-8 encountered invalid PA-7 snapshot position facts.', {
         sourceGroupId,
         voicingCandidateId: candidate.candidateId,
         positionIndex: index,
       });
     }
     if (usedStrings.has(position.string)) {
-      throw invalid('PA-8 requires distinct strings inside a recomputed PA-7 voicing candidate.', {
+      throw invalid('PA-8 requires distinct strings inside a PA-7 voicing candidate.', {
         sourceGroupId,
         voicingCandidateId: candidate.candidateId,
         string: position.string,
@@ -141,9 +153,7 @@ function validateOrderedFingerPolicy(positions, fingers) {
     const position = positions[index];
     const finger = fingers[index];
     if (position.fret === 0) {
-      if (finger !== OPEN_STRING_FINGER) {
-        return false;
-      }
+      if (finger !== OPEN_STRING_FINGER) return false;
       continue;
     }
     if (!Number.isInteger(finger) || finger < MIN_FRETTING_FINGER || finger > MAX_FRETTING_FINGER) {
@@ -151,9 +161,7 @@ function validateOrderedFingerPolicy(positions, fingers) {
     }
 
     const priorFret = fingerToFret.get(finger);
-    if (priorFret !== undefined && priorFret !== position.fret) {
-      return false;
-    }
+    if (priorFret !== undefined && priorFret !== position.fret) return false;
     fingerToFret.set(finger, position.fret);
 
     let fretFingers = fretToFingers.get(position.fret);
@@ -168,25 +176,17 @@ function validateOrderedFingerPolicy(positions, fingers) {
   for (let fretIndex = 1; fretIndex < frets.length; fretIndex += 1) {
     const lowerFingers = [...fretToFingers.get(frets[fretIndex - 1])];
     const higherFingers = [...fretToFingers.get(frets[fretIndex])];
-    const maximumLowerFinger = Math.max(...lowerFingers);
-    const minimumHigherFinger = Math.min(...higherFingers);
-    if (maximumLowerFinger >= minimumHigherFinger) {
-      return false;
-    }
+    if (Math.max(...lowerFingers) >= Math.min(...higherFingers)) return false;
   }
-
   return true;
 }
 
 function buildBarres(positions, fingers) {
   const byFinger = new Map();
-
   for (let index = 0; index < positions.length; index += 1) {
     const position = positions[index];
     const finger = fingers[index];
-    if (finger === OPEN_STRING_FINGER) {
-      continue;
-    }
+    if (finger === OPEN_STRING_FINGER) continue;
     let entries = byFinger.get(finger);
     if (!entries) {
       entries = [];
@@ -197,46 +197,30 @@ function buildBarres(positions, fingers) {
 
   const barres = [];
   for (const [finger, entries] of byFinger) {
-    if (entries.length < 2) {
-      continue;
-    }
-
+    if (entries.length < 2) continue;
     const fret = entries[0].position.fret;
     let startString = GUITAR_STRING_COUNT;
     let endString = 1;
     for (const entry of entries) {
-      if (entry.position.fret !== fret) {
-        return null;
-      }
+      if (entry.position.fret !== fret) return null;
       startString = Math.min(startString, entry.position.string);
       endString = Math.max(endString, entry.position.string);
     }
-
     for (let index = 0; index < positions.length; index += 1) {
       const position = positions[index];
-      if (position.string < startString || position.string > endString) {
-        continue;
-      }
-      if (position.fret < fret) {
-        return null;
-      }
-      if (position.fret === fret && fingers[index] !== finger) {
-        return null;
-      }
+      if (position.string < startString || position.string > endString) continue;
+      if (position.fret < fret) return null;
+      if (position.fret === fret && fingers[index] !== finger) return null;
     }
-
     barres.push(Object.freeze({
       finger,
       fret,
       startString,
       endString,
       stringSpan: endString - startString + 1,
-      kind: startString === 1 && endString === GUITAR_STRING_COUNT
-        ? 'FULL_BARRE'
-        : 'PARTIAL_BARRE',
+      kind: startString === 1 && endString === GUITAR_STRING_COUNT ? 'FULL_BARRE' : 'PARTIAL_BARRE',
     }));
   }
-
   barres.sort((left, right) => (
     left.fret - right.fret
     || left.finger - right.finger
@@ -247,19 +231,13 @@ function buildBarres(positions, fingers) {
 }
 
 function buildShapeCandidate(candidateId, positions, fingers, shapeIndex) {
-  if (!validateOrderedFingerPolicy(positions, fingers)) {
-    return null;
-  }
-
+  if (!validateOrderedFingerPolicy(positions, fingers)) return null;
   const barres = buildBarres(positions, fingers);
-  if (barres === null) {
-    return null;
-  }
+  if (barres === null) return null;
 
   const fingerAssignments = new Array(positions.length);
   const usedFingers = new Set();
   const frettedFrets = [];
-
   for (let index = 0; index < positions.length; index += 1) {
     const position = positions[index];
     const finger = fingers[index];
@@ -275,10 +253,8 @@ function buildShapeCandidate(candidateId, positions, fingers, shapeIndex) {
       frettedFrets.push(position.fret);
     }
   }
-
   const minimumFrettedFret = frettedFrets.length === 0 ? null : Math.min(...frettedFrets);
   const maximumFrettedFret = frettedFrets.length === 0 ? null : Math.max(...frettedFrets);
-
   return Object.freeze({
     shapeCandidateId: `${candidateId}:left-hand:${shapeIndex}`,
     assignmentCount: positions.length,
@@ -296,11 +272,8 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
   const shapeCandidates = [];
   const fingers = new Array(positions.length).fill(OPEN_STRING_FINGER);
   const frettedIndexes = [];
-
   for (let index = 0; index < positions.length; index += 1) {
-    if (positions[index].fret > 0) {
-      frettedIndexes.push(index);
-    }
+    if (positions[index].fret > 0) frettedIndexes.push(index);
   }
 
   function visit(frettedIndex) {
@@ -311,34 +284,22 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
       assignmentAttemptCount: counters.assignmentAttempts,
       shapeCandidateCount: counters.shapeCandidates,
     });
-
     if (frettedIndex === frettedIndexes.length) {
       const observedAttempts = counters.assignmentAttempts + 1;
       if (observedAttempts > MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS) {
-        throw assignmentAttemptLimitExceeded(observedAttempts, {
-          sourceGroupId,
-          voicingCandidateId: candidateId,
-        });
+        throw assignmentAttemptLimitExceeded(observedAttempts, { sourceGroupId, voicingCandidateId: candidateId });
       }
       counters.assignmentAttempts = observedAttempts;
-
       const shape = buildShapeCandidate(candidateId, positions, fingers, shapeCandidates.length);
-      if (!shape) {
-        return;
-      }
-
+      if (!shape) return;
       const observedShapes = counters.shapeCandidates + 1;
       if (observedShapes > MAX_LEFT_HAND_SHAPE_CANDIDATES) {
-        throw shapeLimitExceeded(observedShapes, {
-          sourceGroupId,
-          voicingCandidateId: candidateId,
-        });
+        throw shapeLimitExceeded(observedShapes, { sourceGroupId, voicingCandidateId: candidateId });
       }
       counters.shapeCandidates = observedShapes;
       shapeCandidates.push(shape);
       return;
     }
-
     const positionIndex = frettedIndexes[frettedIndex];
     for (let finger = MIN_FRETTING_FINGER; finger <= MAX_FRETTING_FINGER; finger += 1) {
       fingers[positionIndex] = finger;
@@ -351,32 +312,23 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
   return Object.freeze(shapeCandidates);
 }
 
-function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = null) {
+function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime = null) {
   checkpoint(runtime, 'left-hand-shape-model:start');
-
-  const voicing = createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, runtime);
   validateVoicingModel(voicing);
 
-  const counters = {
-    voicingCandidates: 0,
-    shapeCandidates: 0,
-    assignmentAttempts: 0,
-  };
+  const counters = { voicingCandidates: 0, shapeCandidates: 0, assignmentAttempts: 0 };
   const groups = new Array(voicing.groups.length);
 
   for (let groupIndex = 0; groupIndex < voicing.groups.length; groupIndex += 1) {
     checkpoint(runtime, 'left-hand-shape-model:group', { groupIndex });
     const group = voicing.groups[groupIndex];
     if (!group || typeof group.sourceGroupId !== 'string' || !Array.isArray(group.candidates)) {
-      throw invalid('PA-8 encountered an invalid recomputed PA-7 group.', { groupIndex });
+      throw invalid('PA-8 encountered an invalid PA-7 snapshot group.', { groupIndex });
     }
 
     const voicingCandidates = new Array(group.candidates.length);
     for (let candidateIndex = 0; candidateIndex < group.candidates.length; candidateIndex += 1) {
-      checkpoint(runtime, 'left-hand-shape-model:voicing-candidate', {
-        groupIndex,
-        candidateIndex,
-      });
+      checkpoint(runtime, 'left-hand-shape-model:voicing-candidate', { groupIndex, candidateIndex });
       const candidate = group.candidates[candidateIndex];
       const positions = normalizePositions(candidate, group.sourceGroupId);
       const shapeCandidates = enumerateShapeCandidates(
@@ -387,7 +339,6 @@ function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = n
         group.sourceGroupId,
       );
       counters.voicingCandidates += 1;
-
       voicingCandidates[candidateIndex] = Object.freeze({
         voicingCandidateId: candidate.candidateId,
         positions,
@@ -431,6 +382,11 @@ function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = n
   });
 }
 
+function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = null) {
+  const voicing = createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, runtime);
+  return createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime);
+}
+
 module.exports = {
   LEFT_HAND_SHAPE_MODEL_VERSION,
   LEFT_HAND_SHAPE_MODEL_DOCUMENT_TYPE,
@@ -439,4 +395,5 @@ module.exports = {
   MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS,
   LeftHandShapeModelError,
   createLeftHandShapeModel,
+  createLeftHandShapeModelFromVoicingCandidateSnapshot,
 };
