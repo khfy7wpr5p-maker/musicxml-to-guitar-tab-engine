@@ -147,6 +147,7 @@
       alphaTab,
       upload: adapter.upload,
       edit: adapter.edit,
+      polyphonicEdit: adapter.polyphonicEdit,
       assetBaseUrl: assetUrls.assetBaseUrl,
       scriptFileUrl: assetUrls.scriptFileUrl,
       soundFontUrl: assetUrls.soundFontUrl,
