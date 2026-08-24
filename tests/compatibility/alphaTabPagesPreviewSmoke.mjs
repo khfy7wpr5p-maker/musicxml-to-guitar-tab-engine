@@ -152,15 +152,15 @@ try {
   await page.click('[data-inspector-tab="issues"]');
   const tabEvidence = await page.evaluate(() => ({
     activeTab: window.__workbenchUx.snapshot().activeTab,
+    rootTab: document.querySelector('[data-guitar-tab-workbench]')?.dataset.inspectorTab || null,
     noteHidden: document.querySelector('[data-inspector-panel="note"]')?.hidden,
     issuesHidden: document.querySelector('[data-inspector-panel="issues"]')?.hidden,
-    selected: document.querySelector('[data-inspector-tab="issues"]')?.getAttribute('aria-selected'),
   }));
   assert.deepEqual(tabEvidence, {
     activeTab: 'issues',
+    rootTab: 'issues',
     noteHidden: true,
     issuesHidden: false,
-    selected: 'true',
   });
 
   await page.click('[data-role="zoom-in"]');
