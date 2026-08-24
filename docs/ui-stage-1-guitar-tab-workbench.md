@@ -58,20 +58,20 @@ Play and Stop call alphaTab's player API. Existing alphaTab synth diagnostics re
 
 Player position events update a visible measure/tick status. For a current PASS renderer document, the workbench can focus a structured issue location by `measureIndex` or visible measure number and moves alphaTab's tick cursor to the first musical beat of that measure.
 
-alphaTab `noteMouseDown` is enabled through note bounds. On the supported MONO_V1 route, the clicked renderer note is resolved by master-bar index plus beat index and then checked against the current canonical measure/event. Pitch controls are populated only from the canonical event, not from the renderer model. Tied notes remain selectable for diagnosis but their Apply action is disabled until coordinated tie-chain editing exists.
+alphaTab `noteMouseDown` is enabled through note bounds. On the supported MONO_V1 route, the clicked renderer note is resolved by master-bar index plus beat index and then checked against the current canonical measure/event. Pitch controls are populated only from the canonical event, not from the renderer model. The current browser editor keeps tied notes selectable for diagnosis but disables Apply for them; the internal note-edit runtime may support a broader guarded atomic tie-chain operation without that capability automatically becoming browser/UI authority.
 
 The issue panel consumes only structured runtime issues. A blocked conversion or edit does not invent or repair notes.
 
 ## Structured edit contract
 
-The edit runtime accepts only bounded cumulative `REPLACE_PITCH` commands with matching `measureIndex`, `eventIndex` and deterministic `eventId`. It validates the immutable input SHA, reparses the original source, replays each accepted command, recreates the canonical music document, reruns guitar candidate generation and fingering optimization, serializes a fresh notation+TAB MusicXML document and returns that complete result.
+The edit runtime accepts bounded cumulative pitch-revision commands with matching `measureIndex`, `eventIndex` and deterministic `eventId`. It validates the immutable input SHA, reparses the original source, replays each accepted command, recreates the canonical music document, reruns guitar candidate generation and fingering optimization, serializes a fresh notation+TAB MusicXML document and returns that complete result. Runtime v1.1 can apply a validated adjacent tie chain atomically and verifies one regenerated string/fret position across the chain; this does not by itself enable tied-note Apply in the browser Workbench.
 
-Current deliberate limits:
+Current browser/UI limits:
 
 - MONO_V1 only;
 - pitch replacement only;
 - rest targets rejected;
-- tied-note targets rejected until tie-chain revisions are available;
+- direct tied-note Apply remains disabled in the current Workbench UI even though the guarded runtime supports atomic validated tie-chain revisions;
 - out-of-range guitar pitches fail closed; no automatic octave displacement;
 - no independent TAB editing.
 
@@ -90,4 +90,4 @@ Required gates for the Workbench and UI Platform line:
 
 ## Remaining edit expansion
 
-Later capability stages may add coordinated tie-chain edits and a separately reviewed polyphonic edit contract. Neither expansion may weaken source identity, fail-closed behavior or the rule that TAB is regenerated from musical source rather than patched independently.
+A future browser/UI capability gate may expose the already-guarded runtime tie-chain operation, and a separately reviewed polyphonic edit contract may follow later. Neither expansion may weaken source identity, fail-closed behavior or the rule that TAB is regenerated from musical source rather than patched independently.
