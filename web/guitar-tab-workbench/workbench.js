@@ -73,6 +73,8 @@
     const assetBaseUrl = String(options.assetBaseUrl || '/assets').replace(/\/$/, '');
     const scriptFileUrl = options.scriptFileUrl || `${assetBaseUrl}/alphatab.js`;
     const soundFontUrl = options.soundFontUrl || `${assetBaseUrl}/soundfont/sonivox.sf2`;
+    const playerMode = options.playerMode ?? alphaTab.PlayerMode.EnabledSynthesizer;
+    const outputMode = options.outputMode ?? alphaTab.PlayerOutputMode.WebAudioScriptProcessor;
 
     const api = new alphaTab.AlphaTabApi(scoreHost, {
       core: {
@@ -88,8 +90,8 @@
       },
       player: {
         enablePlayer: true,
-        playerMode: alphaTab.PlayerMode.EnabledSynthesizer,
-        outputMode: alphaTab.PlayerOutputMode.WebAudioScriptProcessor,
+        playerMode,
+        outputMode,
         soundFont: soundFontUrl,
         enableCursor: true,
         enableElementHighlighting: true,
@@ -118,9 +120,7 @@
         starts.push({
           index,
           tick: beat.absolutePlaybackStart,
-          number: api.score?.masterBars?.[index]?.index !== undefined
-            ? String(index + 1)
-            : String(index + 1),
+          number: String(index + 1),
         });
       }
       return starts;
