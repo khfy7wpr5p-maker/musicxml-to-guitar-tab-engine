@@ -1,5 +1,6 @@
 'use strict';
 
+const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { resolveProcessingRuntime } = require('./processingRuntime');
 const {
@@ -26,7 +27,7 @@ class InternalPolyphonicConversionV2Error extends EngineError {
 }
 
 function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
@@ -40,7 +41,7 @@ function invalidOptions(message, details = {}) {
 }
 
 function normalizeOptions(options) {
-  if (!isPlainObject(options)) throw invalidOptions('options must be a plain object.');
+  if (!isPlainObject(options)) throw invalidOptions('options must be a non-proxy plain object.');
   const allowed = new Set(['processing', 'writer']);
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key)) {
@@ -53,7 +54,7 @@ function normalizeOptions(options) {
       throw invalidOptions('options fields must be enumerable data properties.', { field: key });
     }
     if (!isPlainObject(descriptor.value)) {
-      throw invalidOptions(`options.${key} must be a plain object.`, { field: key });
+      throw invalidOptions(`options.${key} must be a non-proxy plain object.`, { field: key });
     }
   }
   return {
