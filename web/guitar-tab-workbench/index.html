@@ -34,12 +34,51 @@
         <div class="workbench-score" data-role="score"></div>
       </section>
 
-      <aside class="workbench-issues" aria-label="MusicXML issues">
-        <div class="workbench-issues__heading">
-          <h2>Issues</h2>
-          <span data-role="issue-count">0</span>
-        </div>
-        <ol data-role="issues"></ol>
+      <aside class="workbench-sidebar" aria-label="Workbench inspector">
+        <section class="workbench-editor" aria-label="Structured note editor">
+          <div class="workbench-editor__heading">
+            <h2>Note editor</h2>
+            <strong data-role="selected-note">None</strong>
+          </div>
+          <p class="workbench-editor__status" data-role="edit-status" aria-live="polite">
+            Select a note in the score or TAB.
+          </p>
+          <div class="workbench-editor__controls">
+            <label>
+              <span>Step</span>
+              <select data-role="edit-step" disabled>
+                <option>A</option><option>B</option><option selected>C</option>
+                <option>D</option><option>E</option><option>F</option><option>G</option>
+              </select>
+            </label>
+            <label>
+              <span>Accidental</span>
+              <select data-role="edit-alter" disabled>
+                <option value="-2">bb</option>
+                <option value="-1">b</option>
+                <option value="0" selected>natural</option>
+                <option value="1">#</option>
+                <option value="2">##</option>
+              </select>
+            </label>
+            <label>
+              <span>Octave</span>
+              <input data-role="edit-octave" type="number" min="-1" max="9" step="1" value="4" disabled>
+            </label>
+          </div>
+          <div class="workbench-editor__actions">
+            <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
+            <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
+          </div>
+        </section>
+
+        <section class="workbench-issues" aria-label="MusicXML issues">
+          <div class="workbench-issues__heading">
+            <h2>Issues</h2>
+            <span data-role="issue-count">0</span>
+          </div>
+          <ol data-role="issues"></ol>
+        </section>
       </aside>
     </div>
   </main>
@@ -49,15 +88,30 @@
   <script>
     (() => {
       const root = document.querySelector('[data-guitar-tab-workbench]');
-      const upload = async (file) => {
-        const bytes = await file.arrayBuffer();
+
+      const upload = async (file, ownedBytes) => {
         const response = await fetch(`/api/upload?fileName=${encodeURIComponent(file.name)}`, {
           method: 'POST',
           headers: {'content-type': 'application/octet-stream'},
-          body: bytes,
+          body: ownedBytes,
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload?.message || 'Upload request failed.');
+        return payload;
+      };
+
+      const edit = async (request) => {
+        const form = new FormData();
+        form.append(
+          'source',
+          new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
+          request.fileName,
+        );
+        form.append('expectedInputSha256', request.expectedInputSha256);
+        form.append('commands', JSON.stringify(request.commands));
+        const response = await fetch('/api/edit', {method: 'POST', body: form});
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.message || 'Edit request failed.');
         return payload;
       };
 
@@ -65,6 +119,7 @@
         root,
         alphaTab: window.alphaTab,
         upload,
+        edit,
         assetBaseUrl: '/assets',
         scriptFileUrl: window.location.origin + '/assets/alphatab.js',
         soundFontUrl: window.location.origin + '/assets/soundfont/sonivox.sf2',

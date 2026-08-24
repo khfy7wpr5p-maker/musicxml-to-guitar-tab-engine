@@ -2,6 +2,7 @@
   'use strict';
 
   const MAX_CLIENT_UPLOAD_BYTES = 5 * 1024 * 1024;
+  const MAX_REVISION_COMMANDS = 128;
   const ALLOWED_EXTENSIONS = ['.musicxml', '.xml'];
 
   function assert(condition, message) {
@@ -34,14 +35,29 @@
     return element;
   }
 
+  function cloneCommand(command) {
+    return {
+      measureIndex: command.measureIndex,
+      eventIndex: command.eventIndex,
+      eventId: command.eventId,
+      pitch: {
+        step: command.pitch.step,
+        alter: command.pitch.alter,
+        octave: command.pitch.octave,
+      },
+    };
+  }
+
   function mount(options) {
     assert(options && typeof options === 'object', 'Workbench options are required.');
     const root = options.root;
     const alphaTab = options.alphaTab;
     const upload = options.upload;
+    const edit = options.edit;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
     assert(alphaTab && typeof alphaTab.AlphaTabApi === 'function', 'alphaTab is required.');
     assert(typeof upload === 'function', 'A bounded upload function is required.');
+    assert(typeof edit === 'function', 'A bounded structured-edit function is required.');
 
     const documentRef = root.ownerDocument;
     const fileInput = root.querySelector('[data-role="musicxml-file"]');
@@ -53,12 +69,25 @@
     const documentStatus = root.querySelector('[data-role="document-status"]');
     const cursorStatus = root.querySelector('[data-role="cursor-status"]');
     const routeStatus = root.querySelector('[data-role="route-status"]');
+    const selectedNote = root.querySelector('[data-role="selected-note"]');
+    const editStatus = root.querySelector('[data-role="edit-status"]');
+    const editStep = root.querySelector('[data-role="edit-step"]');
+    const editAlter = root.querySelector('[data-role="edit-alter"]');
+    const editOctave = root.querySelector('[data-role="edit-octave"]');
+    const applyEditButton = root.querySelector('[data-role="apply-edit"]');
+    const cancelEditButton = root.querySelector('[data-role="cancel-edit"]');
 
-    assert(fileInput && playButton && stopButton && scoreHost && issueList, 'Workbench markup is incomplete.');
+    assert(
+      fileInput && playButton && stopButton && scoreHost && issueList
+      && selectedNote && editStatus && editStep && editAlter && editOctave
+      && applyEditButton && cancelEditButton,
+      'Workbench markup is incomplete.',
+    );
 
     const state = {
       destroyed: false,
       loading: false,
+      editing: false,
       runtimeResult: null,
       scoreLoaded: false,
       playerReady: false,
@@ -67,7 +96,17 @@
       currentMeasureIndex: null,
       currentMeasureNumber: null,
       issueCount: 0,
+      revisionNumber: 0,
+      selectedEvent: null,
       lastError: null,
+    };
+
+    const session = {
+      sourceFileName: null,
+      sourceBytes: null,
+      expectedInputSha256: null,
+      commands: [],
+      pendingFocus: null,
     };
 
     const assetBaseUrl = String(options.assetBaseUrl || '/assets').replace(/\/$/, '');
@@ -103,6 +142,25 @@
       if (element) element.textContent = value;
     }
 
+    function clearSelection(message = 'Select a note in the score or TAB.') {
+      state.selectedEvent = null;
+      setText(selectedNote, 'None');
+      setText(editStatus, message);
+      editStep.value = 'C';
+      editAlter.value = '0';
+      editOctave.value = '4';
+    }
+
+    function clearSession() {
+      session.sourceFileName = null;
+      session.sourceBytes = null;
+      session.expectedInputSha256 = null;
+      session.commands = [];
+      session.pendingFocus = null;
+      state.revisionNumber = 0;
+      clearSelection();
+    }
+
     function clearActiveScoreState() {
       state.scoreLoaded = false;
       state.positionTick = 0;
@@ -112,13 +170,35 @@
       setText(cursorStatus, 'No active measure');
     }
 
+    function canEdit() {
+      return Boolean(
+        !state.loading
+        && !state.editing
+        && state.scoreLoaded
+        && state.runtimeResult?.status === 'PASS'
+        && state.runtimeResult?.route === 'MONO_V1'
+        && state.selectedEvent
+        && !state.selectedEvent.tied
+        && session.sourceBytes
+        && session.expectedInputSha256
+        && session.commands.length < MAX_REVISION_COMMANDS,
+      );
+    }
+
     function updateControls() {
-      const ready = !state.loading
+      const busy = state.loading || state.editing;
+      const playbackReady = !busy
         && state.scoreLoaded
         && state.playerReady
         && state.runtimeResult?.status === 'PASS';
-      playButton.disabled = !ready;
-      stopButton.disabled = !ready;
+      fileInput.disabled = busy;
+      playButton.disabled = !playbackReady;
+      stopButton.disabled = !playbackReady;
+      applyEditButton.disabled = !canEdit();
+      cancelEditButton.disabled = busy || !state.selectedEvent;
+      editStep.disabled = busy || !state.selectedEvent;
+      editAlter.disabled = busy || !state.selectedEvent;
+      editOctave.disabled = busy || !state.selectedEvent;
     }
 
     function measureStarts() {
@@ -164,8 +244,8 @@
       let index = Number.isInteger(location?.measureIndex) ? location.measureIndex : null;
       if (index === null && location?.measure !== null && location?.measure !== undefined) {
         const visible = String(location.measure);
-        const masterBars = api.score?.masterBars || [];
-        index = masterBars.findIndex((_, candidateIndex) => String(candidateIndex + 1) === visible);
+        const measures = state.runtimeResult?.canonicalTabResult?.measures || [];
+        index = measures.findIndex((measure) => String(measure.visibleMeasureNumber) === visible);
         if (index < 0) index = null;
       }
       if (index === null || index < 0) return false;
@@ -183,7 +263,12 @@
       setText(issueCount, String(safeIssues.length));
 
       if (safeIssues.length === 0) {
-        const empty = createElement(documentRef, 'li', 'workbench-issue workbench-issue--empty', 'No blocking issues.');
+        const empty = createElement(
+          documentRef,
+          'li',
+          'workbench-issue workbench-issue--empty',
+          'No blocking issues.',
+        );
         issueList.appendChild(empty);
         return;
       }
@@ -193,14 +278,96 @@
         const button = createElement(documentRef, 'button', 'workbench-issue__button');
         button.type = 'button';
         const code = typeof issue?.code === 'string' ? issue.code : 'UPLOAD_ISSUE';
-        const message = typeof issue?.message === 'string' ? issue.message : 'MusicXML processing issue.';
-        const measure = issue?.location?.measure ?? issue?.location?.measureIndex;
-        const locationText = measure === null || measure === undefined ? '' : ` · measure ${measure}`;
+        const message = typeof issue?.message === 'string'
+          ? issue.message
+          : 'MusicXML processing issue.';
+        const visibleMeasure = issue?.location?.measure
+          ?? (Number.isInteger(issue?.location?.measureIndex)
+            ? issue.location.measureIndex + 1
+            : null);
+        const locationText = visibleMeasure === null || visibleMeasure === undefined
+          ? ''
+          : ` · measure ${visibleMeasure}`;
         button.textContent = `${code}${locationText}: ${message}`;
         button.addEventListener('click', () => focusMeasure(issue?.location || null));
         item.appendChild(button);
         issueList.appendChild(item);
       }
+    }
+
+    function renderSelectedEvent(event, measure) {
+      if (!event || event.type !== 'note' || !event.pitch) {
+        clearSelection('Only note events can be edited.');
+        updateControls();
+        return false;
+      }
+      state.selectedEvent = {
+        measureIndex: measure.measureIndex,
+        eventIndex: event.eventIndex,
+        eventId: event.eventId,
+        visibleMeasureNumber: measure.visibleMeasureNumber,
+        pitch: {
+          step: event.pitch.step,
+          alter: event.pitch.alter,
+          octave: event.pitch.octave,
+          written: event.pitch.written,
+          midi: event.pitch.midi,
+        },
+        tied: Boolean(event.rhythm?.tieStart || event.rhythm?.tieStop),
+      };
+      setText(
+        selectedNote,
+        `${event.pitch.written} · measure ${measure.visibleMeasureNumber} · event ${event.eventIndex + 1}`,
+      );
+      editStep.value = event.pitch.step;
+      editAlter.value = String(event.pitch.alter);
+      editOctave.value = String(event.pitch.octave);
+      if (state.selectedEvent.tied) {
+        setText(editStatus, 'Tied-note editing is blocked until tie-chain revisions are supported.');
+      } else {
+        setText(editStatus, `Ready · revision ${state.revisionNumber}`);
+      }
+      updateControls();
+      return !state.selectedEvent.tied;
+    }
+
+    function selectEventByIdentity(identity) {
+      if (
+        state.runtimeResult?.status !== 'PASS'
+        || state.runtimeResult?.route !== 'MONO_V1'
+      ) {
+        clearSelection('Structured pitch editing is currently available only for MONO_V1 scores.');
+        updateControls();
+        return false;
+      }
+      const measures = state.runtimeResult.canonicalTabResult?.measures;
+      if (!Array.isArray(measures)) return false;
+      const measure = measures[identity?.measureIndex];
+      const event = measure?.events?.[identity?.eventIndex];
+      if (
+        !measure
+        || !event
+        || (identity.eventId && event.eventId !== identity.eventId)
+      ) {
+        clearSelection('The selected renderer note could not be matched to the canonical event.');
+        updateControls();
+        return false;
+      }
+      return renderSelectedEvent(event, measure);
+    }
+
+    function selectNote(note) {
+      const bar = note?.beat?.voice?.bar;
+      const measureIndex = Number.isInteger(bar?.masterBar?.index)
+        ? bar.masterBar.index
+        : (Number.isInteger(bar?.index) ? bar.index : null);
+      const eventIndex = Number.isInteger(note?.beat?.index) ? note.beat.index : null;
+      if (measureIndex === null || eventIndex === null) {
+        clearSelection('The clicked note does not expose a stable measure/event location.');
+        updateControls();
+        return false;
+      }
+      return selectEventByIdentity({ measureIndex, eventIndex });
     }
 
     function setRuntimeResult(result) {
@@ -214,12 +381,21 @@
 
       if (result.status !== 'PASS') {
         clearActiveScoreState();
+        clearSelection('Load a valid score before editing.');
         updateControls();
         return false;
       }
 
-      assert(typeof result.musicXml === 'string' && result.musicXml.length > 0, 'PASS result is missing renderer MusicXML.');
+      assert(
+        typeof result.musicXml === 'string' && result.musicXml.length > 0,
+        'PASS result is missing renderer MusicXML.',
+      );
       clearActiveScoreState();
+      clearSelection(
+        result.route === 'MONO_V1'
+          ? 'Select a note in the score or TAB.'
+          : 'Structured pitch editing is currently available only for MONO_V1 scores.',
+      );
       const bytes = new TextEncoder().encode(result.musicXml);
       const accepted = api.load(bytes);
       if (!accepted) throw new Error('alphaTab rejected renderer MusicXML.');
@@ -238,15 +414,36 @@
       state.lastError = null;
       if (state.playerReady) api.stop();
       clearActiveScoreState();
+      clearSession();
       setText(documentStatus, 'LOADING');
       setText(routeStatus, 'UNRESOLVED');
       updateControls();
+
       try {
-        const result = await upload(file);
+        const ownedBytes = new Uint8Array(await file.arrayBuffer());
+        if (ownedBytes.byteLength !== file.size) {
+          throw new Error('MusicXML file size changed while creating the workbench snapshot.');
+        }
+        const result = await upload(file, new Uint8Array(ownedBytes));
+        if (
+          result?.status === 'PASS'
+          && (typeof result?.input?.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(result.input.sha256))
+        ) {
+          throw new Error('PASS upload result is missing an exact source SHA-256 identity.');
+        }
+
+        if (result?.status === 'PASS') {
+          session.sourceFileName = file.name;
+          session.sourceBytes = ownedBytes;
+          session.expectedInputSha256 = result.input.sha256;
+          session.commands = [];
+          state.revisionNumber = 0;
+        }
         return setRuntimeResult(result);
       } catch (error) {
         state.lastError = error instanceof Error ? error.message : String(error);
         clearActiveScoreState();
+        clearSession();
         setText(documentStatus, 'ERROR');
         renderIssues([{
           code: 'WORKBENCH_UPLOAD_FAILED',
@@ -257,6 +454,117 @@
         throw error;
       } finally {
         state.loading = false;
+        updateControls();
+      }
+    }
+
+    function requestedPitch() {
+      const step = editStep.value;
+      const alter = Number.parseInt(editAlter.value, 10);
+      const octave = Number.parseInt(editOctave.value, 10);
+      if (!/^[A-G]$/.test(step)) throw new Error('Pitch step must be A through G.');
+      if (!Number.isSafeInteger(alter) || alter < -2 || alter > 2) {
+        throw new Error('Pitch accidental must be between double-flat and double-sharp.');
+      }
+      if (!Number.isSafeInteger(octave) || octave < -1 || octave > 9) {
+        throw new Error('Pitch octave must be between -1 and 9.');
+      }
+      return { step, alter, octave };
+    }
+
+    async function applySelectedEdit() {
+      if (!canEdit()) return false;
+      if (state.selectedEvent.tied) {
+        setText(editStatus, 'Tied-note editing is not enabled.');
+        return false;
+      }
+
+      let pitch;
+      try {
+        pitch = requestedPitch();
+      } catch (error) {
+        setText(editStatus, error.message);
+        return false;
+      }
+
+      const command = {
+        measureIndex: state.selectedEvent.measureIndex,
+        eventIndex: state.selectedEvent.eventIndex,
+        eventId: state.selectedEvent.eventId,
+        pitch,
+      };
+      const pendingCommands = [...session.commands.map(cloneCommand), cloneCommand(command)];
+      if (pendingCommands.length > MAX_REVISION_COMMANDS) {
+        setText(editStatus, 'Revision limit reached. Reload the source before continuing.');
+        updateControls();
+        return false;
+      }
+
+      const selectionIdentity = {
+        measureIndex: command.measureIndex,
+        eventIndex: command.eventIndex,
+        eventId: command.eventId,
+      };
+
+      state.editing = true;
+      state.lastError = null;
+      if (state.playerReady) api.stop();
+      setText(editStatus, `Applying revision ${pendingCommands.length}…`);
+      updateControls();
+
+      try {
+        const result = await edit({
+          fileName: session.sourceFileName,
+          bytes: new Uint8Array(session.sourceBytes),
+          expectedInputSha256: session.expectedInputSha256,
+          commands: pendingCommands.map(cloneCommand),
+        });
+
+        assert(result && typeof result === 'object', 'Edit result is invalid.');
+        assert(result.status === 'PASS' || result.status === 'BLOCKED', 'Edit result status is invalid.');
+
+        if (result.status === 'BLOCKED') {
+          state.lastError = result.preflight?.issues?.[0]?.message || 'The edit was blocked.';
+          renderIssues(result.preflight?.issues || []);
+          setText(editStatus, `Blocked · revision ${pendingCommands.length} not applied`);
+          focusMeasure(selectionIdentity);
+          return false;
+        }
+
+        assert(result.route === 'MONO_V1', 'Structured edit returned an unexpected route.');
+        assert(
+          typeof result.musicXml === 'string' && result.musicXml.length > 0,
+          'PASS edit result is missing renderer MusicXML.',
+        );
+        assert(
+          result.revision?.revisionNumber === pendingCommands.length,
+          'PASS edit result revision number does not match the requested command chain.',
+        );
+
+        session.commands = pendingCommands.map(cloneCommand);
+        state.revisionNumber = pendingCommands.length;
+        session.pendingFocus = selectionIdentity;
+        state.runtimeResult = result;
+        setText(documentStatus, 'PASS');
+        setText(routeStatus, result.route);
+        renderIssues(result.preflight?.issues || []);
+        setText(editStatus, `Applied · revision ${state.revisionNumber}`);
+        clearActiveScoreState();
+
+        const accepted = api.load(new TextEncoder().encode(result.musicXml));
+        if (!accepted) throw new Error('alphaTab rejected revised renderer MusicXML.');
+        return true;
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        setText(editStatus, `Edit failed: ${state.lastError}`);
+        renderIssues([{
+          code: 'WORKBENCH_EDIT_FAILED',
+          message: state.lastError,
+          location: selectionIdentity,
+        }]);
+        return false;
+      } finally {
+        state.editing = false;
         updateControls();
       }
     }
@@ -279,6 +587,13 @@
       if (stopButton.disabled) return;
       api.stop();
     });
+    applyEditButton.addEventListener('click', async () => {
+      await applySelectedEdit();
+    });
+    cancelEditButton.addEventListener('click', () => {
+      clearSelection();
+      updateControls();
+    });
 
     api.error.on((error) => {
       state.lastError = error?.message || String(error);
@@ -294,6 +609,12 @@
     api.scoreLoaded.on(() => {
       state.scoreLoaded = true;
       scoreHost.hidden = false;
+      if (session.pendingFocus) {
+        const pending = session.pendingFocus;
+        session.pendingFocus = null;
+        focusMeasure(pending);
+        selectEventByIdentity(pending);
+      }
       updateControls();
     });
     api.playerReady.on(() => {
@@ -306,8 +627,12 @@
     api.playerPositionChanged.on((event) => {
       if (state.scoreLoaded && Number.isFinite(event?.currentTick)) updateCursorStatus(event.currentTick);
     });
+    api.noteMouseDown.on((note) => {
+      selectNote(note);
+    });
 
     clearActiveScoreState();
+    clearSession();
     renderIssues([]);
     setText(documentStatus, 'EMPTY');
     setText(routeStatus, 'UNRESOLVED');
@@ -318,21 +643,36 @@
       loadFile,
       loadRuntimeResult: setRuntimeResult,
       focusMeasure,
+      selectNote,
+      selectEvent: selectEventByIdentity,
+      applySelectedEdit,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
         return Object.freeze({
           ...state,
+          selectedEvent: state.selectedEvent
+            ? Object.freeze({
+              ...state.selectedEvent,
+              pitch: Object.freeze({ ...state.selectedEvent.pitch }),
+            })
+            : null,
+          sourceFileName: session.sourceFileName,
+          sourceSha256: session.expectedInputSha256,
+          revisionCommandCount: session.commands.length,
           scoreTracks: state.scoreLoaded ? (api.score?.tracks?.length || 0) : 0,
           scoreStaves: state.scoreLoaded ? (track?.staves?.length || 0) : 0,
           scoreMeasures: state.scoreLoaded ? (api.score?.masterBars?.length || 0) : 0,
           scoreHidden: scoreHost.hidden,
           playDisabled: playButton.disabled,
           stopDisabled: stopButton.disabled,
+          applyEditDisabled: applyEditButton.disabled,
         });
       },
       destroy() {
         if (state.destroyed) return;
         state.destroyed = true;
+        if (session.sourceBytes) session.sourceBytes.fill(0);
+        clearSession();
         api.destroy();
       },
     });
@@ -341,6 +681,7 @@
   global.GuitarTabWorkbench = Object.freeze({
     mount,
     MAX_CLIENT_UPLOAD_BYTES,
+    MAX_REVISION_COMMANDS,
     ALLOWED_EXTENSIONS: Object.freeze([...ALLOWED_EXTENSIONS]),
   });
 }(window));
