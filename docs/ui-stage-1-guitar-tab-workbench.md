@@ -23,6 +23,8 @@ The browser layer does not import internal engine modules. It receives only the 
 
 The package-root API remains unchanged. PA/v2, GuitarSet shadow, deterministic selector internals and canonical producers are not exposed to the browser.
 
+The page intentionally targets a same-origin `/api/upload` host seam rather than embedding the engine in browser JavaScript. This slice establishes and verifies the browser contract; it does not authorize a production deployment server or change the production dependency graph.
+
 ## Browser safety rules
 
 - client-side upload gate mirrors the existing 5 MiB ceiling and `.musicxml` / `.xml` extension boundary, but the server/runtime gate remains authoritative;
@@ -53,7 +55,7 @@ Required gates for this slice:
 - static workbench contract test proving required controls, local-only assets, no HTML injection APIs, no browser persistence and no internal-engine browser import;
 - existing alphaTab importer/SVG/v2/PA-12 compatibility gates;
 - existing browser renderer/cursor smoke;
-- new Guitar TAB Workbench browser smoke proving actual upload through `processMusicXmlUpload`, 1 track / 2 staves / 5 measures, visible standard notation + TAB, standard tuning, SVG render, measure focus and structured issue-panel behavior;
+- new Guitar TAB Workbench browser smoke proving a real raw MusicXML upload through `processMusicXmlUpload`, renderer output with one guitar track and two staves, visible standard notation + TAB, standard tuning, SVG render, measure focus and structured issue-panel behavior;
 - alphaTab synthesizer diagnostic remains visible and non-authoritative for runner-specific audio readiness.
 
 ## Structured edit gate — next
