@@ -20,6 +20,13 @@ test('UI-06 exposes four accessible inspector tabs and workstation controls', ()
 
   assert.deepEqual(tabs, ['note', 'fingering', 'issues', 'document']);
   assert.equal((html.match(/role="tabpanel"/g) || []).length, 4);
+  assert.equal((html.match(/role="tab"/g) || []).length, 4);
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /aria-controls="inspector-panel-note"/);
+  assert.match(html, /aria-controls="inspector-panel-fingering"/);
+  assert.match(html, /aria-controls="inspector-panel-issues"/);
+  assert.match(html, /aria-controls="inspector-panel-document"/);
+  assert.match(html, /aria-selected="true"/);
   assert.match(html, /data-role="zoom-out"/);
   assert.match(html, /data-role="zoom-in"/);
   assert.match(html, /data-role="fit-width"/);
@@ -37,6 +44,10 @@ test('UI-06 controller stays outside engine authority and browser persistence', 
   assert.doesNotMatch(source, /XMLHttpRequest|WebSocket/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
   assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|eval\s*\(|new\s+Function/);
+  assert.match(source, /setAttribute\('aria-selected'/);
+  assert.match(source, /button\.tabIndex = selected \? 0 : -1/);
+  assert.match(source, /event\.key === 'ArrowRight'/);
+  assert.match(source, /event\.key === 'ArrowLeft'/);
   assert.match(source, /api\.settings\.display\.scale/);
   assert.match(source, /api\.updateSettings\(\)/);
   assert.match(source, /api\.render\(\)/);
