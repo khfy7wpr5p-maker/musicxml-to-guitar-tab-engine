@@ -1,8 +1,8 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-23 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
-Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merged PR #136).
+Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146.
 
 ## Package metadata
 
@@ -18,24 +18,7 @@ GitHub repository visibility and package publication are distinct. A public repo
 
 ## Public package-root API
 
-`src/index.js` exposes exactly:
-
-| Export | Purpose |
-|---|---|
-| `ENGINE_ERROR_CONTRACT_VERSION` | public error-contract version |
-| `FretboardError` | public fretboard error |
-| `PREFLIGHT_STATUS` | preflight states |
-| `convertMusicXmlToCanonicalTab` | supported deterministic conversion |
-| `getPositionCandidates` | physical guitar candidate helper |
-| `isEngineError` | nominal public error detector |
-| `positionToMidi` | position → MIDI helper |
-| `preflightMusicXml` | MusicXML preflight |
-| `serializeCanonicalTabResult` | deterministic JSON |
-| `serializeCanonicalTabResultToAscii` | deterministic ASCII TAB |
-| `serializeCanonicalTabResultToMusicXml` | deterministic TAB MusicXML |
-| `validateMidi` | MIDI validation |
-
-No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow function is package-root exported.
+`src/index.js` continues to expose exactly the approved public error, preflight, fretboard, deterministic conversion and JSON/ASCII/TAB MusicXML writer APIs. No PA, teacher benchmark, revoicing, GuitarSet model, shadow adapter or runtime-shadow bridge is package-root exported.
 
 ## Capability matrix
 
@@ -50,6 +33,7 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 | CanonicalTabResult 1.0.0 | ✅ PUBLIC |
 | JSON / ASCII / TAB MusicXML writers | ✅ PUBLIC |
 | PA-1 through PA-7 source/reduction/voicing foundations | ✅ INTERNAL |
+| Deterministic single-generation PA-7 handoff | ✅ INTERNAL |
 | PA-8 `LeftHandShapeModel 1.0.0` | ✅ INTERNAL |
 | PA-9 `PhysicalPlayabilityValidation 2.0.0` | ✅ INTERNAL |
 | PA-10.3 compatibility/migration matrix | ✅ MERGED DOC |
@@ -61,8 +45,9 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 | Production polyphonic final selector | 🔒 NOT IMPLEMENTED |
 | Public polyphonic arrangement API | 🔒 NOT IMPLEMENTED |
 | GuitarSet v2 offline adapter parity | ✅ COMPLETE |
-| GuitarSet v2 controlled offline execution | ✅ GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE |
-| Runtime learned selection | 🔒 CLOSED |
+| GuitarSet v2 controlled offline execution | ✅ `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE` |
+| GuitarSet v2 runtime shadow connection | ✅ INTERNAL DEFAULT-OFF — `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1` |
+| Runtime learned selection authority | 🔒 CLOSED |
 | Production playback | 🔒 NOT VERIFIED |
 | MuseScore semantic round-trip | 🔒 NOT VERIFIED |
 | Production PDF | 🔒 NOT IMPLEMENTED |
@@ -70,38 +55,39 @@ No internal PA, teacher benchmark, revoicing, GuitarSet model, or shadow functio
 
 ## GuitarSet v2 package boundary
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` candidate domain is 0..20 and matches PA-7. Python↔Node parity and exact-main controlled-offline evidence are complete. Observed positive GuitarSet gold remains 0..19, therefore `fret20QualityAuthority=false`.
+`GUITARSET-OBSERVED-VOICING-MODEL.v2` candidate domain is 0..20 and matches PA-7. Observed positive GuitarSet gold remains 0..19, therefore `fret20QualityAuthority=false`.
 
-Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
+Historical controlled-offline evidence remains:
 
-- immutable artifact: `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
-- artifact byte SHA-256: `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`
-- exact engine commit: `acdb66e2bb2ad809ab45fc7c2183d84280d61ad7`
-- candidate-bearing coverage: 4/4
-- candidate preservation: 153/153
-- determinism: 10/10
+`evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
 
-The v2 path remains internal and isolated:
+The internal runtime-shadow seam now consumes the same authentic single-generation PA-7 lineage used by deterministic PA-8/PA-9 selection and passes only a detached deeply frozen read-copy to the v2 scoring adapter.
 
-- controlled repository-fixture execution: complete
+Authority boundary:
+
+- runtime shadow connection: internal default-off
 - live/user input: false
-- runtime connection: false
+- learned candidate generation/mutation/filter/deletion: false
 - authoritative optimizer/canonical/TAB effect: false
+- checkpoint mutation/refit/retraining: false
+- `fret20QualityAuthority=false`
 - production: false
+- public package-root exposure: false
 
-Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`.
+The retained model artifact is not rewritten: its own runtime/shadow authorization fields remain false. Engine-side connection permission exists only in the reviewed internal bridge.
 
 ## Compatibility verification
 
-PR #136 adapter-parity baseline:
+PR #146 functional implementation slice passed:
 
-- Tests #764: PASS on Node.js 18/20/22
-- MusicXML Compatibility #533: PASS
-- alphaTab 1.8.4 MusicXML import and SVG render: verified
-- alphaTab browser renderer/cursor: verified
-- synth: diagnostic only and `continue-on-error`; not production readiness
-- MuseScore: CI availability probe only; import/re-export/round-trip/PDF not proven
+- Node.js 18/20/22 complete tests
+- alphaTab MusicXML import + SVG render on Node.js 18/20/22
+- alphaTab browser renderer/cursor
+- synth diagnostic
+- MuseScore CLI availability
+
+The exact documentation-converged head must pass the full protected matrix again before merge.
 
 ## Release boundary
 
-No npm/public package release, production application, public polyphonic API, runtime learned-selection authority, or production PDF/playback claim is made. Historical contract/closure/evidence documents retain their original exact stage context and are not a live package-status source.
+No npm/public package release, production application, public polyphonic API, runtime learned-selection authority, live/user-input shadow activation, production PDF or production playback claim is made. Runtime shadow is diagnostic, internal and default-off.
