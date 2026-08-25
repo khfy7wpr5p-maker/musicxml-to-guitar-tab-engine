@@ -29,13 +29,12 @@ const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
 
-const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.1.0';
+const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.0.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({ PASS: 'PASS', BLOCKED: 'BLOCKED' });
 const MAX_FILE_NAME_LENGTH = 255;
 const MAX_REVISION_COMMANDS = 128;
 const MAX_ACKNOWLEDGED_GROUP_EVENTS = 64;
-const MAX_ACKNOWLEDGED_TIE_EVENTS = 64;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
 const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
   TYPED_ARRAY_PROTOTYPE,
@@ -160,14 +159,21 @@ function normalizePitch(pitch, field) {
   }
 }
 
-function normalizeEventIds(value, field, maximum) {
+function normalizeGroupEventIds(value, field) {
   if (!Array.isArray(value) || isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype) {
     throw invalidRequest(`${field} must be a non-proxy ordinary array.`, { field });
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const length = descriptors.length?.value;
-  if (!Number.isSafeInteger(length) || length < 1 || length > maximum) {
-    throw invalidRequest(`${field} must contain 1-${maximum} event ids.`, { field, length });
+  if (
+    !Number.isSafeInteger(length)
+    || length < 1
+    || length > MAX_ACKNOWLEDGED_GROUP_EVENTS
+  ) {
+    throw invalidRequest(`${field} must contain 1-${MAX_ACKNOWLEDGED_GROUP_EVENTS} event ids.`, {
+      field,
+      length,
+    });
   }
   for (const key of Reflect.ownKeys(value)) {
     if (key === 'length') continue;
@@ -193,34 +199,20 @@ function normalizeEventIds(value, field, maximum) {
   return Object.freeze(result);
 }
 
-function normalizeGroupEventIds(value, field) {
-  return normalizeEventIds(value, field, MAX_ACKNOWLEDGED_GROUP_EVENTS);
-}
-
-function normalizeTieEventIds(value, field) {
-  return normalizeEventIds(value, field, MAX_ACKNOWLEDGED_TIE_EVENTS);
-}
-
 function normalizeCommand(command, revisionIndex) {
   const field = `commands[${revisionIndex}]`;
-  const allowed = new Set([
-    'measureIndex',
-    'sourceOrder',
-    'sourceEventId',
-    'sourceGroupId',
-    'sourceGroupEventIds',
-    'sourceTieEventIds',
-    'pitch',
-  ]);
-  const required = new Set([
-    'measureIndex',
-    'sourceOrder',
-    'sourceEventId',
-    'sourceGroupId',
-    'sourceGroupEventIds',
-    'pitch',
-  ]);
-  const descriptors = ownDataProperties(command, field, allowed, required);
+  const descriptors = ownDataProperties(
+    command,
+    field,
+    new Set([
+      'measureIndex',
+      'sourceOrder',
+      'sourceEventId',
+      'sourceGroupId',
+      'sourceGroupEventIds',
+      'pitch',
+    ]),
+  );
   const measureIndex = descriptors.measureIndex.value;
   const sourceOrder = descriptors.sourceOrder.value;
   const sourceEventId = descriptors.sourceEventId.value;
@@ -261,9 +253,6 @@ function normalizeCommand(command, revisionIndex) {
       descriptors.sourceGroupEventIds.value,
       `${field}.sourceGroupEventIds`,
     ),
-    sourceTieEventIds: Object.hasOwn(descriptors, 'sourceTieEventIds')
-      ? normalizeTieEventIds(descriptors.sourceTieEventIds.value, `${field}.sourceTieEventIds`)
-      : Object.freeze([sourceEventId]),
     pitch: normalizePitch(descriptors.pitch.value, `${field}.pitch`),
   });
 }
@@ -388,7 +377,7 @@ function issueFromError(error, fallback = {}) {
     ? 'playability'
     : code.startsWith('UNSUPPORTED_') || code.endsWith('_NOT_SUPPORTED')
       ? 'capability'
-      : code.includes('STALE') || code.includes('IDENTITY') || code.includes('GROUP_') || code.includes('TIE_')
+      : code.includes('STALE') || code.includes('IDENTITY') || code.includes('GROUP_')
         ? 'safety'
         : 'content';
   return issue(code, error instanceof Error ? error.message : 'Polyphonic note edit failed.', details, category);
@@ -485,162 +474,6 @@ function assertExactGroupIdentity(command, event, group, revisionIndex) {
   }
 }
 
-function samePitch(left, right) {
-  return Boolean(
-    left
-    && right
-    && left.step === right.step
-    && left.alter === right.alter
-    && left.octave === right.octave
-    && left.midi === right.midi,
-  );
-}
-
-function trackMatches(left, right) {
-  return left?.staff === right?.staff && left?.voice === right?.voice;
-}
-
-function collectTrackReferences(sourceModel, targetEvent) {
-  const references = [];
-  for (let measureIndex = 0; measureIndex < sourceModel.measures.length; measureIndex += 1) {
-    const measure = sourceModel.measures[measureIndex];
-    for (const event of measure.events) {
-      if (event.type !== 'note' || !trackMatches(event, targetEvent)) continue;
-      references.push({ measure, measureIndex, event });
-    }
-  }
-  return references.sort((left, right) => (
-    left.measureIndex - right.measureIndex
-    || left.event.onsetDivisions - right.event.onsetDivisions
-    || left.event.sourceOrder - right.event.sourceOrder
-  ));
-}
-
-function areTieAdjacent(left, right) {
-  if (!left || !right) return false;
-  const leftEnd = left.event.onsetDivisions + left.event.durationDivisions;
-  if (left.measureIndex === right.measureIndex) {
-    return leftEnd === right.event.onsetDivisions;
-  }
-  return Boolean(
-    right.measureIndex === left.measureIndex + 1
-    && leftEnd === left.measure.expectedDurationDivisions
-    && right.event.onsetDivisions === 0,
-  );
-}
-
-function invalidTieChain(message, details) {
-  return new MusicXmlPolyphonicNoteEditRuntimeV2Error(
-    message,
-    'INVALID_POLYPHONIC_TIE_CHAIN',
-    details,
-  );
-}
-
-function resolveTieChain(sourceModel, targetRef, baseDetails) {
-  const target = targetRef.event;
-  if (!target.tieStart && !target.tieStop) return [targetRef];
-
-  const references = collectTrackReferences(sourceModel, target);
-  const byId = new Map(references.map((entry) => [entry.event.sourceEventId, entry]));
-  if (!byId.has(target.sourceEventId)) {
-    throw invalidTieChain('The tied source event is not present in its deterministic source track.', baseDetails);
-  }
-
-  const chain = [targetRef];
-  const seen = new Set([target.sourceEventId]);
-  let first = targetRef;
-  while (first.event.tieStop) {
-    const matches = references.filter((candidate) => (
-      !seen.has(candidate.event.sourceEventId)
-      && candidate.event.tieStart
-      && samePitch(candidate.event.pitch, first.event.pitch)
-      && areTieAdjacent(candidate, first)
-    ));
-    if (matches.length !== 1) {
-      throw invalidTieChain(
-        'Tie-stop source event must have exactly one adjacent matching tie-start predecessor in the same source track.',
-        {
-          ...baseDetails,
-          chainSourceEventId: first.event.sourceEventId,
-          predecessorCount: matches.length,
-        },
-      );
-    }
-    first = matches[0];
-    seen.add(first.event.sourceEventId);
-    chain.unshift(first);
-  }
-
-  let last = targetRef;
-  while (last.event.tieStart) {
-    const matches = references.filter((candidate) => (
-      !seen.has(candidate.event.sourceEventId)
-      && candidate.event.tieStop
-      && samePitch(last.event.pitch, candidate.event.pitch)
-      && areTieAdjacent(last, candidate)
-    ));
-    if (matches.length !== 1) {
-      throw invalidTieChain(
-        'Tie-start source event must have exactly one adjacent matching tie-stop successor in the same source track.',
-        {
-          ...baseDetails,
-          chainSourceEventId: last.event.sourceEventId,
-          successorCount: matches.length,
-        },
-      );
-    }
-    last = matches[0];
-    seen.add(last.event.sourceEventId);
-    chain.push(last);
-  }
-
-  if (chain.length < 2 || chain.length > MAX_ACKNOWLEDGED_TIE_EVENTS) {
-    throw invalidTieChain('A tied POLY_V2 source event must resolve to a bounded chain of at least two events.', {
-      ...baseDetails,
-      observed: chain.length,
-      limit: MAX_ACKNOWLEDGED_TIE_EVENTS,
-    });
-  }
-  for (let index = 0; index < chain.length; index += 1) {
-    const member = chain[index];
-    if (!samePitch(member.event.pitch, target.pitch) || !trackMatches(member.event, target)) {
-      throw invalidTieChain('Tie-chain members must remain pitch-identical events in one source track.', {
-        ...baseDetails,
-        chainSourceEventId: member.event.sourceEventId,
-      });
-    }
-    const expectedStop = index > 0;
-    const expectedStart = index < chain.length - 1;
-    if (Boolean(member.event.tieStop) !== expectedStop || Boolean(member.event.tieStart) !== expectedStart) {
-      throw invalidTieChain('Tie-chain start/stop markers are not internally consistent.', {
-        ...baseDetails,
-        chainSourceEventId: member.event.sourceEventId,
-      });
-    }
-  }
-  return chain;
-}
-
-function assertExactTieIdentity(command, chain, revisionIndex, sourceEventId) {
-  const expectedIds = chain.map((entry) => entry.event.sourceEventId);
-  if (
-    command.sourceTieEventIds.length !== expectedIds.length
-    || command.sourceTieEventIds.some((value, index) => value !== expectedIds[index])
-  ) {
-    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
-      'Edit command does not acknowledge the complete current tie-chain identity.',
-      'EDIT_SOURCE_TIE_IDENTITY_MISMATCH',
-      {
-        revisionIndex,
-        sourceEventId,
-        expectedSourceTieEventIds: expectedIds,
-        actualSourceTieEventIds: [...command.sourceTieEventIds],
-      },
-    );
-  }
-}
-
 function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
   const measure = revisedSource.measures[command.measureIndex];
   const event = measure?.events?.[command.sourceOrder];
@@ -695,40 +528,31 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
       details,
     );
   }
-
-  const targetRef = { measure, measureIndex: command.measureIndex, event };
-  const tieChain = resolveTieChain(revisedSource, targetRef, details);
-  assertExactTieIdentity(command, tieChain, revisionIndex, event.sourceEventId);
+  if (acknowledgedEvents.some((member) => member.tieStart || member.tieStop)) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'Polyphonic editing of a simultaneous group containing tied notes is not enabled in this gate.',
+      'EDIT_POLYPHONIC_GROUP_WITH_TIES_NOT_SUPPORTED',
+      {
+        ...details,
+        sourceGroupId: group?.groupId ?? null,
+        sourceGroupEventIds: [...acknowledgedIds],
+      },
+    );
+  }
 
   const beforePitch = clonePlainData(event.pitch);
-  const affectedEvents = tieChain.map((member) => {
-    const memberBefore = clonePlainData(member.event.pitch);
-    member.event.pitch = clonePlainData(command.pitch);
-    return {
-      measureIndex: member.measureIndex,
-      measureNumber: member.measure.number,
-      sourceOrder: member.event.sourceOrder,
-      sourceEventId: member.event.sourceEventId,
-      beforePitch: memberBefore,
-      afterPitch: clonePlainData(command.pitch),
-    };
-  });
+  event.pitch = clonePlainData(command.pitch);
   return {
     revisionIndex,
-    commandType: tieChain.length > 1
-      ? 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH'
-      : 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
+    commandType: 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
     measureIndex: command.measureIndex,
     measureNumber: measure.number,
     sourceOrder: command.sourceOrder,
     sourceEventId: event.sourceEventId,
     sourceGroupId: group?.groupId ?? null,
     sourceGroupEventIds: [...acknowledgedIds],
-    sourceTieEventIds: tieChain.map((member) => member.event.sourceEventId),
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
-    affectedEventCount: affectedEvents.length,
-    affectedEvents,
     changed: beforePitch.step !== command.pitch.step
       || beforePitch.alter !== command.pitch.alter
       || beforePitch.octave !== command.pitch.octave,
@@ -930,7 +754,6 @@ module.exports = {
   MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS,
   MAX_REVISION_COMMANDS,
   MAX_ACKNOWLEDGED_GROUP_EVENTS,
-  MAX_ACKNOWLEDGED_TIE_EVENTS,
   MusicXmlPolyphonicNoteEditRuntimeV2Error,
   processMusicXmlPolyphonicNoteEditV2,
 };
