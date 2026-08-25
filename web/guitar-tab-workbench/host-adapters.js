@@ -37,7 +37,7 @@
     return payload;
   }
 
-  function createEditForm(request, label) {
+  function createEditForm(request, label, commands = request?.commands) {
     assert(request && typeof request === 'object', `${label} request is required.`);
     assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
     const form = new FormData();
@@ -47,8 +47,29 @@
       request.fileName,
     );
     form.append('expectedInputSha256', request.expectedInputSha256);
-    form.append('commands', JSON.stringify(request.commands));
+    form.append('commands', JSON.stringify(commands));
     return form;
+  }
+
+  function polyV2RuntimeCommands(commands) {
+    assert(Array.isArray(commands), 'POLY_V2 commands must be an array.');
+    return commands.map((command) => {
+      assert(command && typeof command === 'object', 'POLY_V2 command must be an object.');
+      assert(Array.isArray(command.sourceGroupEventIds), 'POLY_V2 command requires sourceGroupEventIds.');
+      assert(command.pitch && typeof command.pitch === 'object', 'POLY_V2 command requires pitch.');
+      return {
+        measureIndex: command.measureIndex,
+        sourceOrder: command.sourceOrder,
+        sourceEventId: command.sourceEventId,
+        sourceGroupId: command.sourceGroupId,
+        sourceGroupEventIds: [...command.sourceGroupEventIds],
+        pitch: {
+          step: command.pitch.step,
+          alter: command.pitch.alter,
+          octave: command.pitch.octave,
+        },
+      };
+    });
   }
 
   function createRuntimeApiAdapter(options = {}) {
@@ -76,7 +97,7 @@
       async polyphonicEdit(request) {
         const response = await fetch(`${apiBaseUrl}/edit/poly-v2`, {
           method: 'POST',
-          body: createEditForm(request, 'POLY_V2 edit'),
+          body: createEditForm(request, 'POLY_V2 edit', polyV2RuntimeCommands(request?.commands)),
         });
         return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },
