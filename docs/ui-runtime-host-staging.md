@@ -1,6 +1,6 @@
 # UI-RUNTIME-HOST-01 — Same-Origin Staging Host and Real Browser E2E
 
-Status: staging implementation line. This does not authorize production deployment.
+Status: staging implementation and preview-deployment line. This does not authorize production deployment.
 
 ## Goal
 
@@ -42,15 +42,14 @@ The host:
 - uses bounded header count, header bytes, body bytes and request/header timeouts;
 - does not persist uploaded source bytes server-side.
 
-The staging CLI is `npm run start:runtime`. For local/staging execution the pinned alphaTab package must be installed without changing the repository lockfile:
+The staging CLI is `npm run start:runtime`. alphaTab `1.8.4` is an exact-pinned runtime dependency because deployed Node Functions must carry runtime dependencies in the locked production dependency graph. Local/staging execution therefore uses the normal locked install:
 
 ```text
 npm ci --ignore-scripts
-npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4
 npm run start:runtime
 ```
 
-The CLI defaults to `127.0.0.1:4173`. A staging platform may explicitly set `HOST=0.0.0.0` and `PORT` as required. No public deployment is authorized by this stage.
+The Vercel preview adapter keeps the same exact alphaTab version and includes the package assets needed by the same-origin Workbench. The CLI defaults to `127.0.0.1:4173`; a non-serverless staging platform may explicitly set `HOST=0.0.0.0` and `PORT` as required. Preview/staging deployment is allowed by this gate; production deployment remains a separate consequential gate.
 
 ## Browser wire contract
 
@@ -95,7 +94,7 @@ The dedicated `Runtime Staging E2E` workflow uploads a full-page screenshot as C
 
 This stage does not:
 
-- deploy a public production service;
+- deploy or authorize a public production service;
 - alter the GitHub Pages preview contract;
 - export PA/v2 or application runtimes from the package root;
 - enable learned/shadow authority;
@@ -104,4 +103,4 @@ This stage does not:
 - claim production synthesizer/playback authority;
 - claim broad real-world MusicXML compatibility from the synthetic E2E fixture.
 
-A later gate must use a curated set of real MusicXML documents and a deployed staging origin before production-readiness claims are allowed.
+A later gate must use a curated set of real MusicXML documents and a successfully verified deployed staging origin before production-readiness claims are allowed.
