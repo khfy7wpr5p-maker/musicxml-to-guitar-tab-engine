@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const { TextDecoder } = require('node:util');
 
 const { DEFAULT_MAX_XML_BYTES } = require('../validation/xmlSafety');
 const { processMusicXmlUpload } = require('./musicXmlUploadRuntime');
@@ -12,10 +13,14 @@ const {
 } = require('./musicXmlPolyphonicNoteEditRuntimeV2');
 
 const RUNTIME_HOST_VERSION = '1.0.0';
-const MAX_EDIT_COMMAND_HEADER_BYTES = 48 * 1024;
+const EDIT_CONTENT_TYPE = 'application/vnd.st-guitar-tab-edit+octet-stream';
+const EDIT_FRAME_HEADER_BYTES = 4;
+const MAX_EDIT_COMMAND_BYTES = 8 * 1024 * 1024;
+const MAX_EDIT_REQUEST_BYTES = EDIT_FRAME_HEADER_BYTES + MAX_EDIT_COMMAND_BYTES + DEFAULT_MAX_XML_BYTES;
 const MAX_HEADER_BYTES = 64 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_HEADERS_TIMEOUT_MS = 10_000;
+const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 class RuntimeHttpHostError extends Error {
   constructor(message, statusCode = 400, code = 'RUNTIME_HOST_REQUEST_REJECTED') {
@@ -83,13 +88,28 @@ function parseContentLength(request) {
   return length;
 }
 
-function requireOctetStream(request) {
+function requireMediaType(request, expected, message) {
   const raw = request.headers['content-type'];
-  if (typeof raw !== 'string' || raw.toLowerCase().split(';', 1)[0].trim() !== 'application/octet-stream') {
+  if (typeof raw !== 'string' || raw.toLowerCase().split(';', 1)[0].trim() !== expected) {
+    throw new RuntimeHttpHostError(message, 415, 'UNSUPPORTED_MEDIA_TYPE');
+  }
+}
+
+function requireOctetStream(request) {
+  requireMediaType(request, 'application/octet-stream', 'Runtime upload requests must use application/octet-stream.');
+}
+
+function requireEditFrame(request) {
+  requireMediaType(
+    request,
+    EDIT_CONTENT_TYPE,
+    `Runtime edit requests must use ${EDIT_CONTENT_TYPE}.`,
+  );
+  if (request.headers['x-st-edit-commands'] !== undefined) {
     throw new RuntimeHttpHostError(
-      'Runtime API requests must use application/octet-stream.',
-      415,
-      'UNSUPPORTED_MEDIA_TYPE',
+      'Edit command metadata must be carried in the bounded UTF-8 request body frame.',
+      400,
+      'LEGACY_EDIT_COMMAND_HEADER_NOT_SUPPORTED',
     );
   }
 }
@@ -105,18 +125,13 @@ function readBoundedBody(request, maxBytes = DEFAULT_MAX_XML_BYTES) {
     const chunks = [];
     let byteLength = 0;
     let rejected = false;
-
     request.on('data', (chunk) => {
       if (rejected) return;
       byteLength += chunk.length;
       if (byteLength > maxBytes) {
         rejected = true;
         chunks.length = 0;
-        reject(new RuntimeHttpHostError(
-          'Request body exceeds the fixed size limit.',
-          413,
-          'REQUEST_TOO_LARGE',
-        ));
+        reject(new RuntimeHttpHostError('Request body exceeds the fixed size limit.', 413, 'REQUEST_TOO_LARGE'));
         return;
       }
       chunks.push(chunk);
@@ -133,27 +148,45 @@ function readBoundedBody(request, maxBytes = DEFAULT_MAX_XML_BYTES) {
   });
 }
 
-function parseEditCommands(request) {
-  const raw = request.headers['x-st-edit-commands'];
-  if (typeof raw !== 'string') {
-    throw new RuntimeHttpHostError(
-      'Missing x-st-edit-commands header.',
-      400,
-      'MISSING_EDIT_COMMANDS',
-    );
+function parseEditBodyFrame(body) {
+  if (!Buffer.isBuffer(body) || body.length < EDIT_FRAME_HEADER_BYTES + 1) {
+    throw new RuntimeHttpHostError('Edit request body frame is incomplete.', 400, 'INVALID_EDIT_BODY_FRAME');
   }
-  if (Buffer.byteLength(raw, 'utf8') > MAX_EDIT_COMMAND_HEADER_BYTES) {
-    throw new RuntimeHttpHostError(
-      'Edit command metadata exceeds the fixed header limit.',
-      413,
-      'EDIT_COMMANDS_TOO_LARGE',
-    );
+  const commandByteLength = body.readUInt32BE(0);
+  if (commandByteLength < 1) {
+    throw new RuntimeHttpHostError('Edit command metadata is required.', 400, 'MISSING_EDIT_COMMANDS');
   }
+  if (commandByteLength > MAX_EDIT_COMMAND_BYTES) {
+    throw new RuntimeHttpHostError('Edit command metadata exceeds the fixed body limit.', 413, 'EDIT_COMMANDS_TOO_LARGE');
+  }
+  const metadataEnd = EDIT_FRAME_HEADER_BYTES + commandByteLength;
+  if (metadataEnd > body.length) {
+    throw new RuntimeHttpHostError('Edit request body frame is truncated.', 400, 'INVALID_EDIT_BODY_FRAME');
+  }
+  const sourceBytes = body.subarray(metadataEnd);
+  if (sourceBytes.length > DEFAULT_MAX_XML_BYTES) {
+    throw new RuntimeHttpHostError('MusicXML source bytes exceed the fixed size limit.', 413, 'REQUEST_TOO_LARGE');
+  }
+
+  let rawCommands;
   try {
-    return JSON.parse(raw);
+    rawCommands = UTF8_DECODER.decode(body.subarray(EDIT_FRAME_HEADER_BYTES, metadataEnd));
+  } catch {
+    throw new RuntimeHttpHostError('Edit command metadata must be valid UTF-8.', 400, 'INVALID_EDIT_COMMANDS_UTF8');
+  }
+
+  let commands;
+  try {
+    commands = JSON.parse(rawCommands);
   } catch {
     throw new RuntimeHttpHostError('Edit commands must be valid JSON.', 400, 'INVALID_EDIT_COMMANDS_JSON');
   }
+  return Object.freeze({ commands, bytes: Buffer.from(sourceBytes) });
+}
+
+async function readEditRequestBody(request) {
+  requireEditFrame(request);
+  return parseEditBodyFrame(await readBoundedBody(request, MAX_EDIT_REQUEST_BYTES));
 }
 
 function readSingleQueryValue(url, name) {
@@ -205,22 +238,16 @@ function normalizeHostOptions(options = {}) {
 
 function createRuntimeHttpServer(options = {}) {
   const config = normalizeHostOptions(options);
-
   const server = http.createServer({ maxHeaderSize: MAX_HEADER_BYTES }, async (request, response) => {
     try {
       const url = new URL(request.url || '/', 'http://runtime.local');
-
       if (url.pathname === '/healthz') {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
           response.setHeader('allow', 'GET, HEAD');
           writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
           return;
         }
-        writeJson(response, 200, {
-          status: 'ok',
-          service: 'guitar-tab-runtime-host',
-          version: RUNTIME_HOST_VERSION,
-        });
+        writeJson(response, 200, { status: 'ok', service: 'guitar-tab-runtime-host', version: RUNTIME_HOST_VERSION });
         return;
       }
 
@@ -233,8 +260,7 @@ function createRuntimeHttpServer(options = {}) {
         requireOctetStream(request);
         const fileName = readSingleQueryValue(url, 'fileName');
         const bytes = await readBoundedBody(request);
-        const result = processMusicXmlUpload({ fileName, bytes });
-        writeJson(response, 200, result);
+        writeJson(response, 200, processMusicXmlUpload({ fileName, bytes }));
         return;
       }
 
@@ -244,12 +270,15 @@ function createRuntimeHttpServer(options = {}) {
           writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
           return;
         }
-        requireOctetStream(request);
         const fileName = readSingleQueryValue(url, 'fileName');
         const expectedInputSha256 = readSingleQueryValue(url, 'sha');
-        const commands = parseEditCommands(request);
-        const bytes = await readBoundedBody(request);
-        const runtimeRequest = { fileName, bytes, expectedInputSha256, commands };
+        const framed = await readEditRequestBody(request);
+        const runtimeRequest = {
+          fileName,
+          bytes: framed.bytes,
+          expectedInputSha256,
+          commands: framed.commands,
+        };
         const result = url.pathname === '/api/edit/poly-v2'
           ? processMusicXmlPolyphonicNoteEditV2(runtimeRequest)
           : processMusicXmlNoteEdit(runtimeRequest);
@@ -316,7 +345,6 @@ function createRuntimeHttpServer(options = {}) {
         writeText(response, 404, 'Not found.');
         return;
       }
-
       writeText(response, 404, 'Not found.');
     } catch (error) {
       if (response.headersSent || response.writableEnded) return;
@@ -332,7 +360,6 @@ function createRuntimeHttpServer(options = {}) {
       });
     }
   });
-
   server.requestTimeout = config.requestTimeoutMs;
   server.headersTimeout = Math.min(config.headersTimeoutMs, config.requestTimeoutMs);
   server.keepAliveTimeout = 5_000;
@@ -342,7 +369,10 @@ function createRuntimeHttpServer(options = {}) {
 
 module.exports = {
   RUNTIME_HOST_VERSION,
-  MAX_EDIT_COMMAND_HEADER_BYTES,
+  EDIT_CONTENT_TYPE,
+  EDIT_FRAME_HEADER_BYTES,
+  MAX_EDIT_COMMAND_BYTES,
+  MAX_EDIT_REQUEST_BYTES,
   RuntimeHttpHostError,
   createRuntimeHttpServer,
 };
