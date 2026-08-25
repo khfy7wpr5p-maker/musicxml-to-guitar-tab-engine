@@ -34,6 +34,9 @@ test('runtime routes real-world single-staff multi-voice guitar notation through
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:direction'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:barline'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('notation:slur'));
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('score-part:score-instrument'));
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('score-part:midi-device'));
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('score-part:midi-instrument'));
 
   const dispositions = result.canonicalTabResult.noteDispositions;
   assert.equal(dispositions.length, 8);
@@ -62,4 +65,20 @@ test('runtime remains fail-closed for non-standard source transposition', () => 
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+});
+
+test('runtime does not silently discard unknown score-part metadata', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const unknown = source.replace(
+    '<part-name>Guitar</part-name>',
+    '<part-name>Guitar</part-name><unknown-part-metadata/>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'unknown-part-metadata.musicxml',
+    bytes: Buffer.from(unknown),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.canonicalTabResult, null);
 });
