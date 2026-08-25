@@ -37,7 +37,7 @@
     return payload;
   }
 
-  function createEditRequest(request, label) {
+  function createEditRequest(request, label, commands = request?.commands) {
     assert(request && typeof request === 'object', `${label} request is required.`);
     assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
     assert(typeof request.fileName === 'string' && request.fileName.length > 0, `${label} requires a file name.`);
@@ -46,14 +46,35 @@
         && /^[0-9a-f]{64}$/.test(request.expectedInputSha256),
       `${label} requires the immutable source SHA-256.`,
     );
-    assert(Array.isArray(request.commands), `${label} requires revision commands.`);
+    assert(Array.isArray(commands), `${label} requires revision commands.`);
     return Object.freeze({
       query: `fileName=${encodeURIComponent(request.fileName)}&sha=${encodeURIComponent(request.expectedInputSha256)}`,
       headers: Object.freeze({
         'content-type': 'application/octet-stream',
-        'x-st-edit-commands': JSON.stringify(request.commands),
+        'x-st-edit-commands': JSON.stringify(commands),
       }),
       body: request.bytes,
+    });
+  }
+
+  function polyV2RuntimeCommands(commands) {
+    assert(Array.isArray(commands), 'POLY_V2 commands must be an array.');
+    return commands.map((command) => {
+      assert(command && typeof command === 'object', 'POLY_V2 command must be an object.');
+      assert(Array.isArray(command.sourceGroupEventIds), 'POLY_V2 command requires sourceGroupEventIds.');
+      assert(command.pitch && typeof command.pitch === 'object', 'POLY_V2 command requires pitch.');
+      return {
+        measureIndex: command.measureIndex,
+        sourceOrder: command.sourceOrder,
+        sourceEventId: command.sourceEventId,
+        sourceGroupId: command.sourceGroupId,
+        sourceGroupEventIds: [...command.sourceGroupEventIds],
+        pitch: {
+          step: command.pitch.step,
+          alter: command.pitch.alter,
+          octave: command.pitch.octave,
+        },
+      };
     });
   }
 
@@ -82,7 +103,11 @@
         return readJsonResponse(response, 'Edit request failed.');
       },
       async polyphonicEdit(request) {
-        const wire = createEditRequest(request, 'POLY_V2 edit');
+        const wire = createEditRequest(
+          request,
+          'POLY_V2 edit',
+          polyV2RuntimeCommands(request?.commands),
+        );
         const response = await fetch(`${apiBaseUrl}/edit/poly-v2?${wire.query}`, {
           method: 'POST',
           headers: wire.headers,
