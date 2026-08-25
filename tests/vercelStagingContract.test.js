@@ -36,9 +36,11 @@ test('Vercel staging adapter preserves the reviewed runtime host boundary', () =
   assert.equal(config.rewrites.length, 8);
 
   assert.match(adapter, /createRuntimeHttpServer/);
+  assert.match(adapter, /\.listeners\(['"]request['"]\)/);
+  assert.match(adapter, /module\.exports\s*=\s*requestListeners\[0\]/);
   assert.match(adapter, /@coderline\/alphatab/);
   assert.match(adapter, /1\.8\.4/);
-  assert.match(adapter, /module\.exports\s*=\s*createRuntimeHttpServer/);
+  assert.doesNotMatch(adapter, /module\.exports\s*=\s*createRuntimeHttpServer/);
   assert.doesNotMatch(adapter, /\.listen\s*\(/);
   assert.doesNotMatch(adapter, /process\.env\.(?:VERCEL_TOKEN|AUTH|SECRET|API_KEY)/);
 });
