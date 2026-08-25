@@ -31,13 +31,15 @@ The host:
 
 - serves the existing Workbench and pinned alphaTab assets from the same origin;
 - exposes only the existing upload, monophonic edit and separated POLY_V2 edit application seams;
-- accepts MusicXML source bytes as `application/octet-stream`;
-- keeps the existing 5 MiB MusicXML body ceiling before engine processing;
-- requires edit source SHA-256 and bounded JSON revision metadata;
+- accepts MusicXML uploads as raw `application/octet-stream` bytes;
+- keeps the existing 5 MiB MusicXML source ceiling before engine processing;
+- carries edit metadata in a bounded UTF-8 request-body frame rather than HTTP headers;
+- allows up to 8 MiB of framed command metadata, covering the runtime's maximum valid 128-command POLY_V2 shape with maximum bounded Unicode source/group identities;
+- requires edit source SHA-256 and bounded revision metadata;
 - keeps engine `PASS` / `BLOCKED` results as application results rather than converting capability/content blocks into transport failures;
-- rejects malformed query multiplicity, unsupported media types and malformed edit metadata before engine execution;
+- rejects malformed query multiplicity, unsupported media types, legacy edit-command headers, malformed frames, invalid UTF-8 and malformed edit JSON before engine execution;
 - sends no CORS opt-in and adds basic same-origin/nosniff/referrer response headers;
-- uses bounded header count, header bytes and request/header timeouts;
+- uses bounded header count, header bytes, body bytes and request/header timeouts;
 - does not persist uploaded source bytes server-side.
 
 The staging CLI is `npm run start:runtime`. For local/staging execution the pinned alphaTab package must be installed without changing the repository lockfile:
@@ -62,11 +64,15 @@ Edit:
 
 - `POST /api/edit?fileName=<name>&sha=<lowercase-sha256>`
 - `POST /api/edit/poly-v2?fileName=<name>&sha=<lowercase-sha256>`
-- `Content-Type: application/octet-stream`
-- `x-st-edit-commands: <bounded JSON>`
-- body: the original immutable MusicXML source bytes
+- `Content-Type: application/vnd.st-guitar-tab-edit+octet-stream`
+- body layout:
+  1. 4-byte unsigned big-endian UTF-8 command-metadata byte length;
+  2. UTF-8 JSON command metadata;
+  3. the original immutable MusicXML source bytes.
 
-This matches the raw-byte browser protocol already exercised by the existing Workbench compatibility smokes and avoids introducing a second multipart parser into the staging host.
+The framing keeps arbitrary valid Unicode source identities out of ByteString-constrained HTTP headers and avoids the former 48 KiB header ceiling while still bounding metadata and source bytes independently. It also avoids introducing a multipart parser into the staging host.
+
+For POLY_V2, browser-only renderer/tie identity metadata is projected out by `polyV2RuntimeCommands()` before framing. The authoritative POLY_V2 runtime independently rejects unknown fields if a direct client attempts to bypass that projection.
 
 ## E2E evidence
 
@@ -77,9 +83,11 @@ This matches the raw-byte browser protocol already exercised by the existing Wor
 3. `PASS / MONO_V1`;
 4. 16 rendered measures with standard notation and rhythmic TAB;
 5. structured note selection;
-6. an actual `POST /api/edit` request;
+6. an actual `POST /api/edit` request using the framed edit body;
 7. revision 1 with regenerated score/TAB;
 8. visible SVG output after regeneration.
+
+Focused host tests additionally verify Unicode POLY_V2 source identities, maximum valid command-shape metadata capacity, malformed-frame rejection and the retained UI-07 runtime-authority boundary.
 
 The dedicated `Runtime Staging E2E` workflow uploads a full-page screenshot as CI evidence.
 
