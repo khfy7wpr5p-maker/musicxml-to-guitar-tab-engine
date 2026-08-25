@@ -74,17 +74,32 @@ test('runtime host keeps UI-07 browser tie metadata outside POLY_V2 edit authori
   assert.match(edit.payload.message, /unknown field/i);
 });
 
-test('framed edit metadata budget covers the maximum valid 128-command POLY_V2 shape', () => {
-  const id = '乐'.repeat(256);
-  const command = {
-    measureIndex: Number.MAX_SAFE_INTEGER,
-    sourceOrder: Number.MAX_SAFE_INTEGER,
-    sourceEventId: id,
-    sourceGroupId: id,
-    sourceGroupEventIds: Array.from({length: 64}, () => id),
-    pitch: {step: 'C', alter: -2, octave: Number.MAX_SAFE_INTEGER},
-  };
-  const metadataBytes = Buffer.byteLength(JSON.stringify(Array.from({length: 128}, () => command)), 'utf8');
+test('framed edit metadata budget covers the maximum bounded 128-command POLY_V2 schema shape', () => {
+  function boundedId(commandIndex, groupIndex) {
+    const suffix = `${commandIndex.toString().padStart(3, '0')}-${groupIndex.toString().padStart(2, '0')}`;
+    return `${'乐'.repeat(256 - suffix.length)}${suffix}`;
+  }
+
+  const commands = Array.from({length: 128}, (_, commandIndex) => ({
+    measureIndex: commandIndex,
+    sourceOrder: commandIndex,
+    sourceEventId: boundedId(commandIndex, 64),
+    sourceGroupId: boundedId(commandIndex, 65),
+    sourceGroupEventIds: Array.from(
+      {length: 64},
+      (_, groupIndex) => boundedId(commandIndex, groupIndex),
+    ),
+    pitch: {step: 'C', alter: -2, octave: 4},
+  }));
+
+  for (const command of commands) {
+    assert.equal(new Set(command.sourceGroupEventIds).size, 64);
+    assert.ok(command.sourceEventId.length <= 256);
+    assert.ok(command.sourceGroupId.length <= 256);
+    assert.ok(command.sourceGroupEventIds.every(id => id.length <= 256));
+  }
+
+  const metadataBytes = Buffer.byteLength(JSON.stringify(commands), 'utf8');
   assert.ok(metadataBytes > 48 * 1024);
   assert.ok(metadataBytes <= MAX_EDIT_COMMAND_BYTES);
 });
