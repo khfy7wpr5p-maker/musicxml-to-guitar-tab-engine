@@ -300,19 +300,19 @@ try {
   assert.equal(mapped.snapshot.applyEditDisabled, false);
   assert.match(mapped.status, /POLY_V2 group 2 acknowledged/);
 
-  const ambiguous = await page.evaluate(() => {
+  const staleRendererContract = await page.evaluate(() => {
     const result = structuredClone(window.__workbench.snapshot().runtimeResult);
     const first = result.canonicalTabResult.measures[0].events[0];
-    const second = result.canonicalTabResult.measures[0].events[4];
-    const secondDisposition = result.canonicalTabResult.noteDispositions.find(
-      entry => entry.sourceEventId === second.sourceEventId,
+    const firstDisposition = result.canonicalTabResult.noteDispositions.find(
+      entry => entry.sourceEventId === first.sourceEventId,
     );
-    second.pitch = {...first.pitch};
-    secondDisposition.targetPitch = {...first.pitch};
+    firstDisposition.targetPitch = {
+      step:'C', alter:1, octave:4, midi:61, written:'C#4',
+    };
     window.__workbench.loadRuntimeResult(result);
     return true;
   });
-  assert.equal(ambiguous, true);
+  assert.equal(staleRendererContract, true);
   await page.waitForFunction(() => window.__workbench?.snapshot().scoreLoaded === true, {timeout:30000});
   const ambiguityState = await page.evaluate(() => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
