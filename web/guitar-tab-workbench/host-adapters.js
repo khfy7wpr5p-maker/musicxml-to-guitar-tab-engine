@@ -37,18 +37,24 @@
     return payload;
   }
 
-  function createEditForm(request, label, commands = request?.commands) {
+  function createEditRequest(request, label, commands = request?.commands) {
     assert(request && typeof request === 'object', `${label} request is required.`);
     assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
-    const form = new FormData();
-    form.append(
-      'source',
-      new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
-      request.fileName,
+    assert(typeof request.fileName === 'string' && request.fileName.length > 0, `${label} requires a file name.`);
+    assert(
+      typeof request.expectedInputSha256 === 'string'
+        && /^[0-9a-f]{64}$/.test(request.expectedInputSha256),
+      `${label} requires the immutable source SHA-256.`,
     );
-    form.append('expectedInputSha256', request.expectedInputSha256);
-    form.append('commands', JSON.stringify(commands));
-    return form;
+    assert(Array.isArray(commands), `${label} requires revision commands.`);
+    return Object.freeze({
+      query: `fileName=${encodeURIComponent(request.fileName)}&sha=${encodeURIComponent(request.expectedInputSha256)}`,
+      headers: Object.freeze({
+        'content-type': 'application/octet-stream',
+        'x-st-edit-commands': JSON.stringify(commands),
+      }),
+      body: request.bytes,
+    });
   }
 
   function polyV2RuntimeCommands(commands) {
@@ -88,16 +94,24 @@
         return readJsonResponse(response, 'Upload request failed.');
       },
       async edit(request) {
-        const response = await fetch(`${apiBaseUrl}/edit`, {
+        const wire = createEditRequest(request, 'Runtime edit');
+        const response = await fetch(`${apiBaseUrl}/edit?${wire.query}`, {
           method: 'POST',
-          body: createEditForm(request, 'Runtime edit'),
+          headers: wire.headers,
+          body: wire.body,
         });
         return readJsonResponse(response, 'Edit request failed.');
       },
       async polyphonicEdit(request) {
-        const response = await fetch(`${apiBaseUrl}/edit/poly-v2`, {
+        const wire = createEditRequest(
+          request,
+          'POLY_V2 edit',
+          polyV2RuntimeCommands(request?.commands),
+        );
+        const response = await fetch(`${apiBaseUrl}/edit/poly-v2?${wire.query}`, {
           method: 'POST',
-          body: createEditForm(request, 'POLY_V2 edit', polyV2RuntimeCommands(request?.commands)),
+          headers: wire.headers,
+          body: wire.body,
         });
         return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },
