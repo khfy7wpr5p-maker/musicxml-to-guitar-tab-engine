@@ -13,6 +13,15 @@ const IGNORED_ROOT_CHILDREN = new Set([
   'defaults',
   'credit',
 ]);
+const IGNORED_PART_LIST_CHILDREN = new Set([
+  'part-group',
+]);
+const IGNORED_SCORE_PART_CHILDREN = new Set([
+  'part-abbreviation',
+  'score-instrument',
+  'midi-device',
+  'midi-instrument',
+]);
 const IGNORED_MEASURE_CHILDREN = new Set([
   'print',
   'direction',
@@ -34,6 +43,17 @@ const IGNORED_NOTATION_CHILDREN = new Set([
   'fermata',
   'arpeggiate',
   'non-arpeggiate',
+]);
+const SAFE_STAFF_DETAILS_CHILDREN = new Set([
+  'staff-type',
+  'staff-lines',
+  'staff-size',
+]);
+const SAFE_STAFF_DETAILS_ATTRIBUTES = new Set([
+  'number',
+  'show-frets',
+  'print-object',
+  'print-spacing',
 ]);
 const ALLOWED_NOTE_CHILDREN = new Set([
   'pitch',
@@ -113,8 +133,13 @@ function parseStandardGuitarTranspose(attributesNodes) {
 }
 
 function safeStaffDetails(node) {
-  const unsafe = new Set(['staff-tuning', 'capo']);
-  return !node.children.some((child) => child.uri === node.uri && unsafe.has(child.name));
+  const unsafeChildren = node.children.some((child) => (
+    child.uri === node.uri && !SAFE_STAFF_DETAILS_CHILDREN.has(child.name)
+  ));
+  if (unsafeChildren) return false;
+  return !node.attributes.some((attribute) => (
+    attribute.uri.length === 0 && !SAFE_STAFF_DETAILS_ATTRIBUTES.has(attribute.name)
+  ));
 }
 
 function sanitizeAttributes(node, ignoredFeatures) {
@@ -194,7 +219,6 @@ function sanitizeNote(node, pitchOctaveShift, ignoredFeatures) {
     }
     if (child.name === 'notations') {
       const notations = sanitizeNotations(child, ignoredFeatures);
-      if (notations === false) return null;
       if (notations) children.push(notations);
       continue;
     }
@@ -235,17 +259,33 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
 
   const root = parsedDocument.root;
   const rootChildren = root.children.filter((child) => child.uri === root.uri);
+  const ignoredFeatures = new Set();
   for (const child of rootChildren) {
-    if (child.name !== 'part-list' && child.name !== 'part' && !IGNORED_ROOT_CHILDREN.has(child.name)) {
-      return null;
-    }
+    if (child.name === 'part-list' || child.name === 'part') continue;
+    if (!IGNORED_ROOT_CHILDREN.has(child.name)) return null;
+    ignoredFeatures.add(`root:${child.name}`);
   }
+
   const partLists = directChildren(root, 'part-list');
   const parts = directChildren(root, 'part');
   if (partLists.length !== 1 || parts.length !== 1) return null;
-  const scoreParts = directChildren(partLists[0], 'score-part');
+  const partList = partLists[0];
+  const scoreParts = directChildren(partList, 'score-part');
   if (scoreParts.length !== 1) return null;
-  if (getAttribute(scoreParts[0], 'id') !== getAttribute(parts[0], 'id')) return null;
+  for (const child of partList.children) {
+    if (child.uri !== partList.uri || child.name === 'score-part') continue;
+    if (!IGNORED_PART_LIST_CHILDREN.has(child.name)) return null;
+    ignoredFeatures.add(`part-list:${child.name}`);
+  }
+
+  const scorePart = scoreParts[0];
+  for (const child of scorePart.children) {
+    if (child.uri !== scorePart.uri || child.name === 'part-name') continue;
+    if (!IGNORED_SCORE_PART_CHILDREN.has(child.name)) return null;
+    ignoredFeatures.add(`score-part:${child.name}`);
+  }
+
+  if (getAttribute(scorePart, 'id') !== getAttribute(parts[0], 'id')) return null;
   if (parts[0].children.some((child) => child.uri === parts[0].uri && child.name !== 'measure')) {
     return null;
   }
@@ -255,11 +295,6 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
   const attributesNodes = measureNodes.flatMap((measure) => directChildren(measure, 'attributes'));
   const pitchOctaveShift = parseStandardGuitarTranspose(attributesNodes);
   if (pitchOctaveShift === null) return null;
-
-  const ignoredFeatures = new Set();
-  for (const child of rootChildren) {
-    if (IGNORED_ROOT_CHILDREN.has(child.name)) ignoredFeatures.add(`root:${child.name}`);
-  }
 
   const measures = [];
   for (const measure of measureNodes) {
@@ -292,7 +327,7 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
   }
 
   if (pitchOctaveShift !== 0) ignoredFeatures.add('guitar:sounding-octave-normalization');
-  const derived = derivedDocument(parsedDocument, partLists[0], scoreParts[0], parts[0], measures);
+  const derived = derivedDocument(parsedDocument, partList, scorePart, parts[0], measures);
   const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(derived, runtime);
   return Object.freeze({
     sourceModel,
