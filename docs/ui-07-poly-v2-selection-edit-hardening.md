@@ -4,14 +4,14 @@ Status: completion is defined by this implementation reaching `main` through the
 
 ## Scope
 
-UI-07 extends the already-guarded POLY_V2 Workbench edit seam without giving the browser independent MusicXML, arrangement, fingering or TAB authority.
+UI-07 hardens the already-guarded POLY_V2 Workbench edit seam without giving the browser independent MusicXML, arrangement, fingering or TAB authority.
 
-It addresses two cases that previously failed closed:
+The accepted new capability is narrow:
 
-1. same-pitch notes at one onset that can be distinguished by stable renderer/source voice evidence;
-2. a selected POLY_V2 note that belongs to a valid tie chain.
+1. same-pitch notes at one onset may be distinguished only when stable renderer/source voice, onset and chord evidence proves an exact source event;
+2. retained POLY_V2 ties remain outside this gate and continue to fail closed in deterministic final selection.
 
-When identity cannot be proven exactly, selection or editing still fails closed.
+When identity cannot be proven exactly, selection or editing fails closed.
 
 ## Renderer → source identity evidence
 
@@ -29,66 +29,62 @@ A POLY_V2 renderer note is accepted only after the Workbench proves all applicab
 
 The duplicate ordinal is used only after voice, onset and chord fingerprint evidence agree. A renderer/source mismatch leaves no selected event.
 
-## Tie-chain identity
+## Retained-tie boundary
 
-The POLY_V2 edit command may carry `sourceTieEventIds`. For tied targets this is mandatory in practice because the runtime recomputes the current chain and requires an exact ordered match.
+UI-07 does **not** add POLY_V2 retained-tie edit authority.
 
-The runtime validates:
+The authoritative upload/final-selection path continues to return `BLOCKED` for retained ties with:
 
-- same source staff and voice;
-- identical pitch throughout the chain before the requested edit;
-- time adjacency inside a measure or exactly across the next measure boundary;
-- exactly one predecessor/successor where tie markers require one;
-- internally consistent tie-start/tie-stop topology;
-- bounded chain length.
+- issue code `UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION`;
+- reason `RETAINED_TIE_NOT_SUPPORTED`;
+- requirement for a separately versioned sustained-sonority selector before that capability can be considered.
 
-Only after these checks pass does the runtime change every member atomically. A mismatch returns `BLOCKED` with `EDIT_SOURCE_TIE_IDENTITY_MISMATCH` or an invalid tie-chain safety issue.
+The authoritative `MusicXmlPolyphonicNoteEditRuntimeV2` contract therefore remains version `1.0.0`. Its existing fail-closed group-with-ties gate is unchanged.
 
-Untied legacy POLY_V2 commands remain compatible: omitted tie acknowledgement normalizes to the selected source event alone.
+The Workbench may derive `sourceTieEventIds` as read-only renderer/source identity evidence. The runtime host adapter deliberately projects browser POLY_V2 commands back to the existing v1 command schema before `/edit/poly-v2`; `sourceTieEventIds` is not sent as edit authority.
 
 ## Regeneration authority
 
-An accepted command still follows the existing authority chain:
+An accepted untied POLY_V2 command still follows the existing authority chain:
 
-`immutable MusicXML bytes + exact SHA + cumulative commands → POLY_V2 source projection → exact group/tie validation → source pitch revision → CanonicalTabResult v2 rebuild → guitar selection/fingering rebuild → MusicXML serialization → alphaTab reload`
+`immutable MusicXML bytes + exact SHA + cumulative bounded v1 commands → POLY_V2 source projection → exact simultaneous-group validation → one source pitch revision → CanonicalTabResult v2 rebuild → deterministic guitar selection/fingering rebuild → MusicXML serialization → alphaTab reload`
 
 The browser never mutates rendered fret/string values or CanonicalTabResult data in place.
 
 ## Inspector evidence
 
-The Fingering inspector remains read-only and now surfaces accepted selection identity:
+The Fingering inspector remains read-only and may surface selection evidence including:
 
 - source voice;
 - deterministic source event id;
 - simultaneous group id (or `single`);
-- tie-chain size;
+- observed tie evidence;
 - current deterministic string/fret when present;
 - renderer identity context for POLY_V2 selections.
 
-This is diagnostic evidence only and cannot change the authoritative edit target.
+This is diagnostic evidence only and cannot expand the authoritative edit target.
 
 ## Fail-closed boundaries
 
-UI-07 still rejects:
+UI-07 continues to reject or block:
 
+- retained POLY_V2 ties at deterministic final selection;
 - missing or stale exact source SHA;
 - source event/order mismatch;
 - incomplete or reordered simultaneous-group acknowledgement;
-- malformed/ambiguous tie topology;
-- incomplete or reordered tie-chain acknowledgement;
 - renderer/canonical voice, onset or chord-fingerprint disagreement;
 - unplayable requested pitch;
-- any route other than the explicit MONO_V1 or POLY_V2 edit seam.
+- any route other than the explicit MONO_V1 or existing untied POLY_V2 edit seam.
 
 ## Verification gates
 
 Completion requires all pre-existing gates plus:
 
-1. runtime test proving incomplete tie identity is BLOCKED;
-2. runtime test proving a complete two-event POLY_V2 tie chain edits atomically while a same-pitch peer remains unchanged;
-3. backward-compatibility test for untied POLY_V2 commands;
-4. static browser identity/safety contract;
-5. real Chromium smoke proving two C4 unison voices select different source event ids;
-6. real Chromium smoke proving the tied voice sends the exact tie event list and regenerates only that chain;
+1. regression test proving retained POLY_V2 ties remain `BLOCKED` with `RETAINED_TIE_NOT_SUPPORTED`;
+2. runtime test proving an untied same-pitch unison group is `PASS` and only the acknowledged source event changes;
+3. static browser identity/safety contract;
+4. static host-boundary contract proving browser tie metadata is not projected into the v1 POLY_V2 edit command;
+5. real Chromium smoke proving two simultaneous C4 voices select different deterministic source event ids;
+6. real Chromium smoke proving one untied unison voice edits through runtime contract `1.0.0` while the peer remains C4;
 7. existing stale renderer/source mismatch smoke remains fail-closed;
-8. existing MONO tie-chain, POLY_V2 edit, Pages preview and alphaTab compatibility gates remain green.
+8. existing MONO tie-chain, existing POLY_V2 edit, Pages preview and alphaTab compatibility gates remain green.
