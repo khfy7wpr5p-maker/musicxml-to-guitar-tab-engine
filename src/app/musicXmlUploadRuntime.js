@@ -32,6 +32,9 @@ const {
 const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
+const {
+  tryProjectRuntimeGuitarNotation,
+} = require('./runtimeGuitarNotationNormalizer');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -182,8 +185,6 @@ function normalizeUpload(upload) {
     throw invalidRequest('bytes must not use shared memory.', { field: 'bytes' });
   }
 
-  // Enforce the resource ceiling before allocating the owned snapshot. Oversized
-  // uploads are rejected without hashing or copying caller-controlled storage.
   if (byteLength > DEFAULT_MAX_XML_BYTES) {
     return {
       fileName,
@@ -442,6 +443,20 @@ function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing
   return { canonicalTabResult, musicXml };
 }
 
+function runtimeCompatibilityIssue(runtimeProjection) {
+  return Object.freeze({
+    severity: 'warning',
+    category: 'quality',
+    code: 'RUNTIME_GUITAR_NOTATION_NORMALIZED',
+    message: 'Standard guitar notation metadata was normalized for deterministic POLY_V2 conversion.',
+    location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
+    details: Object.freeze({
+      pitchOctaveShift: runtimeProjection.pitchOctaveShift,
+      ignoredFeatures: Object.freeze([...runtimeProjection.ignoredFeatures]),
+    }),
+  });
+}
+
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const normalizedUpload = normalizeUpload(upload);
   const normalizedOptions = normalizeOptions(options);
@@ -540,18 +555,31 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let normalization = null;
+  let runtimeProjection = null;
   try {
     processing.checkpoint('app-upload:poly:start');
     const parsedDocument = parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing);
     const projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
-    const sourceModel = projectedMirror
-      ? projectedMirror.sourceModel
-      : projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+    let sourceModel;
+    if (projectedMirror) {
+      sourceModel = projectedMirror.sourceModel;
+    } else {
+      try {
+        sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+      } catch (projectionError) {
+        if (projectionError?.code !== 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE') {
+          throw projectionError;
+        }
+        runtimeProjection = tryProjectRuntimeGuitarNotation(parsedDocument, processing);
+        if (!runtimeProjection) throw projectionError;
+        sourceModel = runtimeProjection.sourceModel;
+      }
+    }
     normalization = projectedMirror
       ? projectedMirror.normalization
       : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
-    const conversion = projectedMirror
+    const conversion = (projectedMirror || runtimeProjection)
       ? convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing)
       : convertMusicXmlToInternalPolyphonicTabV2(
         normalizedUpload.bytes,
@@ -562,6 +590,9 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     assertNoSilentMusicalChange(sourceModel, conversion.canonicalTabResult, normalization);
     processing.checkpoint('app-upload:poly-complete');
 
+    const compatibilityIssues = runtimeProjection
+      ? [runtimeCompatibilityIssue(runtimeProjection)]
+      : [];
     return deepFreeze({
       documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
       contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
@@ -569,7 +600,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
       input: identity,
       preflight: {
-        status: 'PASS',
+        status: compatibilityIssues.length > 0 ? 'WARNING' : 'PASS',
         canProcess: true,
         summary: {
           format: sourceModel.source.format,
@@ -578,7 +609,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           measureCount: sourceModel.measureCount,
           eventCount: sourceModel.eventCount,
         },
-        issues: [],
+        issues: compatibilityIssues,
       },
       normalization: publicNormalization(normalization),
       canonicalTabResult: conversion.canonicalTabResult,
