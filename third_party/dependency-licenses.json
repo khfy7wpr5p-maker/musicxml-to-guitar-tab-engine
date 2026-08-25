@@ -1,11 +1,11 @@
 {
   "schema": "scoremosaic-third-party-license-inventory-v1",
   "project": "musicxml-to-guitar-tab-engine",
-  "generated": "2026-08-24",
+  "generated": "2026-08-26",
   "components": [
     {"name":"saxes","version":"6.0.0","role":"runtime","license":"ISC","commercialRedistribution":"allowed-with-notice"},
     {"name":"xmlchars","version":"2.2.0","role":"runtime-transitive","license":"MIT","commercialRedistribution":"allowed-with-notice"},
-    {"name":"@coderline/alphatab","version":"1.8.4","role":"ci-compatibility-and-pages-preview","license":"MPL-2.0","bundledInPagesPreview":true,"commercialRedistribution":"allowed-subject-to-mpl"},
+    {"name":"@coderline/alphatab","version":"1.8.4","role":"runtime-renderer-and-pages-preview","license":"MPL-2.0","bundledInVercelStaging":true,"bundledInPagesPreview":true,"commercialRedistribution":"allowed-subject-to-mpl"},
     {"name":"puppeteer-core","version":"25.3.0","role":"ci-compatibility-transitive","license":"Apache-2.0","bundledInPagesPreview":false,"commercialRedistribution":"allowed-with-notice"},
     {"name":"MuseScore CLI","version":"runner-provided","role":"ci-availability-only","license":"GPL-family","bundled":false,"commercialRedistribution":"not-assessed-not-bundled"}
   ]
