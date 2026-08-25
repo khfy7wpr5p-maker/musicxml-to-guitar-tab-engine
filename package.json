@@ -9,6 +9,7 @@
     "start:runtime": "node scripts/start-runtime-host.js"
   },
   "dependencies": {
+    "@coderline/alphatab": "1.8.4",
     "saxes": "6.0.0"
   },
   "engines": {
