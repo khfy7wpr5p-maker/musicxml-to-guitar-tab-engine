@@ -52,15 +52,19 @@ function commandFor(result, sourceTieEventIds) {
 
 test('UI-07 requires exact tie-chain identity for a tied POLY_V2 source edit', () => {
   const upload = uploaded();
-  const { target } = identity(upload);
+  const { continuation } = identity(upload);
   const result = processMusicXmlPolyphonicNoteEditV2({
     fileName: 'ui07-poly-unison-tie.musicxml',
     bytes: fixture,
     expectedInputSha256: upload.input.sha256,
-    commands: [commandFor(upload, [target.sourceEventId])],
+    commands: [commandFor(upload, [continuation.sourceEventId])],
   });
 
-  assert.equal(result.status, 'BLOCKED');
+  assert.equal(
+    result.status,
+    'BLOCKED',
+    `Expected wrong/incomplete tie identity to fail closed; revision=${JSON.stringify(result.revision)}`,
+  );
   assert.equal(result.route, 'POLY_V2');
   assert.equal(result.preflight.issues.length, 1);
   assert.equal(result.preflight.issues[0].code, 'EDIT_SOURCE_TIE_IDENTITY_MISMATCH');
