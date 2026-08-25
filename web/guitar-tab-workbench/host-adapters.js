@@ -5,6 +5,10 @@
     RUNTIME: 'runtime',
     PREVIEW: 'preview',
   });
+  const EDIT_CONTENT_TYPE = 'application/vnd.st-guitar-tab-edit+octet-stream';
+  const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
+  const MAX_EDIT_COMMAND_BYTES = 8 * 1024 * 1024;
+  const EDIT_FRAME_HEADER_BYTES = 4;
 
   function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -40,6 +44,7 @@
   function createEditRequest(request, label, commands = request?.commands) {
     assert(request && typeof request === 'object', `${label} request is required.`);
     assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
+    assert(request.bytes.byteLength <= MAX_SOURCE_BYTES, `${label} source bytes exceed the fixed size limit.`);
     assert(typeof request.fileName === 'string' && request.fileName.length > 0, `${label} requires a file name.`);
     assert(
       typeof request.expectedInputSha256 === 'string'
@@ -47,13 +52,26 @@
       `${label} requires the immutable source SHA-256.`,
     );
     assert(Array.isArray(commands), `${label} requires revision commands.`);
+
+    const commandBytes = new TextEncoder().encode(JSON.stringify(commands));
+    assert(commandBytes.byteLength > 0, `${label} command metadata is required.`);
+    assert(
+      commandBytes.byteLength <= MAX_EDIT_COMMAND_BYTES,
+      `${label} command metadata exceeds the fixed size limit.`,
+    );
+
+    const body = new Uint8Array(
+      EDIT_FRAME_HEADER_BYTES + commandBytes.byteLength + request.bytes.byteLength,
+    );
+    new DataView(body.buffer, body.byteOffset, EDIT_FRAME_HEADER_BYTES)
+      .setUint32(0, commandBytes.byteLength, false);
+    body.set(commandBytes, EDIT_FRAME_HEADER_BYTES);
+    body.set(request.bytes, EDIT_FRAME_HEADER_BYTES + commandBytes.byteLength);
+
     return Object.freeze({
       query: `fileName=${encodeURIComponent(request.fileName)}&sha=${encodeURIComponent(request.expectedInputSha256)}`,
-      headers: Object.freeze({
-        'content-type': 'application/octet-stream',
-        'x-st-edit-commands': JSON.stringify(commands),
-      }),
-      body: request.bytes,
+      headers: Object.freeze({'content-type': EDIT_CONTENT_TYPE}),
+      body,
     });
   }
 
