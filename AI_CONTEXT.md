@@ -93,7 +93,7 @@ The retained development model and underlying offline-parity adapter keep their 
 
 ## Compatibility status
 
-PR #146 functional implementation slice passed Node.js 18/20/22 tests, alphaTab import/SVG on all three Node versions, alphaTab browser renderer/cursor, synth diagnostic and MuseScore CLI availability. The documentation-converged exact head must pass the full protected matrix again before merge.
+PR #146 passed the protected Node.js 18/20/22, alphaTab import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Each later change must pass its applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
 
 MuseScore semantic import/re-export/round-trip and production PDF remain unverified/not implemented. Synth compatibility is not production-playback authority.
 

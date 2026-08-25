@@ -103,8 +103,12 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
 });
 
 test('Workbench keeps source bytes private and does not mutate MusicXML or TAB in browser code', () => {
+  const rendererFieldAssignment = /\.(?:fret|string|pitch)\s*=(?!=)/;
+
   assert.doesNotMatch(browserScripts, /DOMParser|XMLSerializer|replaceAll\s*\(|\.replace\s*\([^)]*<note/i);
-  assert.doesNotMatch(browserScripts, /\.fret\s*=|\.string\s*=|\.pitch\s*=/);
+  assert.doesNotMatch(browserScripts, rendererFieldAssignment);
+  assert.match('renderer.pitch = requestedPitch;', rendererFieldAssignment);
+  assert.doesNotMatch('typeof command.pitch === \'object\'', rendererFieldAssignment);
   assert.doesNotMatch(browserScripts, /require\s*\(|module\.exports|src\/app|src\/core|src\/learning|CanonicalTabResult/);
   assert.doesNotMatch(html, /src\/app|src\/core|src\/learning/);
   assert.match(script, /new Uint8Array\(session\.sourceBytes\)/);

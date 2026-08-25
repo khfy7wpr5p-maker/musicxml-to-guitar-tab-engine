@@ -102,16 +102,25 @@ function pageHtml() {
   };
   const polyphonicEdit = async request => {
     smoke.polyEditCalls += 1;
+    const runtimeCommands = request.commands.map(command => ({
+      measureIndex:command.measureIndex,
+      sourceOrder:command.sourceOrder,
+      sourceEventId:command.sourceEventId,
+      sourceGroupId:command.sourceGroupId,
+      sourceGroupEventIds:[...command.sourceGroupEventIds],
+      pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+    }));
     smoke.lastPolyRequest = {
       expectedInputSha256:request.expectedInputSha256,
-      commands:request.commands,
+      commands:structuredClone(request.commands),
+      runtimeCommands:structuredClone(runtimeCommands),
     };
     const response = await fetch(
       '/api/edit/poly-v2?fileName=' + encodeURIComponent(request.fileName)
         + '&sha=' + encodeURIComponent(request.expectedInputSha256),
       {
         method:'POST',
-        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(request.commands)},
+        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(runtimeCommands)},
         body:request.bytes,
       },
     );
@@ -300,19 +309,19 @@ try {
   assert.equal(mapped.snapshot.applyEditDisabled, false);
   assert.match(mapped.status, /POLY_V2 group 2 acknowledged/);
 
-  const ambiguous = await page.evaluate(() => {
+  const staleRendererContract = await page.evaluate(() => {
     const result = structuredClone(window.__workbench.snapshot().runtimeResult);
     const first = result.canonicalTabResult.measures[0].events[0];
-    const second = result.canonicalTabResult.measures[0].events[4];
-    const secondDisposition = result.canonicalTabResult.noteDispositions.find(
-      entry => entry.sourceEventId === second.sourceEventId,
+    const firstDisposition = result.canonicalTabResult.noteDispositions.find(
+      entry => entry.sourceEventId === first.sourceEventId,
     );
-    second.pitch = {...first.pitch};
-    secondDisposition.targetPitch = {...first.pitch};
+    firstDisposition.targetPitch = {
+      step:'C', alter:1, octave:4, midi:61, written:'C#4',
+    };
     window.__workbench.loadRuntimeResult(result);
     return true;
   });
-  assert.equal(ambiguous, true);
+  assert.equal(staleRendererContract, true);
   await page.waitForFunction(() => window.__workbench?.snapshot().scoreLoaded === true, {timeout:30000});
   const ambiguityState = await page.evaluate(() => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
@@ -392,6 +401,14 @@ try {
   assert.deepEqual(
     edited.lastPolyRequest.commands[0].sourceGroupEventIds,
     ['P1:measure:0:note:0', 'P1:measure:0:note:4'],
+  );
+  assert.deepEqual(
+    edited.lastPolyRequest.commands[0].sourceTieEventIds,
+    ['P1:measure:0:note:0'],
+  );
+  assert.equal(
+    Object.hasOwn(edited.lastPolyRequest.runtimeCommands[0], 'sourceTieEventIds'),
+    false,
   );
   assert.ok(edited.svgCount > 0);
 

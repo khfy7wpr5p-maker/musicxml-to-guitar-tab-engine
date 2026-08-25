@@ -133,9 +133,11 @@ The retained model and parity adapter keep their own historical `runtime_connect
 
 ## Compatibility and presentation
 
-PR #146 functional implementation slice passed Node.js 18/20/22 tests, alphaTab MusicXML import/SVG on all supported Node versions, alphaTab browser renderer/cursor, synth diagnostic and MuseScore CLI availability. The final exact PR head must repeat the protected matrix before merge.
+PR #146 passed the protected Node.js 18/20/22, alphaTab import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before it was merged. Every later change must independently pass the applicable protected matrix on its own exact head; PR #165 adds the UI-07 Node and real-Chromium gates.
 
-MuseScore semantic round-trip, production PDF, production playback and application viewer/persistence remain unverified or unimplemented.
+The Guitar TAB Workbench is implemented as a browser/controller layer with guarded MONO_V1 and POLY_V2 host seams. It keeps source bytes immutable, binds edits to the exact source SHA and cumulative bounded commands, and reloads only fully regenerated notation+TAB MusicXML. UI-07 in PR #165 adds fail-closed same-pitch POLY_V2 selection through renderer voice, per-voice onset, chord fingerprint and duplicate-ordinal evidence without changing runtime contract `1.0.0` or enabling retained ties.
+
+The GitHub Pages build is a fixed-fixture, read-only preview with no runtime upload/edit authority. MuseScore semantic round-trip, production PDF, hosted persistence and release operations remain unverified or unimplemented.
 
 ## Non-negotiable rules
 
