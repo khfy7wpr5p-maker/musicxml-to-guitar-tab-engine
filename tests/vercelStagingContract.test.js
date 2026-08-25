@@ -17,7 +17,7 @@ test('Vercel staging adapter preserves the reviewed runtime host boundary', () =
   assert.equal(config.functions['api/index.js'].maxDuration, 60);
   assert.equal(
     config.functions['api/index.js'].includeFiles,
-    '{web/guitar-tab-workbench/**,node_modules/@coderline/alphatab/dist/**}',
+    '{web/guitar-tab-workbench/**,node_modules/@coderline/alphatab/**}',
   );
 
   const rewrites = new Map(config.rewrites.map(entry => [entry.source, entry.destination]));
