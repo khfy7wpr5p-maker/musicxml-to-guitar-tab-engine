@@ -14,9 +14,14 @@ function resolveAlphaTab() {
 }
 
 const alphaTab = resolveAlphaTab();
-
-module.exports = createRuntimeHttpServer({
+const runtimeServer = createRuntimeHttpServer({
   repositoryRoot: path.resolve(__dirname, '..'),
   alphaTabEntry: alphaTab.entry,
   alphaTabDist: alphaTab.dist,
 });
+const requestListeners = runtimeServer.listeners('request');
+if (requestListeners.length !== 1 || typeof requestListeners[0] !== 'function') {
+  throw new Error('Runtime host must expose exactly one callable request handler.');
+}
+
+module.exports = requestListeners[0];
