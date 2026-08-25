@@ -38,7 +38,7 @@ jobs:
         run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4 puppeteer-core@25.3.0
 
       - name: Execute Vercel staging callable handler
-        run: node --test tests/vercelStagingRuntimeAdapter.test.js
+        run: node tests/compatibility/vercelStagingRuntimeAdapterSmoke.cjs
 
       - name: Detect a preinstalled Chrome or Chromium executable
         shell: bash
