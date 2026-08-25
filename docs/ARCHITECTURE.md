@@ -149,11 +149,17 @@ Historical evidence records 4/4 candidate-bearing coverage, 153/153 candidate pr
 
 Public monophonic validation remains fail-closed for chords/simultaneity, backup/forward, multiple voices/staves, multipart scores, grace notes, tuplets, unsupported rhythms and compressed `.mxl`. Internal PA or shadow support must never be exposed by weakening those checks.
 
-PR #146 functional implementation slice passed Node.js 18/20/22 tests, alphaTab MusicXML import/SVG on all supported Node versions, browser renderer/cursor, synth diagnostic and MuseScore CLI availability. Exact-head protected CI must pass again after documentation convergence.
+PR #146 passed the protected Node.js 18/20/22, alphaTab MusicXML import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Every later change must pass the applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
 
 ## 10. Rendering/product boundary
 
-Renderers are downstream presentation adapters with no fingering authority. MuseScore semantic round-trip, production PDF, playback authority, product viewer/persistence and public polyphonic application integration remain separate gates.
+Renderers are downstream presentation adapters with no fingering authority. The Guitar TAB Workbench is an implemented browser/controller layer over bounded application hosts:
+
+`immutable source bytes + exact SHA + bounded command chain → MONO_V1 or POLY_V2 runtime host → full canonical/TAB regeneration → alphaTab reload`
+
+The browser may hold read-only renderer/source identity evidence, but the host projects requests to the versioned runtime schema and the authoritative runtime revalidates source identity, group topology and playability. Same-pitch POLY_V2 selection is accepted only through matching renderer voice, canonical source track, per-voice onset, chord MIDI multiset and duplicate ordinal evidence. Retained POLY_V2 ties remain fail-closed with `RETAINED_TIE_NOT_SUPPORTED`.
+
+GitHub Pages is a static, read-only preview produced from a fixed CI fixture and has no upload/edit endpoint. MuseScore semantic round-trip, production PDF, hosted persistence, release operations and public polyphonic API authority remain separate gates.
 
 ## 11. Non-negotiable safety rules
 

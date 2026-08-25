@@ -102,16 +102,25 @@ function pageHtml() {
   };
   const polyphonicEdit = async request => {
     smoke.polyEditCalls += 1;
+    const runtimeCommands = request.commands.map(command => ({
+      measureIndex:command.measureIndex,
+      sourceOrder:command.sourceOrder,
+      sourceEventId:command.sourceEventId,
+      sourceGroupId:command.sourceGroupId,
+      sourceGroupEventIds:[...command.sourceGroupEventIds],
+      pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+    }));
     smoke.lastPolyRequest = {
       expectedInputSha256:request.expectedInputSha256,
-      commands:request.commands,
+      commands:structuredClone(request.commands),
+      runtimeCommands:structuredClone(runtimeCommands),
     };
     const response = await fetch(
       '/api/edit/poly-v2?fileName=' + encodeURIComponent(request.fileName)
         + '&sha=' + encodeURIComponent(request.expectedInputSha256),
       {
         method:'POST',
-        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(request.commands)},
+        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(runtimeCommands)},
         body:request.bytes,
       },
     );
@@ -392,6 +401,14 @@ try {
   assert.deepEqual(
     edited.lastPolyRequest.commands[0].sourceGroupEventIds,
     ['P1:measure:0:note:0', 'P1:measure:0:note:4'],
+  );
+  assert.deepEqual(
+    edited.lastPolyRequest.commands[0].sourceTieEventIds,
+    ['P1:measure:0:note:0'],
+  );
+  assert.equal(
+    Object.hasOwn(edited.lastPolyRequest.runtimeCommands[0], 'sourceTieEventIds'),
+    false,
   );
   assert.ok(edited.svgCount > 0);
 

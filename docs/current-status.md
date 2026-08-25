@@ -20,8 +20,11 @@ Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merge
 | Deterministic final polyphonic selector | ✅ INTERNAL / NON-ML / FAIL-CLOSED |
 | `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL / NON-PUBLIC |
 | PA-12 internal polyphonic E2E | ✅ IMPLEMENTED / NON-PUBLIC |
+| Guitar TAB Workbench | ✅ IMPLEMENTED / GUARDED MONO_V1 + POLY_V2 HOST SEAMS |
+| GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
+| UI-07 same-pitch POLY_V2 selection hardening | 🟡 PR #165 PROTECTED-CI GATE |
 | Public polyphonic API | 🔒 NOT IMPLEMENTED |
-| Production playback/PDF/application | 🔒 NOT READY |
+| Production hosted application/PDF/persistence/release | 🔒 NOT READY |
 
 Package metadata: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
 
@@ -92,9 +95,9 @@ Byte SHA-256: `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`
 
 Sealed diagnostics remain historical evidence: 4/4 candidate-bearing coverage, 153/153 candidates preserved, one explicit zero-candidate NO_SCORE group, 1/4 baseline agreement, three disagreements, 48 fret-20 candidates, zero shadow errors and 10/10 determinism.
 
-## Compatibility evidence for PR #146 implementation slice
+## Compatibility baseline
 
-Exact-head functional verification passed before documentation convergence:
+PR #146 passed the following protected matrix before merge:
 
 - Node.js 18 tests: ✅ PASS
 - Node.js 20 tests: ✅ PASS
@@ -104,14 +107,14 @@ Exact-head functional verification passed before documentation convergence:
 - synth diagnostic: ✅ PASS
 - MuseScore CLI availability: ✅ PASS
 
-Final merge still requires the same mandatory checks to pass again on the documentation-converged exact head.
+Every later change must pass the applicable protected matrix on its own exact head. PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
 
 ## Known open architecture gates
 
 1. Production/public selector authority beyond the current deterministic internal subset; runtime shadow cannot become that selector implicitly.
 2. Runtime v1/v2 public dispatcher if separately approved.
 3. PA-13 public polyphonic API.
-4. Product viewer/playback/PDF/persistence/release layers.
+4. Production hosting, PDF, persistence, release hardening and operational support; the current Workbench renderer/player and read-only Pages preview do not grant production authority.
 5. Any future live/user-input shadow activation or learned decision authority requires a separate consequential gate.
 
 Historical versioned contracts, closure records and sealed evidence remain exact historical records; this file is the live convergence view.

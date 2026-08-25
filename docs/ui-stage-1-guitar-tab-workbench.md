@@ -1,6 +1,6 @@
 # UI Stage 1 — Guitar TAB Workbench
 
-Status: merged product-UI foundation with guarded MONO_V1 editing and tie-chain editing; guarded POLY_V2 browser mapping/editing is the current follow-up gate.
+Status: product-UI foundation through UI-06 is merged; UI-07 is the active protected POLY_V2 selection-hardening gate in PR #165.
 
 ## Product target
 
@@ -54,14 +54,18 @@ MONO_V1 selection remains master-bar index + beat/event index checked against th
 
 POLY_V2 selection is intentionally conservative. A clicked alphaTab note is accepted only when all of the following hold:
 
-- the renderer exposes a stable measure and playback onset;
-- the count/order of distinct pitched renderer onsets in that measure matches the retained canonical v2 pitched onsets;
-- the clicked renderer onset ordinal maps to exactly one canonical onset;
-- the renderer MIDI value matches exactly one retained canonical source event at that onset;
+- the renderer exposes a stable measure index;
+- its active renderer voice has a deterministic ordinal;
+- active renderer and canonical source-track counts agree for the measure;
+- the renderer voice maps to the canonical track ordering used by the MusicXML writer (staff, then source voice);
+- the pitched-onset ordinal inside that renderer voice maps to the same ordinal in the canonical source track;
+- the renderer and canonical chord MIDI multisets at that onset match exactly;
+- a duplicate same-MIDI ordinal is used only after voice, onset and chord evidence agree;
+- the resulting source event id and source order match exactly;
 - the source event resolves to at most one canonical simultaneous group;
 - the complete ordered simultaneous-group membership can be acknowledged from `canonicalTabResult.simultaneousGroups`.
 
-If two canonical source events have the same retained MIDI at the same mapped onset, selection is ambiguous and fails closed. No edit target is chosen and Apply remains disabled. This deliberately prefers a rejected edit over mutating the wrong voice/unison.
+UI-07 therefore permits same-pitch notes at one onset only when renderer voice, source track, per-voice onset, chord fingerprint and duplicate ordinal prove one exact source event. Any disagreement remains ambiguous and fails closed with no selected edit target.
 
 ## Structured edit contracts
 
@@ -71,7 +75,7 @@ The monophonic runtime accepts bounded cumulative pitch revisions with exact `me
 
 ### POLY_V2
 
-The browser sends only the fields required by the already-guarded internal POLY_V2 contract:
+The Workbench keeps `sourceTieEventIds` only as read-only browser selection evidence. Before calling `/api/edit/poly-v2`, the runtime host adapter projects every browser command to the existing `MusicXmlPolyphonicNoteEditRuntimeV2` `1.0.0` schema:
 
 - `measureIndex`;
 - `sourceOrder`;
@@ -80,7 +84,9 @@ The browser sends only the fields required by the already-guarded internal POLY_
 - complete ordered `sourceGroupEventIds` acknowledgement;
 - requested pitch.
 
-`processMusicXmlPolyphonicNoteEditV2` remains authoritative for source identity, group topology, immutable replay, playability and canonical regeneration. A simultaneous group containing tied notes is not editable in this gate; the browser disables Apply and the runtime independently rejects such a request.
+`sourceTieEventIds` is deliberately absent from the runtime command and cannot become edit authority accidentally. `processMusicXmlPolyphonicNoteEditV2` remains authoritative for source identity, group topology, immutable replay, playability and canonical regeneration.
+
+Retained POLY_V2 ties remain outside the supported deterministic final-selection boundary. Upload fails closed with `RETAINED_TIE_NOT_SUPPORTED` before an edit target can be authorized; supporting sustained sonorities requires a separately versioned selector and contract.
 
 Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar shape/fingering selection and the complete notation+TAB MusicXML document. Silent note omission or octave displacement remains forbidden.
 
@@ -90,8 +96,8 @@ Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar s
 - rest targets are rejected;
 - unplayable pitches fail closed; there is no automatic octave displacement;
 - independent TAB editing is forbidden;
-- ambiguous POLY_V2 unisons at one onset are intentionally non-editable in this first browser gate;
-- POLY_V2 simultaneous groups containing ties remain non-editable;
+- same-pitch POLY_V2 notes remain non-editable whenever voice/onset/chord/duplicate identity evidence is incomplete or inconsistent;
+- retained POLY_V2 ties remain blocked by deterministic final selection with `RETAINED_TIE_NOT_SUPPORTED`;
 - no production deployment server is introduced by this UI stage.
 
 ## CI evidence
@@ -105,9 +111,10 @@ Required gates for this line:
 - MONO_V1 Workbench upload/edit/regeneration smoke;
 - dedicated atomic MONO_V1 tie-chain browser smoke;
 - dedicated POLY_V2 browser smoke proving real PA-12 upload, exact source/group mapping, fail-closed ambiguous mapping, C4→E4 accepted regeneration, zero MONO edit calls, and a later unplayable C7 request preserving the accepted revision;
+- UI-07 static and real-Chromium gates proving voice/onset/chord/duplicate identity, distinct same-pitch source-event selection, read-only tie evidence, and v1 runtime-command projection;
 - static GitHub Pages preview build/smoke remains read-only and independent of runtime edit authority;
 - alphaTab synthesizer diagnostic remains non-authoritative for runner-specific audio readiness.
 
 ## Remaining expansion
 
-The next POLY_V2 capability work should address currently rejected ambiguous/unison and tied-group cases only with stronger explicit identity evidence. It must not weaken the current exact-SHA, complete-group acknowledgement, unique-selection or full-regeneration rules.
+The next POLY_V2 capability work may address retained sustained sonorities only through a separately versioned selector and edit contract. Broader chord, articulation or TAB-edit authority remains out of scope. Future work must preserve exact-SHA replay, complete ordered group acknowledgement, fail-closed renderer/source identity and full deterministic regeneration.

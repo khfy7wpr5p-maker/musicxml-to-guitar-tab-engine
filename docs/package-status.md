@@ -79,9 +79,9 @@ Authority boundary:
 
 The retained model artifact is not rewritten: its own runtime/shadow authorization fields remain false. Engine-side connection permission exists only in the reviewed internal bridge.
 
-## Compatibility verification
+## Compatibility verification baseline
 
-PR #146 functional implementation slice passed:
+PR #146 passed before merge:
 
 - Node.js 18/20/22 complete tests
 - alphaTab MusicXML import + SVG render on Node.js 18/20/22
@@ -89,7 +89,7 @@ PR #146 functional implementation slice passed:
 - synth diagnostic
 - MuseScore CLI availability
 
-The exact documentation-converged head must pass the full protected matrix again before merge.
+Each later change must pass the applicable protected matrix on its own exact head. PR #165 adds UI-07 static and real-Chromium identity/command-projection gates without widening package-root or runtime authority.
 
 ## Release boundary
 

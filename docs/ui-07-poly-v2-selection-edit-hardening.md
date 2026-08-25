@@ -1,6 +1,6 @@
 # UI-07 — POLY_V2 Selection & Edit Hardening
 
-Status: completion is defined by this implementation reaching `main` through the protected Node and browser CI gates.
+Status: active PR #165 gate; completion still requires the exact PR head to reach `main` through the protected Node and browser CI gates.
 
 ## Scope
 
@@ -50,6 +50,8 @@ An accepted untied POLY_V2 command still follows the existing authority chain:
 `immutable MusicXML bytes + exact SHA + cumulative bounded v1 commands → POLY_V2 source projection → exact simultaneous-group validation → one source pitch revision → CanonicalTabResult v2 rebuild → deterministic guitar selection/fingering rebuild → MusicXML serialization → alphaTab reload`
 
 The browser never mutates rendered fret/string values or CanonicalTabResult data in place.
+
+All browser and compatibility hosts must preserve the same boundary: UI-only identity metadata is recorded for diagnosis and selection continuity, then projected to the exact v1 runtime command before the authoritative edit function is invoked. Test hosts are part of this contract and must not bypass that projection.
 
 ## Inspector evidence
 

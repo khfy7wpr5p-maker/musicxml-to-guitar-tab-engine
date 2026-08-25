@@ -78,6 +78,9 @@ test('live architecture documents do not retain the superseded runtime-closed re
     'future pa-12 internal e2e',
     'pa-12 internal polyphonic e2e: 🔒 not activated',
     '`canonicaltabresult 2.0.0` runtime/validator | 🔒 not implemented',
+    'the documentation-converged exact head must pass the full protected matrix again before merge',
+    'final merge still requires the same mandatory checks',
+    'exact-head protected ci must pass again after documentation convergence',
   ];
 
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {

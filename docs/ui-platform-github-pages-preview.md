@@ -1,8 +1,8 @@
 # UI Platform 01–05 — Product Shell and GitHub Pages Preview
 
-Status: implementation line for the Guitar TAB Workbench product UI.
+Status: COMPLETE — UI-01 through UI-05 are merged; UI-06 refinement is merged and UI-07 does not change the Pages read-only authority boundary.
 
-Baseline: merged UI Stage 1 including the guarded monophonic structured-edit runtime. This UI platform work does not reopen or replace that edit authority.
+Baseline: merged UI Stage 1 including guarded MONO_V1 and POLY_V2 structured-edit host seams. This UI platform work does not reopen or replace either runtime authority.
 
 ## Scope
 

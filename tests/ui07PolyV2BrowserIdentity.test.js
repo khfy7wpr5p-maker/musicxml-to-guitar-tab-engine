@@ -10,6 +10,11 @@ const workbenchPath = path.join(root, 'web/guitar-tab-workbench/workbench.js');
 const hostAdaptersPath = path.join(root, 'web/guitar-tab-workbench/host-adapters.js');
 const uxPath = path.join(root, 'web/guitar-tab-workbench/ux-controller.js');
 const indexPath = path.join(root, 'web/guitar-tab-workbench/index.html');
+const compatibilitySmokePath = path.join(
+  root,
+  'tests/compatibility/alphaTabGuitarTabPolyV2WorkbenchSmoke.mjs',
+);
+const stageDocumentPath = path.join(root, 'docs/ui-stage-1-guitar-tab-workbench.md');
 
 function read(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -66,4 +71,27 @@ test('UI-07 leaves authoritative TAB regeneration on the existing bounded edit h
   assert.match(source, /pendingCommands/);
   assert.match(source, /api\.load\(new TextEncoder\(\)\.encode\(result\.musicXml\)\)/);
   assert.doesNotMatch(source, /selectedPosition\s*=|\.fret\s*=|\.string\s*=/);
+});
+
+test('UI-07 compatibility host projects browser metadata to the v1 runtime command schema', () => {
+  const smoke = read(compatibilitySmokePath);
+
+  assert.match(smoke, /runtimeCommands/);
+  assert.match(smoke, /JSON\.stringify\(runtimeCommands\)/);
+  assert.match(smoke, /sourceTieEventIds/);
+  assert.match(smoke, /Object\.hasOwn\([^)]*sourceTieEventIds/);
+  assert.match(smoke, /runtimeCommands\[0\][\s\S]*'sourceTieEventIds'\),\s*false/);
+  assert.doesNotMatch(smoke, /JSON\.stringify\(request\.commands\)/);
+});
+
+test('UI-07 active Workbench documentation matches the hardened selection boundary', () => {
+  const stage = read(stageDocumentPath);
+
+  assert.match(stage, /UI-07/);
+  assert.match(stage, /renderer voice/i);
+  assert.match(stage, /chord MIDI multiset/i);
+  assert.match(stage, /duplicate same-MIDI ordinal/i);
+  assert.match(stage, /sourceTieEventIds/);
+  assert.match(stage, /RETAINED_TIE_NOT_SUPPORTED/);
+  assert.doesNotMatch(stage, /ambiguous POLY_V2 unisons at one onset are intentionally non-editable/i);
 });
