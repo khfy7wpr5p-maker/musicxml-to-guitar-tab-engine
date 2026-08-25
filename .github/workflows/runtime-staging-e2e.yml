@@ -1,0 +1,70 @@
+name: Runtime Staging E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-staging-e2e:
+    name: Runtime staging browser E2E / Node.js 22
+    runs-on: ubuntu-latest
+
+    env:
+      ALPHATAB_EXPECTED_VERSION: 1.8.4
+      PUPPETEER_CORE_VERSION: 25.3.0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify runtime host contract
+        run: node --test tests/runtimeHttpHost.test.js
+
+      - name: Install pinned browser test packages without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4 puppeteer-core@25.3.0
+
+      - name: Detect a preinstalled Chrome or Chromium executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$(command -v "$command")"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "No preinstalled Chrome or Chromium executable was found." >&2
+            exit 1
+          fi
+          echo "BROWSER_EXECUTABLE=$found" >> "$GITHUB_ENV"
+          "$found" --version
+
+      - name: Run real Runtime Host upload and edit E2E
+        env:
+          ALPHATAB_RUNTIME_HOST_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-runtime-host-e2e.png
+        run: node tests/compatibility/alphaTabRuntimeHostE2e.mjs
+
+      - name: Upload Runtime Host E2E screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: alphatab-runtime-host-e2e
+          path: ${{ runner.temp }}/alphatab-runtime-host-e2e.png
+          if-no-files-found: warn
+          retention-days: 14
