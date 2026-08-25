@@ -31,8 +31,8 @@ jobs:
       - name: Install project dependencies
         run: npm ci --ignore-scripts
 
-      - name: Verify runtime host contract
-        run: node --test tests/runtimeHttpHost.test.js
+      - name: Verify runtime host and Vercel staging contracts
+        run: node --test tests/runtimeHttpHost.test.js tests/vercelStagingContract.test.js
 
       - name: Install pinned browser test packages without changing the repository
         run: npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4 puppeteer-core@25.3.0
@@ -55,16 +55,23 @@ jobs:
           echo "BROWSER_EXECUTABLE=$found" >> "$GITHUB_ENV"
           "$found" --version
 
-      - name: Run real Runtime Host upload and edit E2E
+      - name: Run real Runtime Host MONO_V1 upload and edit E2E
         env:
           ALPHATAB_RUNTIME_HOST_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-runtime-host-e2e.png
         run: node tests/compatibility/alphaTabRuntimeHostE2e.mjs
 
-      - name: Upload Runtime Host E2E screenshot
+      - name: Run real Runtime Host POLY_V2 upload and edit E2E
+        env:
+          ALPHATAB_RUNTIME_HOST_POLY_SCREENSHOT_PATH: ${{ runner.temp }}/alphatab-runtime-host-poly-v2-e2e.png
+        run: node tests/compatibility/alphaTabRuntimeHostPolyV2E2e.mjs
+
+      - name: Upload Runtime Host E2E screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: alphatab-runtime-host-e2e
-          path: ${{ runner.temp }}/alphatab-runtime-host-e2e.png
+          path: |
+            ${{ runner.temp }}/alphatab-runtime-host-e2e.png
+            ${{ runner.temp }}/alphatab-runtime-host-poly-v2-e2e.png
           if-no-files-found: warn
           retention-days: 14
