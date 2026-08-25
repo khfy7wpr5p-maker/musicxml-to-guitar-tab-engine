@@ -1,6 +1,6 @@
 # UI-06 — Guitar TAB Workbench UX Refinement
 
-Status: implementation stage
+Status: COMPLETE — merged through PR #164 with protected Tests and MusicXML Compatibility gates green.
 
 ## Scope
 
@@ -82,7 +82,7 @@ GitHub Pages remains a read-only static preview with no `/api/` calls.
 
 ## Verification gates
 
-UI-06 is complete only when all existing repository and protected browser gates remain green, plus:
+UI-06 completion evidence:
 
 1. four inspector tabs render and switch correctly;
 2. preview remains read-only;
