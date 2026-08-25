@@ -78,13 +78,14 @@ function pageHtml() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const smoke = window.__ui07Smoke = {error:null,uploadCalls:0,polyEditCalls:0,monoEditCalls:0,lastPolyRequest:null};
+  const smoke = window.__ui07Smoke = {error:null,uploadCalls:0,polyEditCalls:0,monoEditCalls:0,lastPolyRequest:null,lastUploadResult:null};
   const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
       method:'POST', headers:{'content-type':'application/octet-stream'}, body:ownedBytes
     });
     const payload = await response.json();
+    smoke.lastUploadResult = structuredClone(payload);
     if(!response.ok) throw new Error(payload?.message || 'upload failed');
     return payload;
   };
@@ -249,14 +250,32 @@ try {
   await page.goto(origin, {waitUntil:'networkidle0',timeout:30000});
   await page.waitForFunction(() => Boolean(window.__workbench), {timeout:10000});
 
-  const loaded = await page.evaluate(async () => {
+  const loadEvidence = await page.evaluate(async () => {
     const response = await fetch('/fixture.musicxml');
     const file = new File([await response.arrayBuffer()], 'ui07-poly-unison-tie.musicxml', {
       type:'application/vnd.recordare.musicxml+xml',
     });
-    return window.__workbench.loadFile(file);
+    const loaded = await window.__workbench.loadFile(file);
+    return {
+      loaded,
+      snapshot:window.__workbench.snapshot(),
+      uploadResult:window.__ui07Smoke.lastUploadResult,
+      smokeError:window.__ui07Smoke.error,
+    };
   });
-  assert.equal(loaded, true);
+  assert.equal(
+    loadEvidence.loaded,
+    true,
+    `UI-07 fixture failed to load: ${JSON.stringify({
+      uploadStatus:loadEvidence.uploadResult?.status,
+      uploadRoute:loadEvidence.uploadResult?.route,
+      uploadIssues:loadEvidence.uploadResult?.preflight?.issues,
+      snapshotStatus:loadEvidence.snapshot?.runtimeResult?.status,
+      snapshotRoute:loadEvidence.snapshot?.runtimeResult?.route,
+      lastError:loadEvidence.snapshot?.lastError,
+      smokeError:loadEvidence.smokeError,
+    })}`,
+  );
   await page.waitForFunction(
     () => window.__ui07Smoke?.error
       || (window.__workbench?.snapshot().scoreLoaded === true
