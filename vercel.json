@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci --ignore-scripts && npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": [
+        "web/guitar-tab-workbench/**",
+        "node_modules/@coderline/alphatab/dist/**"
+      ]
+    }
+  },
+  "rewrites": [
+    { "source": "/healthz", "destination": "/api/index" },
+    { "source": "/api/upload", "destination": "/api/index" },
+    { "source": "/api/edit", "destination": "/api/index" },
+    { "source": "/api/edit/poly-v2", "destination": "/api/index" },
+    { "source": "/workbench", "destination": "/api/index" },
+    { "source": "/workbench/(.*)", "destination": "/api/index" },
+    { "source": "/assets/(.*)", "destination": "/api/index" },
+    { "source": "/", "destination": "/api/index" }
+  ]
+}
