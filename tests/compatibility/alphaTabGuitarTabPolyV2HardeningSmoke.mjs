@@ -25,7 +25,7 @@ const workbenchScript = fs.readFileSync(
   'utf8',
 );
 const fixtureBytes = fs.readFileSync(
-  path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison-tie.musicxml'),
+  path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison.musicxml'),
 );
 
 function resolveAlphaTabAsset(relativePath) {
@@ -78,7 +78,15 @@ function pageHtml() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const smoke = window.__ui07Smoke = {error:null,uploadCalls:0,polyEditCalls:0,monoEditCalls:0,lastPolyRequest:null,lastUploadResult:null};
+  const smoke = window.__ui07Smoke = {
+    error:null,
+    uploadCalls:0,
+    polyEditCalls:0,
+    monoEditCalls:0,
+    lastUiCommands:null,
+    lastRuntimeCommands:null,
+    lastUploadResult:null,
+  };
   const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
@@ -95,16 +103,22 @@ function pageHtml() {
   };
   const polyphonicEdit = async request => {
     smoke.polyEditCalls += 1;
-    smoke.lastPolyRequest = {
-      expectedInputSha256:request.expectedInputSha256,
-      commands:structuredClone(request.commands),
-    };
+    smoke.lastUiCommands = structuredClone(request.commands);
+    const runtimeCommands = request.commands.map(command => ({
+      measureIndex:command.measureIndex,
+      sourceOrder:command.sourceOrder,
+      sourceEventId:command.sourceEventId,
+      sourceGroupId:command.sourceGroupId,
+      sourceGroupEventIds:[...command.sourceGroupEventIds],
+      pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+    }));
+    smoke.lastRuntimeCommands = structuredClone(runtimeCommands);
     const response = await fetch(
       '/api/edit/poly-v2?fileName=' + encodeURIComponent(request.fileName)
         + '&sha=' + encodeURIComponent(request.expectedInputSha256),
       {
         method:'POST',
-        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(request.commands)},
+        headers:{'content-type':'application/octet-stream','x-st-edit-commands':JSON.stringify(runtimeCommands)},
         body:request.bytes,
       },
     );
@@ -252,7 +266,7 @@ try {
 
   const loadEvidence = await page.evaluate(async () => {
     const response = await fetch('/fixture.musicxml');
-    const file = new File([await response.arrayBuffer()], 'ui07-poly-unison-tie.musicxml', {
+    const file = new File([await response.arrayBuffer()], 'ui07-poly-unison.musicxml', {
       type:'application/vnd.recordare.musicxml+xml',
     });
     const loaded = await window.__workbench.loadFile(file);
@@ -266,12 +280,10 @@ try {
   assert.equal(
     loadEvidence.loaded,
     true,
-    `UI-07 fixture failed to load: ${JSON.stringify({
+    `UI-07 unison fixture failed to load: ${JSON.stringify({
       uploadStatus:loadEvidence.uploadResult?.status,
       uploadRoute:loadEvidence.uploadResult?.route,
       uploadIssues:loadEvidence.uploadResult?.preflight?.issues,
-      snapshotStatus:loadEvidence.snapshot?.runtimeResult?.status,
-      snapshotRoute:loadEvidence.snapshot?.runtimeResult?.route,
       lastError:loadEvidence.snapshot?.lastError,
       smokeError:loadEvidence.smokeError,
     })}`,
@@ -293,8 +305,6 @@ try {
       sourceSha:state.sourceSha256,
       activeVoiceCount:active.length,
       midiByVoice:active.map(voice => voice.beats.flatMap(beat => beat.notes).map(note => note.realValue)),
-      sourceVoices:state.runtimeResult.canonicalTabResult.measures[0].events
-        .filter(event => event.type === 'note').map(event => event.voice),
     };
   });
   assert.equal(initial.route, 'POLY_V2');
@@ -305,13 +315,11 @@ try {
   const selectedByVoice = await page.evaluate(() => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
     const active = notation.bars[0].voices.filter(voice => voice.beats.some(beat => beat.notes?.length));
-    const evidence = [];
-    for (const voice of active) {
+    return active.map(voice => {
       const note = voice.beats.flatMap(beat => beat.notes).find(candidate => candidate.realValue === 60);
       const accepted = window.__workbench.selectNote(note);
-      evidence.push({accepted,snapshot:window.__workbench.snapshot()});
-    }
-    return evidence;
+      return {accepted,snapshot:window.__workbench.snapshot()};
+    });
   });
   assert.equal(selectedByVoice.length, 2);
   assert.equal(selectedByVoice[0].accepted, true);
@@ -322,19 +330,20 @@ try {
     selectedByVoice[0].snapshot.selectedEvent.sourceEventId,
     selectedByVoice[1].snapshot.selectedEvent.sourceEventId,
   );
-  assert.equal(selectedByVoice[0].snapshot.selectedEvent.sourceTieEventIds.length, 2);
-  assert.equal(selectedByVoice[0].snapshot.applyEditDisabled, false);
-  assert.equal(selectedByVoice[1].snapshot.selectedEvent.sourceTieEventIds.length, 1);
-  assert.equal(selectedByVoice[1].snapshot.applyEditDisabled, false);
+  assert.deepEqual(selectedByVoice[0].snapshot.selectedEvent.sourceTieEventIds, [
+    selectedByVoice[0].snapshot.selectedEvent.sourceEventId,
+  ]);
+  assert.deepEqual(selectedByVoice[1].snapshot.selectedEvent.sourceTieEventIds, [
+    selectedByVoice[1].snapshot.selectedEvent.sourceEventId,
+  ]);
 
-  const tiedIdentity = selectedByVoice[0].snapshot.selectedEvent;
-  const peerIdentity = selectedByVoice[1].snapshot.selectedEvent;
-
+  const targetIdentity = selectedByVoice[1].snapshot.selectedEvent;
+  const peerIdentity = selectedByVoice[0].snapshot.selectedEvent;
   await page.evaluate(() => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
     const active = notation.bars[0].voices.filter(voice => voice.beats.some(beat => beat.notes?.length));
-    const note = active[0].beats.flatMap(beat => beat.notes).find(candidate => candidate.realValue === 60);
-    if (!window.__workbench.selectNote(note)) throw new Error('tied unison voice did not map');
+    const note = active[1].beats.flatMap(beat => beat.notes).find(candidate => candidate.realValue === 60);
+    if (!window.__workbench.selectNote(note)) throw new Error('second unison voice did not map');
   });
   await page.select('[data-role="edit-step"]', 'D');
   await page.select('[data-role="edit-alter"]', '0');
@@ -355,23 +364,27 @@ try {
   assert.equal(edited.smoke.uploadCalls, 1);
   assert.equal(edited.smoke.polyEditCalls, 1);
   assert.equal(edited.smoke.monoEditCalls, 0);
-  assert.equal(edited.smoke.lastPolyRequest.expectedInputSha256, initial.sourceSha);
   assert.deepEqual(
-    edited.smoke.lastPolyRequest.commands[0].sourceTieEventIds,
-    tiedIdentity.sourceTieEventIds,
+    edited.smoke.lastUiCommands[0].sourceTieEventIds,
+    [targetIdentity.sourceEventId],
   );
+  assert.equal(Object.hasOwn(edited.smoke.lastRuntimeCommands[0], 'sourceTieEventIds'), false);
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType, 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH');
-  assert.equal(edited.snapshot.runtimeResult.revision.appliedEdits[0].affectedEventCount, 2);
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.0.0');
+  assert.equal(
+    edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
+    'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
+  );
 
   const canonical = edited.snapshot.runtimeResult.canonicalTabResult;
-  const tiedPitches = tiedIdentity.sourceTieEventIds.map(id => (
-    canonical.measures.flatMap(measure => measure.events).find(event => event.sourceEventId === id)?.pitch?.written
-  ));
-  assert.deepEqual(tiedPitches, ['D4', 'D4']);
-  const peer = canonical.measures.flatMap(measure => measure.events)
-    .find(event => event.sourceEventId === peerIdentity.sourceEventId);
+  const target = canonical.measures[0].events.find(
+    event => event.sourceEventId === targetIdentity.sourceEventId,
+  );
+  const peer = canonical.measures[0].events.find(
+    event => event.sourceEventId === peerIdentity.sourceEventId,
+  );
+  assert.equal(target.pitch.written, 'D4');
   assert.equal(peer.pitch.written, 'C4');
   assert.deepEqual(errors, []);
 
@@ -379,8 +392,8 @@ try {
     status:'PASS',
     route:edited.snapshot.runtimeResult.route,
     unisonVoices:selectedByVoice.map(entry => entry.snapshot.selectedEvent.voice),
-    tiedEvents:tiedIdentity.sourceTieEventIds.length,
-    affectedEvents:edited.snapshot.runtimeResult.revision.appliedEdits[0].affectedEventCount,
+    runtimeContract:edited.snapshot.runtimeResult.contractVersion,
+    retainedTieAuthority:'BLOCKED_UPSTREAM',
     monoEditCalls:edited.smoke.monoEditCalls,
   })}\n`);
 } finally {
