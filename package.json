@@ -5,7 +5,8 @@
   "description": "Convert MusicXML scores into playable six-string guitar tablature.",
   "main": "src/index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "start:runtime": "node scripts/start-runtime-host.js"
   },
   "dependencies": {
     "saxes": "6.0.0"

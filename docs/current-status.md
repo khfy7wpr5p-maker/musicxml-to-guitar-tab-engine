@@ -22,7 +22,8 @@ Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merge
 | PA-12 internal polyphonic E2E | ✅ IMPLEMENTED / NON-PUBLIC |
 | Guitar TAB Workbench | ✅ IMPLEMENTED / GUARDED MONO_V1 + POLY_V2 HOST SEAMS |
 | GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
-| UI-07 same-pitch POLY_V2 selection hardening | 🟡 PR #165 PROTECTED-CI GATE |
+| UI-07 same-pitch POLY_V2 selection hardening | ✅ MERGED / PROTECTED CI PASS |
+| Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
 | Public polyphonic API | 🔒 NOT IMPLEMENTED |
 | Production hosted application/PDF/persistence/release | 🔒 NOT READY |
 
@@ -95,6 +96,16 @@ Byte SHA-256: `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`
 
 Sealed diagnostics remain historical evidence: 4/4 candidate-bearing coverage, 153/153 candidates preserved, one explicit zero-candidate NO_SCORE group, 1/4 baseline agreement, three disagreements, 48 fret-20 candidates, zero shadow errors and 10/10 determinism.
 
+## Runtime host staging boundary
+
+The staging host exposes only the existing bounded application seams from one origin:
+
+`browser Workbench → POST /api/upload | /api/edit | /api/edit/poly-v2 → existing application runtimes → full regenerated notation + TAB`.
+
+The host does not change package-root authority, does not persist user source bytes, and does not make GitHub Pages dynamic. UI-07 browser-only tie identity remains metadata: the Workbench projects POLY_V2 edits to the existing runtime command schema, and the runtime independently rejects unknown command fields fail-closed.
+
+This is a staging/evaluation boundary only. Authentication, public deployment, multi-user persistence, production playback/PDF and release operations remain separate gates.
+
 ## Compatibility baseline
 
 PR #146 passed the following protected matrix before merge:
@@ -107,14 +118,14 @@ PR #146 passed the following protected matrix before merge:
 - synth diagnostic: ✅ PASS
 - MuseScore CLI availability: ✅ PASS
 
-Every later change must pass the applicable protected matrix on its own exact head. PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
+PR #165 subsequently merged the UI-07 static and real-Chromium identity/command-projection gates. Every later change must pass the applicable protected matrix on its own exact head; the Runtime Host stage additionally requires its dedicated real-browser E2E.
 
 ## Known open architecture gates
 
 1. Production/public selector authority beyond the current deterministic internal subset; runtime shadow cannot become that selector implicitly.
 2. Runtime v1/v2 public dispatcher if separately approved.
 3. PA-13 public polyphonic API.
-4. Production hosting, PDF, persistence, release hardening and operational support; the current Workbench renderer/player and read-only Pages preview do not grant production authority.
+4. Production hosting, authentication, PDF, persistence, release hardening and operational support; the current Workbench, read-only Pages preview and staging Runtime Host do not grant production authority.
 5. Any future live/user-input shadow activation or learned decision authority requires a separate consequential gate.
 
 Historical versioned contracts, closure records and sealed evidence remain exact historical records; this file is the live convergence view.

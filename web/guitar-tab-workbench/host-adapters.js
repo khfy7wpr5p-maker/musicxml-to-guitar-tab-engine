@@ -5,6 +5,10 @@
     RUNTIME: 'runtime',
     PREVIEW: 'preview',
   });
+  const EDIT_CONTENT_TYPE = 'application/vnd.st-guitar-tab-edit+octet-stream';
+  const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
+  const MAX_EDIT_COMMAND_BYTES = 8 * 1024 * 1024;
+  const EDIT_FRAME_HEADER_BYTES = 4;
 
   function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -37,18 +41,38 @@
     return payload;
   }
 
-  function createEditForm(request, label, commands = request?.commands) {
+  function createEditRequest(request, label, commands = request?.commands) {
     assert(request && typeof request === 'object', `${label} request is required.`);
     assert(request.bytes instanceof Uint8Array, `${label} requires owned source bytes.`);
-    const form = new FormData();
-    form.append(
-      'source',
-      new Blob([request.bytes], {type: 'application/vnd.recordare.musicxml+xml'}),
-      request.fileName,
+    assert(request.bytes.byteLength <= MAX_SOURCE_BYTES, `${label} source bytes exceed the fixed size limit.`);
+    assert(typeof request.fileName === 'string' && request.fileName.length > 0, `${label} requires a file name.`);
+    assert(
+      typeof request.expectedInputSha256 === 'string'
+        && /^[0-9a-f]{64}$/.test(request.expectedInputSha256),
+      `${label} requires the immutable source SHA-256.`,
     );
-    form.append('expectedInputSha256', request.expectedInputSha256);
-    form.append('commands', JSON.stringify(commands));
-    return form;
+    assert(Array.isArray(commands), `${label} requires revision commands.`);
+
+    const commandBytes = new TextEncoder().encode(JSON.stringify(commands));
+    assert(commandBytes.byteLength > 0, `${label} command metadata is required.`);
+    assert(
+      commandBytes.byteLength <= MAX_EDIT_COMMAND_BYTES,
+      `${label} command metadata exceeds the fixed size limit.`,
+    );
+
+    const body = new Uint8Array(
+      EDIT_FRAME_HEADER_BYTES + commandBytes.byteLength + request.bytes.byteLength,
+    );
+    new DataView(body.buffer, body.byteOffset, EDIT_FRAME_HEADER_BYTES)
+      .setUint32(0, commandBytes.byteLength, false);
+    body.set(commandBytes, EDIT_FRAME_HEADER_BYTES);
+    body.set(request.bytes, EDIT_FRAME_HEADER_BYTES + commandBytes.byteLength);
+
+    return Object.freeze({
+      query: `fileName=${encodeURIComponent(request.fileName)}&sha=${encodeURIComponent(request.expectedInputSha256)}`,
+      headers: Object.freeze({'content-type': EDIT_CONTENT_TYPE}),
+      body,
+    });
   }
 
   function polyV2RuntimeCommands(commands) {
@@ -88,16 +112,24 @@
         return readJsonResponse(response, 'Upload request failed.');
       },
       async edit(request) {
-        const response = await fetch(`${apiBaseUrl}/edit`, {
+        const wire = createEditRequest(request, 'Runtime edit');
+        const response = await fetch(`${apiBaseUrl}/edit?${wire.query}`, {
           method: 'POST',
-          body: createEditForm(request, 'Runtime edit'),
+          headers: wire.headers,
+          body: wire.body,
         });
         return readJsonResponse(response, 'Edit request failed.');
       },
       async polyphonicEdit(request) {
-        const response = await fetch(`${apiBaseUrl}/edit/poly-v2`, {
+        const wire = createEditRequest(
+          request,
+          'POLY_V2 edit',
+          polyV2RuntimeCommands(request?.commands),
+        );
+        const response = await fetch(`${apiBaseUrl}/edit/poly-v2?${wire.query}`, {
           method: 'POST',
-          body: createEditForm(request, 'POLY_V2 edit', polyV2RuntimeCommands(request?.commands)),
+          headers: wire.headers,
+          body: wire.body,
         });
         return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },

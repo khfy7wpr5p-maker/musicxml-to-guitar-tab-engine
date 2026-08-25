@@ -51,10 +51,13 @@ GitHub repository visibility and package publication are distinct. A public repo
 | GuitarSet v2 controlled offline execution | ✅ `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE` |
 | GuitarSet v2 runtime shadow connection | ✅ INTERNAL DEFAULT-OFF — `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1` |
 | Runtime learned selection authority | 🔒 CLOSED |
+| Guitar TAB Workbench browser UI | ✅ IMPLEMENTED / GUARDED MONO_V1 + POLY_V2 HOST SEAMS |
+| GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
+| Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
+| Hosted persistence / multi-user state / export service | 🔒 NOT IMPLEMENTED |
 | Production playback | 🔒 NOT VERIFIED |
 | MuseScore semantic round-trip | 🔒 NOT VERIFIED |
 | Production PDF | 🔒 NOT IMPLEMENTED |
-| Application UI/persistence/export | 🔒 NOT IMPLEMENTED |
 
 ## GuitarSet v2 package boundary
 
@@ -79,6 +82,14 @@ Authority boundary:
 
 The retained model artifact is not rewritten: its own runtime/shadow authorization fields remain false. Engine-side connection permission exists only in the reviewed internal bridge.
 
+## Runtime host package boundary
+
+The same-origin staging host is an internal application host and is not exported from `src/index.js`. It exposes the existing bounded upload/edit seams to the browser while preserving immutable source bytes, exact source SHA identity and full server-side regeneration.
+
+POLY_V2 browser tie/source evidence remains UI metadata. Before transport, the Workbench projects edit commands to the existing runtime schema; direct clients that add unknown fields such as browser-only tie metadata are rejected by the authoritative POLY_V2 runtime.
+
+The staging host does not publish the npm package, does not grant public `CanonicalTabResult 2.0.0` authority and does not authorize production hosting.
+
 ## Compatibility verification baseline
 
 PR #146 passed before merge:
@@ -89,8 +100,8 @@ PR #146 passed before merge:
 - synth diagnostic
 - MuseScore CLI availability
 
-Each later change must pass the applicable protected matrix on its own exact head. PR #165 adds UI-07 static and real-Chromium identity/command-projection gates without widening package-root or runtime authority.
+PR #165 subsequently merged UI-07 static and real-Chromium identity/command-projection gates without widening package-root or runtime authority. Each later change must pass the applicable protected matrix on its own exact head. The Runtime Host staging line also requires the dedicated real-browser upload/edit/regeneration E2E.
 
 ## Release boundary
 
-No npm/public package release, production application, public polyphonic API, runtime learned-selection authority, live/user-input shadow activation, production PDF or production playback claim is made. Runtime shadow is diagnostic, internal and default-off.
+No npm/public package release, production application, public polyphonic API, runtime learned-selection authority, live/user-input shadow activation, production PDF or production playback claim is made. Runtime shadow is diagnostic, internal and default-off. The same-origin Runtime Host is staging-only and does not create a production deployment claim.

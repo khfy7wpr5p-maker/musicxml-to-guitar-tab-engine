@@ -58,10 +58,17 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostAdapters, /\/api/);
   assert.match(hostAdapters, /\/upload\?fileName=/);
   assert.match(hostAdapters, /\/edit/);
-  assert.match(hostAdapters, /FormData/);
+  assert.match(hostAdapters, /application\/octet-stream/);
+  assert.match(hostAdapters, /application\/vnd\.st-guitar-tab-edit\+octet-stream/);
+  assert.match(hostAdapters, /TextEncoder/);
+  assert.match(hostAdapters, /DataView/);
+  assert.match(hostAdapters, /expectedInputSha256/);
+  assert.match(hostAdapters, /function polyV2RuntimeCommands/);
+  assert.match(hostAdapters, /polyV2RuntimeCommands\(request\?\.commands\)/);
   assert.match(hostAdapters, /createRuntimeApiAdapter/);
   assert.match(hostAdapters, /createStaticPreviewAdapter/);
   assert.match(hostAdapters, /same-origin path/);
+  assert.doesNotMatch(hostAdapters, /x-st-edit-commands|FormData|multipart\/form-data/);
 
   assert.match(hostController, /createDocumentController/);
   assert.match(hostController, /createPlaybackController/);
