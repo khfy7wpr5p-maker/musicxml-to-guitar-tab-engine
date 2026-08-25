@@ -5,12 +5,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const { createRuntimeHttpServer } = require('../src/app/runtimeHttpHost');
+const {
+  EDIT_CONTENT_TYPE,
+  MAX_EDIT_COMMAND_BYTES,
+  createRuntimeHttpServer,
+} = require('../src/app/runtimeHttpHost');
 
 const repositoryRoot = path.resolve(__dirname, '..');
 const polyFixture = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/pa12-polyphonic-e2e.musicxml'),
 );
+
+function editBody(commands, sourceBytes) {
+  const metadata = Buffer.from(JSON.stringify(commands), 'utf8');
+  const header = Buffer.alloc(4);
+  header.writeUInt32BE(metadata.length, 0);
+  return Buffer.concat([header, metadata, sourceBytes]);
+}
 
 async function startServer(t) {
   const server = createRuntimeHttpServer({ repositoryRoot });
@@ -53,15 +64,27 @@ test('runtime host keeps UI-07 browser tie metadata outside POLY_V2 edit authori
     `${origin}/api/edit/poly-v2?fileName=poly.musicxml&sha=${upload.payload.input.sha256}`,
     {
       method: 'POST',
-      headers: {
-        'content-type': 'application/octet-stream',
-        'x-st-edit-commands': JSON.stringify(commands),
-      },
-      body: polyFixture,
+      headers: {'content-type': EDIT_CONTENT_TYPE},
+      body: editBody(commands, polyFixture),
     },
   ));
 
   assert.equal(edit.response.status, 400);
   assert.equal(edit.payload.code, 'INVALID_POLYPHONIC_EDIT_REQUEST');
   assert.match(edit.payload.message, /unknown field/i);
+});
+
+test('framed edit metadata budget covers the maximum valid 128-command POLY_V2 shape', () => {
+  const id = '乐'.repeat(256);
+  const command = {
+    measureIndex: Number.MAX_SAFE_INTEGER,
+    sourceOrder: Number.MAX_SAFE_INTEGER,
+    sourceEventId: id,
+    sourceGroupId: id,
+    sourceGroupEventIds: Array.from({length: 64}, () => id),
+    pitch: {step: 'C', alter: -2, octave: Number.MAX_SAFE_INTEGER},
+  };
+  const metadataBytes = Buffer.byteLength(JSON.stringify(Array.from({length: 128}, () => command)), 'utf8');
+  assert.ok(metadataBytes > 48 * 1024);
+  assert.ok(metadataBytes <= MAX_EDIT_COMMAND_BYTES);
 });
