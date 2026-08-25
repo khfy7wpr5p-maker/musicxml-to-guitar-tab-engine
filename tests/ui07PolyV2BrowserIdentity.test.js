@@ -7,6 +7,7 @@ const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
 const workbenchPath = path.join(root, 'web/guitar-tab-workbench/workbench.js');
+const hostAdaptersPath = path.join(root, 'web/guitar-tab-workbench/host-adapters.js');
 const uxPath = path.join(root, 'web/guitar-tab-workbench/ux-controller.js');
 const indexPath = path.join(root, 'web/guitar-tab-workbench/index.html');
 
@@ -29,7 +30,17 @@ test('UI-07 browser mapping binds POLY_V2 selection to voice, onset, chord finge
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });
 
-test('UI-07 inspector exposes source, group, voice and tie-chain identity as read-only text surfaces', () => {
+test('UI-07 keeps browser tie identity as metadata and projects only the v1 POLY_V2 command schema to runtime', () => {
+  const host = read(hostAdaptersPath);
+
+  assert.match(host, /polyV2RuntimeCommands/);
+  assert.match(host, /sourceGroupEventIds:\s*\[\.\.\.command\.sourceGroupEventIds\]/);
+  assert.match(host, /pitch:\s*\{/);
+  assert.doesNotMatch(host, /sourceTieEventIds/);
+  assert.doesNotMatch(host, /innerHTML|outerHTML|insertAdjacentHTML/);
+});
+
+test('UI-07 inspector exposes source, group, voice and tie evidence as read-only text surfaces', () => {
   const html = read(indexPath);
   const ux = read(uxPath);
 
