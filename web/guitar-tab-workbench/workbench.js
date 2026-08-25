@@ -43,6 +43,9 @@
         sourceEventId: command.sourceEventId,
         sourceGroupId: command.sourceGroupId,
         sourceGroupEventIds: [...command.sourceGroupEventIds],
+        sourceTieEventIds: command.sourceTieEventIds
+          ? [...command.sourceTieEventIds]
+          : [command.sourceEventId],
         pitch: {
           step: command.pitch.step,
           alter: command.pitch.alter,
@@ -194,7 +197,7 @@
       const routeReady = route === 'MONO_V1'
         ? typeof edit === 'function'
         : route === 'POLY_V2'
-          ? typeof polyphonicEdit === 'function' && !state.selectedEvent?.groupContainsTies
+          ? typeof polyphonicEdit === 'function'
           : false;
       return Boolean(
         !state.loading
@@ -220,9 +223,9 @@
       stopButton.disabled = !playbackReady;
       applyEditButton.disabled = !canEdit();
       cancelEditButton.disabled = busy || !state.selectedEvent;
-      editStep.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
-      editAlter.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
-      editOctave.disabled = busy || !state.selectedEvent || Boolean(state.selectedEvent?.groupContainsTies);
+      editStep.disabled = busy || !state.selectedEvent;
+      editAlter.disabled = busy || !state.selectedEvent;
+      editOctave.disabled = busy || !state.selectedEvent;
     }
 
     function measureStarts() {
@@ -335,6 +338,8 @@
         eventIndex: event.eventIndex,
         eventId: event.eventId,
         visibleMeasureNumber: measure.visibleMeasureNumber,
+        voice: String(event.voice ?? '1'),
+        staff: event.staff ?? 1,
         pitch: {
           step: event.pitch.step,
           alter: event.pitch.alter,
@@ -384,76 +389,253 @@
       return { canonical, dispositions, events, groupsByEvent };
     }
 
-    function rendererPitchedOnsetOrdinal(note) {
-      const bar = note?.beat?.voice?.bar;
-      const targetStart = note?.beat?.absolutePlaybackStart;
-      if (!bar || !Array.isArray(bar.voices) || !Number.isFinite(targetStart)) return null;
-      const starts = [];
-      for (const voice of bar.voices) {
-        if (!voice || !Array.isArray(voice.beats)) continue;
-        for (const beat of voice.beats) {
-          if (!beat || !Array.isArray(beat.notes) || beat.notes.length === 0) continue;
-          if (!Number.isFinite(beat.absolutePlaybackStart)) return null;
-          starts.push(beat.absolutePlaybackStart);
+    function polyTrackKey(event) {
+      return `${event?.staff}\u0000${event?.voice}`;
+    }
+
+    function renderedPolyEvent(event, dispositions) {
+      if (!event) return false;
+      if (event.type === 'rest') return true;
+      return event.type === 'note' && dispositions.get(event.sourceEventId)?.disposition === 'KEEP';
+    }
+
+    function canonicalTrackRecords(canonical, dispositions) {
+      const records = new Map();
+      for (const measure of canonical?.measures || []) {
+        for (const event of measure?.events || []) {
+          if (!renderedPolyEvent(event, dispositions)) continue;
+          const key = polyTrackKey(event);
+          if (!records.has(key)) records.set(key, { key, staff: event.staff, voice: String(event.voice) });
         }
       }
+      return [...records.values()].sort((left, right) => (
+        left.staff - right.staff || left.voice.localeCompare(right.voice)
+      ));
+    }
+
+    function rendererActiveVoices(bar) {
+      if (!bar || !Array.isArray(bar.voices)) return [];
+      return bar.voices.filter((voice) => (
+        voice
+        && Array.isArray(voice.beats)
+        && voice.beats.some((beat) => (
+          beat
+          && ((Array.isArray(beat.notes) && beat.notes.length > 0) || (beat.isRest && !beat.isEmpty))
+        ))
+      ));
+    }
+
+    function rendererTrackEvidence(note, measure, canonical, dispositions) {
+      const bar = note?.beat?.voice?.bar;
+      if (!bar) return null;
+      const activeRendererVoices = rendererActiveVoices(bar);
+      const voiceOrdinal = activeRendererVoices.indexOf(note.beat.voice);
+      if (voiceOrdinal < 0) return null;
+
+      const tracks = canonicalTrackRecords(canonical, dispositions);
+      const activeCanonicalTracks = tracks.filter((track) => measure.events.some((event) => (
+        polyTrackKey(event) === track.key && renderedPolyEvent(event, dispositions)
+      )));
+      if (activeRendererVoices.length !== activeCanonicalTracks.length) return null;
+      const track = activeCanonicalTracks[voiceOrdinal];
+      if (!track) return null;
+      return { track, voiceOrdinal, activeVoiceCount: activeRendererVoices.length };
+    }
+
+    function rendererTrackOnsetEvidence(note) {
+      const voice = note?.beat?.voice;
+      const targetStart = note?.beat?.absolutePlaybackStart;
+      if (!voice || !Array.isArray(voice.beats) || !Number.isFinite(targetStart)) return null;
+      const starts = voice.beats
+        .filter((beat) => beat && Array.isArray(beat.notes) && beat.notes.length > 0)
+        .map((beat) => beat.absolutePlaybackStart);
+      if (starts.some((value) => !Number.isFinite(value))) return null;
       const ordered = [...new Set(starts)].sort((left, right) => left - right);
       const ordinal = ordered.indexOf(targetStart);
       if (ordinal < 0) return null;
       return { ordinal, count: ordered.length };
     }
 
+    function sortedNumbers(values) {
+      return [...values].sort((left, right) => left - right);
+    }
+
+    function equalNumbers(left, right) {
+      return left.length === right.length && left.every((value, index) => value === right[index]);
+    }
+
+    function samePolyPitch(left, right) {
+      return Boolean(
+        left
+        && right
+        && left.step === right.step
+        && left.alter === right.alter
+        && left.octave === right.octave
+        && left.midi === right.midi,
+      );
+    }
+
+    function polyTieAdjacent(left, right) {
+      if (!left || !right) return false;
+      const leftEnd = left.event.onsetDivisions + left.event.durationDivisions;
+      if (left.measureIndex === right.measureIndex) return leftEnd === right.event.onsetDivisions;
+      return Boolean(
+        right.measureIndex === left.measureIndex + 1
+        && leftEnd === left.measure.expectedDurationDivisions
+        && right.event.onsetDivisions === 0,
+      );
+    }
+
+    function resolvePolyTieEventIds(event) {
+      if (!event?.tieStart && !event?.tieStop) return [event.sourceEventId];
+      const canonical = state.runtimeResult?.canonicalTabResult;
+      if (!canonical || !Array.isArray(canonical.measures)) return null;
+      const references = [];
+      for (let measureIndex = 0; measureIndex < canonical.measures.length; measureIndex += 1) {
+        const measure = canonical.measures[measureIndex];
+        for (const candidate of measure.events || []) {
+          if (
+            candidate?.type === 'note'
+            && candidate.staff === event.staff
+            && candidate.voice === event.voice
+          ) {
+            references.push({ measure, measureIndex, event: candidate });
+          }
+        }
+      }
+      const target = references.find((entry) => entry.event.sourceEventId === event.sourceEventId);
+      if (!target) return null;
+      const chain = [target];
+      const seen = new Set([event.sourceEventId]);
+      let first = target;
+      while (first.event.tieStop) {
+        const matches = references.filter((candidate) => (
+          !seen.has(candidate.event.sourceEventId)
+          && candidate.event.tieStart
+          && samePolyPitch(candidate.event.pitch, first.event.pitch)
+          && polyTieAdjacent(candidate, first)
+        ));
+        if (matches.length !== 1) return null;
+        first = matches[0];
+        seen.add(first.event.sourceEventId);
+        chain.unshift(first);
+      }
+      let last = target;
+      while (last.event.tieStart) {
+        const matches = references.filter((candidate) => (
+          !seen.has(candidate.event.sourceEventId)
+          && candidate.event.tieStop
+          && samePolyPitch(last.event.pitch, candidate.event.pitch)
+          && polyTieAdjacent(last, candidate)
+        ));
+        if (matches.length !== 1) return null;
+        last = matches[0];
+        seen.add(last.event.sourceEventId);
+        chain.push(last);
+      }
+      if (chain.length < 2) return null;
+      for (let index = 0; index < chain.length; index += 1) {
+        const member = chain[index].event;
+        if (!samePolyPitch(member.pitch, event.pitch)) return null;
+        if (Boolean(member.tieStop) !== (index > 0)) return null;
+        if (Boolean(member.tieStart) !== (index < chain.length - 1)) return null;
+      }
+      return chain.map((entry) => entry.event.sourceEventId);
+    }
+
     function resolvePolyphonicRendererNote(note, measureIndex) {
-      const mapping = rendererPitchedOnsetOrdinal(note);
       const midi = note?.realValue;
-      if (!mapping || !Number.isSafeInteger(midi)) return null;
+      if (!Number.isSafeInteger(midi)) return null;
 
       const { canonical, dispositions, groupsByEvent } = polyphonicIndexes();
       const measure = canonical?.measures?.[measureIndex];
       if (!measure || !Array.isArray(measure.events)) return null;
-      const renderedNotes = measure.events.filter((event) => {
-        const disposition = dispositions.get(event?.sourceEventId);
-        return event?.type === 'note'
-          && disposition?.disposition === 'KEEP'
-          && disposition?.targetPitch
-          && Number.isSafeInteger(event.onsetDivisions);
-      });
-      const canonicalOnsets = [...new Set(renderedNotes.map((event) => event.onsetDivisions))]
-        .sort((left, right) => left - right);
-      if (canonicalOnsets.length !== mapping.count || mapping.ordinal >= canonicalOnsets.length) return null;
-      const onsetDivisions = canonicalOnsets[mapping.ordinal];
-      const candidates = renderedNotes.filter((event) => {
-        const disposition = dispositions.get(event.sourceEventId);
-        return event.onsetDivisions === onsetDivisions && disposition.targetPitch.midi === midi;
-      });
-      if (candidates.length !== 1) return null;
+      const trackEvidence = rendererTrackEvidence(note, measure, canonical, dispositions);
+      const onsetEvidence = rendererTrackOnsetEvidence(note);
+      if (!trackEvidence || !onsetEvidence) return null;
 
-      const event = candidates[0];
+      const renderedTrackNotes = measure.events
+        .filter((event) => (
+          event?.type === 'note'
+          && polyTrackKey(event) === trackEvidence.track.key
+          && dispositions.get(event.sourceEventId)?.disposition === 'KEEP'
+          && Number.isSafeInteger(event.onsetDivisions)
+        ));
+      const canonicalOnsets = [...new Set(renderedTrackNotes.map((event) => event.onsetDivisions))]
+        .sort((left, right) => left - right);
+      if (canonicalOnsets.length !== onsetEvidence.count || onsetEvidence.ordinal >= canonicalOnsets.length) return null;
+      const onsetDivisions = canonicalOnsets[onsetEvidence.ordinal];
+      const canonicalChord = renderedTrackNotes
+        .filter((event) => event.onsetDivisions === onsetDivisions)
+        .sort((left, right) => left.sourceOrder - right.sourceOrder);
+      const rendererChord = Array.isArray(note?.beat?.notes)
+        ? note.beat.notes.filter((candidate) => Number.isSafeInteger(candidate?.realValue))
+        : [];
+      if (rendererChord.length !== canonicalChord.length || rendererChord.length < 1) return null;
+      const rendererFingerprint = sortedNumbers(rendererChord.map((candidate) => candidate.realValue));
+      const canonicalFingerprint = sortedNumbers(canonicalChord.map((event) => (
+        dispositions.get(event.sourceEventId)?.targetPitch?.midi
+      )));
+      if (canonicalFingerprint.some((value) => !Number.isSafeInteger(value))) return null;
+      if (!equalNumbers(rendererFingerprint, canonicalFingerprint)) return null;
+
+      const rendererMidiPeers = rendererChord.filter((candidate) => candidate.realValue === midi);
+      const duplicateOrdinal = rendererMidiPeers.indexOf(note);
+      if (duplicateOrdinal < 0) return null;
+      const candidates = canonicalChord.filter((event) => (
+        dispositions.get(event.sourceEventId)?.targetPitch?.midi === midi
+      ));
+      if (rendererMidiPeers.length !== candidates.length || duplicateOrdinal >= candidates.length) return null;
+
+      const event = candidates[duplicateOrdinal];
       const group = groupsByEvent.get(event.sourceEventId) || null;
       if (groupsByEvent.has(event.sourceEventId) && group === null) return null;
       const sourceGroupEventIds = group ? [...group.sourceEventIds] : [event.sourceEventId];
-      if (sourceGroupEventIds.length < 1 || new Set(sourceGroupEventIds).size !== sourceGroupEventIds.length) {
-        return null;
-      }
+      if (sourceGroupEventIds.length < 1 || new Set(sourceGroupEventIds).size !== sourceGroupEventIds.length) return null;
+      const sourceTieEventIds = resolvePolyTieEventIds(event);
+      if (!sourceTieEventIds) return null;
       return {
         measureIndex,
         sourceOrder: event.sourceOrder,
         sourceEventId: event.sourceEventId,
         sourceGroupId: group?.groupId ?? null,
         sourceGroupEventIds,
+        sourceTieEventIds,
+        rendererVoiceOrdinal: trackEvidence.voiceOrdinal,
+        rendererActiveVoiceCount: trackEvidence.activeVoiceCount,
+        rendererOnsetOrdinal: onsetEvidence.ordinal,
+        rendererDuplicateOrdinal: duplicateOrdinal,
+        rendererChordSize: rendererChord.length,
       };
     }
 
-    function renderPolySelectedEvent(event, measure, groupIdentity) {
+    function renderPolySelectedEvent(event, measure, identity) {
       if (!event || event.type !== 'note' || !event.pitch) {
         clearSelection('Only pitched POLY_V2 source events can be edited.');
         updateControls();
         return false;
       }
       const { events } = polyphonicIndexes();
-      const groupMembers = groupIdentity.sourceGroupEventIds.map((sourceEventId) => events.get(sourceEventId));
+      const groupMembers = identity.sourceGroupEventIds.map((sourceEventId) => events.get(sourceEventId));
       if (groupMembers.some((member) => !member || member.type !== 'note')) {
         clearSelection('The selected polyphonic group could not be resolved safely.');
+        updateControls();
+        return false;
+      }
+      const sourceTieEventIds = resolvePolyTieEventIds(event);
+      if (!sourceTieEventIds) {
+        clearSelection('The selected POLY_V2 tie-chain identity is incomplete; no edit target was selected.');
+        updateControls();
+        return false;
+      }
+      if (
+        Array.isArray(identity.sourceTieEventIds)
+        && (
+          identity.sourceTieEventIds.length !== sourceTieEventIds.length
+          || identity.sourceTieEventIds.some((value, index) => value !== sourceTieEventIds[index])
+        )
+      ) {
+        clearSelection('The selected source event no longer matches its tie-chain identity.');
         updateControls();
         return false;
       }
@@ -461,12 +643,20 @@
       const number = visibleMeasureNumber(measure);
       state.selectedEvent = {
         route: 'POLY_V2',
-        measureIndex: groupIdentity.measureIndex,
+        measureIndex: identity.measureIndex,
         sourceOrder: event.sourceOrder,
         sourceEventId: event.sourceEventId,
-        sourceGroupId: groupIdentity.sourceGroupId,
-        sourceGroupEventIds: [...groupIdentity.sourceGroupEventIds],
+        sourceGroupId: identity.sourceGroupId,
+        sourceGroupEventIds: [...identity.sourceGroupEventIds],
+        sourceTieEventIds: [...sourceTieEventIds],
         visibleMeasureNumber: number,
+        voice: String(event.voice),
+        staff: event.staff,
+        rendererVoiceOrdinal: identity.rendererVoiceOrdinal ?? null,
+        rendererActiveVoiceCount: identity.rendererActiveVoiceCount ?? null,
+        rendererOnsetOrdinal: identity.rendererOnsetOrdinal ?? null,
+        rendererDuplicateOrdinal: identity.rendererDuplicateOrdinal ?? null,
+        rendererChordSize: identity.rendererChordSize ?? null,
         pitch: {
           step: event.pitch.step,
           alter: event.pitch.alter,
@@ -474,24 +664,23 @@
           written: event.pitch.written,
           midi: event.pitch.midi,
         },
-        tied: Boolean(event.tieStart || event.tieStop),
+        tied: sourceTieEventIds.length > 1,
         groupContainsTies,
       };
       setText(
         selectedNote,
-        `${event.pitch.written} · measure ${number} · source ${event.sourceOrder + 1}`,
+        `${event.pitch.written} · measure ${number} · voice ${event.voice} · source ${event.sourceOrder + 1}`,
       );
       editStep.value = event.pitch.step;
       editAlter.value = String(event.pitch.alter);
       editOctave.value = String(event.pitch.octave);
-      if (groupContainsTies) {
-        setText(editStatus, 'Blocked · simultaneous group contains tied notes.');
-      } else {
-        setText(
-          editStatus,
-          `Ready · POLY_V2 group ${groupIdentity.sourceGroupEventIds.length} acknowledged · revision ${state.revisionNumber}`,
-        );
-      }
+      const tieText = sourceTieEventIds.length > 1
+        ? ` · tie chain ${sourceTieEventIds.length} acknowledged`
+        : '';
+      setText(
+        editStatus,
+        `Ready · POLY_V2 group ${identity.sourceGroupEventIds.length} acknowledged${tieText} · revision ${state.revisionNumber}`,
+      );
       updateControls();
       return true;
     }
@@ -556,12 +745,31 @@
           updateControls();
           return false;
         }
+        const tieIds = resolvePolyTieEventIds(event);
+        if (!tieIds) {
+          clearSelection('The selected source event has an invalid or ambiguous tie-chain identity.');
+          updateControls();
+          return false;
+        }
+        if (
+          Array.isArray(identity?.sourceTieEventIds)
+          && (
+            identity.sourceTieEventIds.length !== tieIds.length
+            || identity.sourceTieEventIds.some((value, index) => value !== tieIds[index])
+          )
+        ) {
+          clearSelection('The selected source event no longer matches its tie-chain identity.');
+          updateControls();
+          return false;
+        }
         return renderPolySelectedEvent(event, measure, {
+          ...identity,
           measureIndex: measure.index,
           sourceOrder: event.sourceOrder,
           sourceEventId: event.sourceEventId,
           sourceGroupId: expectedGroupId,
           sourceGroupEventIds: expectedIds,
+          sourceTieEventIds: tieIds,
         });
       }
 
@@ -630,7 +838,7 @@
       if (result.route === 'MONO_V1') {
         clearSelection('Select a note in the score or TAB.');
       } else if (result.route === 'POLY_V2' && typeof polyphonicEdit === 'function') {
-        clearSelection('Select a uniquely mappable polyphonic note in the score or TAB.');
+        clearSelection('Select a polyphonic note whose renderer voice/onset identity can be proven.');
       } else {
         clearSelection('Structured pitch editing is not connected for this route.');
       }
@@ -718,6 +926,7 @@
           sourceEventId: state.selectedEvent.sourceEventId,
           sourceGroupId: state.selectedEvent.sourceGroupId,
           sourceGroupEventIds: [...state.selectedEvent.sourceGroupEventIds],
+          sourceTieEventIds: [...state.selectedEvent.sourceTieEventIds],
           pitch,
         };
       }
@@ -737,6 +946,9 @@
           sourceEventId: command.sourceEventId,
           sourceGroupId: command.sourceGroupId,
           sourceGroupEventIds: [...command.sourceGroupEventIds],
+          sourceTieEventIds: command.sourceTieEventIds
+            ? [...command.sourceTieEventIds]
+            : [command.sourceEventId],
         };
       }
       return {
@@ -919,6 +1131,9 @@
               ...state.selectedEvent,
               sourceGroupEventIds: state.selectedEvent.sourceGroupEventIds
                 ? Object.freeze([...state.selectedEvent.sourceGroupEventIds])
+                : undefined,
+              sourceTieEventIds: state.selectedEvent.sourceTieEventIds
+                ? Object.freeze([...state.selectedEvent.sourceTieEventIds])
                 : undefined,
               pitch: Object.freeze({ ...state.selectedEvent.pitch }),
             })
