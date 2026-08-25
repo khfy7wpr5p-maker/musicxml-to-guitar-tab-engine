@@ -4,10 +4,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 60,
-      "includeFiles": [
-        "web/guitar-tab-workbench/**",
-        "node_modules/@coderline/alphatab/dist/**"
-      ]
+      "includeFiles": "{web/guitar-tab-workbench/**,node_modules/@coderline/alphatab/dist/**}"
     }
   },
   "rewrites": [
