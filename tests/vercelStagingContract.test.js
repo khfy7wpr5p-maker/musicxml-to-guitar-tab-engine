@@ -15,10 +15,10 @@ test('Vercel staging adapter preserves the reviewed runtime host boundary', () =
     'npm ci --ignore-scripts && npm install --no-save --package-lock=false --ignore-scripts @coderline/alphatab@1.8.4',
   );
   assert.equal(config.functions['api/index.js'].maxDuration, 60);
-  assert.deepEqual(config.functions['api/index.js'].includeFiles, [
-    'web/guitar-tab-workbench/**',
-    'node_modules/@coderline/alphatab/dist/**',
-  ]);
+  assert.equal(
+    config.functions['api/index.js'].includeFiles,
+    '{web/guitar-tab-workbench/**,node_modules/@coderline/alphatab/dist/**}',
+  );
 
   const rewrites = new Map(config.rewrites.map(entry => [entry.source, entry.destination]));
   for (const route of [
