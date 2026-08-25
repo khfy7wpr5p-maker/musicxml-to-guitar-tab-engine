@@ -95,6 +95,10 @@
     const fingeringString = root.querySelector('[data-role="fingering-string"]');
     const fingeringFret = root.querySelector('[data-role="fingering-fret"]');
     const fingeringAlternatives = root.querySelector('[data-role="fingering-alternatives"]');
+    const fingeringVoice = root.querySelector('[data-role="fingering-voice"]');
+    const fingeringSourceEvent = root.querySelector('[data-role="fingering-source-event"]');
+    const fingeringGroup = root.querySelector('[data-role="fingering-group"]');
+    const fingeringTieChain = root.querySelector('[data-role="fingering-tie-chain"]');
     const fingeringContext = root.querySelector('[data-role="fingering-context"]');
 
     assert(tabButtons.length === 4 && tabPanels.length === 4, 'Workbench inspector tabs are incomplete.');
@@ -103,7 +107,8 @@
       && speedControl && positionStatus && measureStatus && selectionStatus && scoreContext
       && issueCountTab && issueList && documentPanelStatus && documentSource && documentRoute
       && documentRevision && documentSha && fingeringPitch && fingeringString && fingeringFret
-      && fingeringAlternatives && fingeringContext,
+      && fingeringAlternatives && fingeringVoice && fingeringSourceEvent && fingeringGroup
+      && fingeringTieChain && fingeringContext,
       'Workbench UX controls are incomplete.',
     );
 
@@ -201,10 +206,39 @@
       fingeringString.textContent = position ? String(position.string) : '—';
       fingeringFret.textContent = position ? String(position.fret) : '—';
       fingeringAlternatives.textContent = alternatives === null ? '—' : String(alternatives);
+      fingeringVoice.textContent = selected?.voice ? String(selected.voice) : '—';
+      fingeringSourceEvent.textContent = selected?.route === 'POLY_V2'
+        ? selected.sourceEventId
+        : (selected?.eventId || '—');
+      fingeringGroup.textContent = selected?.route === 'POLY_V2'
+        ? (selected.sourceGroupId || 'single')
+        : '—';
+      if (Array.isArray(selected?.sourceTieEventIds)) {
+        fingeringTieChain.textContent = selected.sourceTieEventIds.length > 1
+          ? `${selected.sourceTieEventIds.length} events`
+          : 'single event';
+      } else if (selected?.tied) {
+        fingeringTieChain.textContent = 'guarded MONO chain';
+      } else {
+        fingeringTieChain.textContent = '—';
+      }
+
       if (!selected) {
         fingeringContext.textContent = 'Select a note to inspect the current TAB placement.';
+      } else if (selected.route === 'POLY_V2') {
+        const rendererVoice = Number.isInteger(selected.rendererVoiceOrdinal)
+          ? ` · renderer voice ${selected.rendererVoiceOrdinal + 1}`
+          : '';
+        const duplicate = Number.isInteger(selected.rendererDuplicateOrdinal) && selected.rendererDuplicateOrdinal > 0
+          ? ` · unison ordinal ${selected.rendererDuplicateOrdinal + 1}`
+          : '';
+        const tie = selected.sourceTieEventIds?.length > 1
+          ? ` · tie chain ${selected.sourceTieEventIds.length} proven`
+          : '';
+        const placement = position ? ` · string ${position.string} fret ${position.fret}` : '';
+        fingeringContext.textContent = `POLY_V2 · measure ${selected.visibleMeasureNumber ?? selected.measureIndex + 1} · voice ${selected.voice}${rendererVoice}${duplicate}${tie}${placement}`;
       } else if (position) {
-        const tieText = selected.groupContainsTies ? ' · tied group guarded' : (selected.tied ? ' · tie-chain guarded' : '');
+        const tieText = selected.tied ? ' · tie-chain guarded' : '';
         fingeringContext.textContent = `${selected.route} · measure ${selected.visibleMeasureNumber ?? selected.measureIndex + 1}${tieText}`;
       } else {
         fingeringContext.textContent = `${selected.route} · placement remains authoritative in the rendered TAB.`;
