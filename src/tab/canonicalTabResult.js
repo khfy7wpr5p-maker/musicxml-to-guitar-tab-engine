@@ -124,6 +124,39 @@ function samePosition(left, right) {
   return left.string === right.string && left.fret === right.fret;
 }
 
+function writtenPitch(step, alter, octave) {
+  const accidental = { '-2': 'bb', '-1': 'b', 0: '', 1: '#', 2: '##' }[alter];
+  return `${step}${accidental}${octave}`;
+}
+
+function targetPitchForCandidate(sourcePitch, candidateNote) {
+  const semitoneDelta = candidateNote.midi - sourcePitch.midi;
+  if (!Number.isSafeInteger(semitoneDelta) || (semitoneDelta % 12) !== 0) {
+    throw invariantViolation('Candidate target pitch must preserve pitch class by an exact octave.', {
+      sourceMidi: sourcePitch.midi,
+      targetMidi: candidateNote.midi,
+    });
+  }
+  const octaveDelta = semitoneDelta / 12;
+  const octave = sourcePitch.octave + octaveDelta;
+  const target = {
+    step: sourcePitch.step,
+    alter: sourcePitch.alter,
+    octave,
+    written: writtenPitch(sourcePitch.step, sourcePitch.alter, octave),
+    midi: candidateNote.midi,
+  };
+  if (target.written !== candidateNote.writtenPitch) {
+    throw invariantViolation('Candidate written pitch does not match its target MIDI octave.', {
+      sourceWrittenPitch: sourcePitch.written,
+      candidateWrittenPitch: candidateNote.writtenPitch,
+      targetWrittenPitch: target.written,
+      targetMidi: target.midi,
+    });
+  }
+  return target;
+}
+
 function createResultEvent(event, measure, candidateState) {
   const base = {
     eventId: event.eventId,
@@ -180,7 +213,7 @@ function createResultEvent(event, measure, candidateState) {
 
   return {
     ...base,
-    pitch: clonePlainData(event.pitch),
+    pitch: targetPitchForCandidate(event.pitch, candidateNote),
     selectedPosition: clonePlainData(selectedPosition),
     alternativePositions: candidateLayer
       .filter((position) => !samePosition(position, selectedPosition))
