@@ -57,7 +57,7 @@ function validTieSource() {
 </score-partwise>`);
 }
 
-test('structured note revision changes source pitch and regenerates the entire TAB result', () => {
+test('structured note revision keeps source edit written while regenerating sounding guitar TAB', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlNoteEdit(request(bytes, [
     command(0, 1, 'D', 0, 4),
@@ -71,15 +71,23 @@ test('structured note revision changes source pitch and regenerates the entire T
   assert.equal(result.revision.appliedEdits[0].beforePitch.written, 'D#4');
   assert.equal(result.revision.appliedEdits[0].afterPitch.written, 'D4');
   assert.equal(result.revision.appliedEdits[0].affectedEventCount, 1);
-  assert.equal(result.canonicalTabResult.measures[0].events[1].pitch.written, 'D4');
+  assert.equal(result.canonicalTabResult.measures[0].events[1].pitch.written, 'D3');
   assert.ok(result.canonicalTabResult.measures[0].events[1].selectedPosition);
   assert.match(result.musicXml, /<score-partwise\b/);
   assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.match(
+    result.musicXml,
+    /<pitch><step>D<\/step><octave>4<\/octave><\/pitch>[\s\S]*?<staff>1<\/staff>/,
+  );
+  assert.match(
+    result.musicXml,
+    /<pitch><step>D<\/step><octave>3<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>/,
+  );
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.revision), true);
 });
 
-test('cumulative revisions replay from immutable source and later edits observe earlier revisions', () => {
+test('cumulative revisions replay written source edits while canonical TAB stays in sounding register', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const commands = [
     command(0, 1, 'D', 0, 4),
@@ -95,8 +103,8 @@ test('cumulative revisions replay from immutable source and later edits observe 
   assert.equal(first.revision.revisionNumber, 3);
   assert.equal(first.revision.appliedEdits[1].beforePitch.written, 'D4');
   assert.equal(first.revision.appliedEdits[1].afterPitch.written, 'E4');
-  assert.equal(first.canonicalTabResult.measures[0].events[1].pitch.written, 'E4');
-  assert.equal(first.canonicalTabResult.measures[0].events[2].pitch.written, 'F#4');
+  assert.equal(first.canonicalTabResult.measures[0].events[1].pitch.written, 'E3');
+  assert.equal(first.canonicalTabResult.measures[0].events[2].pitch.written, 'F#3');
 });
 
 test('revision runtime owns input bytes before caller mutation', () => {
@@ -123,7 +131,7 @@ test('revision runtime owns input bytes before caller mutation', () => {
   assert.equal(mutated, true);
   assert.equal(result.status, MUSICXML_NOTE_EDIT_STATUS.PASS);
   assert.equal(result.input.sha256, sha256(original));
-  assert.equal(result.canonicalTabResult.measures[0].events[1].pitch.written, 'D4');
+  assert.equal(result.canonicalTabResult.measures[0].events[1].pitch.written, 'D3');
 });
 
 test('revision snapshot does not invoke Uint8Array subclass coercion hooks', () => {
@@ -169,7 +177,7 @@ test('stale source identity blocks revision before musical mutation', () => {
   assert.equal(result.musicXml, null);
 });
 
-test('validated adjacent tie chains are edited atomically and keep one regenerated guitar position', () => {
+test('validated adjacent tie chains are edited atomically and keep one regenerated sounding guitar position', () => {
   const bytes = validTieSource();
   const result = processMusicXmlNoteEdit(request(bytes, [
     command(0, 0, 'D', 0, 4),
@@ -180,8 +188,9 @@ test('validated adjacent tie chains are edited atomically and keep one regenerat
   assert.equal(edit.commandType, 'REPLACE_TIE_CHAIN_PITCH');
   assert.equal(edit.affectedEventCount, 2);
   assert.deepEqual(edit.affectedEvents.map((entry) => entry.eventId), ['m1-e0', 'm2-e0']);
-  assert.equal(result.canonicalTabResult.measures[0].events[0].pitch.written, 'D4');
-  assert.equal(result.canonicalTabResult.measures[1].events[0].pitch.written, 'D4');
+  assert.equal(edit.afterPitch.written, 'D4');
+  assert.equal(result.canonicalTabResult.measures[0].events[0].pitch.written, 'D3');
+  assert.equal(result.canonicalTabResult.measures[1].events[0].pitch.written, 'D3');
   assert.deepEqual(
     result.canonicalTabResult.measures[0].events[0].selectedPosition,
     result.canonicalTabResult.measures[1].events[0].selectedPosition,
@@ -216,10 +225,10 @@ test('rests cannot be targeted by a pitch revision', () => {
   assert.equal(result.canonicalTabResult, null);
 });
 
-test('edited note outside guitar range blocks output instead of silently transposing it', () => {
+test('written note outside guitar sounding range blocks output instead of silently displacing it', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const result = processMusicXmlNoteEdit(request(bytes, [
-    command(0, 1, 'C', 0, 7),
+    command(0, 1, 'C', 0, 8),
   ]));
 
   assert.equal(result.status, MUSICXML_NOTE_EDIT_STATUS.BLOCKED);

@@ -7,6 +7,10 @@ const {
 const { createGuitarConfiguration } = require('../guitar/tuning');
 const { getPositionCandidates } = require('../guitar/fretboard');
 const { PlayabilityError } = require('../guitar/playability');
+const {
+  isSupportedWrittenPitchOctaveShift,
+  shiftWrittenPitchByOctaves,
+} = require('../guitar/standardGuitarRegister');
 
 const CANONICAL_FINGERING_CANDIDATES_VERSION = '1.0.0';
 
@@ -221,16 +225,62 @@ function normalizeBuilderOptions(options) {
   if (!isObject(options)) {
     throw invalidBuilderOptions('options must be an object.');
   }
-  const allowedFields = new Set(['tuning', 'minimumFret', 'maximumFret']);
+  const allowedFields = new Set([
+    'tuning',
+    'minimumFret',
+    'maximumFret',
+    'writtenPitchOctaveShift',
+  ]);
   for (const field of Object.keys(options)) {
     if (!allowedFields.has(field)) {
       throw invalidBuilderOptions('options contains an unknown field.', { field });
     }
   }
-  return createGuitarConfiguration(options);
+
+  const writtenPitchOctaveShift = Object.hasOwn(options, 'writtenPitchOctaveShift')
+    ? options.writtenPitchOctaveShift
+    : 0;
+  if (!isSupportedWrittenPitchOctaveShift(writtenPitchOctaveShift)) {
+    throw invalidBuilderOptions(
+      'options.writtenPitchOctaveShift must be 0 or -1.',
+      { field: 'writtenPitchOctaveShift', value: writtenPitchOctaveShift },
+    );
+  }
+
+  const guitarOptions = {};
+  for (const field of ['tuning', 'minimumFret', 'maximumFret']) {
+    if (Object.hasOwn(options, field)) guitarOptions[field] = options[field];
+  }
+  return {
+    guitarConfiguration: createGuitarConfiguration(guitarOptions),
+    writtenPitchOctaveShift,
+  };
 }
 
-function createNoteReference(event, measure) {
+function targetPitchFor(event, writtenPitchOctaveShift, measure) {
+  const targetPitch = shiftWrittenPitchByOctaves(event.pitch, writtenPitchOctaveShift);
+  if (!targetPitch) {
+    throw new PlayabilityError(
+      'The target guitar sounding pitch is outside the supported MIDI range.',
+      'UNPLAYABLE_NOTE',
+      {
+        sourceMidi: event.pitch.midi,
+        targetMidi: Number.isSafeInteger(event.pitch.midi)
+          ? event.pitch.midi + (writtenPitchOctaveShift * 12)
+          : null,
+        writtenPitchOctaveShift,
+        eventId: event.eventId,
+        measureKey: measure.measureKey,
+        measureIndex: measure.measureIndex,
+        visibleMeasureNumber: measure.visibleMeasureNumber,
+        eventIndex: event.eventIndex,
+      },
+    );
+  }
+  return targetPitch;
+}
+
+function createNoteReference(event, measure, targetPitch) {
   return {
     eventId: event.eventId,
     eventIndex: event.eventIndex,
@@ -239,8 +289,8 @@ function createNoteReference(event, measure) {
     visibleMeasureNumber: measure.visibleMeasureNumber,
     voice: event.voice,
     staff: event.staff,
-    midi: event.pitch.midi,
-    writtenPitch: event.pitch.written,
+    midi: targetPitch.midi,
+    writtenPitch: targetPitch.written,
     start: clonePlainData(event.start),
     rhythm: clonePlainData(event.rhythm),
     sourceLocation: clonePlainData(event.sourceLocation),
@@ -250,7 +300,10 @@ function createNoteReference(event, measure) {
 function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
   checkpoint(runtime, 'fingering:candidates:start');
   validateCanonicalMusicDocument(canonicalDocument, runtime);
-  const guitarConfiguration = normalizeBuilderOptions(options);
+  const {
+    guitarConfiguration,
+    writtenPitchOctaveShift,
+  } = normalizeBuilderOptions(options);
   const notes = [];
   const candidateLayers = [];
 
@@ -272,13 +325,16 @@ function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
         continue;
       }
 
-      const candidates = getPositionCandidates(event.pitch.midi, guitarConfiguration);
+      const targetPitch = targetPitchFor(event, writtenPitchOctaveShift, measure);
+      const candidates = getPositionCandidates(targetPitch.midi, guitarConfiguration);
       if (candidates.length === 0) {
         throw new PlayabilityError(
           'The note is outside the configured guitar range.',
           'UNPLAYABLE_NOTE',
           {
-            midi: event.pitch.midi,
+            midi: targetPitch.midi,
+            sourceMidi: event.pitch.midi,
+            writtenPitchOctaveShift,
             eventId: event.eventId,
             measureKey: measure.measureKey,
             measureIndex: measure.measureIndex,
@@ -288,7 +344,7 @@ function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
         );
       }
 
-      notes.push(createNoteReference(event, measure));
+      notes.push(createNoteReference(event, measure, targetPitch));
       candidateLayers.push(candidates.map((position) => ({
         string: position.string,
         fret: position.fret,

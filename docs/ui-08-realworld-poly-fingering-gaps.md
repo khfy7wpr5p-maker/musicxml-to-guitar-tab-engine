@@ -43,8 +43,12 @@ Remediation rule:
 
 - accept only the standard guitar octave-only transposition (`diatonic=0`, `chromatic=0`, `octave-change=-1`);
 - normalize written pitch to sounding pitch before deterministic fingering selection;
+- use the same internal standard-guitar register authority as the Workbench MONO upload/edit path;
+- consume the instrument declaration once: the normalized POLY source is already in sounding register, so retained v2 dispositions must keep `octaveShiftSemitones=0` rather than applying a second `-12` shift;
 - keep any other transposition fail-closed;
 - renderer output may re-express standard guitar notation with the existing `octave-change=-1` writer contract.
+
+The shared authority is internal and is not exported from the package root. Its regression evidence maps written `E4` to sounding `E3`/MIDI 52 exactly once, rejects inconsistent source MIDI and admits only the `0` or standard-guitar `-1` octave-shift modes used by the existing runtime seams.
 
 ### GAP-03 — High-position selections may be an octave-semantics symptom
 
@@ -90,6 +94,8 @@ Current repository corpus evidence:
 | Standard fixture with source `harmony` | `BLOCKED_UNSUPPORTED` | Source chord symbols await a preservation contract. |
 | Standard fixture with unknown notation/articulation, octave-shift direction or repeat barline | `BLOCKED_UNSUPPORTED` | Unknown or musical semantics remain fail-closed. |
 | Standard fixture with late transpose | `BLOCKED_UNSUPPORTED` | Earlier notes cannot be shifted by a later instrument declaration. |
+| User-supplied Audiveris export (not committed) | `MONO_V1 PASS`, not POLY evidence | The exact file contains one part and one voice. It verifies real-export upload/render and written-to-sounding register behavior, but cannot satisfy the multi-voice gate. |
+| User-supplied AnimeTAB archive candidates (not committed) | `BLOCKED_UNSUPPORTED` | The multi-voice Guitar Pro exports use untrusted legacy MusicXML 1.0/2.0 external DTD declarations and two-staff notation/TAB metadata. The upload safety boundary rejects them with `UNSAFE_XML_DECLARATION`; this is not bypassed or relabeled as a POLY pass. |
 
 This is a repository-authored representative export fixture, not the user's original MusicXML file. The original file remains a separate staging proof when it is available.
 

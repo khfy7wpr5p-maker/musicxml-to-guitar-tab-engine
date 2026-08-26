@@ -8,6 +8,9 @@ const { inspectMusicXml } = require('../validation/musicxmlPreflight');
 const { DEFAULT_MAX_XML_BYTES } = require('../validation/xmlSafety');
 const { createCanonicalMusicDocument } = require('../music/canonicalMusicDocument');
 const { pitchToMidi, validatePitchComponents } = require('../music/pitch');
+const {
+  STANDARD_GUITAR_WORKBENCH_TARGET,
+} = require('../guitar/standardGuitarRegister');
 const { createCanonicalTabResult } = require('../tab/canonicalTabResult');
 const { serializeCanonicalTabResultToMusicXml } = require('../writers/canonicalTabMusicXmlWriter');
 const {
@@ -680,7 +683,11 @@ function processMusicXmlNoteEdit(request, options = {}, runtime = null) {
       revisionCount: normalized.commands.length,
     });
     const canonicalDocument = createCanonicalMusicDocument(revisedParsed);
-    const canonicalTabResult = createCanonicalTabResult(canonicalDocument, {}, processing);
+    const canonicalTabResult = createCanonicalTabResult(
+      canonicalDocument,
+      { guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
+      processing,
+    );
     assertTieChainFingeringContinuity(canonicalTabResult, appliedEdits);
     const musicXml = serializeCanonicalTabResultToMusicXml(canonicalTabResult);
     processing.checkpoint('app-note-edit:complete', {

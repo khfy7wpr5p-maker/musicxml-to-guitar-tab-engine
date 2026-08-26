@@ -20,9 +20,6 @@ const {
   createProcessingRuntime,
 } = require('../src/core/processingRuntime');
 const {
-  serializeCanonicalTabResultToMusicXml,
-} = require('../src/writers/canonicalTabMusicXmlWriter');
-const {
   DEFAULT_MAX_XML_BYTES,
 } = require('../src/validation/xmlSafety');
 
@@ -34,7 +31,13 @@ function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-test('secure upload runtime preserves the exact monophonic v1 result and emits renderer MusicXML', () => {
+function noteEvents(result) {
+  return result.canonicalTabResult.measures.flatMap(
+    (measure) => measure.events.filter((event) => event.type === 'note'),
+  );
+}
+
+test('secure Workbench upload maps written standard notation to standard-guitar sounding register without changing public conversion defaults', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const direct = convertMusicXmlToCanonicalTab(bytes);
   assert.ok(direct.canonicalTabResult);
@@ -49,10 +52,65 @@ test('secure upload runtime preserves the exact monophonic v1 result and emits r
   assert.equal(result.input.fileName, 'melody.musicxml');
   assert.equal(result.input.byteLength, bytes.byteLength);
   assert.equal(result.input.sha256, sha256(bytes));
-  assert.deepEqual(result.canonicalTabResult, direct.canonicalTabResult);
-  assert.equal(result.musicXml, serializeCanonicalTabResultToMusicXml(direct.canonicalTabResult));
+
+  const sourceNotes = direct.canonicalTabResult.measures.flatMap(
+    (measure) => measure.events.filter((event) => event.type === 'note'),
+  );
+  const targetNotes = noteEvents(result);
+  assert.equal(targetNotes.length, sourceNotes.length);
+  for (let index = 0; index < sourceNotes.length; index += 1) {
+    assert.equal(targetNotes[index].pitch.midi, sourceNotes[index].pitch.midi - 12);
+    assert.equal(targetNotes[index].pitch.octave, sourceNotes[index].pitch.octave - 1);
+    assert.equal(targetNotes[index].pitch.step, sourceNotes[index].pitch.step);
+    assert.equal(targetNotes[index].pitch.alter, sourceNotes[index].pitch.alter);
+  }
+
+  assert.equal(direct.canonicalTabResult.measures[0].events[0].pitch.written, 'C4');
+  assert.equal(result.canonicalTabResult.measures[0].events[0].pitch.written, 'C3');
+  assert.match(result.musicXml, /<octave-change>-1<\/octave-change>/);
   assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
   assert.equal(Object.isFrozen(result), true);
+});
+
+test('real-user register regression E4 G#4 A4 becomes E3 G#3 A3 with first-position guitar TAB while notation stays written', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Voice</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>3</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>G</step><alter>1</alter><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+</measure></part></score-partwise>`);
+
+  const publicDirect = convertMusicXmlToCanonicalTab(bytes);
+  assert.deepEqual(
+    publicDirect.canonicalTabResult.measures[0].events.map((event) => event.pitch.written),
+    ['E4', 'G#4', 'A4'],
+  );
+
+  const result = processMusicXmlUpload({ fileName: 'written-source.musicxml', bytes });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+
+  const events = result.canonicalTabResult.measures[0].events;
+  assert.deepEqual(events.map((event) => event.pitch.written), ['E3', 'G#3', 'A3']);
+  assert.deepEqual(events.map((event) => event.pitch.midi), [52, 56, 57]);
+  assert.deepEqual(events.map((event) => event.selectedPosition), [
+    { string: 4, fret: 2 },
+    { string: 3, fret: 1 },
+    { string: 3, fret: 2 },
+  ]);
+
+  assert.match(
+    result.musicXml,
+    /<pitch><step>E<\/step><octave>4<\/octave><\/pitch>[\s\S]*?<staff>1<\/staff>/,
+  );
+  assert.match(
+    result.musicXml,
+    /<pitch><step>E<\/step><octave>3<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>/,
+  );
+  assert.match(result.musicXml, /<string>4<\/string><fret>2<\/fret>/);
 });
 
 test('upload identity and conversion use an owned snapshot when caller bytes mutate', () => {
@@ -69,6 +127,10 @@ test('upload identity and conversion use an owned snapshot when caller bytes mut
     },
   });
 
+  const baseline = processMusicXmlUpload({
+    fileName: 'baseline.musicxml',
+    bytes: original,
+  });
   const result = processMusicXmlUpload({
     fileName: 'mutable.musicxml',
     bytes: mutable,
@@ -79,10 +141,7 @@ test('upload identity and conversion use an owned snapshot when caller bytes mut
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
   assert.equal(result.input.byteLength, original.byteLength);
   assert.equal(result.input.sha256, sha256(original));
-  assert.deepEqual(
-    result.canonicalTabResult,
-    convertMusicXmlToCanonicalTab(original).canonicalTabResult,
-  );
+  assert.deepEqual(result.canonicalTabResult, baseline.canonicalTabResult);
 });
 
 test('upload snapshot does not invoke Uint8Array subclass coercion hooks', () => {

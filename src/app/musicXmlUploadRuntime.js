@@ -4,6 +4,9 @@ const crypto = require('node:crypto');
 const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { createGuitarConfiguration } = require('../guitar/tuning');
+const {
+  STANDARD_GUITAR_WORKBENCH_TARGET,
+} = require('../guitar/standardGuitarRegister');
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
 const { convertMusicXmlToCanonicalTab } = require('../core/conversionPipeline');
 const {
@@ -504,7 +507,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   try {
     monophonic = convertMusicXmlToCanonicalTab(
       normalizedUpload.bytes,
-      { parser: {} },
+      { parser: {}, guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
       processing,
     );
   } catch (error) {

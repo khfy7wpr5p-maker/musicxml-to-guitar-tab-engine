@@ -4,6 +4,11 @@ const {
   PolyphonicMusicXmlProjectorError,
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
+const {
+  STANDARD_GUITAR_WRITTEN_PITCH_OCTAVE_SHIFT,
+  isStandardGuitarTranspose,
+  shiftWrittenPitchByOctaves,
+} = require('../guitar/standardGuitarRegister');
 
 const PARSED_MUSICXML_DOCUMENT_VERSION = '1.0.0';
 const IGNORED_ROOT_CHILDREN = new Set([
@@ -182,8 +187,8 @@ function parseStandardGuitarTranspose(measureNodes) {
   const diatonic = diatonicNodes.length === 0 ? 0 : scalarInteger(diatonicNodes[0]);
   const chromatic = scalarInteger(chromaticNodes[0]);
   const octaveChange = scalarInteger(octaveChangeNodes[0]);
-  if (diatonic !== 0 || chromatic !== 0 || octaveChange !== -1) return null;
-  return -1;
+  if (!isStandardGuitarTranspose({ diatonic, chromatic, octaveChange })) return null;
+  return STANDARD_GUITAR_WRITTEN_PITCH_OCTAVE_SHIFT;
 }
 
 function safeSlur(node) {
@@ -425,12 +430,20 @@ function sanitizeNotations(node, ignoredFeatures) {
 
 function sanitizePitch(node, pitchOctaveShift) {
   if (pitchOctaveShift === 0) return cloneNode(node);
+  const stepNodes = directChildren(node, 'step');
+  const alterNodes = directChildren(node, 'alter');
   const octaveNodes = directChildren(node, 'octave');
+  const step = stepNodes.length === 1 && !hasSameNamespaceChildren(stepNodes[0])
+    ? stepNodes[0].text.trim()
+    : null;
+  const alter = alterNodes.length === 0 ? 0 : scalarInteger(alterNodes[0]);
   const octave = octaveNodes.length === 1 ? scalarInteger(octaveNodes[0]) : null;
-  if (octave === null || !Number.isSafeInteger(octave + pitchOctaveShift)) return null;
+  if (step === null || alterNodes.length > 1 || octave === null) return null;
+  const targetPitch = shiftWrittenPitchByOctaves({ step, alter, octave }, pitchOctaveShift);
+  if (!targetPitch) return null;
   const children = node.children.map((child) => (
     child === octaveNodes[0]
-      ? cloneNode(child, { text: String(octave + pitchOctaveShift) })
+      ? cloneNode(child, { text: String(targetPitch.octave) })
       : cloneNode(child)
   ));
   return cloneNode(node, { children });
