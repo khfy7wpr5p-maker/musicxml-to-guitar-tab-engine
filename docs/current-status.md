@@ -104,7 +104,7 @@ The staging host exposes only the existing bounded application seams from one or
 
 `browser Workbench → POST /api/upload | /api/edit | /api/edit/poly-v2 → existing application runtimes → full regenerated notation + TAB`.
 
-The Vercel staging runtime is operational, but this does not prove broad MusicXML compatibility. Real exported multi-voice guitar scores can contain valid notation metadata and standard guitar octave transposition outside the historical strict PA projector profile. UI-08 records and remediates that compatibility layer without changing the historical strict projector or package-root authority.
+The Vercel staging runtime is operational, but this does not prove broad MusicXML compatibility. Real exported multi-voice guitar scores can contain valid notation metadata and standard guitar octave transposition outside the historical strict PA projector profile. UI-08 records and remediates that compatibility layer without changing the historical strict projector or package-root authority. Its representative corpus now distinguishes `NORMALIZED_WITH_WARNING` from `BLOCKED_UNSUPPORTED`: safe bounded slur/articulation/metronome/simple-barline forms may be normalized with explicit provenance, while technical fingering, source harmony, repeat/navigation semantics, unknown MusicXML notations and late/non-standard transpose remain fail-closed.
 
 The host does not change package-root authority, does not persist user source bytes, and does not make GitHub Pages dynamic. UI-07 browser-only tie identity remains metadata: the Workbench projects POLY_V2 edits to the existing runtime command schema, and the runtime independently rejects unknown command fields fail-closed.
 

@@ -18,6 +18,20 @@ Acceptance for remediation:
 - unsupported musical semantics still fail closed;
 - ignored presentation/performance metadata is reported as a visible warning rather than silently disappearing.
 
+Current bounded classification:
+
+| Source feature | Runtime classification | Evidence / reason |
+|---|---|---|
+| Standard initial guitar `transpose` (`diatonic=0`, `chromatic=0`, `octave-change=-1`) | `NORMALIZED_WITH_WARNING` | Written pitch is converted once to sounding pitch before deterministic selection. |
+| Simple `slur` marks | `NORMALIZED_WITH_WARNING` | Pitch, onset, duration and voice are unchanged; omission is listed in warning provenance. |
+| Bounded leaf articulations (`accent`, `staccato`, `tenuto`, `detached-legato`, `staccatissimo`, `spiccato`) | `NORMALIZED_WITH_WARNING` | Performance decoration is not used as pitch/rhythm authority and is named individually in warning provenance. |
+| Simple metronome direction with matching optional `sound tempo` | `NORMALIZED_WITH_WARNING` | Tempo is classified explicitly; other direction semantics are not admitted. |
+| Simple visual `bar-style` only | `NORMALIZED_WITH_WARNING` | Repeat, ending and navigation semantics are not admitted. |
+| `technical`, `harmony`, unsafe direction/barline forms, unknown MusicXML notation children | `BLOCKED_UNSUPPORTED` | These can carry fingering, chord, execution or navigation semantics and are not silently discarded. |
+| Late, repeated or non-standard instrument transposition | `BLOCKED_UNSUPPORTED` | The first supported profile accepts one initial standard-guitar declaration only. |
+
+The stable blocked boundary is `UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE`; `details.feature` identifies the rejected semantic surface.
+
 ### GAP-02 — Standard guitar octave transposition was not accepted on the real-world POLY route
 
 Classical guitar notation commonly uses MusicXML `transpose` with chromatic `0` and `octave-change=-1`: written notation is one octave above sounding pitch.
@@ -64,6 +78,18 @@ Required corpus gate:
 - safe presentation notation;
 - explicit unsupported cases;
 - real mouse selection and edit/regeneration.
+
+Current repository corpus evidence:
+
+| Fixture / mutation | Expected state | Covered facts |
+|---|---|---|
+| `tests/fixtures/runtime-realworld-guitar-poly.musicxml` | `NORMALIZED_WITH_WARNING` | MuseScore-like single guitar part/staff, two voices, chord, rest, backup/forward, key, explicit accidental, initial guitar transpose, metronome direction, slur, articulation, layout and simple barline. |
+| Standard fixture with `technical` string/fret | `BLOCKED_UNSUPPORTED` | Source fingering is not discarded or treated as browser authority. |
+| Standard fixture with source `harmony` | `BLOCKED_UNSUPPORTED` | Source chord symbols await a preservation contract. |
+| Standard fixture with unknown notation/articulation, octave-shift direction or repeat barline | `BLOCKED_UNSUPPORTED` | Unknown or musical semantics remain fail-closed. |
+| Standard fixture with late transpose | `BLOCKED_UNSUPPORTED` | Earlier notes cannot be shifted by a later instrument declaration. |
+
+This is a repository-authored representative export fixture, not the user's original MusicXML file. The original file remains a separate staging proof when it is available.
 
 ## Current remediation order
 

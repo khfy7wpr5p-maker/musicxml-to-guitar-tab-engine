@@ -16,7 +16,7 @@ assert.ok(browserExecutable && fs.existsSync(browserExecutable));
 
 const alphaTabEntry = require.resolve('@coderline/alphatab');
 const alphaTabDist = path.dirname(alphaTabEntry);
-const fixturePath = path.join(repositoryRoot, 'tests/fixtures/pa12-polyphonic-e2e.musicxml');
+const fixturePath = path.join(repositoryRoot, 'tests/fixtures/runtime-realworld-guitar-poly.musicxml');
 const screenshotPath = process.env.ALPHATAB_RUNTIME_HOST_POLY_SCREENSHOT_PATH
   || path.resolve(repositoryRoot, 'alphatab-runtime-host-poly-v2-e2e.png');
 
@@ -68,34 +68,70 @@ try {
     {timeout: 30000},
   );
 
-  const mapped = await page.evaluate(() => {
+  const clickTarget = await page.evaluate(async () => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
     const notes = notation.bars[0].voices.flatMap(voice => voice.beats.flatMap(beat => beat.notes));
-    const note = notes.find(candidate => candidate.realValue === 60);
-    const accepted = window.__workbench.selectNote(note);
-    return {accepted, snapshot: window.__workbench.snapshot()};
+    const note = notes.find(candidate => candidate.realValue === 52);
+    if (!note) throw new Error('The first sounding E3 note was not imported by alphaTab.');
+
+    const lookup = window.__workbench.api.boundsLookup || window.__workbench.api.renderer.boundsLookup;
+    const beatBounds = lookup.findBeats(note.beat) || [];
+    const noteBounds = beatBounds
+      .flatMap(bounds => Array.isArray(bounds.notes) ? bounds.notes : [])
+      .find(bounds => bounds.note === note);
+    if (!noteBounds) throw new Error('alphaTab did not expose clickable geometry for sounding E3.');
+
+    const score = document.querySelector('[data-role="score"]');
+    const panel = score.closest('.workbench-score-panel');
+    const head = noteBounds.noteHeadBounds;
+    panel.scrollLeft = Math.max(0, head.x + (head.w / 2) - (panel.clientWidth / 2));
+    panel.scrollTop = Math.max(0, head.y + (head.h / 2) - (panel.clientHeight / 2));
+    panel.scrollIntoView({block: 'start', inline: 'nearest'});
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    const scoreRect = score.getBoundingClientRect();
+    return {
+      x: scoreRect.left + head.x + (head.w / 2),
+      y: scoreRect.top + head.y + (head.h / 2),
+    };
   });
 
-  assert.equal(mapped.accepted, true);
+  assert.ok(clickTarget.x >= 0 && clickTarget.x <= 1440, 'Rendered note must be horizontally visible.');
+  assert.ok(clickTarget.y >= 0 && clickTarget.y <= 1000, 'Rendered note must be vertically visible.');
+  await page.mouse.click(clickTarget.x, clickTarget.y);
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().selectedEvent?.sourceEventId === 'P1:measure:0:note:0'
+      && document.querySelector('[data-role="selected-note"]')?.textContent.includes('E3'),
+    {timeout: 10000},
+  );
+
+  const mapped = await page.evaluate(() => ({
+    snapshot: window.__workbench.snapshot(),
+    selectedNoteText: document.querySelector('[data-role="selected-note"]')?.textContent,
+    fingeringPitchText: document.querySelector('[data-role="fingering-pitch"]')?.textContent,
+  }));
+
   assert.equal(mapped.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(mapped.snapshot.selectedEvent.sourceEventId, 'P1:measure:0:note:0');
   assert.equal(mapped.snapshot.selectedEvent.sourceGroupId, 'P1:measure:0:simultaneous:0');
   assert.deepEqual(
     mapped.snapshot.selectedEvent.sourceGroupEventIds,
-    ['P1:measure:0:note:0', 'P1:measure:0:note:4'],
+    ['P1:measure:0:note:0', 'P1:measure:0:note:1', 'P1:measure:0:note:5'],
   );
+  assert.match(mapped.selectedNoteText, /E3/);
+  assert.equal(mapped.fingeringPitchText, 'E3');
   assert.equal(mapped.snapshot.applyEditDisabled, false);
 
   await page.select('[data-role="edit-step"]', 'E');
   await page.select('[data-role="edit-alter"]', '0');
-  await page.$eval('[data-role="edit-octave"]', element => { element.value = '4'; });
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '3'; });
   await page.click('[data-role="apply-edit"]');
 
   await page.waitForFunction(
     () => window.__workbench?.snapshot().revisionNumber === 1
       && window.__workbench?.snapshot().scoreLoaded === true
       && window.__workbench?.snapshot().runtimeResult?.route === 'POLY_V2'
-      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'E4',
+      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'E3',
     {timeout: 30000},
   );
 
@@ -108,9 +144,9 @@ try {
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(edited.snapshot.revisionNumber, 1);
-  assert.equal(edited.snapshot.selectedEvent.pitch.written, 'E4');
+  assert.equal(edited.snapshot.selectedEvent.pitch.written, 'E3');
   assert.ok(edited.svgCount > 0);
-  assert.match(edited.issueText, /No blocking issues/);
+  assert.match(edited.issueText, /RUNTIME_GUITAR_NOTATION_NORMALIZED/);
   assert.deepEqual(apiRequests.filter(item => item === 'POST /api/upload'), ['POST /api/upload']);
   assert.equal(apiRequests.filter(item => item === 'POST /api/edit/poly-v2').length, 1);
   assert.equal(apiRequests.filter(item => item === 'POST /api/edit').length, 0);
@@ -123,6 +159,7 @@ try {
     revisionNumber: edited.snapshot.revisionNumber,
     sourceEventId: edited.snapshot.selectedEvent.sourceEventId,
     sourceGroupId: edited.snapshot.selectedEvent.sourceGroupId,
+    pointerClick: clickTarget,
     apiRequests,
     browserMessages: messages,
   })}\n`);
