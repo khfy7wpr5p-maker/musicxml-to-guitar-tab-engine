@@ -61,6 +61,7 @@ const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
 ).get;
 
 const STANDARD_GUITAR = createGuitarConfiguration();
+const WORKBENCH_GUITAR_TARGET = Object.freeze({ writtenPitchOctaveShift: -1 });
 let STANDARD_GUITAR_MINIMUM_MIDI = Number.POSITIVE_INFINITY;
 let STANDARD_GUITAR_MAXIMUM_MIDI = Number.NEGATIVE_INFINITY;
 for (const string of STANDARD_GUITAR.tuning) {
@@ -489,7 +490,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   try {
     monophonic = convertMusicXmlToCanonicalTab(
       normalizedUpload.bytes,
-      { parser: {} },
+      { parser: {}, guitar: WORKBENCH_GUITAR_TARGET },
       processing,
     );
   } catch (error) {
