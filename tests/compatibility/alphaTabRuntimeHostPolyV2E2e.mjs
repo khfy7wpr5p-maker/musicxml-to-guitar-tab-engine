@@ -80,6 +80,7 @@ try {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const surfaceRect = surface.getBoundingClientRect();
+    const diagnostics = [];
     for (const note of notes) {
       const noteBounds = (lookup.findBeats(note.beat) || [])
         .flatMap(bounds => Array.isArray(bounds.notes) ? bounds.notes : [])
@@ -91,9 +92,18 @@ try {
       const x = surfaceRect.left + relativeX;
       const y = surfaceRect.top + relativeY;
       const elementAtPoint = document.elementFromPoint(x, y);
-      if (!elementAtPoint || !surface.contains(elementAtPoint)) continue;
       const beatAtPoint = lookup.getBeatAtPos(relativeX, relativeY);
       const noteAtPoint = beatAtPoint ? lookup.getNoteAtPos(beatAtPoint, relativeX, relativeY) : null;
+      diagnostics.push({
+        midi: note.realValue,
+        x,
+        y,
+        element: elementAtPoint?.tagName || null,
+        insideSurface: Boolean(elementAtPoint && surface.contains(elementAtPoint)),
+        hitMidi: noteAtPoint?.realValue ?? null,
+        exactHit: noteAtPoint === note,
+      });
+      if (!elementAtPoint || !surface.contains(elementAtPoint)) continue;
       if (noteAtPoint !== note) continue;
       return {
         x,
@@ -103,7 +113,15 @@ try {
         playbackStart: note.beat.absolutePlaybackStart,
       };
     }
-    throw new Error('alphaTab did not expose an unobscured, physically clickable notation note.');
+    throw new Error(`alphaTab did not expose an unobscured, physically clickable notation note: ${JSON.stringify({
+      surface: {
+        left: surfaceRect.left,
+        top: surfaceRect.top,
+        width: surfaceRect.width,
+        height: surfaceRect.height,
+      },
+      diagnostics,
+    })}`);
   });
 
   assert.ok(clickTarget.x >= 0 && clickTarget.x <= 1440, 'Rendered note must be horizontally visible.');
