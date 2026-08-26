@@ -333,7 +333,7 @@ try {
 
   await page.select('[data-role="edit-step"]','C');
   await page.select('[data-role="edit-alter"]','0');
-  await page.$eval('[data-role="edit-octave"]', element => { element.value = '7'; });
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '8'; });
   await page.click('[data-role="apply-edit"]');
   await page.waitForFunction(
     () => window.__workbenchSmoke?.editCalls === 2
