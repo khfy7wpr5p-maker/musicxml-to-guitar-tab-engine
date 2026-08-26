@@ -54,6 +54,13 @@ try {
   await page.goto(`${origin}/workbench/`, {waitUntil: 'networkidle0', timeout: 30000});
   await page.waitForFunction(() => Boolean(window.__workbenchHost && window.__workbench), {timeout: 10000});
 
+  await page.evaluate(() => {
+    window.__polyRenderFinishedCount = 0;
+    window.__workbench.api.postRenderFinished.on(() => {
+      window.__polyRenderFinishedCount += 1;
+    });
+  });
+
   const [chooser] = await Promise.all([
     page.waitForFileChooser(),
     page.click('[data-role="runtime-upload-action"]'),
@@ -64,6 +71,9 @@ try {
     () => window.__workbench?.snapshot().scoreLoaded === true
       && window.__workbench?.snapshot().runtimeResult?.status === 'PASS'
       && window.__workbench?.snapshot().runtimeResult?.route === 'POLY_V2'
+      && window.__polyRenderFinishedCount > 0
+      && (window.__workbench.api.boundsLookup || window.__workbench.api.renderer.boundsLookup)?.isFinished === true
+      && (window.__workbench.api.boundsLookup || window.__workbench.api.renderer.boundsLookup)?.staffSystems?.length > 0
       && document.querySelectorAll('[data-role="score"] svg').length > 0,
     {timeout: 30000},
   );
