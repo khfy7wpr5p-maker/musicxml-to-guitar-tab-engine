@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-26 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
 
 Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
 
