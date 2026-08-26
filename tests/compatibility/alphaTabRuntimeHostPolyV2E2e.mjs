@@ -81,18 +81,31 @@ try {
       .find(bounds => bounds.note === note);
     if (!noteBounds) throw new Error('alphaTab did not expose clickable geometry for sounding E3.');
 
-    const score = document.querySelector('[data-role="score"]');
-    const panel = score.closest('.workbench-score-panel');
+    const surface = window.__workbench.api.canvasElement.element;
+    const panel = surface.closest('.workbench-score-panel');
     const head = noteBounds.noteHeadBounds;
     panel.scrollLeft = Math.max(0, head.x + (head.w / 2) - (panel.clientWidth / 2));
     panel.scrollTop = Math.max(0, head.y + (head.h / 2) - (panel.clientHeight / 2));
-    panel.scrollIntoView({block: 'start', inline: 'nearest'});
+    window.scrollTo({top: 0, left: 0});
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-    const scoreRect = score.getBoundingClientRect();
+    const surfaceRect = surface.getBoundingClientRect();
+    const x = surfaceRect.left + head.x + (head.w / 2);
+    const y = surfaceRect.top + head.y + (head.h / 2);
+    const elementAtPoint = document.elementFromPoint(x, y);
+    if (!elementAtPoint || !surface.contains(elementAtPoint)) {
+      throw new Error('The alphaTab note-head coordinate is obscured in the browser viewport.');
+    }
+    const beatAtPoint = lookup.getBeatAtPos(x - surfaceRect.left, y - surfaceRect.top);
+    const noteAtPoint = beatAtPoint
+      ? lookup.getNoteAtPos(beatAtPoint, x - surfaceRect.left, y - surfaceRect.top)
+      : null;
+    if (noteAtPoint !== note) {
+      throw new Error('The physical click coordinate does not resolve to the intended alphaTab note.');
+    }
     return {
-      x: scoreRect.left + head.x + (head.w / 2),
-      y: scoreRect.top + head.y + (head.h / 2),
+      x,
+      y,
     };
   });
 
