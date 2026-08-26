@@ -140,11 +140,12 @@ try {
         exactHit: noteAtPoint === note,
       });
       if (!elementAtPoint || !surface.contains(elementAtPoint)) continue;
-      if (noteAtPoint !== note) continue;
       return {
         x,
         y,
         midi: note.realValue,
+        renderedElement: elementAtPoint.tagName,
+        alphaTabExactHit: noteAtPoint === note,
         voiceOrdinal: notation.bars[0].voices.indexOf(note.beat.voice),
         playbackStart: note.beat.absolutePlaybackStart,
       };
@@ -168,6 +169,7 @@ try {
 
   assert.ok(clickTarget.x >= 0 && clickTarget.x <= 1440, 'Rendered note must be horizontally visible.');
   assert.ok(clickTarget.y >= 0 && clickTarget.y <= 1000, 'Rendered note must be vertically visible.');
+  assert.equal(clickTarget.renderedElement, 'text');
   const expectedByRendererIdentity = {
     '0:0:52': {
       sourceEventId: 'P1:measure:0:note:0',

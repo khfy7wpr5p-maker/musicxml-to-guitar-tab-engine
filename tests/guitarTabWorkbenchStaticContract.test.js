@@ -87,6 +87,9 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /enableCursor:\s*true/);
   assert.match(script, /enableElementHighlighting:\s*true/);
   assert.match(script, /api\.noteMouseDown\.on/);
+  assert.match(script, /addEventListener\('pointerdown', selectNoteAtPointer\)/);
+  assert.match(script, /lookup\.staffSystems/);
+  assert.match(script, /noteHeadBounds/);
   assert.match(script, /selectEventByIdentity/);
   assert.match(script, /expectedInputSha256/);
   assert.match(script, /commands:\s*pendingCommands\.map/);

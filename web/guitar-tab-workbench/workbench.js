@@ -814,6 +814,50 @@
       return false;
     }
 
+    function notesAtPointer(event) {
+      if (!state.scoreLoaded || event.button !== 0) return [];
+      const surface = api.canvasElement?.element;
+      const lookup = api.boundsLookup || api.renderer?.boundsLookup;
+      if (!surface || !lookup?.isFinished || !surface.contains(event.target)) return [];
+      const rect = surface.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return [];
+
+      const candidates = [];
+      const seen = new Set();
+      for (const system of lookup.staffSystems || []) {
+        for (const masterBar of system.bars || []) {
+          for (const bar of masterBar.bars || []) {
+            for (const beat of bar.beats || []) {
+              for (const noteBounds of beat.notes || []) {
+                const bounds = noteBounds.noteHeadBounds;
+                if (
+                  bounds.x <= x && x <= bounds.x + bounds.w
+                  && bounds.y <= y && y <= bounds.y + bounds.h
+                  && noteBounds.note && !seen.has(noteBounds.note)
+                ) {
+                  seen.add(noteBounds.note);
+                  candidates.push(noteBounds.note);
+                }
+              }
+            }
+          }
+        }
+      }
+      return candidates;
+    }
+
+    function selectNoteAtPointer(event) {
+      const candidates = notesAtPointer(event);
+      if (candidates.length === 1) {
+        selectNote(candidates[0]);
+      } else if (candidates.length > 1) {
+        clearSelection('The pointer location matches more than one renderer note; no edit target was selected.');
+        updateControls();
+      }
+    }
+
     function setRuntimeResult(result) {
       assert(result && typeof result === 'object', 'Upload result is invalid.');
       assert(result.status === 'PASS' || result.status === 'BLOCKED', 'Upload result status is invalid.');
@@ -1106,6 +1150,7 @@
     api.noteMouseDown.on((note) => {
       selectNote(note);
     });
+    api.canvasElement.element.addEventListener('pointerdown', selectNoteAtPointer);
 
     clearActiveScoreState();
     clearSession();
@@ -1155,6 +1200,7 @@
         state.destroyed = true;
         if (session.sourceBytes) session.sourceBytes.fill(0);
         clearSession();
+        api.canvasElement.element.removeEventListener('pointerdown', selectNoteAtPointer);
         api.destroy();
       },
     });
