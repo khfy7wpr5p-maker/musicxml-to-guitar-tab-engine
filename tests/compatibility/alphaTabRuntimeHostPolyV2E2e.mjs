@@ -108,6 +108,32 @@ try {
         midi: note.realValue,
         x,
         y,
+        relativeX,
+        relativeY,
+        noteHeadBounds: {
+          x: head.x,
+          y: head.y,
+          w: head.w,
+          h: head.h,
+        },
+        beatRealBounds: {
+          x: noteBounds.beatBounds.realBounds.x,
+          y: noteBounds.beatBounds.realBounds.y,
+          w: noteBounds.beatBounds.realBounds.w,
+          h: noteBounds.beatBounds.realBounds.h,
+        },
+        barRealBounds: {
+          x: noteBounds.beatBounds.barBounds.realBounds.x,
+          y: noteBounds.beatBounds.barBounds.realBounds.y,
+          w: noteBounds.beatBounds.barBounds.realBounds.w,
+          h: noteBounds.beatBounds.barBounds.realBounds.h,
+        },
+        systemRealBounds: {
+          x: noteBounds.beatBounds.barBounds.masterBarBounds.staffSystemBounds.realBounds.x,
+          y: noteBounds.beatBounds.barBounds.masterBarBounds.staffSystemBounds.realBounds.y,
+          w: noteBounds.beatBounds.barBounds.masterBarBounds.staffSystemBounds.realBounds.w,
+          h: noteBounds.beatBounds.barBounds.masterBarBounds.staffSystemBounds.realBounds.h,
+        },
         element: elementAtPoint?.tagName || null,
         insideSurface: Boolean(elementAtPoint && surface.contains(elementAtPoint)),
         hitMidi: noteAtPoint?.realValue ?? null,
@@ -131,6 +157,12 @@ try {
         height: surfaceRect.height,
       },
       diagnostics,
+      staffSystems: lookup.staffSystems.map(system => ({
+        x: system.realBounds.x,
+        y: system.realBounds.y,
+        w: system.realBounds.w,
+        h: system.realBounds.h,
+      })),
     })}`);
   });
 
