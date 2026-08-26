@@ -499,4 +499,5 @@ module.exports = {
   PhysicalPlayabilityValidationError,
   validatePhysicalPlayabilityV2,
   validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot,
+  evaluateStaticLeftHandShapeCandidate: buildShapeVerdict,
 };
