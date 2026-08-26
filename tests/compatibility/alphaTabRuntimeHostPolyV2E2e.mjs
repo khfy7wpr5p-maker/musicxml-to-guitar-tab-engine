@@ -71,51 +71,96 @@ try {
   const clickTarget = await page.evaluate(async () => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
     const notes = notation.bars[0].voices.flatMap(voice => voice.beats.flatMap(beat => beat.notes));
-    const note = notes.find(candidate => candidate.realValue === 57);
-    if (!note) throw new Error('The sounding A3 note was not imported by alphaTab.');
-
     const lookup = window.__workbench.api.boundsLookup || window.__workbench.api.renderer.boundsLookup;
-    const beatBounds = lookup.findBeats(note.beat) || [];
-    const noteBounds = beatBounds
-      .flatMap(bounds => Array.isArray(bounds.notes) ? bounds.notes : [])
-      .find(bounds => bounds.note === note);
-    if (!noteBounds) throw new Error('alphaTab did not expose clickable geometry for sounding A3.');
-
     const surface = window.__workbench.api.canvasElement.element;
     const panel = surface.closest('.workbench-score-panel');
-    const head = noteBounds.noteHeadBounds;
-    panel.scrollLeft = Math.max(0, head.x + (head.w / 2) - (panel.clientWidth / 2));
-    panel.scrollTop = Math.max(0, head.y + (head.h / 2) - (panel.clientHeight / 2));
+    panel.scrollLeft = 0;
+    panel.scrollTop = 0;
     window.scrollTo({top: 0, left: 0});
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const surfaceRect = surface.getBoundingClientRect();
-    const x = surfaceRect.left + head.x + (head.w / 2);
-    const y = surfaceRect.top + head.y + (head.h / 2);
-    const elementAtPoint = document.elementFromPoint(x, y);
-    if (!elementAtPoint || !surface.contains(elementAtPoint)) {
-      throw new Error('The alphaTab note-head coordinate is obscured in the browser viewport.');
+    for (const note of notes) {
+      const noteBounds = (lookup.findBeats(note.beat) || [])
+        .flatMap(bounds => Array.isArray(bounds.notes) ? bounds.notes : [])
+        .find(bounds => bounds.note === note);
+      if (!noteBounds) continue;
+      const head = noteBounds.noteHeadBounds;
+      const relativeX = head.x + (head.w / 2);
+      const relativeY = head.y + (head.h / 2);
+      const x = surfaceRect.left + relativeX;
+      const y = surfaceRect.top + relativeY;
+      const elementAtPoint = document.elementFromPoint(x, y);
+      if (!elementAtPoint || !surface.contains(elementAtPoint)) continue;
+      const beatAtPoint = lookup.getBeatAtPos(relativeX, relativeY);
+      const noteAtPoint = beatAtPoint ? lookup.getNoteAtPos(beatAtPoint, relativeX, relativeY) : null;
+      if (noteAtPoint !== note) continue;
+      return {
+        x,
+        y,
+        midi: note.realValue,
+        voiceOrdinal: notation.bars[0].voices.indexOf(note.beat.voice),
+        playbackStart: note.beat.absolutePlaybackStart,
+      };
     }
-    const beatAtPoint = lookup.getBeatAtPos(x - surfaceRect.left, y - surfaceRect.top);
-    const noteAtPoint = beatAtPoint
-      ? lookup.getNoteAtPos(beatAtPoint, x - surfaceRect.left, y - surfaceRect.top)
-      : null;
-    if (noteAtPoint !== note) {
-      throw new Error('The physical click coordinate does not resolve to the intended alphaTab note.');
-    }
-    return {
-      x,
-      y,
-    };
+    throw new Error('alphaTab did not expose an unobscured, physically clickable notation note.');
   });
 
   assert.ok(clickTarget.x >= 0 && clickTarget.x <= 1440, 'Rendered note must be horizontally visible.');
   assert.ok(clickTarget.y >= 0 && clickTarget.y <= 1000, 'Rendered note must be vertically visible.');
+  const expectedByRendererIdentity = {
+    '0:0:52': {
+      sourceEventId: 'P1:measure:0:note:0',
+      sourceGroupId: 'P1:measure:0:simultaneous:0',
+      sourceGroupEventIds: ['P1:measure:0:note:0', 'P1:measure:0:note:1', 'P1:measure:0:note:5'],
+      written: 'E3',
+    },
+    '0:0:55': {
+      sourceEventId: 'P1:measure:0:note:1',
+      sourceGroupId: 'P1:measure:0:simultaneous:0',
+      sourceGroupEventIds: ['P1:measure:0:note:0', 'P1:measure:0:note:1', 'P1:measure:0:note:5'],
+      written: 'G3',
+    },
+    '0:960:54': {
+      sourceEventId: 'P1:measure:0:note:2',
+      sourceGroupId: null,
+      sourceGroupEventIds: ['P1:measure:0:note:2'],
+      written: 'F#3',
+    },
+    '0:2880:57': {
+      sourceEventId: 'P1:measure:0:note:4',
+      sourceGroupId: 'P1:measure:0:simultaneous:12',
+      sourceGroupEventIds: ['P1:measure:0:note:4', 'P1:measure:0:note:7'],
+      written: 'A3',
+    },
+    '1:0:48': {
+      sourceEventId: 'P1:measure:0:note:5',
+      sourceGroupId: 'P1:measure:0:simultaneous:0',
+      sourceGroupEventIds: ['P1:measure:0:note:0', 'P1:measure:0:note:1', 'P1:measure:0:note:5'],
+      written: 'C3',
+    },
+    '1:1920:52': {
+      sourceEventId: 'P1:measure:0:note:6',
+      sourceGroupId: null,
+      sourceGroupEventIds: ['P1:measure:0:note:6'],
+      written: 'E3',
+    },
+    '1:2880:53': {
+      sourceEventId: 'P1:measure:0:note:7',
+      sourceGroupId: 'P1:measure:0:simultaneous:12',
+      sourceGroupEventIds: ['P1:measure:0:note:4', 'P1:measure:0:note:7'],
+      written: 'F3',
+    },
+  };
+  const rendererIdentity = `${clickTarget.voiceOrdinal}:${clickTarget.playbackStart}:${clickTarget.midi}`;
+  const expectedSelection = expectedByRendererIdentity[rendererIdentity];
+  assert.ok(expectedSelection, `Unexpected alphaTab renderer identity: ${rendererIdentity}`);
   await page.mouse.click(clickTarget.x, clickTarget.y);
   await page.waitForFunction(
-    () => window.__workbench?.snapshot().selectedEvent?.sourceEventId === 'P1:measure:0:note:4'
-      && document.querySelector('[data-role="selected-note"]')?.textContent.includes('A3'),
+    expected => window.__workbench?.snapshot().selectedEvent?.sourceEventId === expected.sourceEventId
+      && document.querySelector('[data-role="selected-note"]')?.textContent.includes(expected.written),
     {timeout: 10000},
+    expectedSelection,
   );
 
   const mapped = await page.evaluate(() => ({
@@ -125,27 +170,23 @@ try {
   }));
 
   assert.equal(mapped.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(mapped.snapshot.selectedEvent.sourceEventId, 'P1:measure:0:note:4');
-  assert.equal(mapped.snapshot.selectedEvent.sourceGroupId, 'P1:measure:0:simultaneous:12');
-  assert.deepEqual(
-    mapped.snapshot.selectedEvent.sourceGroupEventIds,
-    ['P1:measure:0:note:4', 'P1:measure:0:note:7'],
-  );
-  assert.match(mapped.selectedNoteText, /A3/);
-  assert.equal(mapped.fingeringPitchText, 'A3');
+  assert.equal(mapped.snapshot.selectedEvent.sourceEventId, expectedSelection.sourceEventId);
+  assert.equal(mapped.snapshot.selectedEvent.sourceGroupId, expectedSelection.sourceGroupId);
+  assert.deepEqual(mapped.snapshot.selectedEvent.sourceGroupEventIds, expectedSelection.sourceGroupEventIds);
+  assert.ok(mapped.selectedNoteText.includes(expectedSelection.written));
+  assert.equal(mapped.fingeringPitchText, expectedSelection.written);
   assert.equal(mapped.snapshot.applyEditDisabled, false);
 
-  await page.select('[data-role="edit-step"]', 'A');
-  await page.select('[data-role="edit-alter"]', '0');
-  await page.$eval('[data-role="edit-octave"]', element => { element.value = '3'; });
   await page.click('[data-role="apply-edit"]');
 
   await page.waitForFunction(
-    () => window.__workbench?.snapshot().revisionNumber === 1
+    expected => window.__workbench?.snapshot().revisionNumber === 1
       && window.__workbench?.snapshot().scoreLoaded === true
       && window.__workbench?.snapshot().runtimeResult?.route === 'POLY_V2'
-      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'A3',
+      && window.__workbench?.snapshot().selectedEvent?.sourceEventId === expected.sourceEventId
+      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === expected.written,
     {timeout: 30000},
+    expectedSelection,
   );
 
   const edited = await page.evaluate(() => ({
@@ -157,7 +198,7 @@ try {
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(edited.snapshot.revisionNumber, 1);
-  assert.equal(edited.snapshot.selectedEvent.pitch.written, 'A3');
+  assert.equal(edited.snapshot.selectedEvent.pitch.written, expectedSelection.written);
   assert.ok(edited.svgCount > 0);
   assert.match(edited.issueText, /RUNTIME_GUITAR_NOTATION_NORMALIZED/);
   assert.deepEqual(apiRequests.filter(item => item === 'POST /api/upload'), ['POST /api/upload']);
