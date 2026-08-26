@@ -431,12 +431,12 @@ function publicNormalization(normalization) {
   });
 }
 
-function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing) {
+function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing, writerOptions = {}) {
   processing.checkpoint('app-upload:tab-mirror-canonical:start');
   const canonicalTabResult = createCanonicalTabResultV2(sourceModel, decisions, processing);
   const musicXml = serializeCanonicalTabResultV2ToMusicXml(
     canonicalTabResult,
-    {},
+    writerOptions,
     processing,
   );
   processing.checkpoint('app-upload:tab-mirror-canonical:complete');
@@ -580,7 +580,12 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
     const conversion = (projectedMirror || runtimeProjection)
-      ? convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing)
+      ? convertProjectedMirrorToCanonicalTab(
+        sourceModel,
+        decisions,
+        processing,
+        runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {},
+      )
       : convertMusicXmlToInternalPolyphonicTabV2(
         normalizedUpload.bytes,
         decisions,

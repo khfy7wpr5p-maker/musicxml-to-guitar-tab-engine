@@ -434,6 +434,7 @@ function projectEditableSource(bytes, processing) {
   return {
     sourceModel,
     tabStaffMirrorCollapsed: Boolean(mirror),
+    notationContext: runtimeProjection?.notationContext ?? null,
   };
 }
 
@@ -721,7 +722,11 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       processing,
     );
     assertNoSilentChange(revisedSourceModel, canonicalTabResult);
-    const musicXml = serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, {}, processing);
+    const musicXml = serializeCanonicalTabResultV2ToMusicXml(
+      canonicalTabResult,
+      projected.notationContext ? { notationContext: projected.notationContext } : {},
+      processing,
+    );
     processing.checkpoint('app-poly-note-edit:complete', {
       revisionCount: normalized.commands.length,
     });

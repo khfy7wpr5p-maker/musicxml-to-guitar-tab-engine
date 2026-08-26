@@ -23,6 +23,7 @@ Current bounded classification:
 | Source feature | Runtime classification | Evidence / reason |
 |---|---|---|
 | Standard initial guitar `transpose` (`diatonic=0`, `chromatic=0`, `octave-change=-1`) | `NORMALIZED_WITH_WARNING` | Written pitch is converted once to sounding pitch before deterministic selection. |
+| Conventional key signature (`fifths=-7..7`, optional `major`/`minor`) and standard notation clef (`G`, line `2`) | `SUPPORTED` | The key signature is carried into renderer MusicXML; the standard clef is validated against the writer contract. Other key/clef semantics fail closed. |
 | Simple `slur` marks | `NORMALIZED_WITH_WARNING` | Pitch, onset, duration and voice are unchanged; omission is listed in warning provenance. |
 | Bounded leaf articulations (`accent`, `staccato`, `tenuto`, `detached-legato`, `staccatissimo`, `spiccato`) | `NORMALIZED_WITH_WARNING` | Performance decoration is not used as pitch/rhythm authority and is named individually in warning provenance. |
 | Simple metronome direction with matching optional `sound tempo` | `NORMALIZED_WITH_WARNING` | Tempo is classified explicitly; other direction semantics are not admitted. |
@@ -64,9 +65,9 @@ Required UI/runtime slice:
 - `Apply & regenerate TAB` rebuilds the complete deterministic result;
 - no browser-only mutation of TAB authority.
 
-### GAP-05 — Existing browser E2E is too synthetic
+### GAP-05 — Browser E2E and corpus breadth
 
-Current E2E proves generated fixtures and programmatic renderer-note selection. It does not prove broad real exported scores.
+The runtime E2E now uploads the representative real-world fixture and performs an actual Chromium pointer click on a visible SVG note head. It proves selection, source-event/group identity, Inspector state, `/api/edit/poly-v2` and regenerated TAB. It still does not prove broad real exported scores or the user's original file.
 
 Required corpus gate:
 
@@ -83,7 +84,8 @@ Current repository corpus evidence:
 
 | Fixture / mutation | Expected state | Covered facts |
 |---|---|---|
-| `tests/fixtures/runtime-realworld-guitar-poly.musicxml` | `NORMALIZED_WITH_WARNING` | MuseScore-like single guitar part/staff, two voices, chord, rest, backup/forward, key, explicit accidental, initial guitar transpose, metronome direction, slur, articulation, layout and simple barline. |
+| `tests/fixtures/runtime-realworld-guitar-poly.musicxml` | `NORMALIZED_WITH_WARNING` | MuseScore-like single guitar part/staff, two voices, chord, rest, backup/forward, preserved key/validated clef, explicit accidental, initial guitar transpose, metronome direction, slur, articulation, layout and simple barline. |
+| Unsupported key mode or non-standard clef | `BLOCKED_UNSUPPORTED` | Tonal/notation semantics are not silently reduced to the writer default. |
 | Standard fixture with `technical` string/fret | `BLOCKED_UNSUPPORTED` | Source fingering is not discarded or treated as browser authority. |
 | Standard fixture with source `harmony` | `BLOCKED_UNSUPPORTED` | Source chord symbols await a preservation contract. |
 | Standard fixture with unknown notation/articulation, octave-shift direction or repeat barline | `BLOCKED_UNSUPPORTED` | Unknown or musical semantics remain fail-closed. |
@@ -94,8 +96,8 @@ This is a repository-authored representative export fixture, not the user's orig
 ## Current remediation order
 
 1. real-world guitar POLY routing + standard transpose semantics;
-2. exact-head unit/compatibility/runtime E2E;
-3. deploy Preview and verify a real user file;
+2. exact-head unit/compatibility/runtime E2E, including real SVG pointer selection;
+3. verify the protected Preview runtime and a real user file;
 4. Fingering Editor with validated string/fret override;
 5. low-position preference review after octave semantics are proven correct;
 6. expand real-document corpus before any public polyphony claim.

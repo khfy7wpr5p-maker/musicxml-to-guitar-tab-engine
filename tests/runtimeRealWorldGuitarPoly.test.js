@@ -52,8 +52,8 @@ test('runtime routes real-world single-staff multi-voice guitar notation through
   assert.equal(result.preflight.issues[0].code, 'RUNTIME_GUITAR_NOTATION_NORMALIZED');
   assert.equal(result.preflight.issues[0].details.pitchOctaveShift, -1);
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:transpose'));
-  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:key'));
-  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef'));
+  assert.equal(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:key'), false);
+  assert.equal(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef'), false);
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:direction:metronome-tempo'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:barline:style'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('notation:slur'));
@@ -105,8 +105,24 @@ test('runtime routes real-world single-staff multi-voice guitar notation through
   );
 
   assert.match(result.musicXml, /<octave-change>-1<\/octave-change>/);
+  assert.match(result.musicXml, /<key><fifths>0<\/fifths><\/key>/);
+  assert.match(result.musicXml, /<clef number="1"><sign>G<\/sign><line>2<\/line><\/clef>/);
   assert.match(result.musicXml, /<step>E<\/step><octave>4<\/octave>/);
   assert.match(result.musicXml, /<step>F<\/step><alter>1<\/alter><octave>4<\/octave>/);
+});
+
+test('runtime fails closed on unsupported key or clef semantics instead of dropping notation fidelity', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  assertBlockedUnsupported(
+    'unsupported-key-mode',
+    source.replace('<fifths>0</fifths>', '<fifths>0</fifths><mode>dorian</mode>'),
+    'key',
+  );
+  assertBlockedUnsupported(
+    'unsupported-clef',
+    source.replace('<clef><sign>G</sign><line>2</line></clef>', '<clef><sign>F</sign><line>4</line></clef>'),
+    'clef',
+  );
 });
 
 test('runtime remains fail-closed for non-standard source transposition', () => {

@@ -30,8 +30,6 @@ const IGNORED_MEASURE_CHILDREN = new Set([
   'bookmark',
 ]);
 const IGNORED_ATTRIBUTE_CHILDREN = new Set([
-  'key',
-  'clef',
   'instruments',
   'part-symbol',
 ]);
@@ -318,7 +316,52 @@ function safeStaffDetails(node) {
   ));
 }
 
-function sanitizeAttributes(node, ignoredFeatures) {
+function parseKeySignature(node, measureIndex) {
+  if (!hasOnlyUnqualifiedAttributes(node, new Set(['number']))) throw unsupported('key');
+  if ((getAttribute(node, 'number') || '1') !== '1') throw unsupported('key');
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.some((child) => !['fifths', 'mode'].includes(child.name))) {
+    throw unsupported('key');
+  }
+  const fifthsNodes = directChildren(node, 'fifths');
+  const modeNodes = directChildren(node, 'mode');
+  if (fifthsNodes.length !== 1 || modeNodes.length > 1) throw unsupported('key');
+  if (!hasOnlyUnqualifiedAttributes(fifthsNodes[0], new Set())) throw unsupported('key');
+  const fifths = scalarInteger(fifthsNodes[0]);
+  if (fifths === null || fifths < -7 || fifths > 7) throw unsupported('key');
+  let mode = null;
+  if (modeNodes.length === 1) {
+    if (hasSameNamespaceChildren(modeNodes[0]) || !hasOnlyUnqualifiedAttributes(modeNodes[0], new Set())) {
+      throw unsupported('key');
+    }
+    mode = modeNodes[0].text.trim();
+    if (!['major', 'minor'].includes(mode)) throw unsupported('key');
+  }
+  return Object.freeze({ measureIndex, fifths, mode });
+}
+
+function requireStandardNotationClef(node) {
+  if (!hasOnlyUnqualifiedAttributes(node, new Set(['number']))) throw unsupported('clef');
+  if ((getAttribute(node, 'number') || '1') !== '1') throw unsupported('clef');
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.some((child) => !['sign', 'line'].includes(child.name))) throw unsupported('clef');
+  const signs = directChildren(node, 'sign');
+  const lines = directChildren(node, 'line');
+  if (
+    signs.length !== 1
+    || lines.length !== 1
+    || hasSameNamespaceChildren(signs[0])
+    || hasSameNamespaceChildren(lines[0])
+    || !hasOnlyUnqualifiedAttributes(signs[0], new Set())
+    || !hasOnlyUnqualifiedAttributes(lines[0], new Set())
+    || signs[0].text.trim() !== 'G'
+    || scalarInteger(lines[0]) !== 2
+  ) {
+    throw unsupported('clef');
+  }
+}
+
+function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) {
   const children = [];
   for (const child of node.children) {
     if (child.uri !== node.uri) continue;
@@ -333,6 +376,17 @@ function sanitizeAttributes(node, ignoredFeatures) {
     }
     if (child.name === 'transpose') {
       ignoredFeatures.add('attributes:transpose');
+      continue;
+    }
+    if (child.name === 'key') {
+      if (keySignatures.some((entry) => entry.measureIndex === measureIndex)) {
+        throw unsupported('key');
+      }
+      keySignatures.push(parseKeySignature(child, measureIndex));
+      continue;
+    }
+    if (child.name === 'clef') {
+      requireStandardNotationClef(child);
       continue;
     }
     if (child.name === 'staff-details') {
@@ -475,12 +529,14 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
   if (pitchOctaveShift === null) throw unsupported('transpose');
 
   const measures = [];
-  for (const measure of measureNodes) {
+  const keySignatures = [];
+  for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
+    const measure = measureNodes[measureIndex];
     const children = [];
     for (const child of measure.children) {
       if (child.uri !== measure.uri) continue;
       if (child.name === 'attributes') {
-        const attributes = sanitizeAttributes(child, ignoredFeatures);
+        const attributes = sanitizeAttributes(child, ignoredFeatures, measureIndex, keySignatures);
         children.push(attributes);
         continue;
       }
@@ -519,6 +575,7 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
   return Object.freeze({
     sourceModel,
     pitchOctaveShift,
+    notationContext: Object.freeze({ keySignatures: Object.freeze(keySignatures) }),
     ignoredFeatures: Object.freeze([...ignoredFeatures].sort()),
   });
 }

@@ -129,6 +129,7 @@ test('POLY_V2 replays real-world guitar normalization through backend edit and T
   assert.equal(disposition(result, sourceEventId(0, 0)).targetPitch.midi, 52);
   assert.equal(result.preflight.status, 'WARNING');
   assert.equal(result.preflight.issues[0].code, 'RUNTIME_GUITAR_NOTATION_NORMALIZED');
+  assert.match(result.musicXml, /<key><fifths>0<\/fifths><\/key>/);
   assert.match(result.musicXml, /<octave-change>-1<\/octave-change>/);
 });
 
