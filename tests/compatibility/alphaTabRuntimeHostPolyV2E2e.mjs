@@ -71,15 +71,15 @@ try {
   const clickTarget = await page.evaluate(async () => {
     const notation = window.__workbench.api.score.tracks[0].staves[0];
     const notes = notation.bars[0].voices.flatMap(voice => voice.beats.flatMap(beat => beat.notes));
-    const note = notes.find(candidate => candidate.realValue === 52);
-    if (!note) throw new Error('The first sounding E3 note was not imported by alphaTab.');
+    const note = notes.find(candidate => candidate.realValue === 54);
+    if (!note) throw new Error('The sounding F-sharp 3 note was not imported by alphaTab.');
 
     const lookup = window.__workbench.api.boundsLookup || window.__workbench.api.renderer.boundsLookup;
     const beatBounds = lookup.findBeats(note.beat) || [];
     const noteBounds = beatBounds
       .flatMap(bounds => Array.isArray(bounds.notes) ? bounds.notes : [])
       .find(bounds => bounds.note === note);
-    if (!noteBounds) throw new Error('alphaTab did not expose clickable geometry for sounding E3.');
+    if (!noteBounds) throw new Error('alphaTab did not expose clickable geometry for sounding F-sharp 3.');
 
     const surface = window.__workbench.api.canvasElement.element;
     const panel = surface.closest('.workbench-score-panel');
@@ -113,8 +113,8 @@ try {
   assert.ok(clickTarget.y >= 0 && clickTarget.y <= 1000, 'Rendered note must be vertically visible.');
   await page.mouse.click(clickTarget.x, clickTarget.y);
   await page.waitForFunction(
-    () => window.__workbench?.snapshot().selectedEvent?.sourceEventId === 'P1:measure:0:note:0'
-      && document.querySelector('[data-role="selected-note"]')?.textContent.includes('E3'),
+    () => window.__workbench?.snapshot().selectedEvent?.sourceEventId === 'P1:measure:0:note:2'
+      && document.querySelector('[data-role="selected-note"]')?.textContent.includes('F#3'),
     {timeout: 10000},
   );
 
@@ -125,18 +125,18 @@ try {
   }));
 
   assert.equal(mapped.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(mapped.snapshot.selectedEvent.sourceEventId, 'P1:measure:0:note:0');
-  assert.equal(mapped.snapshot.selectedEvent.sourceGroupId, 'P1:measure:0:simultaneous:0');
+  assert.equal(mapped.snapshot.selectedEvent.sourceEventId, 'P1:measure:0:note:2');
+  assert.equal(mapped.snapshot.selectedEvent.sourceGroupId, null);
   assert.deepEqual(
     mapped.snapshot.selectedEvent.sourceGroupEventIds,
-    ['P1:measure:0:note:0', 'P1:measure:0:note:1', 'P1:measure:0:note:5'],
+    ['P1:measure:0:note:2'],
   );
-  assert.match(mapped.selectedNoteText, /E3/);
-  assert.equal(mapped.fingeringPitchText, 'E3');
+  assert.match(mapped.selectedNoteText, /F#3/);
+  assert.equal(mapped.fingeringPitchText, 'F#3');
   assert.equal(mapped.snapshot.applyEditDisabled, false);
 
-  await page.select('[data-role="edit-step"]', 'E');
-  await page.select('[data-role="edit-alter"]', '0');
+  await page.select('[data-role="edit-step"]', 'F');
+  await page.select('[data-role="edit-alter"]', '1');
   await page.$eval('[data-role="edit-octave"]', element => { element.value = '3'; });
   await page.click('[data-role="apply-edit"]');
 
@@ -144,7 +144,7 @@ try {
     () => window.__workbench?.snapshot().revisionNumber === 1
       && window.__workbench?.snapshot().scoreLoaded === true
       && window.__workbench?.snapshot().runtimeResult?.route === 'POLY_V2'
-      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'E3',
+      && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'F#3',
     {timeout: 30000},
   );
 
@@ -157,7 +157,7 @@ try {
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(edited.snapshot.revisionNumber, 1);
-  assert.equal(edited.snapshot.selectedEvent.pitch.written, 'E3');
+  assert.equal(edited.snapshot.selectedEvent.pitch.written, 'F#3');
   assert.ok(edited.svgCount > 0);
   assert.match(edited.issueText, /RUNTIME_GUITAR_NOTATION_NORMALIZED/);
   assert.deepEqual(apiRequests.filter(item => item === 'POST /api/upload'), ['POST /api/upload']);
