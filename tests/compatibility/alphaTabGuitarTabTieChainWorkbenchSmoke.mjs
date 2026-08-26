@@ -299,7 +299,7 @@ try {
     () => window.__tieSmoke?.error
       || (window.__workbench?.snapshot().revisionNumber === 1
         && window.__workbench?.snapshot().scoreLoaded === true
-        && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'D4'),
+        && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'D3'),
     {timeout:30000},
   );
 
@@ -327,8 +327,8 @@ try {
   assert.equal(edited.editCalls,1);
   assert.equal(edited.snapshot.runtimeResult.status,'PASS');
   assert.equal(edited.snapshot.revisionNumber,1);
-  assert.equal(edited.firstPitch,'D4');
-  assert.equal(edited.secondPitch,'D4');
+  assert.equal(edited.firstPitch,'D3');
+  assert.equal(edited.secondPitch,'D3');
   assert.equal(edited.commandType,'REPLACE_TIE_CHAIN_PITCH');
   assert.equal(edited.affectedEventCount,2);
   assert.deepEqual(edited.firstPosition,edited.secondPosition);
