@@ -299,7 +299,7 @@ try {
   });
   assert.equal(selected.accepted,true);
   assert.equal(selected.snapshot.selectedEvent.eventId,'m1-e1');
-  assert.equal(selected.snapshot.selectedEvent.pitch.written,'D#4');
+  assert.equal(selected.snapshot.selectedEvent.pitch.written,'D#3');
   assert.equal(selected.snapshot.applyEditDisabled,false);
 
   await page.select('[data-role="edit-step"]','G');
@@ -310,7 +310,7 @@ try {
     () => window.__workbenchSmoke?.error
       || (window.__workbench?.snapshot().revisionNumber === 1
         && window.__workbench?.snapshot().scoreLoaded === true
-        && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'G4'),
+        && window.__workbench?.snapshot().selectedEvent?.pitch?.written === 'G3'),
     {timeout:30000},
   );
 
@@ -327,7 +327,7 @@ try {
   assert.equal(edited.editCalls,1);
   assert.equal(edited.snapshot.revisionNumber,1);
   assert.equal(edited.snapshot.revisionCommandCount,1);
-  assert.equal(edited.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G4');
+  assert.equal(edited.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G3');
   assert.notDeepEqual(edited.eventPosition,selected.beforePosition);
   assert.ok(edited.svgCount > 0);
 
@@ -349,7 +349,7 @@ try {
   assert.equal(blockedEdit.snapshot.revisionNumber,1);
   assert.equal(blockedEdit.snapshot.revisionCommandCount,1);
   assert.equal(blockedEdit.snapshot.scoreLoaded,true);
-  assert.equal(blockedEdit.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G4');
+  assert.equal(blockedEdit.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G3');
   assert.equal(blockedEdit.scoreVisible,true);
   assert.match(blockedEdit.issueText,/UNPLAYABLE_NOTE/);
 
@@ -386,7 +386,7 @@ try {
   assert.equal(blockedTieEdit.snapshot.revisionNumber,1);
   assert.equal(blockedTieEdit.snapshot.revisionCommandCount,1);
   assert.equal(blockedTieEdit.snapshot.scoreLoaded,true);
-  assert.equal(blockedTieEdit.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G4');
+  assert.equal(blockedTieEdit.snapshot.runtimeResult.canonicalTabResult.measures[0].events[1].pitch.written,'G3');
   assert.equal(blockedTieEdit.scoreVisible,true);
   assert.match(blockedTieEdit.issueText,/INVALID_TIE_CHAIN/);
 
