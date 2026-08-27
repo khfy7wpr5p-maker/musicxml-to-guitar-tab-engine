@@ -13,8 +13,10 @@ const {
 
 const fixturePath = (name) => path.join(__dirname, 'fixtures', name);
 
-const TRUSTED_MUSICXML_PARTWISE_DOCTYPE =
+const TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE =
   '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0.3 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">';
+const TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE =
+  '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">';
 
 function expectCode(fn, code) {
   assert.throws(fn, (error) => {
@@ -30,17 +32,34 @@ test('accepts UTF-8 strings and buffers without altering the XML', () => {
   assert.equal(normalizeXmlInput(Buffer.from(xml, 'utf8')), xml);
 });
 
-test('accepts and strips the trusted MusicXML 4.0.3 partwise DOCTYPE', () => {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-${TRUSTED_MUSICXML_PARTWISE_DOCTYPE}
-<score-partwise version="4.0.3"/>`;
+test('accepts and strips exact trusted MusicXML 4.0.3 and 3.1 partwise DOCTYPEs', () => {
+  for (const [version, doctype] of [
+    ['4.0.3', TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE],
+    ['3.1', TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE],
+  ]) {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n${doctype}\n<score-partwise version="${version}"/>`;
+    const normalized = normalizeXmlInput(xml);
 
-  const normalized = normalizeXmlInput(xml);
+    assert.doesNotMatch(normalized, /<!DOCTYPE/i);
+    assert.match(normalized, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+    assert.match(normalized, new RegExp(`<score-partwise version="${version.replaceAll('.', '\\.')}"\\/>`));
+    assert.equal(normalizeXmlInput(Buffer.from(xml, 'utf8')), normalized);
+  }
+});
 
-  assert.doesNotMatch(normalized, /<!DOCTYPE/i);
-  assert.match(normalized, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
-  assert.match(normalized, /<score-partwise version="4\.0\.3"\/>/);
-  assert.equal(normalizeXmlInput(Buffer.from(xml, 'utf8')), normalized);
+test('accepts exact trusted MusicXML 3.1 DOCTYPE quoting without widening its identity', () => {
+  const singleQuoted = "<!DOCTYPE score-partwise PUBLIC '-//Recordare//DTD MusicXML 3.1 Partwise//EN' 'http://www.musicxml.org/dtds/partwise.dtd'>\n<score-partwise version=\"3.1\"/>";
+  assert.doesNotMatch(normalizeXmlInput(singleQuoted), /<!DOCTYPE/i);
+
+  for (const untrusted of [
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "https://www.musicxml.org/dtds/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://example.com/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-timewise PUBLIC "-//Recordare//DTD MusicXML 3.1 Timewise//EN" "http://www.musicxml.org/dtds/timewise.dtd"><score-timewise/>',
+  ]) {
+    expectCode(() => normalizeXmlInput(untrusted), 'UNSAFE_XML_DECLARATION');
+  }
 });
 
 test('uses a five-megabyte default size limit', () => {
@@ -76,28 +95,38 @@ test('rejects entity declarations and untrusted DOCTYPE declarations', () => {
   );
 });
 
-test('rejects internal subsets, duplicate declarations and mismatched roots', () => {
-  expectCode(
-    () => normalizeXmlInput(
-      `${TRUSTED_MUSICXML_PARTWISE_DOCTYPE.slice(0, -1)} [<!ELEMENT sample ANY>]>
-<score-partwise/>`,
-    ),
-    'UNSAFE_XML_DECLARATION',
-  );
+test('rejects internal subsets, duplicate declarations and mismatched roots for every trusted version', () => {
+  for (const trustedDoctype of [
+    TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE,
+    TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE,
+  ]) {
+    expectCode(
+      () => normalizeXmlInput(
+        `${trustedDoctype.slice(0, -1)} [<!ELEMENT sample ANY>]>\n<score-partwise/>`,
+      ),
+      'UNSAFE_XML_DECLARATION',
+    );
 
-  expectCode(
-    () => normalizeXmlInput(
-      `${TRUSTED_MUSICXML_PARTWISE_DOCTYPE}
-${TRUSTED_MUSICXML_PARTWISE_DOCTYPE}
-<score-partwise/>`,
-    ),
-    'UNSAFE_XML_DECLARATION',
-  );
+    expectCode(
+      () => normalizeXmlInput(
+        `${trustedDoctype}\n${trustedDoctype}\n<score-partwise/>`,
+      ),
+      'UNSAFE_XML_DECLARATION',
+    );
 
+    expectCode(
+      () => normalizeXmlInput(
+        `${trustedDoctype}\n<score-timewise/>`,
+      ),
+      'UNSAFE_XML_DECLARATION',
+    );
+  }
+});
+
+test('rejects entity-bearing MusicXML 3.1 even when the public identifier is exact', () => {
   expectCode(
     () => normalizeXmlInput(
-      `${TRUSTED_MUSICXML_PARTWISE_DOCTYPE}
-<score-timewise/>`,
+      `${TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE.slice(0, -1)} [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n<score-partwise>&xxe;</score-partwise>`,
     ),
     'UNSAFE_XML_DECLARATION',
   );
