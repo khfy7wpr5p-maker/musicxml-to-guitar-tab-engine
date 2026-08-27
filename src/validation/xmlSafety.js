@@ -4,8 +4,10 @@ const { EngineError } = require('../errors/engineError');
 
 const DEFAULT_MAX_XML_BYTES = 5 * 1024 * 1024;
 
-const TRUSTED_MUSICXML_PARTWISE_DOCTYPE =
-  /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 4\.0\.3 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i;
+const TRUSTED_MUSICXML_PARTWISE_DOCTYPES = Object.freeze([
+  /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 4\.0\.3 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i,
+  /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 3\.1 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i,
+]);
 
 class XmlSafetyError extends EngineError {
   constructor(message, code, details = {}) {
@@ -32,6 +34,14 @@ function decodeUtf8Buffer(input) {
   }
 }
 
+function matchTrustedMusicXmlDoctype(xml) {
+  for (const pattern of TRUSTED_MUSICXML_PARTWISE_DOCTYPES) {
+    const match = pattern.exec(xml);
+    if (match) return match;
+  }
+  return null;
+}
+
 function normalizeTrustedMusicXmlDoctype(xml) {
   if (/<!\s*ENTITY\b/i.test(xml)) {
     throw new XmlSafetyError(
@@ -52,10 +62,10 @@ function normalizeTrustedMusicXmlDoctype(xml) {
     );
   }
 
-  const trustedDoctype = TRUSTED_MUSICXML_PARTWISE_DOCTYPE.exec(xml);
+  const trustedDoctype = matchTrustedMusicXmlDoctype(xml);
   if (!trustedDoctype) {
     throw new XmlSafetyError(
-      'Only the trusted external MusicXML 4.0.3 partwise DOCTYPE is allowed.',
+      'Only exact trusted external MusicXML partwise DOCTYPE declarations are allowed.',
       'UNSAFE_XML_DECLARATION',
     );
   }
