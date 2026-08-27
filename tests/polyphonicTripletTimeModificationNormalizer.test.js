@@ -77,7 +77,7 @@ test('PS-6B5A records exact 3:2 triplet relations without rescaling MusicXML dur
     measureIndex: 0,
     measureNumber: '1',
     sourceOrder: 0,
-    noteChildIndex: 5,
+    noteChildIndex: 4,
   });
   assert.ok(result.ignoredFeatures.includes('note:triplet-time-modification-context'));
 });
