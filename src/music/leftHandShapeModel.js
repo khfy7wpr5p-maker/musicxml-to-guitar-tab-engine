@@ -407,4 +407,5 @@ module.exports = {
   createLeftHandShapeModel,
   createLeftHandShapeModelFromVoicingCandidateSnapshot,
   isAuthenticLeftHandShapeModelSnapshot,
+  enumerateStaticLeftHandShapeCandidatesFromPositions: enumerateShapeCandidates,
 };
