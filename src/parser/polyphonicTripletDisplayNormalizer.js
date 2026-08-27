@@ -75,6 +75,27 @@ function directChildren(node, name) {
   return node.children.filter((child) => child.uri === node.uri && child.name === name);
 }
 
+function requireSinglePart(parsedDocument) {
+  if (
+    !parsedDocument
+    || typeof parsedDocument !== 'object'
+    || !parsedDocument.root
+    || typeof parsedDocument.root !== 'object'
+    || !Array.isArray(parsedDocument.root.children)
+  ) {
+    throw invalid('parsedDocument must expose a parsed MusicXML root.', { field: 'parsedDocument' });
+  }
+  const root = parsedDocument.root;
+  const parts = root.children.filter(
+    (child) => child && child.uri === root.uri && child.name === 'part',
+  );
+  if (parts.length !== 1) {
+    throw unsupported('This triplet-display stage requires exactly one MusicXML part.', {
+      observedPartCount: parts.length,
+    });
+  }
+}
+
 function scalarLaneValue(note, name, fallback, location) {
   const matches = directChildren(note, name);
   if (matches.length === 0) return fallback;
@@ -93,6 +114,17 @@ function scalarLaneValue(note, name, fallback, location) {
     });
   }
   return node.text.trim();
+}
+
+function noteHasTupletDisplay(note) {
+  for (const notations of directChildren(note, 'notations')) {
+    if (notations.children.some(
+      (child) => child.uri === notations.uri && child.name === 'tuplet',
+    )) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function parseExactTupletDisplay(node, location) {
@@ -175,6 +207,9 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
 }
 
 function sanitizeNote(note, context, markers, laneState, tripletMarkerKeys) {
+  if (!noteHasTupletDisplay(note)) {
+    return cloneNode(note);
+  }
   const voice = scalarLaneValue(note, 'voice', '1', context);
   const staff = scalarLaneValue(note, 'staff', '1', context);
   return cloneNode(note, (noteChild) => {
@@ -238,6 +273,7 @@ function sanitizePart(part, markers, runtime, tripletMarkerKeys) {
 
 function normalizePolyphonicTripletDisplay(parsedDocument, runtime = null) {
   checkpoint(runtime, 'polyphonic-triplet-display-normalizer:start');
+  requireSinglePart(parsedDocument);
   const triplet = normalizePolyphonicTripletTimeModification(parsedDocument, runtime);
   const tripletMarkerKeys = new Set(
     triplet.tripletTimeModificationMarkers.map(
