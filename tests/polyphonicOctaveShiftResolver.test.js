@@ -39,16 +39,6 @@ function parsed(xml) {
   return parseParsedMusicXmlDocument(xml);
 }
 
-function unsupportedFeature(fn) {
-  try {
-    fn();
-  } catch (error) {
-    assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
-    return error.details.feature;
-  }
-  assert.fail('Expected unsupported projection feature.');
-}
-
 test('PS-6B2B validates 8va display shift without rewriting true/performed pitch', () => {
   const source = parsed(document([`
     ${shift('down', { staff: 2, size: 8 })}
@@ -117,6 +107,7 @@ test('PS-6B2B keeps independent shift numbers and staffs separate', () => {
     ${shift('down', { staff: 1, number: 1, size: 8 })}
     ${shift('up', { staff: 2, number: 1, size: 15 })}
     ${shift('down', { staff: 1, number: 2, size: 22 })}
+    ${note('C', 4, { duration: 4, staff: 1 })}
     ${shift('stop', { staff: 1, number: 2 })}
     ${shift('stop', { staff: 2, number: 1 })}
     ${shift('stop', { staff: 1, number: 1 })}
@@ -133,8 +124,8 @@ test('PS-6B2B keeps independent shift numbers and staffs separate', () => {
 test('PS-6B2B fails closed on orphan, overlapping, mismatched and unterminated chains', () => {
   const fixtures = [
     document([`${shift('stop')}`], { staves: 1 }),
-    document([`${shift('down', { size: 8 })}${shift('up', { size: 8 })}${shift('stop')}`], { staves: 1 }),
-    document([`${shift('down', { size: 8 })}${shift('stop', { size: 15 })}`], { staves: 1 }),
+    document([`${shift('down', { size: 8 })}${note('C', 4)}${shift('up', { size: 8 })}${shift('stop')}`], { staves: 1 }),
+    document([`${shift('down', { size: 8 })}${note('C', 4)}${shift('stop', { size: 15 })}`], { staves: 1 }),
     document([`${shift('down', { size: 8 })}`], { staves: 1 }),
     document([`${shift('continue')}`], { staves: 1 }),
   ];
@@ -147,33 +138,32 @@ test('PS-6B2B fails closed on orphan, overlapping, mismatched and unterminated c
 });
 
 test('PS-6B2B fails closed on unsupported octave-shift sizes', () => {
-  const source = parsed(document([`${shift('down', { size: 9 })}${shift('stop', { size: 9 })}`], { staves: 1 }));
+  const source = parsed(document([`${shift('down', { size: 9 })}${note('C', 4)}${shift('stop', { size: 9 })}`], { staves: 1 }));
   assert.throws(
     () => normalizePolyphonicOctaveShifts(source),
     (error) => error.code === 'UNSUPPORTED_POLYPHONIC_OCTAVE_SHIFT',
   );
 });
 
-test('PS-6B2B leaves offset or mixed octave-shift directions for a later gate', () => {
-  const offsetSource = parsed(document([`
-    ${shift('down', { extra: '<offset>-4</offset>', size: 8 })}
-    ${note('C', 4)}
-    ${shift('stop')}
-  `], { staves: 1 }));
-  assert.equal(
-    unsupportedFeature(() => projectParsedMusicXmlWithOctaveShiftCompatibility(offsetSource)),
-    'measure-child:direction',
-  );
-
-  const mixed = parsed(document([`
-    <direction><direction-type><words>8va</words><octave-shift type="down" size="8"/></direction-type><staff>1</staff></direction>
-    ${note('C', 4)}
-    ${shift('stop')}
-  `], { staves: 1 }));
-  assert.equal(
-    unsupportedFeature(() => projectParsedMusicXmlWithOctaveShiftCompatibility(mixed)),
-    'measure-child:direction',
-  );
+test('PS-6B2B fails closed when offset or mixed octave-shift syntax prevents exact resolution', () => {
+  const fixtures = [
+    document([`
+      ${shift('down', { extra: '<offset>-4</offset>', size: 8 })}
+      ${note('C', 4)}
+      ${shift('stop')}
+    `], { staves: 1 }),
+    document([`
+      <direction><direction-type><words>8va</words><octave-shift type="down" size="8"/></direction-type><staff>1</staff></direction>
+      ${note('C', 4)}
+      ${shift('stop')}
+    `], { staves: 1 }),
+  ];
+  for (const xml of fixtures) {
+    assert.throws(
+      () => projectParsedMusicXmlWithOctaveShiftCompatibility(parsed(xml)),
+      (error) => error.code === 'INVALID_POLYPHONIC_OCTAVE_SHIFT',
+    );
+  }
 });
 
 test('PS-6B2B source document remains unchanged and result provenance is immutable', () => {
