@@ -32,7 +32,17 @@ function inventory(root) {
   const timeModificationShapes = new Map();
   const notationChildCounts = new Map();
   const noteChildCounts = new Map();
-  const samples = [];
+  const timeModificationSamples = [];
+  const fermataShapes = new Map();
+  const fermataSamples = [];
+
+  function nodeShape(node) {
+    return {
+      text: node.text.trim(),
+      attributes: Object.fromEntries(node.attributes.map((attribute) => [attribute.name, attribute.value])),
+      childNames: node.children.filter((child) => child.uri === node.uri).map((child) => child.name),
+    };
+  }
 
   function walk(node) {
     if (node.name === 'note') {
@@ -46,6 +56,12 @@ function inventory(root) {
         increment(notationChildCounts, child.name);
       }
     }
+    if (node.name === 'fermata') {
+      const shape = nodeShape(node);
+      const key = JSON.stringify(shape);
+      increment(fermataShapes, key);
+      if (fermataSamples.length < 20) fermataSamples.push(shape);
+    }
     if (node.name === 'time-modification') {
       timeModificationCount += 1;
       const children = node.children.filter((child) => child.uri === node.uri).map((child) => ({
@@ -55,7 +71,7 @@ function inventory(root) {
       }));
       const shapeKey = children.map((child) => `${child.name}=${child.text}`).join('|');
       increment(timeModificationShapes, shapeKey);
-      if (samples.length < 20) samples.push(children);
+      if (timeModificationSamples.length < 20) timeModificationSamples.push(children);
     }
     for (const child of node.children) walk(child);
   }
@@ -64,9 +80,11 @@ function inventory(root) {
     timeModificationCount,
     graceCount,
     timeModificationShapes: Object.fromEntries([...timeModificationShapes.entries()].sort()),
+    fermataShapes: Object.fromEntries([...fermataShapes.entries()].sort()),
     notationChildCounts: Object.fromEntries([...notationChildCounts.entries()].sort()),
     noteChildCounts: Object.fromEntries([...noteChildCounts.entries()].sort()),
-    samples,
+    timeModificationSamples,
+    fermataSamples,
   };
 }
 
