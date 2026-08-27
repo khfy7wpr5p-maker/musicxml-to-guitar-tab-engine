@@ -20,6 +20,7 @@ const POLYPHONIC_GRACE_SOLVER_STATUS = Object.freeze({
 });
 const MAX_GRACE_GROUPS = 128;
 const MAX_GRACE_EVENTS = 256;
+const MAX_SCALAR_LENGTH = 64;
 
 class PolyphonicGraceOrnamentExtractorError extends EngineError {
   constructor(message, code = 'INVALID_POLYPHONIC_GRACE_ORNAMENT', details = {}) {
@@ -92,15 +93,23 @@ function requireExactLeaf(node, field, location, { text = null, attributes = nul
   if (node.children.length !== 0 || node.attributes.some((attribute) => attribute.uri.length !== 0)) {
     throw unsupported(`${field} must be a bounded leaf element.`, { ...location, field });
   }
-  if (text !== null && node.text.trim() !== text) {
-    throw unsupported(`${field} has an unsupported value.`, {
-      ...location,
-      field,
-      observed: node.text.trim(),
-      expected: text,
-    });
+
+  const attributeNames = node.attributes.map((attribute) => attribute.name);
+  if (new Set(attributeNames).size !== attributeNames.length) {
+    throw unsupported(`${field} must not contain duplicate attributes.`, { ...location, field });
   }
-  if (attributes !== null) {
+
+  if (attributes === null) {
+    if (node.attributes.length !== 0) {
+      throw unsupported(`${field} must not contain attributes.`, {
+        ...location,
+        field,
+        observedAttributes: Object.fromEntries(
+          node.attributes.map((attribute) => [attribute.name, attribute.value]),
+        ),
+      });
+    }
+  } else {
     const actual = Object.fromEntries(node.attributes.map((attribute) => [attribute.name, attribute.value]));
     const actualKeys = Object.keys(actual).sort();
     const expectedKeys = Object.keys(attributes).sort();
@@ -115,6 +124,15 @@ function requireExactLeaf(node, field, location, { text = null, attributes = nul
         observedAttributes: actual,
       });
     }
+  }
+
+  if (text !== null && node.text.trim() !== text) {
+    throw unsupported(`${field} has an unsupported value.`, {
+      ...location,
+      field,
+      observed: node.text.trim(),
+      expected: text,
+    });
   }
   return node.text.trim();
 }
@@ -135,7 +153,7 @@ function parseScalar(note, name, location) {
   const node = requireSingleChild(note, name, location);
   requireExactLeaf(node, name, location);
   const value = node.text.trim();
-  if (value.length === 0 || value.length > 64) {
+  if (value.length === 0 || value.length > MAX_SCALAR_LENGTH) {
     throw unsupported(`${name} must be a bounded non-empty scalar.`, { ...location, field: name });
   }
   return value;
@@ -200,10 +218,66 @@ function isGraceNote(note) {
   return directChildren(note, 'grace').length > 0;
 }
 
+function parseOptionalStem(note, location) {
+  const stems = directChildren(note, 'stem');
+  if (stems.length > 1) {
+    throw unsupported('Grace note may contain at most one stem element.', {
+      ...location,
+      field: 'stem',
+      observedCount: stems.length,
+    });
+  }
+  if (stems.length === 0) return null;
+  requireExactLeaf(stems[0], 'stem', location);
+  const value = stems[0].text.trim();
+  if (value !== 'up' && value !== 'down') {
+    throw unsupported('Grace stem has an unsupported value.', {
+      ...location,
+      field: 'stem',
+      observed: value,
+    });
+  }
+  return value;
+}
+
+function parseBeam(note, location, expectedBeamText) {
+  const beams = directChildren(note, 'beam');
+  if (expectedBeamText === null) {
+    if (beams.length !== 0) {
+      throw unsupported('Standalone grace note must not carry a beam chain.', {
+        ...location,
+        observedBeamCount: beams.length,
+      });
+    }
+    return null;
+  }
+  if (beams.length !== 1) {
+    throw unsupported('Paired grace note must contain exactly one beam element.', {
+      ...location,
+      observedBeamCount: beams.length,
+    });
+  }
+  requireExactLeaf(beams[0], 'beam', location, {
+    text: expectedBeamText,
+    attributes: { number: '1' },
+  });
+  return expectedBeamText;
+}
+
 function parseGraceNote(note, location, expectedBeamText) {
   if (note.text.trim().length !== 0 || note.attributes.length !== 0) {
-    throw unsupported('Extracted grace notes must have no remaining note-level semantics.', location);
+    throw unsupported('Extracted grace notes must have no note-level attributes or text.', location);
   }
+  if (directChildren(note, 'duration').length !== 0) {
+    throw unsupported('Grace note must not contain or be assigned a numeric duration.', location);
+  }
+  if (directChildren(note, 'rest').length !== 0) {
+    throw unsupported('Grace rests are outside the PS-6B6A extraction scope.', location);
+  }
+  if (directChildren(note, 'chord').length !== 0) {
+    throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', location);
+  }
+
   const allowedChildren = new Set(['grace', 'pitch', 'voice', 'type', 'stem', 'staff', 'beam']);
   for (const child of note.children) {
     if (child.uri !== note.uri || !allowedChildren.has(child.name)) {
@@ -212,9 +286,6 @@ function parseGraceNote(note, location, expectedBeamText) {
         feature: child.name,
       });
     }
-  }
-  if (directChildren(note, 'duration').length !== 0) {
-    throw unsupported('Grace note must not be assigned a synthetic duration.', location);
   }
 
   const grace = requireSingleChild(note, 'grace', location);
@@ -228,28 +299,26 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
   const type = requireSingleChild(note, 'type', location);
   requireExactLeaf(type, 'type', location, { text: 'eighth', attributes: {} });
-  const stem = requireSingleChild(note, 'stem', location);
-  requireExactLeaf(stem, 'stem', location, { text: 'up', attributes: {} });
-  const beam = requireSingleChild(note, 'beam', location);
-  requireExactLeaf(beam, 'beam', location, {
-    text: expectedBeamText,
-    attributes: { number: '1' },
-  });
+  const stem = parseOptionalStem(note, location);
+  const beam = parseBeam(note, location, expectedBeamText);
 
   return Object.freeze({
     pitch,
     voice,
     staff,
-    graphicType: 'eighth',
-    slash: true,
-    stem: 'up',
-    beam: expectedBeamText,
+    nominalType: 'eighth',
+    slash: 'yes',
+    stem,
+    beam,
   });
 }
 
 function parseAnchorLane(note, location) {
   if (isGraceNote(note) || directChildren(note, 'chord').length !== 0) {
     throw unsupported('Grace sequence must anchor to a non-grace, non-chord note.', location);
+  }
+  if (directChildren(note, 'rest').length !== 0 || directChildren(note, 'pitch').length !== 1) {
+    throw unsupported('Grace sequence must anchor to one pitched normal note.', location);
   }
   const voice = parseScalar(note, 'voice', location);
   const staffText = parseScalar(note, 'staff', location);
@@ -260,11 +329,14 @@ function parseAnchorLane(note, location) {
   return Object.freeze({ voice, staff });
 }
 
+function freezeGraceEvent(event) {
+  Object.freeze(event.pitch);
+  Object.freeze(event.source);
+  return Object.freeze(event);
+}
+
 function freezeGraceGroup(group) {
-  for (const note of group.notes) {
-    Object.freeze(note.pitch);
-    Object.freeze(note);
-  }
+  for (const note of group.notes) freezeGraceEvent(note);
   Object.freeze(group.notes);
   Object.freeze(group.anchor);
   return Object.freeze(group);
@@ -293,13 +365,14 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
     }
     sourceOrder -= 1;
 
-    if (run.length !== 2) {
-      throw unsupported('This stage supports exactly two consecutive slashed grace notes per group.', {
+    if (run.length < 1 || run.length > 2) {
+      throw unsupported('This stage supports one or two consecutive slashed eighth grace notes per group.', {
         ...context,
         startSourceOrder: startOrder,
         observedGraceCount: run.length,
       });
     }
+
     counters.graceGroups += 1;
     counters.graceEvents += run.length;
     if (counters.graceGroups > MAX_GRACE_GROUPS || counters.graceEvents > MAX_GRACE_EVENTS) {
@@ -309,22 +382,31 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
       });
     }
 
-    const first = parseGraceNote(run[0].note, {
-      ...context,
-      sourceOrder: run[0].sourceOrder,
-    }, 'begin');
-    const second = parseGraceNote(run[1].note, {
-      ...context,
-      sourceOrder: run[1].sourceOrder,
-    }, 'end');
-    if (first.voice !== second.voice || first.staff !== second.staff) {
-      throw invalid('Grace sequence notes must remain in one voice/staff lane.', {
+    const beamExpectations = run.length === 1 ? [null] : ['begin', 'end'];
+    const parsedRun = run.map((entry, index) => {
+      checkpoint(runtime, 'polyphonic-grace-ornament-extractor:grace-event', {
         ...context,
-        startSourceOrder: startOrder,
+        sourceOrder: entry.sourceOrder,
+        graceIndex: index,
       });
+      return parseGraceNote(
+        entry.note,
+        { ...context, sourceOrder: entry.sourceOrder },
+        beamExpectations[index],
+      );
+    });
+
+    const first = parsedRun[0];
+    for (let index = 1; index < parsedRun.length; index += 1) {
+      if (parsedRun[index].voice !== first.voice || parsedRun[index].staff !== first.staff) {
+        throw invalid('Grace sequence notes must remain in one voice/staff lane.', {
+          ...context,
+          startSourceOrder: startOrder,
+        });
+      }
     }
 
-    const anchorOriginalSourceOrder = run[1].sourceOrder + 1;
+    const anchorOriginalSourceOrder = run[run.length - 1].sourceOrder + 1;
     const anchorNote = noteChildren[anchorOriginalSourceOrder];
     if (!anchorNote) {
       throw invalid('Grace sequence must be followed by an anchor note in the same measure.', {
@@ -351,25 +433,33 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
     const graceGroupIndex = groups.length;
     const graceGroupId = `${partId}:measure:${context.measureIndex}:grace-group:${graceGroupIndex}`;
     const notes = run.map((entry, index) => {
-      const parsed = index === 0 ? first : second;
+      const parsed = parsedRun[index];
       removedSourceOrders.add(entry.sourceOrder);
-      return Object.freeze({
+      return freezeGraceEvent({
         graceEventId: `${partId}:measure:${context.measureIndex}:grace:${entry.sourceOrder}`,
         orderIndex: index,
         originalSourceOrder: entry.sourceOrder,
         pitch: parsed.pitch,
         voice: parsed.voice,
         staff: parsed.staff,
-        graphicType: parsed.graphicType,
+        nominalType: parsed.nominalType,
         slash: parsed.slash,
         stem: parsed.stem,
         beam: parsed.beam,
+        source: {
+          partId,
+          measureIndex: context.measureIndex,
+          measureNumber: context.measureNumber,
+          sourceOrder: entry.sourceOrder,
+        },
       });
     });
     removedBefore += run.length;
     groups.push(freezeGraceGroup({
       graceGroupId,
-      kind: 'slashed-two-note-grace-sequence',
+      kind: run.length === 1
+        ? 'slashed-single-eighth-grace'
+        : 'slashed-two-note-eighth-grace-sequence',
       timingAuthority: 'ORDER_ONLY_BEFORE_ANCHOR',
       measureIndex: context.measureIndex,
       measureNumber: context.measureNumber,
