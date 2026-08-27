@@ -22,12 +22,39 @@ function compactError(error) {
   };
 }
 
+function timeInventory(root) {
+  const samples = [];
+  let count = 0;
+  function walk(node) {
+    if (node.name === 'time') {
+      count += 1;
+      if (samples.length < 20) {
+        samples.push({
+          attributes: Object.fromEntries(node.attributes.map((attribute) => [attribute.name, attribute.value])),
+          children: node.children.filter((child) => child.uri === node.uri).map((child) => ({
+            name: child.name,
+            text: child.text.trim(),
+            attributes: Object.fromEntries(child.attributes.map((attribute) => [attribute.name, attribute.value])),
+          })),
+        });
+      }
+    }
+    for (const child of node.children) walk(child);
+  }
+  walk(root);
+  return { count, samples };
+}
+
 const xml = fs.readFileSync(inputPath, 'utf8');
+const parsed = parseParsedMusicXmlDocument(xml, {}, createMusicXmlProcessingRuntime());
+console.log(`PS6B_TIME_INVENTORY=${JSON.stringify(timeInventory(parsed.root))}`);
+
 let projection;
 try {
-  const runtime = createMusicXmlProcessingRuntime();
-  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
-  projection = projectParsedMusicXmlWithNotationContextCompatibility(parsed, runtime);
+  projection = projectParsedMusicXmlWithNotationContextCompatibility(
+    parsed,
+    createMusicXmlProcessingRuntime(),
+  );
   const source = projection.sourceModel;
   console.log(`PS6B_PROJECTOR=${JSON.stringify({
     status: 'PASS',
