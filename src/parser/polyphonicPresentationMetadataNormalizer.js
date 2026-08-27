@@ -5,11 +5,12 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('./polyphonicMusicXmlProjector');
 
-const POLYPHONIC_PRESENTATION_METADATA_NORMALIZER_VERSION = '1.0.0';
+const POLYPHONIC_PRESENTATION_METADATA_NORMALIZER_VERSION = '1.1.0';
 const POLYPHONIC_PRESENTATION_METADATA_NORMALIZER_AUTHORITY =
   'NON_MUSICAL_DOCUMENT_AND_LAYOUT_METADATA_ONLY';
 const PARSED_MUSICXML_DOCUMENT_TYPE = 'ParsedMusicXmlDocument';
 const PARSED_MUSICXML_DOCUMENT_VERSION = '1.0.0';
+const MAX_LAYOUT_TENTHS_MAGNITUDE = 1_000_000;
 
 const SAFE_ROOT_METADATA = new Set([
   'work',
@@ -45,12 +46,26 @@ function checkpoint(runtime, phase, details = {}) {
   }
 }
 
-function cloneAttributes(attributes) {
-  if (!Array.isArray(attributes)) throw invalid('Parsed node attributes must be an array.');
-  return attributes.map((attribute) => ({ ...attribute }));
+function isBoundedLayoutTenths(value) {
+  if (typeof value !== 'string' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)) {
+    return false;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && Math.abs(parsed) <= MAX_LAYOUT_TENTHS_MAGNITUDE;
 }
 
-function cloneNode(node, childMapper = null) {
+function cloneAttributes(attributes, attributeMapper = null) {
+  if (!Array.isArray(attributes)) throw invalid('Parsed node attributes must be an array.');
+  const cloned = [];
+  for (let index = 0; index < attributes.length; index += 1) {
+    const attribute = attributes[index];
+    const mapped = attributeMapper ? attributeMapper(attribute, index) : { ...attribute };
+    if (mapped !== null) cloned.push(mapped);
+  }
+  return cloned;
+}
+
+function cloneNode(node, childMapper = null, attributeMapper = null) {
   if (!node || typeof node !== 'object' || !Array.isArray(node.children)) {
     throw invalid('Parsed MusicXML node shape is invalid.');
   }
@@ -63,7 +78,7 @@ function cloneNode(node, childMapper = null) {
   return {
     name: node.name,
     uri: node.uri,
-    attributes: cloneAttributes(node.attributes),
+    attributes: cloneAttributes(node.attributes, attributeMapper),
     text: node.text,
     children,
   };
@@ -71,13 +86,27 @@ function cloneNode(node, childMapper = null) {
 
 function sanitizeMeasure(measure, ignoredFeatures, runtime, measureIndex) {
   checkpoint(runtime, 'polyphonic-presentation-normalizer:measure', { measureIndex });
-  return cloneNode(measure, (child) => {
-    if (child.uri === measure.uri && SAFE_MEASURE_METADATA.has(child.name)) {
-      ignoredFeatures.add(`measure:${child.name}`);
-      return null;
-    }
-    return cloneNode(child);
-  });
+  return cloneNode(
+    measure,
+    (child) => {
+      if (child.uri === measure.uri && SAFE_MEASURE_METADATA.has(child.name)) {
+        ignoredFeatures.add(`measure:${child.name}`);
+        return null;
+      }
+      return cloneNode(child);
+    },
+    (attribute) => {
+      if (
+        attribute.uri.length === 0
+        && attribute.name === 'width'
+        && isBoundedLayoutTenths(attribute.value)
+      ) {
+        ignoredFeatures.add('measure-attribute:width');
+        return null;
+      }
+      return { ...attribute };
+    },
+  );
 }
 
 function sanitizePart(part, ignoredFeatures, runtime) {
