@@ -24,7 +24,8 @@ const {
 const SUSTAINED_POLYPHONIC_PATH_SELECTION_VERSION = '1.0.0';
 const SUSTAINED_POLYPHONIC_PATH_SELECTION_DOCUMENT_TYPE = 'SustainedPolyphonicPathSelection';
 const SUSTAINED_POLYPHONIC_PATH_SELECTION_POLICY = 'SUSTAINED_PHYSICAL_PATH_LEXICOGRAPHIC_1.0';
-const SUSTAINED_POLYPHONIC_PATH_TRANSITION_POLICY = 'HOLD_STRING_FRET_FINGER_STABLE_1.0';
+const SUSTAINED_POLYPHONIC_PATH_TRANSITION_POLICY = 'HOLD_STRING_FRET_STABLE_THEN_MIN_FINGER_SUBSTITUTION_1.0';
+const SUSTAINED_POLYPHONIC_PATH_FINGER_SUBSTITUTION_POLICY = 'ALLOW_HELD_FINGER_SUBSTITUTION_MIN_COUNT_1.0';
 const SUSTAINED_POLYPHONIC_PATH_SELECTION_AUTHORITY = 'DETERMINISTIC_SUSTAINED_PATH_FACTS_ONLY';
 const MAX_SUSTAINED_PATH_CANDIDATES_PER_POINT = MAX_SUSTAINED_PHYSICAL_STATE_CANDIDATES;
 const MAX_SUSTAINED_PATH_STATES = 400_000;
@@ -213,6 +214,7 @@ function buildPointCandidates(point, runtime, pointIndex) {
 function initialCost(candidate) {
   return Object.freeze([
     0,
+    0,
     candidate.localCost[0],
     candidate.localCost[1],
     candidate.localCost[2],
@@ -222,15 +224,16 @@ function initialCost(candidate) {
   ]);
 }
 
-function extendCost(previousCost, candidate, previousAnchor) {
+function extendCost(previousCost, candidate, previousAnchor, heldFingerSubstitutionCount) {
   return Object.freeze([
-    safeAdd(previousCost[0], Math.abs(candidate.anchorFret - previousAnchor), 'transitionFretDistance'),
-    safeAdd(previousCost[1], candidate.localCost[0], 'totalFretSpan'),
-    safeAdd(previousCost[2], candidate.localCost[1], 'totalUsedFingerCount'),
-    safeAdd(previousCost[3], candidate.localCost[2], 'totalBarreCount'),
-    safeAdd(previousCost[4], candidate.localCost[3], 'totalMaximumFret'),
-    safeAdd(previousCost[5], candidate.localCost[4], 'totalFretSum'),
-    safeAdd(previousCost[6], candidate.localCost[5], 'totalStringSum'),
+    safeAdd(previousCost[0], heldFingerSubstitutionCount, 'heldFingerSubstitutionCount'),
+    safeAdd(previousCost[1], Math.abs(candidate.anchorFret - previousAnchor), 'transitionFretDistance'),
+    safeAdd(previousCost[2], candidate.localCost[0], 'totalFretSpan'),
+    safeAdd(previousCost[3], candidate.localCost[1], 'totalUsedFingerCount'),
+    safeAdd(previousCost[4], candidate.localCost[2], 'totalBarreCount'),
+    safeAdd(previousCost[5], candidate.localCost[3], 'totalMaximumFret'),
+    safeAdd(previousCost[6], candidate.localCost[4], 'totalFretSum'),
+    safeAdd(previousCost[7], candidate.localCost[5], 'totalStringSum'),
   ]);
 }
 
@@ -244,8 +247,9 @@ function bestByAnchor(states) {
   return byAnchor;
 }
 
-function heldFingerSignature(candidate, holdLogicalNoteIds, point, side) {
-  return holdLogicalNoteIds.map((logicalNoteId) => {
+function heldAssignmentMap(candidate, holdLogicalNoteIds, point, side) {
+  const byLogicalNoteId = new Map();
+  for (const logicalNoteId of holdLogicalNoteIds) {
     const matches = candidate.physical.fingerAssignments.filter(
       (assignment) => assignment.logicalNoteId === logicalNoteId,
     );
@@ -258,9 +262,40 @@ function heldFingerSignature(candidate, holdLogicalNoteIds, point, side) {
         observed: matches.length,
       });
     }
-    const assignment = matches[0];
+    byLogicalNoteId.set(logicalNoteId, matches[0]);
+  }
+  return byLogicalNoteId;
+}
+
+function heldFingerSignature(assignments, holdLogicalNoteIds) {
+  return holdLogicalNoteIds.map((logicalNoteId) => {
+    const assignment = assignments.get(logicalNoteId);
     return `${logicalNoteId}@${assignment.string}:${assignment.fret}:f${assignment.finger}`;
   }).join('|');
+}
+
+function countHeldFingerSubstitutions(previousAssignments, currentAssignments, holdLogicalNoteIds) {
+  let substitutions = 0;
+  for (const logicalNoteId of holdLogicalNoteIds) {
+    const previous = previousAssignments.get(logicalNoteId);
+    const current = currentAssignments.get(logicalNoteId);
+    if (!previous || !current) {
+      throw invalid('Held logical-note assignment disappeared from a prepared transition.', {
+        logicalNoteId,
+      });
+    }
+    if (previous.string !== current.string || previous.fret !== current.fret) {
+      throw invalid('PS-5 received a PS-4B hold bucket that changed exact string/fret placement.', {
+        logicalNoteId,
+        previousString: previous.string,
+        previousFret: previous.fret,
+        currentString: current.string,
+        currentFret: current.fret,
+      });
+    }
+    if (previous.finger !== current.finger) substitutions += 1;
+  }
+  return substitutions;
 }
 
 function prepareHoldTransition(transition, previousStates, previousPoint, currentPoint) {
@@ -289,72 +324,88 @@ function prepareHoldTransition(transition, previousStates, previousPoint, curren
     }
   }
 
-  const bestByBucketFingerAndAnchor = new Map();
+  const groupsByBucket = new Map();
   for (const state of previousStates) {
     const bucketIndex = previousBucketByPositionId.get(state.candidate.positionStateCandidateId);
     if (bucketIndex === undefined) continue;
-    const fingerSignature = heldFingerSignature(
+    const assignments = heldAssignmentMap(
       state.candidate,
       transition.holdLogicalNoteIds,
       previousPoint,
       'previous',
     );
-    const key = `${bucketIndex}|${fingerSignature}`;
-    let byAnchor = bestByBucketFingerAndAnchor.get(key);
-    if (!byAnchor) {
-      byAnchor = new Map();
-      bestByBucketFingerAndAnchor.set(key, byAnchor);
+    const signature = heldFingerSignature(assignments, transition.holdLogicalNoteIds);
+    let groups = groupsByBucket.get(bucketIndex);
+    if (!groups) {
+      groups = new Map();
+      groupsByBucket.set(bucketIndex, groups);
+    }
+    let group = groups.get(signature);
+    if (!group) {
+      group = {
+        assignments,
+        byAnchor: new Map(),
+      };
+      groups.set(signature, group);
     }
     const anchor = state.candidate.anchorFret;
-    const incumbent = byAnchor.get(anchor);
-    if (!incumbent || compareStates(state, incumbent) < 0) byAnchor.set(anchor, state);
+    const incumbent = group.byAnchor.get(anchor);
+    if (!incumbent || compareStates(state, incumbent) < 0) group.byAnchor.set(anchor, state);
   }
 
   return Object.freeze({
     currentBucketByPositionId,
-    bestByBucketFingerAndAnchor,
+    groupsByBucket,
     previousPoint,
     currentPoint,
   });
 }
 
-function candidatePreviousAnchors(candidate, transition, prepared) {
+function candidatePreviousGroups(candidate, transition, prepared) {
   if (transition.compatibilityMode === TRANSITION_COMPATIBILITY_MODE.ALL_TO_ALL) {
-    return prepared;
+    return Object.freeze([Object.freeze({ assignments: null, byAnchor: prepared })]);
   }
   if (transition.compatibilityMode !== TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS) {
-    return null;
+    return Object.freeze([]);
   }
   const bucketIndex = prepared.currentBucketByPositionId.get(candidate.positionStateCandidateId);
-  if (bucketIndex === undefined) return null;
-  const fingerSignature = heldFingerSignature(
-    candidate,
-    transition.holdLogicalNoteIds,
-    prepared.currentPoint,
-    'current',
-  );
-  return prepared.bestByBucketFingerAndAnchor.get(`${bucketIndex}|${fingerSignature}`) || null;
+  if (bucketIndex === undefined) return Object.freeze([]);
+  const groups = prepared.groupsByBucket.get(bucketIndex);
+  return groups ? Object.freeze([...groups.values()]) : Object.freeze([]);
 }
 
-function bestExtension(candidate, previousByAnchor) {
-  if (!previousByAnchor || previousByAnchor.size === 0) return null;
+function bestExtension(candidate, previousGroups, transition, currentPoint) {
+  if (!previousGroups || previousGroups.length === 0) return null;
+  const currentAssignments = transition.holdLogicalNoteIds.length === 0
+    ? null
+    : heldAssignmentMap(candidate, transition.holdLogicalNoteIds, currentPoint, 'current');
   let best = null;
-  for (const [anchor, previous] of previousByAnchor) {
-    const cost = extendCost(previous.cost, candidate, anchor);
-    if (
-      !best
-      || compareNumberArrays(cost, best.cost) < 0
-      || (
-        compareNumberArrays(cost, best.cost) === 0
-        && previous.tieRank < best.previous.tieRank
-      )
-    ) {
-      best = {
-        candidate,
-        previous,
-        cost,
-        previousTieRank: previous.tieRank,
-      };
+
+  for (const group of previousGroups) {
+    const substitutionCount = currentAssignments === null
+      ? 0
+      : countHeldFingerSubstitutions(
+        group.assignments,
+        currentAssignments,
+        transition.holdLogicalNoteIds,
+      );
+    for (const [anchor, previous] of group.byAnchor) {
+      const cost = extendCost(previous.cost, candidate, anchor, substitutionCount);
+      if (
+        !best
+        || compareNumberArrays(cost, best.cost) < 0
+        || (
+          compareNumberArrays(cost, best.cost) === 0
+          && previous.tieRank < best.previous.tieRank
+        )
+      ) {
+        best = {
+          candidate,
+          previous,
+          cost,
+          previousTieRank: previous.tieRank,
+        };
+      }
     }
   }
   return best;
@@ -445,8 +496,8 @@ function selectPath(points, pointCandidates, transitions, runtime) {
     for (let candidateRank = 0; candidateRank < pointCandidates[pointIndex].length; candidateRank += 1) {
       checkpoint(runtime, 'sustained-polyphonic-path:path-candidate', { pointIndex, candidateRank });
       const candidate = pointCandidates[pointIndex][candidateRank];
-      const previousByAnchor = candidatePreviousAnchors(candidate, transition, prepared);
-      const best = bestExtension(candidate, previousByAnchor);
+      const previousGroups = candidatePreviousGroups(candidate, transition, prepared);
+      const best = bestExtension(candidate, previousGroups, transition, currentPoint);
       if (!best) continue;
       drafts.push({
         candidate,
@@ -460,7 +511,7 @@ function selectPath(points, pointCandidates, transitions, runtime) {
 
     if (drafts.length === 0) {
       throw unsupported(
-        'No deterministic physical path preserves held string, fret and finger continuity.',
+        'No deterministic physical path preserves held string/fret continuity.',
         'NO_HOLD_PRESERVING_PHYSICAL_PATH',
         {
           transitionId: transition.transitionId,
@@ -535,23 +586,37 @@ function buildSelectedFacts(points, path) {
           targetMidi: assignment.targetMidi,
           string: assignment.string,
           fret: assignment.fret,
-          finger: assignment.finger,
+          initialFinger: assignment.finger,
+          finalFinger: assignment.finger,
           sourceEventIds: new Set(),
+          fingerSubstitutions: [],
         };
         logical.set(assignment.logicalNoteId, record);
-      } else if (
-        record.sustainChainId !== assignment.sustainChainId
-        || record.voice !== assignment.voice
-        || record.staff !== assignment.staff
-        || record.targetMidi !== assignment.targetMidi
-        || record.string !== assignment.string
-        || record.fret !== assignment.fret
-        || record.finger !== assignment.finger
-      ) {
-        throw invalid('Selected path changed physical placement for one active logical note.', {
-          logicalNoteId: assignment.logicalNoteId,
-          sonorityPointId: point.sonorityPointId,
-        });
+      } else {
+        if (
+          record.sustainChainId !== assignment.sustainChainId
+          || record.voice !== assignment.voice
+          || record.staff !== assignment.staff
+          || record.targetMidi !== assignment.targetMidi
+          || record.string !== assignment.string
+          || record.fret !== assignment.fret
+        ) {
+          throw invalid('Selected path changed exact string/fret placement for one active logical note.', {
+            logicalNoteId: assignment.logicalNoteId,
+            sonorityPointId: point.sonorityPointId,
+          });
+        }
+        if (record.finalFinger !== assignment.finger) {
+          record.fingerSubstitutions.push(Object.freeze({
+            pointIndex,
+            sonorityPointId: point.sonorityPointId,
+            measureIndex: point.measureIndex,
+            timeDivisions: point.timeDivisions,
+            fromFinger: record.finalFinger,
+            toFinger: assignment.finger,
+          }));
+          record.finalFinger = assignment.finger;
+        }
       }
       record.sourceEventIds.add(assignment.sourceEventId);
     }
@@ -567,7 +632,10 @@ function buildSelectedFacts(points, path) {
       targetMidi: record.targetMidi,
       string: record.string,
       fret: record.fret,
-      finger: record.finger,
+      initialFinger: record.initialFinger,
+      finalFinger: record.finalFinger,
+      fingerSubstitutionCount: record.fingerSubstitutions.length,
+      fingerSubstitutions: Object.freeze(record.fingerSubstitutions.slice()),
       sourceEventIds: Object.freeze([...record.sourceEventIds].sort()),
     }));
 
@@ -624,6 +692,7 @@ function createSustainedPolyphonicPathSelection(sourceModel, runtime = null) {
     contractVersion: SUSTAINED_POLYPHONIC_PATH_SELECTION_VERSION,
     policy: SUSTAINED_POLYPHONIC_PATH_SELECTION_POLICY,
     transitionPolicy: SUSTAINED_POLYPHONIC_PATH_TRANSITION_POLICY,
+    fingerSubstitutionPolicy: SUSTAINED_POLYPHONIC_PATH_FINGER_SUBSTITUTION_POLICY,
     authority: SUSTAINED_POLYPHONIC_PATH_SELECTION_AUTHORITY,
     source: Object.freeze({
       documentType: POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE,
@@ -642,13 +711,14 @@ function createSustainedPolyphonicPathSelection(sourceModel, runtime = null) {
     pathStateCount: observedPathStates,
     selectedLogicalNoteCount: facts.logicalNoteSelections.length,
     pathCost: Object.freeze({
-      transitionFretDistance: path.cost[0],
-      totalFretSpan: path.cost[1],
-      totalUsedFingerCount: path.cost[2],
-      totalBarreCount: path.cost[3],
-      totalMaximumFret: path.cost[4],
-      totalFretSum: path.cost[5],
-      totalStringSum: path.cost[6],
+      heldFingerSubstitutionCount: path.cost[0],
+      transitionFretDistance: path.cost[1],
+      totalFretSpan: path.cost[2],
+      totalUsedFingerCount: path.cost[3],
+      totalBarreCount: path.cost[4],
+      totalMaximumFret: path.cost[5],
+      totalFretSum: path.cost[6],
+      totalStringSum: path.cost[7],
     }),
     selectedPointStates: facts.selectedPointStates,
     logicalNoteSelections: facts.logicalNoteSelections,
@@ -660,6 +730,7 @@ module.exports = {
   SUSTAINED_POLYPHONIC_PATH_SELECTION_DOCUMENT_TYPE,
   SUSTAINED_POLYPHONIC_PATH_SELECTION_POLICY,
   SUSTAINED_POLYPHONIC_PATH_TRANSITION_POLICY,
+  SUSTAINED_POLYPHONIC_PATH_FINGER_SUBSTITUTION_POLICY,
   SUSTAINED_POLYPHONIC_PATH_SELECTION_AUTHORITY,
   MAX_SUSTAINED_PATH_CANDIDATES_PER_POINT,
   MAX_SUSTAINED_PATH_STATES,
