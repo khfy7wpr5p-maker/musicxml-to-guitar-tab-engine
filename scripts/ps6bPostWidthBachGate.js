@@ -22,10 +22,52 @@ function compactError(error) {
   };
 }
 
+function direct(node, name = null) {
+  return node.children.filter((child) => (
+    child.uri === node.uri && (name === null || child.name === name)
+  ));
+}
+
+function attributesObject(node) {
+  return Object.fromEntries(node.attributes
+    .filter((attribute) => attribute.uri.length === 0)
+    .map((attribute) => [attribute.name, attribute.value]));
+}
+
+function compactNode(node) {
+  return {
+    name: node.name,
+    attributes: attributesObject(node),
+    text: node.text.trim(),
+    children: direct(node).map((child) => ({
+      name: child.name,
+      attributes: attributesObject(child),
+      text: child.text.trim(),
+      children: direct(child).map((grandchild) => ({
+        name: grandchild.name,
+        attributes: attributesObject(grandchild),
+        text: grandchild.text.trim(),
+      })),
+    })),
+  };
+}
+
 const xml = fs.readFileSync(inputPath, 'utf8');
 let projection;
 try {
   const parsed = parseParsedMusicXmlDocument(xml, {}, createMusicXmlProcessingRuntime());
+  const root = parsed.root;
+  const part = direct(root, 'part')[0];
+  const attributeNodes = part ? direct(part, 'measure').flatMap((measure) => direct(measure, 'attributes')) : [];
+  const keys = attributeNodes.flatMap((attributes) => direct(attributes, 'key'));
+  const clefs = attributeNodes.flatMap((attributes) => direct(attributes, 'clef'));
+  console.log(`PS6B_KEY_CLEF_INVENTORY=${JSON.stringify({
+    keyCount: keys.length,
+    keySamples: keys.slice(0, 10).map(compactNode),
+    clefCount: clefs.length,
+    clefSamples: clefs.slice(0, 40).map(compactNode),
+  })}`);
+
   projection = projectParsedMusicXmlWithOctaveShiftCompatibility(
     parsed,
     createMusicXmlProcessingRuntime(),
