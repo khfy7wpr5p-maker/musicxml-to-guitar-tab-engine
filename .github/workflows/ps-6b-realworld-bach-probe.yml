@@ -109,9 +109,11 @@ jobs:
           const voices = matches(/<voice>([^<]+)<\/voice>/g).map((match) => match[1].trim());
           const staves = matches(/<staff>([^<]+)<\/staff>/g).map((match) => match[1].trim());
           const software = matches(/<software>([^<]+)<\/software>/g).map((match) => match[1].trim());
+          const doctype = xml.match(/<!DOCTYPE[^>]*>/i)?.[0] || null;
           const summary = {
             bytes: Buffer.byteLength(xml, 'utf8'),
-            hasDoctype: /<!DOCTYPE/i.test(xml),
+            hasDoctype: doctype !== null,
+            doctype,
             software: [...new Set(software)],
             scorePartCount: matches(/<score-part\b/g).length,
             partCount: matches(/<part\s+id=/g).length,
@@ -127,42 +129,51 @@ jobs:
           };
           console.log(`PS6B_SOURCE_SUMMARY=${JSON.stringify(summary)}`);
 
-          const stage = { parse: null, project: null, solve: null };
-          let parsed;
-          let source;
-          try {
-            const runtime = createMusicXmlProcessingRuntime();
-            parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
-            stage.parse = { status: 'PASS' };
-            source = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
-            stage.project = {
-              status: 'PASS',
-              measureCount: source.measureCount,
-              eventCount: source.eventCount,
-              voices: [...new Set(source.measures.flatMap((measure) => (
-                measure.events.map((event) => event.voice)
-              )))].sort(),
-            };
-            const selection = createSustainedPolyphonicPathSelection(source, runtime);
-            stage.solve = {
-              status: 'PASS',
-              pointCount: selection.pointCount,
-              selectedLogicalNoteCount: selection.selectedLogicalNoteCount,
-              fingerSubstitutionCount: selection.fingerSubstitutionCount,
-              pathStateCount: selection.pathStateCount,
-            };
-          } catch (error) {
-            const failure = {
-              status: 'BLOCKED',
-              name: error && error.name,
-              code: error && error.code,
-              message: error && error.message,
-              details: error && error.details,
-            };
-            if (!stage.parse) stage.parse = failure;
-            else if (!stage.project) stage.project = failure;
-            else stage.solve = failure;
+          function runPipeline(input) {
+            const stage = { parse: null, project: null, solve: null };
+            try {
+              const runtime = createMusicXmlProcessingRuntime();
+              const parsed = parseParsedMusicXmlDocument(input, {}, runtime);
+              stage.parse = { status: 'PASS' };
+              const source = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+              stage.project = {
+                status: 'PASS',
+                measureCount: source.measureCount,
+                eventCount: source.eventCount,
+                voices: [...new Set(source.measures.flatMap((measure) => (
+                  measure.events.map((event) => event.voice)
+                )))].sort(),
+              };
+              const selection = createSustainedPolyphonicPathSelection(source, runtime);
+              stage.solve = {
+                status: 'PASS',
+                pointCount: selection.pointCount,
+                selectedLogicalNoteCount: selection.selectedLogicalNoteCount,
+                fingerSubstitutionCount: selection.fingerSubstitutionCount,
+                pathStateCount: selection.pathStateCount,
+              };
+            } catch (error) {
+              const failure = {
+                status: 'BLOCKED',
+                name: error && error.name,
+                code: error && error.code,
+                message: error && error.message,
+                details: error && error.details,
+              };
+              if (!stage.parse) stage.parse = failure;
+              else if (!stage.project) stage.project = failure;
+              else stage.solve = failure;
+            }
+            return stage;
           }
 
-          console.log(`PS6B_PIPELINE_RESULT=${JSON.stringify(stage)}`);
+          console.log(`PS6B_PIPELINE_RAW=${JSON.stringify(runPipeline(xml))}`);
+
+          const historical31 = /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 3\.1 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i;
+          const historicalMatch = historical31.exec(xml);
+          console.log(`PS6B_HISTORICAL_31_DOCTYPE_MATCH=${historicalMatch !== null}`);
+          if (historicalMatch) {
+            const withoutHistoricalDoctype = historicalMatch[1] + xml.slice(historicalMatch[0].length);
+            console.log(`PS6B_PIPELINE_AFTER_EXACT_31_STRIP=${JSON.stringify(runPipeline(withoutHistoricalDoctype))}`);
+          }
           NODE
