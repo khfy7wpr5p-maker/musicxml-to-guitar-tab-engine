@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>PS-6 Counterpoint 3V</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note>
+        <pitch><step>E</step><octave>2</octave></pitch>
+        <duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff>
+      </note>
+      <backup><duration>16</duration></backup>
+      <forward><duration>4</duration></forward>
+      <note>
+        <pitch><step>A</step><octave>2</octave></pitch>
+        <duration>12</duration><voice>2</voice><type>half</type><dot/><staff>1</staff>
+      </note>
+      <backup><duration>16</duration></backup>
+      <forward><duration>8</duration></forward>
+      <note>
+        <pitch><step>D</step><octave>3</octave></pitch>
+        <duration>8</duration><voice>3</voice><type>half</type><staff>1</staff>
+      </note>
+    </measure>
+  </part>
+</score-partwise>
