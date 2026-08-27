@@ -33,6 +33,10 @@ const directionAttrSignatures = new Map();
 const typeCounts = new Map();
 const typeAttrSignatures = new Map();
 const directionExtraChildren = new Map();
+const soundAttrSignatures = new Map();
+const offsetSignatures = new Map();
+const staffValues = new Map();
+const perTypeExtras = new Map();
 const octaveShiftSamples = [];
 let directionCount = 0;
 
@@ -41,12 +45,10 @@ for (const part of direct(root, 'part')) {
     for (const direction of direct(measure, 'direction')) {
       directionCount += 1;
       bump(directionAttrSignatures, attrSig(direction));
-      for (const child of direct(direction)) {
-        bump(directionChildCounts, child.name);
-        if (child.name !== 'direction-type') bump(directionExtraChildren, child.name);
-      }
+      const currentTypes = [];
       for (const directionType of direct(direction, 'direction-type')) {
         for (const type of direct(directionType)) {
+          currentTypes.push(type.name);
           bump(typeCounts, type.name);
           bump(typeAttrSignatures, `${type.name}|${attrSig(type)}`);
           if (type.name === 'octave-shift' && octaveShiftSamples.length < 20) {
@@ -54,6 +56,19 @@ for (const part of direct(root, 'part')) {
           }
         }
       }
+      const typeKey = [...new Set(currentTypes)].sort().join('+') || '(none)';
+      const extraNames = [];
+      for (const child of direct(direction)) {
+        bump(directionChildCounts, child.name);
+        if (child.name !== 'direction-type') {
+          bump(directionExtraChildren, child.name);
+          extraNames.push(child.name);
+        }
+        if (child.name === 'sound') bump(soundAttrSignatures, `${typeKey}|${attrSig(child)}`);
+        if (child.name === 'offset') bump(offsetSignatures, `${typeKey}|${attrSig(child)}|text=${child.text.trim()}`);
+        if (child.name === 'staff') bump(staffValues, `${typeKey}|staff=${child.text.trim()}`);
+      }
+      bump(perTypeExtras, `${typeKey}|${extraNames.sort().join('+') || '(none)'}`);
     }
   }
 }
@@ -64,6 +79,9 @@ console.log(`PS6B_DIRECTION_INVENTORY=${JSON.stringify({
   directionAttrSignatures: mapObject(directionAttrSignatures),
   directionExtraChildren: mapObject(directionExtraChildren),
   typeCounts: mapObject(typeCounts),
-  typeAttrSignatures: mapObject(typeAttrSignatures),
+  soundAttrSignatures: mapObject(soundAttrSignatures),
+  offsetSignatures: mapObject(offsetSignatures),
+  staffValues: mapObject(staffValues),
+  perTypeExtras: mapObject(perTypeExtras),
   octaveShiftSamples,
 })}`);
