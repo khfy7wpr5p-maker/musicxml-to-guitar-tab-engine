@@ -1,0 +1,58 @@
+name: PS-6B Post-staccato Bach Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/ps6bPostStaccatoBachGate.js'
+      - '.github/workflows/ps6b-post-staccato-bach-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Fetch pinned public-domain Bach MXL
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --connect-timeout 10 --max-time 30 --max-filesize 2000000 \
+            'https://raw.githubusercontent.com/musetrainer/library/9128876f6164d96997c877a2be843349a32bdabb/scores/Bach_Toccata_and_Fugue_in_D_Minor_Piano_solo.mxl' \
+            --output /tmp/ps6b-bach.mxl
+          test "$(sha256sum /tmp/ps6b-bach.mxl | cut -d' ' -f1)" = '504e160a588bf1b7cff067dd6855720f0e694830e4fa1c945bd5a1e1265a15b2'
+      - name: Extract bounded score.xml
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib, stat, zipfile
+          with zipfile.ZipFile('/tmp/ps6b-bach.mxl') as archive:
+              total = 0
+              score = None
+              for info in archive.infolist():
+                  if stat.S_ISLNK((info.external_attr >> 16) & 0xFFFF):
+                      raise SystemExit('symlink rejected')
+                  if info.file_size < 0 or info.file_size > 5_000_000:
+                      raise SystemExit('entry size rejected')
+                  total += info.file_size
+                  if total > 5_000_000:
+                      raise SystemExit('archive total rejected')
+                  if info.filename == 'score.xml':
+                      score = info
+              if score is None or score.file_size > 2_000_000:
+                  raise SystemExit('score.xml rejected')
+              data = archive.read(score)
+          if len(data) > 2_000_000:
+              raise SystemExit('score.xml read rejected')
+          pathlib.Path('/tmp/ps6b-bach.musicxml').write_bytes(data)
+          PY
+      - name: Run post-staccato parser gate
+        run: node scripts/ps6bPostStaccatoBachGate.js /tmp/ps6b-bach.musicxml
