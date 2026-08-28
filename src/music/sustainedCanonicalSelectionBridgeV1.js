@@ -116,8 +116,8 @@ function createSustainedCanonicalSelectionBridgeProjection(
   arrangementDecisions,
   runtime = null,
 ) {
-  checkpoint(runtime, 'sustained-canonical-selection-bridge:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+  checkpoint(runtime, 'sustained-canonical-selection-bridge:start');
   const reductionPlan = createDeterministicReductionPlan(
     source,
     arrangementDecisions,
