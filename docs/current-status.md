@@ -76,7 +76,7 @@ The sustained-polyphony line now has merged internal implementation/evidence bey
 - PS-5 bounded deterministic sustained path solver ✅ internal
 - PS-6 regression/determinism and Bach-oriented compatibility evidence stages ✅ internal, continuing through PS-6B normalizers
 
-This does **not** mean sustained polyphony is active runtime authority. At the audit base, `createCanonicalTabResultV2()` still delegates final attack selection to the older attack-local deterministic selector. That selector rejects retained-note overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`. The sustained path solver therefore exists as internal capability but is not yet wired into the active Canonical V2 producer/upload authority path.
+This does **not** mean sustained polyphony is active runtime authority. At the audit base, `createCanonicalTabResultV2()` still delegates final attack selection to the older attack-local deterministic selector. That selector rejects retained-note overlap with `details.reason = RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED` under generic error code `UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION`. The sustained path solver therefore exists as internal capability but is not yet wired into the active Canonical V2 producer/upload authority path.
 
 The strict `PolyphonicSourceModel` admission boundary also remains intentionally bounded. Real-world compatibility normalizers reduce structural-export incompatibilities incrementally, but broad real-world MusicXML or Bach-level admission must not be claimed until exact-head compatibility gates pass.
 
