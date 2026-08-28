@@ -102,7 +102,7 @@ PS-5 bounded deterministic sustained path solver
 [separately reviewed Canonical V2 integration gate]
 ```
 
-PS-1 through PS-6 implementation/evidence work exists internally on main, including the sustained path solver and subsequent Bach/real-world compatibility normalizers. However, at the 2026-08-28 audit base, `createCanonicalTabResultV2()` still delegates final selection to the older attack-local `selectDeterministicPolyphonicAttacks()` path. That active selector intentionally fail-closes retained-note overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`.
+PS-1 through PS-6 implementation/evidence work exists internally on main, including the sustained path solver and subsequent Bach/real-world compatibility normalizers. However, at the 2026-08-28 audit base, `createCanonicalTabResultV2()` still delegates final selection to the older attack-local `createDeterministicPolyphonicFinalSelection()` path. That active selector declares sustained policy `FAIL_CLOSED_ON_RETAINED_OVERLAP_OR_TIE_1.0`; retained-note overlap fails with generic code `UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION` and `details.reason = RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED`.
 
 Therefore the repository has **internal sustained-solving capability but no active sustained-selector authority in Canonical V2 yet**. This is an integration gap, not a writer limitation and not permission to change the authority graph without a new reviewed gate.
 
