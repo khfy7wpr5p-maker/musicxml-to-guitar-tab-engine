@@ -1,8 +1,10 @@
 # MusicXML to Guitar TAB Engine — Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-28 -->
 
 Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
+
+Polyphony status reconciliation base: protected `main` at `0210976ffc74123df8a3c8c0fab2d3cf69067c32`. This update records implementation status only; it does not change the authority model or main architecture. See `docs/polyphony-compatibility-audit-2026-08-28.md`.
 
 ## 1. Authority model
 
@@ -64,7 +66,7 @@ authentic immutable single-generation PA-7 handoff
  │    ↓
  │   PA-9 PhysicalPlayabilityValidation 2.0.0
  │    ↓
- │   deterministic evaluation selection
+ │   attack-local deterministic evaluation selection
  │
  └─→ detached deeply frozen PA-7 read-copy
       ↓
@@ -72,13 +74,37 @@ authentic immutable single-generation PA-7 handoff
 
 PA-10 canonical-v2 design/compatibility contracts through PA-10.5
 PA-11 independent teacher-evaluation infrastructure through PA-11.4A
-internal deterministic final polyphonic selector
+internal attack-local deterministic final polyphonic selector
 internal CanonicalTabResult 2.0.0 runtime/writer
 PA-12 internal E2E
 future PA-13 public polyphonic API
 ```
 
-PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are contract/design evidence. PA-11 is evaluation infrastructure through PA-11.4A. The deterministic final selector and PA-12 path are internal, explicit-decision, non-ML and fail-closed. Production/public arrangement authority remains unimplemented.
+PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are contract/design evidence. PA-11 is evaluation infrastructure through PA-11.4A. The current Canonical V2 producer and PA-12 path are internal, explicit-decision, non-ML and fail-closed. Production/public arrangement authority remains unimplemented.
+
+### 3.1 Sustained-polyphony implementation status
+
+The PS architecture remains a parallel internal line rather than a silent replacement of the active selector:
+
+```text
+PolyphonicSourceModel
+ ↓
+PS-1 temporal events
+ ↓
+PS-2 sustain/tie + duration invariants
+ ↓
+PS-3 active sonority/timeline
+ ↓
+PS-4 sustained guitar-state/slicing foundations
+ ↓
+PS-5 bounded deterministic sustained path solver
+ ↓
+[separately reviewed Canonical V2 integration gate]
+```
+
+PS-1 through PS-6 implementation/evidence work exists internally on main, including the sustained path solver and subsequent Bach/real-world compatibility normalizers. However, at the 2026-08-28 audit base, `createCanonicalTabResultV2()` still delegates final selection to the older attack-local `selectDeterministicPolyphonicAttacks()` path. That active selector intentionally fail-closes retained-note overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`.
+
+Therefore the repository has **internal sustained-solving capability but no active sustained-selector authority in Canonical V2 yet**. This is an integration gap, not a writer limitation and not permission to change the authority graph without a new reviewed gate.
 
 ## 4. PA responsibilities
 
@@ -94,7 +120,9 @@ PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are c
 - **PA-10.5:** exact-version fail-closed dispatch contract only.
 - **PA-11:** teacher-reviewed evaluation/replay/scoring; no production selection.
 - **PA-11.4A:** evaluation-only revoicing tone candidate atoms; no complete production voicing selection.
-- **Deterministic final selector:** selects only from physically validated candidates under explicit PA-4 decisions and fails closed on unsupported sustained overlap.
+- **Attack-local deterministic final selector:** selects only from physically validated candidates under explicit PA-4 decisions and fails closed on unsupported sustained overlap.
+- **PS-1..PS-5:** derive/solve bounded sustained temporal and guitar-state facts internally; PS-5 output is not currently connected as Canonical V2 authority.
+- **PS-6:** regression/determinism/Bach-oriented compatibility evidence line; broad real-world support remains gated by exact-head evidence.
 - **PA-12:** integrates bounded raw MusicXML through internal `CanonicalTabResult 2.0.0` and its MusicXML writer under one shared runtime budget; it is not package-root exported.
 
 ## 5. Runtime shadow architecture
@@ -129,7 +157,9 @@ The retained development artifact and underlying parity adapter retain their own
 
 ## 6. Canonical v1/v2 boundary
 
-The public runtime implements/publishes only `CanonicalTabResult 1.0.0` for supported monophonic conversion. Internal code now implements the exact `CanonicalTabResult 2.0.0` producer/validator and MusicXML writer used by PA-12. There is still no public v1/v2 dispatcher, migration engine or package-root polyphonic API.
+The public runtime implements/publishes only `CanonicalTabResult 1.0.0` for supported monophonic conversion. Internal code implements the exact `CanonicalTabResult 2.0.0` producer/validator and MusicXML writer used by PA-12. There is still no public v1/v2 dispatcher, migration engine or package-root polyphonic API.
+
+`CanonicalTabResult 2.0.0` must not be described as already having sustained-polyphony selection authority. Its current producer still delegates to the attack-local selector; the separate sustained path solver requires its own reviewed integration gate.
 
 ## 7. Teacher evaluation architecture
 
@@ -147,9 +177,11 @@ Historical evidence records 4/4 candidate-bearing coverage, 153/153 candidate pr
 
 ## 9. Public compatibility boundary
 
-Public monophonic validation remains fail-closed for chords/simultaneity, backup/forward, multiple voices/staves, multipart scores, grace notes, tuplets, unsupported rhythms and compressed `.mxl`. Internal PA or shadow support must never be exposed by weakening those checks.
+Public monophonic validation remains fail-closed for chords/simultaneity, backup/forward, multiple voices/staves, multipart scores, grace notes, tuplets, unsupported rhythms and compressed `.mxl`. Internal PA, PS or shadow support must never be exposed by weakening those checks.
 
-PR #146 passed the protected Node.js 18/20/22, alphaTab MusicXML import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Every later change must pass the applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
+For internal POLY_V2, parser capability and polyphonic admission are separate boundaries: real-world exported MusicXML may parse successfully yet still be rejected by the strict polyphonic projection/normalization subset. This must be described as an admission/normalization incompatibility rather than a generic XML-reader defect.
+
+PR #146 passed the protected Node.js 18/20/22, alphaTab MusicXML import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Every later change must pass the applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates. PR #208 remains open and lacks passing exact-head test/MusicXML-compatibility evidence at the 2026-08-28 audit, so grace-note or broad Bach compatibility is not yet an approved claim.
 
 ## 10. Rendering/product boundary
 
@@ -175,4 +207,5 @@ GitHub Pages is a static, read-only preview produced from a fixed CI fixture and
 10. Runtime shadow scoring cannot feed deterministic selection without a separate authority gate.
 11. Historical sealed evidence is immutable evidence, not a mutable status file.
 12. Internal canonical-v2 implementation does not imply package-root/public v2 authority.
-13. Live/user-input shadow activation, learned selection authority, public polyphony and production are separate consequential gates.
+13. Internal sustained-path implementation does not imply active Canonical V2/runtime authority.
+14. Live/user-input shadow activation, learned selection authority, public polyphony and production are separate consequential gates.
