@@ -104,6 +104,35 @@ test('POLY_V2 structured edit changes one acknowledged simultaneous-group member
   assert.equal(Object.isFrozen(result), true);
 });
 
+test('POLY_V2 replays real-world guitar normalization through backend edit and TAB regeneration', () => {
+  const bytes = fixture('runtime-realworld-guitar-poly.musicxml');
+  const edit = command({
+    sourceOrder: 0,
+    onsetDivisions: 0,
+    groupSourceOrders: [0, 1, 5],
+    step: 'E',
+    octave: 3,
+  });
+
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [edit]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.PASS);
+  assert.equal(result.route, 'POLY_V2');
+  assert.equal(result.revision.revisionNumber, 1);
+  assert.equal(result.revision.appliedEdits[0].sourceEventId, sourceEventId(0, 0));
+  assert.deepEqual(
+    result.revision.appliedEdits[0].sourceGroupEventIds,
+    [sourceEventId(0, 0), sourceEventId(0, 1), sourceEventId(0, 5)],
+  );
+  assert.equal(result.revision.appliedEdits[0].beforePitch.written, 'E3');
+  assert.equal(result.revision.appliedEdits[0].afterPitch.written, 'E3');
+  assert.equal(disposition(result, sourceEventId(0, 0)).targetPitch.midi, 52);
+  assert.equal(result.preflight.status, 'WARNING');
+  assert.equal(result.preflight.issues[0].code, 'RUNTIME_GUITAR_NOTATION_NORMALIZED');
+  assert.match(result.musicXml, /<key><fifths>0<\/fifths><\/key>/);
+  assert.match(result.musicXml, /<octave-change>-1<\/octave-change>/);
+});
+
 test('POLY_V2 revisions replay cumulatively from the immutable source', () => {
   const bytes = fixture('pa12-polyphonic-e2e.musicxml');
   const commands = [

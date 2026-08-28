@@ -1,5 +1,6 @@
 'use strict';
 
+const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { parsePitchName } = require('../music/pitch');
 const { isProcessingRuntime } = require('../core/processingRuntime');
@@ -47,7 +48,7 @@ function checkpoint(runtime, phase, details = {}) {
 }
 
 function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value) || isProxy(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
@@ -59,7 +60,7 @@ function normalizeOptions(options) {
       'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
     );
   }
-  const normalized = { pretty: false, trailingNewline: false };
+  const normalized = { pretty: false, trailingNewline: false, notationContext: null };
   const allowed = new Set(Object.keys(normalized));
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key)) {
@@ -77,6 +78,10 @@ function normalizeOptions(options) {
         { field: key },
       );
     }
+    if (key === 'notationContext') {
+      normalized.notationContext = normalizeNotationContext(descriptor.value);
+      continue;
+    }
     if (typeof descriptor.value !== 'boolean') {
       throw new CanonicalTabMusicXmlWriterV2Error(
         `options.${key} must be boolean.`,
@@ -87,6 +92,83 @@ function normalizeOptions(options) {
     normalized[key] = descriptor.value;
   }
   return normalized;
+}
+
+function normalizeNotationContext(value) {
+  if (!isPlainObject(value) || Reflect.ownKeys(value).some((key) => key !== 'keySignatures')) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.notationContext must contain only keySignatures.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: 'notationContext' },
+    );
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, 'keySignatures');
+  if (
+    !descriptor
+    || !descriptor.enumerable
+    || !Object.hasOwn(descriptor, 'value')
+    || !Array.isArray(descriptor.value)
+    || isProxy(descriptor.value)
+    || Object.getPrototypeOf(descriptor.value) !== Array.prototype
+    || descriptor.value.length > 2000
+    || Reflect.ownKeys(descriptor.value).some((key) => (
+      key !== 'length' && (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/.test(key))
+    ))
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.notationContext.keySignatures must be an array.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: 'notationContext.keySignatures' },
+    );
+  }
+  const keySignatures = [];
+  let previousMeasureIndex = -1;
+  for (let index = 0; index < descriptor.value.length; index += 1) {
+    if (!Object.hasOwn(descriptor.value, index)) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.notationContext.keySignatures must be dense.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `notationContext.keySignatures[${index}]` },
+      );
+    }
+    const entry = descriptor.value[index];
+    const entryDescriptors = isPlainObject(entry) ? Object.getOwnPropertyDescriptors(entry) : null;
+    const entryKeys = entryDescriptors ? Reflect.ownKeys(entry) : [];
+    const exactFields = ['measureIndex', 'fifths', 'mode'];
+    const hasExactDataFields = entryDescriptors
+      && entryKeys.length === exactFields.length
+      && exactFields.every((field) => (
+        Object.hasOwn(entryDescriptors, field)
+        && entryDescriptors[field].enumerable
+        && Object.hasOwn(entryDescriptors[field], 'value')
+      ));
+    const measureIndex = hasExactDataFields ? entryDescriptors.measureIndex.value : null;
+    const fifths = hasExactDataFields ? entryDescriptors.fifths.value : null;
+    const mode = hasExactDataFields ? entryDescriptors.mode.value : undefined;
+    if (
+      !hasExactDataFields
+      || entryKeys.some((key) => !exactFields.includes(key))
+      || !Number.isInteger(measureIndex)
+      || measureIndex <= previousMeasureIndex
+      || !Number.isInteger(fifths)
+      || fifths < -7
+      || fifths > 7
+      || (mode !== null && !['major', 'minor'].includes(mode))
+    ) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.notationContext contains an invalid key signature.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `notationContext.keySignatures[${index}]` },
+      );
+    }
+    previousMeasureIndex = measureIndex;
+    keySignatures.push(Object.freeze({
+      measureIndex,
+      fifths,
+      mode,
+    }));
+  }
+  return Object.freeze({ keySignatures: Object.freeze(keySignatures) });
 }
 
 function validateResult(value) {
@@ -272,9 +354,15 @@ function writeStaffTuning(builder, tuningByString) {
   }
 }
 
-function writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure) {
+function writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure, keySignature) {
   builder.open('attributes');
   builder.element('divisions', String(measure.divisions));
+  if (keySignature) {
+    builder.open('key');
+    builder.element('fifths', String(keySignature.fifths));
+    if (keySignature.mode !== null) builder.element('mode', keySignature.mode);
+    builder.close('key');
+  }
   if (
     previousMeasure === null
     || previousMeasure.timeSignature.beats !== measure.timeSignature.beats
@@ -457,6 +545,17 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
   checkpoint(processing, 'canonical-tab-musicxml-v2:start');
   const normalizedOptions = normalizeOptions(options);
   validateResult(canonicalTabResult);
+  const keySignatures = new Map();
+  for (const keySignature of normalizedOptions.notationContext?.keySignatures || []) {
+    if (keySignature.measureIndex >= canonicalTabResult.measures.length) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.notationContext key signature references an unknown measure.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: 'notationContext.keySignatures', measureIndex: keySignature.measureIndex },
+      );
+    }
+    keySignatures.set(keySignature.measureIndex, keySignature);
+  }
   checkpoint(processing, 'canonical-tab-musicxml-v2:validated');
   const tuningByString = prepareTuning(canonicalTabResult, processing);
   const dispositions = buildDispositionIndex(canonicalTabResult, processing);
@@ -496,6 +595,7 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
       measureIndex,
       tuningByString,
       measureIndex === 0 ? null : canonicalTabResult.measures[measureIndex - 1],
+      keySignatures.get(measureIndex) || null,
     );
 
     const activeTracks = tracks

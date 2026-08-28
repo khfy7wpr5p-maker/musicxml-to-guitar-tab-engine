@@ -4,6 +4,9 @@ const crypto = require('node:crypto');
 const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { createGuitarConfiguration } = require('../guitar/tuning');
+const {
+  STANDARD_GUITAR_WORKBENCH_TARGET,
+} = require('../guitar/standardGuitarRegister');
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
 const { convertMusicXmlToCanonicalTab } = require('../core/conversionPipeline');
 const {
@@ -32,6 +35,9 @@ const {
 const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
+const {
+  tryProjectRuntimeGuitarNotation,
+} = require('./runtimeGuitarNotationNormalizer');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -61,7 +67,6 @@ const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
 ).get;
 
 const STANDARD_GUITAR = createGuitarConfiguration();
-const WORKBENCH_GUITAR_TARGET = Object.freeze({ writtenPitchOctaveShift: -1 });
 let STANDARD_GUITAR_MINIMUM_MIDI = Number.POSITIVE_INFINITY;
 let STANDARD_GUITAR_MAXIMUM_MIDI = Number.NEGATIVE_INFINITY;
 for (const string of STANDARD_GUITAR.tuning) {
@@ -183,8 +188,6 @@ function normalizeUpload(upload) {
     throw invalidRequest('bytes must not use shared memory.', { field: 'bytes' });
   }
 
-  // Enforce the resource ceiling before allocating the owned snapshot. Oversized
-  // uploads are rejected without hashing or copying caller-controlled storage.
   if (byteLength > DEFAULT_MAX_XML_BYTES) {
     return {
       fileName,
@@ -431,16 +434,30 @@ function publicNormalization(normalization) {
   });
 }
 
-function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing) {
+function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing, writerOptions = {}) {
   processing.checkpoint('app-upload:tab-mirror-canonical:start');
   const canonicalTabResult = createCanonicalTabResultV2(sourceModel, decisions, processing);
   const musicXml = serializeCanonicalTabResultV2ToMusicXml(
     canonicalTabResult,
-    {},
+    writerOptions,
     processing,
   );
   processing.checkpoint('app-upload:tab-mirror-canonical:complete');
   return { canonicalTabResult, musicXml };
+}
+
+function runtimeCompatibilityIssue(runtimeProjection) {
+  return Object.freeze({
+    severity: 'warning',
+    category: 'quality',
+    code: 'RUNTIME_GUITAR_NOTATION_NORMALIZED',
+    message: 'Standard guitar notation metadata was normalized for deterministic POLY_V2 conversion.',
+    location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
+    details: Object.freeze({
+      pitchOctaveShift: runtimeProjection.pitchOctaveShift,
+      ignoredFeatures: Object.freeze([...runtimeProjection.ignoredFeatures]),
+    }),
+  });
 }
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
@@ -490,7 +507,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   try {
     monophonic = convertMusicXmlToCanonicalTab(
       normalizedUpload.bytes,
-      { parser: {}, guitar: WORKBENCH_GUITAR_TARGET },
+      { parser: {}, guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
       processing,
     );
   } catch (error) {
@@ -541,19 +558,37 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let normalization = null;
+  let runtimeProjection = null;
   try {
     processing.checkpoint('app-upload:poly:start');
     const parsedDocument = parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing);
     const projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
-    const sourceModel = projectedMirror
-      ? projectedMirror.sourceModel
-      : projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+    let sourceModel;
+    if (projectedMirror) {
+      sourceModel = projectedMirror.sourceModel;
+    } else {
+      try {
+        sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+      } catch (projectionError) {
+        if (projectionError?.code !== 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE') {
+          throw projectionError;
+        }
+        runtimeProjection = tryProjectRuntimeGuitarNotation(parsedDocument, processing);
+        if (!runtimeProjection) throw projectionError;
+        sourceModel = runtimeProjection.sourceModel;
+      }
+    }
     normalization = projectedMirror
       ? projectedMirror.normalization
       : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
-    const conversion = projectedMirror
-      ? convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing)
+    const conversion = (projectedMirror || runtimeProjection)
+      ? convertProjectedMirrorToCanonicalTab(
+        sourceModel,
+        decisions,
+        processing,
+        runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {},
+      )
       : convertMusicXmlToInternalPolyphonicTabV2(
         normalizedUpload.bytes,
         decisions,
@@ -563,6 +598,9 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     assertNoSilentMusicalChange(sourceModel, conversion.canonicalTabResult, normalization);
     processing.checkpoint('app-upload:poly-complete');
 
+    const compatibilityIssues = runtimeProjection
+      ? [runtimeCompatibilityIssue(runtimeProjection)]
+      : [];
     return deepFreeze({
       documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
       contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
@@ -570,7 +608,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
       input: identity,
       preflight: {
-        status: 'PASS',
+        status: compatibilityIssues.length > 0 ? 'WARNING' : 'PASS',
         canProcess: true,
         summary: {
           format: sourceModel.source.format,
@@ -579,7 +617,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           measureCount: sourceModel.measureCount,
           eventCount: sourceModel.eventCount,
         },
-        issues: [],
+        issues: compatibilityIssues,
       },
       normalization: publicNormalization(normalization),
       canonicalTabResult: conversion.canonicalTabResult,
