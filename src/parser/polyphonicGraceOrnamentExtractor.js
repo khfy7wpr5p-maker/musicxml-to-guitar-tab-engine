@@ -164,6 +164,21 @@ function writtenPitch(step, alter, octave) {
   return `${step}${accidental}${octave}`;
 }
 
+function parseSafeIntegerText(node, field, location) {
+  const value = node.text.trim();
+  if (!/^-?\d+$/.test(value)) {
+    throw unsupported(`Grace ${field} must be an integer.`, { ...location, field });
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || Object.is(parsed, -0)) {
+    throw unsupported(`Grace ${field} must be a safe integer other than -0.`, {
+      ...location,
+      field,
+    });
+  }
+  return parsed;
+}
+
 function parsePitch(note, location) {
   const pitch = requireSingleChild(note, 'pitch', location);
   if (pitch.text.trim().length !== 0 || pitch.attributes.length !== 0) {
@@ -188,11 +203,10 @@ function parsePitch(note, location) {
   if (alterNode[0]) requireExactLeaf(alterNode[0], 'pitch.alter', location);
   requireExactLeaf(octaveNode[0], 'pitch.octave', location);
   const step = stepNode[0].text.trim().toUpperCase();
-  const alter = alterNode.length === 0 ? 0 : Number.parseInt(alterNode[0].text.trim(), 10);
-  const octave = Number.parseInt(octaveNode[0].text.trim(), 10);
-  if (!Number.isSafeInteger(alter) || !Number.isSafeInteger(octave)) {
-    throw unsupported('Grace pitch alter/octave must be safe integers.', location);
-  }
+  const alter = alterNode.length === 0
+    ? 0
+    : parseSafeIntegerText(alterNode[0], 'pitch.alter', location);
+  const octave = parseSafeIntegerText(octaveNode[0], 'pitch.octave', location);
   let midi;
   try {
     midi = pitchToMidi({ step, alter, octave });
@@ -517,8 +531,20 @@ function sanitizePart(part, partId, allGroups, accounting, counters, runtime) {
 
 function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
   checkpoint(runtime, 'polyphonic-grace-ornament-extractor:start');
-  const upstream = normalizePolyphonicTripletDisplay(parsedDocument, runtime);
-  const root = upstream.parsedDocument.root;
+  if (
+    !parsedDocument
+    || typeof parsedDocument !== 'object'
+    || parsedDocument.documentType !== 'ParsedMusicXmlDocument'
+    || parsedDocument.contractVersion !== '1.0.0'
+    || !parsedDocument.root
+    || typeof parsedDocument.root !== 'object'
+    || !Array.isArray(parsedDocument.root.children)
+  ) {
+    throw invalid('Grace extraction accepts only ParsedMusicXmlDocument 1.0.0 input.', {
+      field: 'parsedDocument',
+    });
+  }
+  const root = parsedDocument.root;
   const parts = root.children.filter((child) => child.uri === root.uri && child.name === 'part');
   if (parts.length !== 1) {
     throw unsupported('Grace ornament extraction requires exactly one MusicXML part.', {
@@ -539,15 +565,17 @@ function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
     }
     return cloneNode(rootChild);
   });
+  const graceFreeDocument = Object.freeze({
+    documentType: parsedDocument.documentType,
+    contractVersion: parsedDocument.contractVersion,
+    root: deepFreezeNode(normalizedRoot),
+  });
+  const upstream = normalizePolyphonicTripletDisplay(graceFreeDocument, runtime);
   const frozenGroups = Object.freeze(groups);
   const extractedFeatures = Object.freeze(
     frozenGroups.length === 0 ? [] : ['grace-note:order-only-ornament'],
   );
-  const parsedMainDocument = Object.freeze({
-    documentType: upstream.parsedDocument.documentType,
-    contractVersion: upstream.parsedDocument.contractVersion,
-    root: deepFreezeNode(normalizedRoot),
-  });
+  const parsedMainDocument = upstream.parsedDocument;
 
   checkpoint(runtime, 'polyphonic-grace-ornament-extractor:complete', {
     graceGroupCount: frozenGroups.length,

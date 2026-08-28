@@ -270,6 +270,69 @@ test('PS-6B6A rejects unsupported scalar/beam attributes instead of silently nor
   }
 });
 
+test('PS-6B6A rejects partial integer pitch scalars instead of truncating musical material', () => {
+  const fractionalOctave = singleGraceScore({
+    grace: { pitchMarkup: '<pitch><step>F</step><octave>4.5</octave></pitch>' },
+  });
+  const trailingAlterText = singleGraceScore({ grace: { alter: '1junk' } });
+
+  for (const xml of [fractionalOctave, trailingAlterText]) {
+    assert.equal(
+      errorCode(() => extractPolyphonicGraceOrnaments(parsed(xml))),
+      'UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT',
+    );
+  }
+});
+
+test('PS-6B6A records anchor notation markers against projected main-event source order', () => {
+  const anchor = normalNote({
+    extraChildren: '<notations><fermata/><articulations><staccato/></articulations></notations>',
+  });
+  const xml = score({ measures: measure({ notes: `${graceNote()}${anchor}` }) });
+  const result = projectParsedMusicXmlWithGraceOrnamentExtraction(parsed(xml));
+
+  assert.equal(result.graceOrnamentGroups[0].anchor.originalSourceOrder, 1);
+  assert.equal(result.graceOrnamentGroups[0].anchor.projectedSourceOrder, 0);
+  assert.equal(result.fermataMarkers[0].sourceOrder, 0);
+  assert.equal(result.staccatoMarkers[0].sourceOrder, 0);
+  assert.equal(result.mainSourceModel.measures[0].events[0].sourceOrder, 0);
+});
+
+test('PS-6B6A records triplet provenance against projected main-event source orders', () => {
+  const triplet = '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>';
+  const tuplet = (value) => `<notations><tuplet ${value}/></notations>`;
+  const first = normalNote({
+    step: 'C', duration: 2, type: 'eighth',
+    extraChildren: `${triplet}${tuplet('type="start" bracket="no"')}`,
+  });
+  const second = normalNote({ step: 'D', duration: 2, type: 'eighth', extraChildren: triplet });
+  const third = normalNote({
+    step: 'E', duration: 2, type: 'eighth',
+    extraChildren: `${triplet}${tuplet('type="stop"')}`,
+  });
+  const rest = '<note><rest/><duration>6</duration><voice>1</voice><type>half</type><staff>1</staff></note>';
+  const xml = score({
+    measures: measure({
+      divisions: 3,
+      notes: `${graceNote({ step: 'B', octave: 3 })}${first}${second}${third}${rest}`,
+    }),
+  });
+  const result = projectParsedMusicXmlWithGraceOrnamentExtraction(parsed(xml));
+
+  assert.deepEqual(
+    result.tripletTimeModificationMarkers.map((marker) => marker.sourceOrder),
+    [0, 1, 2],
+  );
+  assert.deepEqual(
+    result.tripletDisplayMarkers.map((marker) => marker.sourceOrder),
+    [0, 2],
+  );
+  assert.deepEqual(
+    result.mainSourceModel.measures[0].events.map((event) => event.sourceOrder),
+    [0, 1, 2, 3],
+  );
+});
+
 test('PS-6B6A requires grace and following anchor to remain in the same voice/staff lane', () => {
   const voiceMismatch = singleGraceScore({ anchor: { voice: '2' } });
   const staffMismatch = singleGraceScore({ anchor: { staff: '2' } });
