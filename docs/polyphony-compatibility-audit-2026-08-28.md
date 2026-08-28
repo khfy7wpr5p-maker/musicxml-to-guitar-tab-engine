@@ -15,7 +15,7 @@ This audit checks why real-world polyphonic guitar MusicXML can fail to be admit
 | Public package-root polyphonic end-to-end conversion | FAIL / NOT EXPOSED | The public conversion pipeline remains monophonic and projects through the monophonic source model before `CanonicalTabResult 1.0.0`. |
 | Workbench/app POLY_V2 route detection | PASS | The upload runtime can classify multi-voice/chord material and route it to the internal POLY_V2 path. |
 | Real-world polyphonic input admission | PARTIAL | The strict `PolyphonicSourceModel` projector intentionally fails closed outside the bounded structural subset. Compatibility normalizers have been landing incrementally, but admission is not yet equivalent to broad real-world MusicXML support. |
-| Sustained/overlapping polyphony in the active Canonical V2 producer | FAIL | `createCanonicalTabResultV2()` still delegates attack selection to `selectDeterministicPolyphonicAttacks()`, whose retained-note guard rejects sustained overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`. |
+| Sustained/overlapping polyphony in the active Canonical V2 producer | FAIL | `createCanonicalTabResultV2()` still delegates final selection to `createDeterministicPolyphonicFinalSelection()`. That selector declares `STATIC_ATTACK_PATH_LEXICOGRAPHIC_1.0` and `FAIL_CLOSED_ON_RETAINED_OVERLAP_OR_TIE_1.0`, and rejects retained overlap with reason `RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED`. |
 | Sustained polyphony solver core | IMPLEMENTED INTERNAL | The PS temporal/sustain/active-state/path-search line exists on main through PS-6 evidence work, including `sustainedPolyphonicPathSolver.js`. This solver is not yet wired into the active Canonical V2 producer/runtime authority path. |
 | Canonical V2 MusicXML writer | PASS FOR SUPPORTED CANONICAL INPUT | The V2 writer is structurally multi-track/multi-voice capable. It is not the primary root cause when material fails before a supported `CanonicalTabResultV2` is produced. |
 | Grace-note / Bach-source compatibility | OPEN | PR #208 continues compatibility work and currently has failing test and MusicXML compatibility workflow evidence on its exact head. No passing production claim should be made from that PR yet. |
@@ -31,7 +31,7 @@ The parser can read more XML structure than the strict polyphonic projection bou
 
 ### 2. Sustained-selection integration gap
 
-The repository now contains sustained-polyphony temporal/state/path machinery, but `CanonicalTabResultV2` still invokes the older attack-local deterministic selector. That selector intentionally rejects overlap from notes retained across attacks. The correct diagnosis is **sustained path solver integration gap**.
+The repository now contains sustained-polyphony temporal/state/path machinery, but `CanonicalTabResultV2` still invokes the older attack-local deterministic selector through `createDeterministicPolyphonicFinalSelection()`. That selector intentionally rejects overlap from notes retained across attacks. The correct diagnosis is **sustained path solver integration gap**.
 
 ### 3. Writer is downstream, not the primary blocker
 
@@ -41,9 +41,10 @@ The repository now contains sustained-polyphony temporal/state/path machinery, b
 
 1. Use **strict polyphonic projection / normalization incompatibility** for rejected real-world input metadata.
 2. Use **attack-local deterministic selector** for `deterministicPolyphonicFinalSelector.js`; do not call it the sustained-polyphony engine.
-3. Treat `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP` as a **current active-producer limitation**, not a repository-wide architectural impossibility, because an internal sustained path solver now exists.
-4. Do not state that `CanonicalTabResultV2` already provides sustained-polyphony authority. It is the internal canonical representation/producer boundary, but its current producer still delegates to the older selector.
-5. Treat grace-note handling as a **compatibility-normalization / non-timed notation case** until PR #208 has passing exact-head evidence; do not classify grace notes as ordinary duration-bearing attacks by default.
+3. The active selector's generic unsupported error code is `UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION`; for retained overlap, the precise `details.reason` is `RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED`. Do not use the non-source term `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`.
+4. Treat retained-overlap rejection as a **current active-producer limitation**, not a repository-wide architectural impossibility, because an internal sustained path solver now exists.
+5. Do not state that `CanonicalTabResultV2` already provides sustained-polyphony authority. It is the internal canonical representation/producer boundary, but its current producer still delegates to the older selector.
+6. Treat grace-note handling as a **compatibility-normalization / non-timed notation case** until PR #208 has passing exact-head evidence; do not classify grace notes as ordinary duration-bearing attacks by default.
 
 ## Open integration gates
 
