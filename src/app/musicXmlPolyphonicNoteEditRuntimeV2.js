@@ -28,6 +28,9 @@ const {
 const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
+const {
+  tryProjectRuntimeGuitarNotation,
+} = require('./runtimeGuitarNotationNormalizer');
 
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.0.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
@@ -406,15 +409,33 @@ function projectEditableSource(bytes, processing) {
   processing.checkpoint('app-poly-note-edit:parse:start');
   const parsedDocument = parseParsedMusicXmlDocument(bytes, {}, processing);
   const mirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
-  const sourceModel = mirror
-    ? mirror.sourceModel
-    : projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+  let runtimeProjection = null;
+  let sourceModel;
+  if (mirror) {
+    sourceModel = mirror.sourceModel;
+  } else {
+    try {
+      sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
+    } catch (projectionError) {
+      if (projectionError?.code !== 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE') {
+        throw projectionError;
+      }
+      runtimeProjection = tryProjectRuntimeGuitarNotation(parsedDocument, processing);
+      if (!runtimeProjection) throw projectionError;
+      sourceModel = runtimeProjection.sourceModel;
+    }
+  }
   processing.checkpoint('app-poly-note-edit:parse:complete', {
     measureCount: sourceModel.measureCount,
     eventCount: sourceModel.eventCount,
     tabStaffMirrorCollapsed: Boolean(mirror),
+    runtimeGuitarNotationNormalized: Boolean(runtimeProjection),
   });
-  return { sourceModel, tabStaffMirrorCollapsed: Boolean(mirror) };
+  return {
+    sourceModel,
+    tabStaffMirrorCollapsed: Boolean(mirror),
+    notationContext: runtimeProjection?.notationContext ?? null,
+  };
 }
 
 function createGroupIdentityIndex(sourceModel, processing) {
@@ -701,7 +722,11 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       processing,
     );
     assertNoSilentChange(revisedSourceModel, canonicalTabResult);
-    const musicXml = serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, {}, processing);
+    const musicXml = serializeCanonicalTabResultV2ToMusicXml(
+      canonicalTabResult,
+      projected.notationContext ? { notationContext: projected.notationContext } : {},
+      processing,
+    );
     processing.checkpoint('app-poly-note-edit:complete', {
       revisionCount: normalized.commands.length,
     });
@@ -720,18 +745,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         commands: normalized.commands.map(clonePlainData),
         appliedEdits,
       },
-      preflight: {
-        status: 'PASS',
-        canProcess: true,
-        summary: {
-          format: revisedSourceModel.source.format,
-          version: revisedSourceModel.source.musicXmlVersion,
-          partId: revisedSourceModel.source.partId,
-          measureCount: revisedSourceModel.measureCount,
-          eventCount: revisedSourceModel.eventCount,
-        },
-        issues: [],
-      },
+      preflight: clonePlainData(uploadResult.preflight),
       canonicalTabResult,
       musicXml,
     });

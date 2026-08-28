@@ -8,6 +8,9 @@ const { inspectMusicXml } = require('../validation/musicxmlPreflight');
 const { DEFAULT_MAX_XML_BYTES } = require('../validation/xmlSafety');
 const { createCanonicalMusicDocument } = require('../music/canonicalMusicDocument');
 const { pitchToMidi, validatePitchComponents } = require('../music/pitch');
+const {
+  STANDARD_GUITAR_WORKBENCH_TARGET,
+} = require('../guitar/standardGuitarRegister');
 const { createCanonicalTabResult } = require('../tab/canonicalTabResult');
 const { serializeCanonicalTabResultToMusicXml } = require('../writers/canonicalTabMusicXmlWriter');
 const {
@@ -21,7 +24,6 @@ const MUSICXML_NOTE_EDIT_RUNTIME_DOCUMENT_TYPE = 'MusicXmlNoteEditRuntimeResult'
 const MUSICXML_NOTE_EDIT_STATUS = Object.freeze({ PASS: 'PASS', BLOCKED: 'BLOCKED' });
 const MAX_FILE_NAME_LENGTH = 255;
 const MAX_REVISION_COMMANDS = 128;
-const WORKBENCH_GUITAR_TARGET = Object.freeze({ writtenPitchOctaveShift: -1 });
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
 const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
   TYPED_ARRAY_PROTOTYPE,
@@ -683,7 +685,7 @@ function processMusicXmlNoteEdit(request, options = {}, runtime = null) {
     const canonicalDocument = createCanonicalMusicDocument(revisedParsed);
     const canonicalTabResult = createCanonicalTabResult(
       canonicalDocument,
-      { guitar: WORKBENCH_GUITAR_TARGET },
+      { guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
       processing,
     );
     assertTieChainFingeringContinuity(canonicalTabResult, appliedEdits);

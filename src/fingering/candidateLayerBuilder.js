@@ -7,6 +7,10 @@ const {
 const { createGuitarConfiguration } = require('../guitar/tuning');
 const { getPositionCandidates } = require('../guitar/fretboard');
 const { PlayabilityError } = require('../guitar/playability');
+const {
+  isSupportedWrittenPitchOctaveShift,
+  shiftWrittenPitchByOctaves,
+} = require('../guitar/standardGuitarRegister');
 
 const CANONICAL_FINGERING_CANDIDATES_VERSION = '1.0.0';
 
@@ -236,7 +240,7 @@ function normalizeBuilderOptions(options) {
   const writtenPitchOctaveShift = Object.hasOwn(options, 'writtenPitchOctaveShift')
     ? options.writtenPitchOctaveShift
     : 0;
-  if (writtenPitchOctaveShift !== 0 && writtenPitchOctaveShift !== -1) {
+  if (!isSupportedWrittenPitchOctaveShift(writtenPitchOctaveShift)) {
     throw invalidBuilderOptions(
       'options.writtenPitchOctaveShift must be 0 or -1.',
       { field: 'writtenPitchOctaveShift', value: writtenPitchOctaveShift },
@@ -253,22 +257,17 @@ function normalizeBuilderOptions(options) {
   };
 }
 
-function writtenPitch(step, alter, octave) {
-  const accidental = { '-2': 'bb', '-1': 'b', 0: '', 1: '#', 2: '##' }[alter];
-  return `${step}${accidental}${octave}`;
-}
-
 function targetPitchFor(event, writtenPitchOctaveShift, measure) {
-  if (writtenPitchOctaveShift === 0) return clonePlainData(event.pitch);
-  const midi = event.pitch.midi + (writtenPitchOctaveShift * 12);
-  const octave = event.pitch.octave + writtenPitchOctaveShift;
-  if (!Number.isSafeInteger(midi) || midi < 0 || midi > 127 || !Number.isSafeInteger(octave)) {
+  const targetPitch = shiftWrittenPitchByOctaves(event.pitch, writtenPitchOctaveShift);
+  if (!targetPitch) {
     throw new PlayabilityError(
       'The target guitar sounding pitch is outside the supported MIDI range.',
       'UNPLAYABLE_NOTE',
       {
         sourceMidi: event.pitch.midi,
-        targetMidi: midi,
+        targetMidi: Number.isSafeInteger(event.pitch.midi)
+          ? event.pitch.midi + (writtenPitchOctaveShift * 12)
+          : null,
         writtenPitchOctaveShift,
         eventId: event.eventId,
         measureKey: measure.measureKey,
@@ -278,13 +277,7 @@ function targetPitchFor(event, writtenPitchOctaveShift, measure) {
       },
     );
   }
-  return {
-    step: event.pitch.step,
-    alter: event.pitch.alter,
-    octave,
-    written: writtenPitch(event.pitch.step, event.pitch.alter, octave),
-    midi,
-  };
+  return targetPitch;
 }
 
 function createNoteReference(event, measure, targetPitch) {

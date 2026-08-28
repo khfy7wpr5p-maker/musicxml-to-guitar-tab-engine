@@ -85,6 +85,22 @@ test('v2 writer supports pretty/trailing-newline options without mutating the ca
   assert.equal(Object.isFrozen(result), true);
 });
 
+test('v2 writer preserves bounded runtime key-signature context without widening canonical authority', () => {
+  const result = createCanonicalTabV2CompatibilityFixture();
+  const xml = serializeCanonicalTabResultV2ToMusicXml(result, {
+    notationContext: {
+      keySignatures: [{ measureIndex: 0, fifths: -2, mode: 'minor' }],
+    },
+  });
+  assert.match(xml, /<key><fifths>-2<\/fifths><mode>minor<\/mode><\/key>/);
+  expectWriterCode(
+    () => serializeCanonicalTabResultV2ToMusicXml(result, {
+      notationContext: { keySignatures: [{ measureIndex: 0, fifths: 8, mode: null }] },
+    }),
+    'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+  );
+});
+
 test('v2 writer rejects v1 artifacts and semantically mutated v2 values fail closed', () => {
   expectWriterCode(
     () => serializeCanonicalTabResultV2ToMusicXml(createCanonicalTabCompatibilityFixture()),
