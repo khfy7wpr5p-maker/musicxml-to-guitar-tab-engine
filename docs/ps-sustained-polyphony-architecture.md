@@ -2,7 +2,11 @@
 
 Status: INTERNAL / DEFAULT-OFF / NON-PUBLIC
 
+Implementation-status reconciliation: 2026-08-28 audit base `0210976ffc74123df8a3c8c0fab2d3cf69067c32`.
+
 This document defines the safety and authority boundary for extending the existing deterministic polyphonic guitar selector toward sustained, contrapuntal material such as multi-voice guitar fugues.
+
+The architecture contract below is unchanged. Since the original PS-0/PS-1 document was written, PS-2 through PS-6 implementation/evidence stages have landed internally. Their presence does not grant runtime or public authority: at the audit base the active `CanonicalTabResultV2` producer still uses the older attack-local deterministic selector, while the sustained path solver remains unconnected to that producer.
 
 ## Goal
 
@@ -17,12 +21,12 @@ Support time-overlapping independent voices without silently changing musical me
 - no external solver dependency;
 - no string/fret decisions in the temporal model;
 - no silent note deletion, octave displacement, voice merging or tie removal;
-- no claim of Bach-level support until the PS-6 corpus gate passes.
+- no broad Bach-level support claim without exact-head corpus/compatibility evidence.
 
 ## Safety invariants
 
-1. Existing MONO and bounded POLY behavior remains authoritative and unchanged.
-2. New PS stages are internal and opt-in until separately promoted.
+1. Existing MONO and bounded POLY behavior remains authoritative and unchanged unless a later separately reviewed gate explicitly promotes another path.
+2. PS stages are internal and non-public until separately promoted.
 3. Unsupported musical or physical states fail closed.
 4. Source event identity remains immutable across every PS stage.
 5. Musical correctness outranks ergonomic preference.
@@ -30,17 +34,17 @@ Support time-overlapping independent voices without silently changing musical me
 7. Resource use remains bounded by the existing processing runtime plus stage-specific limits.
 8. Every new stage must revalidate its input contract before deriving output.
 9. No browser-only or renderer-only state may become TAB authority.
-10. Package-root exports remain unchanged through PS-0 / PS-1.
+10. Package-root exports remain unchanged until a separately reviewed public-polyphony gate.
 
 ## Stage map
 
 ### PS-0 — Architecture Contract
 
-Locks scope, authority, fail-closed behavior and coexistence with the current selector.
+✅ LOCKED. Defines scope, authority, fail-closed behavior and coexistence with the current selector.
 
 ### PS-1 — Temporal Event Model
 
-Derives bounded musical time facts from `PolyphonicSourceModel`:
+✅ IMPLEMENTED INTERNAL. Derives bounded musical time facts from `PolyphonicSourceModel`:
 
 - ATTACK: pitched event begins at a temporal point;
 - HOLD: previously active pitched event remains active after the point;
@@ -49,25 +53,27 @@ Derives bounded musical time facts from `PolyphonicSourceModel`:
 
 PS-1 is fact-only. It has no guitar arrangement, string, fret, finger, barre, reduction or optimization authority.
 
-### PS-2 — Sustain / Tie Graph
+### PS-2 — Sustain / Tie Graph and Duration Invariants
 
-Future stage. Connects tie chains and cross-measure sustain identity without changing pitch or voice semantics.
+✅ IMPLEMENTED INTERNAL. Connects bounded sustain/tie/duration identity without changing pitch or voice semantics.
 
 ### PS-3 — Active Sonority Model
 
-Future stage. Produces the exact active-note set at each musically relevant state transition, including voice and sustain provenance.
+✅ IMPLEMENTED INTERNAL. Produces bounded active-note/sonority state across musically relevant transitions, preserving voice and sustain provenance.
 
-### PS-4 — Sustained Guitar State
+### PS-4 — Sustained Guitar State / Slicing Foundations
 
-Future stage. Reuses existing fretboard, PA-7, PA-8 and PA-9 facts to represent physically held strings, frets, fingers and barres across transitions.
+✅ IMPLEMENTED INTERNAL. Provides the bounded temporal/guitar-state material required to reason about physically retained notes across transitions while reusing existing guitar-domain facts.
 
 ### PS-5 — Sustained Polyphonic Selector
 
-Future stage. Performs bounded deterministic state-space search across sustained guitar states. The existing static-attack selector remains intact as a separate authority path.
+✅ IMPLEMENTED INTERNAL / NOT ACTIVE AUTHORITY. A bounded deterministic sustained path solver exists. The existing attack-local selector remains intact and is still the selector invoked by the active `CanonicalTabResultV2` producer at the 2026-08-28 audit base.
 
-### PS-6 — Bach Validation Ladder
+### PS-6 — Bach Validation / Regression Ladder
 
-Future evidence gate:
+🟡 INTERNAL EVIDENCE LINE IMPLEMENTED AND CONTINUING. Regression/determinism stages and subsequent PS-6B bounded MusicXML normalizers have landed, but broad Bach/real-world compatibility is not complete. Grace-note compatibility work continues in PR #208 and does not have passing exact-head test/MusicXML-compatibility evidence at audit time.
+
+The validation ladder remains conceptually:
 
 1. one held note plus one later attack;
 2. two independent voices;
@@ -79,20 +85,28 @@ Future evidence gate:
 8. real Bach/fugal guitar transcription corpus;
 9. multiple real-world exported MusicXML sources.
 
-No broad sustained-polyphony claim is permitted before these gates are evidenced.
+No broad sustained-polyphony claim is permitted merely because internal stages exist; admission, integration, deterministic selection and exact-head compatibility evidence must all pass.
 
 ## Integration strategy
 
-The existing architecture remains:
+The currently active internal bounded polyphonic path remains:
 
-`MusicXML -> PolyphonicSourceModel -> SimultaneousEventModel -> PA-7 -> PA-8 -> PA-9 -> deterministicPolyphonicFinalSelector -> CanonicalTabResultV2`
+`MusicXML -> PolyphonicSourceModel -> SimultaneousEventModel -> PA-7 -> PA-8 -> PA-9 -> attack-local deterministicPolyphonicFinalSelector -> CanonicalTabResultV2`
 
-The PS line begins beside, not inside, the existing selector:
+The implemented PS line remains a separate internal capability:
 
-`PolyphonicSourceModel -> PS-1 Temporal Event Model -> PS-2 Sustain/Tie -> PS-3 Active Sonority -> PS-4 Sustained Guitar State -> PS-5 Sustained Selector -> CanonicalTabResultV2`
+`PolyphonicSourceModel -> PS-1 Temporal Event Model -> PS-2 Sustain/Tie -> PS-3 Active Sonority -> PS-4 Sustained Guitar State -> PS-5 Sustained Path Solver -> candidate CanonicalTabResultV2 integration boundary`
 
-Until promotion, PS output is not routed into upload/runtime/editor paths.
+At the audit base, the final arrow is an **integration gate**, not an active runtime connection. `createCanonicalTabResultV2()` still delegates to the older attack-local selector, which fail-closes retained-note overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`.
 
-## Coexistence with UI-08 / PR #171
+Any future connection of PS-5 into Canonical V2/upload/editor paths requires a separately reviewed deterministic integration stage with regression, resource-bound and compatibility evidence. This status clarification does not authorize that change.
 
-The PS-0/PS-1 branch is based on main after UI-11 and intentionally avoids the runtime-normalization files being changed by UI-08. UI-08 addresses real-world MusicXML admission and standard guitar written/sounding normalization; PS addresses sustained contrapuntal selection. These are complementary but separate concerns.
+## Coexistence with real-world MusicXML normalization
+
+Real-world input admission and sustained contrapuntal selection are complementary but separate concerns.
+
+The historical UI-08 / PR #171 work addressed structural MusicXML admission and standard guitar written/sounding normalization. Subsequent PS-6B normalizers have landed on main, so PR #171 is now stale/diverged and must be reconciled against main before any reuse; it should not be treated as a ready integration branch.
+
+PS addresses temporal/sustained selection after admissible source structure has been projected. Fixing admission alone does not enable sustained selection, and connecting sustained selection alone does not make arbitrary real-world MusicXML admissible.
+
+See `docs/polyphony-compatibility-audit-2026-08-28.md` for the compatibility diagnosis and terminology separation.
