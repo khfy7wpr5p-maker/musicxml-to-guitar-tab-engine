@@ -97,7 +97,7 @@ The implemented PS line remains a separate internal capability:
 
 `PolyphonicSourceModel -> PS-1 Temporal Event Model -> PS-2 Sustain/Tie -> PS-3 Active Sonority -> PS-4 Sustained Guitar State -> PS-5 Sustained Path Solver -> candidate CanonicalTabResultV2 integration boundary`
 
-At the audit base, the final arrow is an **integration gate**, not an active runtime connection. `createCanonicalTabResultV2()` still delegates to the older attack-local selector, which fail-closes retained-note overlap with `UNSUPPORTED_SUSTAINED_POLYPHONIC_OVERLAP`.
+At the audit base, the final arrow is an **integration gate**, not an active runtime connection. `createCanonicalTabResultV2()` still delegates to `createDeterministicPolyphonicFinalSelection()`, whose sustained policy is `FAIL_CLOSED_ON_RETAINED_OVERLAP_OR_TIE_1.0`; retained overlap fails with generic code `UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION` and `details.reason = RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED`.
 
 Any future connection of PS-5 into Canonical V2/upload/editor paths requires a separately reviewed deterministic integration stage with regression, resource-bound and compatibility evidence. This status clarification does not authorize that change.
 
