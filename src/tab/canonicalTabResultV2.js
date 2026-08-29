@@ -19,6 +19,9 @@ const {
   createDeterministicPolyphonicFinalSelection,
 } = require('../music/deterministicPolyphonicFinalSelector');
 const {
+  createSustainedCanonicalFinalSelection,
+} = require('../music/sustainedCanonicalFinalSelector');
+const {
   clonePitch,
   createGuitarFacts,
   createPolicyProvenance,
@@ -116,11 +119,30 @@ function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime =
   const grouping = createSimultaneousEventModel(source, runtime);
   const arrangement = createGuitarArrangementPlan(source, arrangementDecisions, runtime);
   const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
-  const finalSelection = createDeterministicPolyphonicFinalSelection(
-    source,
-    arrangementDecisions,
-    runtime,
-  );
+  let finalSelection;
+  try {
+    finalSelection = createDeterministicPolyphonicFinalSelection(
+      source,
+      arrangementDecisions,
+      runtime,
+    );
+  } catch (error) {
+    const reason = error && error.details && error.details.reason;
+    if (
+      !error
+      || error.code !== 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
+      || (reason !== 'RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED'
+        && reason !== 'RETAINED_TIE_NOT_SUPPORTED')
+    ) {
+      throw error;
+    }
+    if (runtime) runtime.checkpoint('canonical-tab-result-v2:sustained-fallback', { reason });
+    finalSelection = createSustainedCanonicalFinalSelection(
+      source,
+      arrangementDecisions,
+      runtime,
+    );
+  }
 
   const result = {
     documentType: CANONICAL_TAB_RESULT_DOCUMENT_TYPE,

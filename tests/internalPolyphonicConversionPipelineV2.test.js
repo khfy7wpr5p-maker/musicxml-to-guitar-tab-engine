@@ -145,7 +145,7 @@ test('PA-12 internal execution does not drift public monophonic conversion or pa
   assert.equal(Object.hasOwn(publicApi, 'serializeCanonicalTabResultV2ToMusicXml'), false);
 });
 
-test('PA-12 fails closed on retained sustained overlap instead of guessing hand occupancy', () => {
+test('PA-12 fails closed on invalid overlapping independent notes within one voice', () => {
   const input = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
   <part-list><score-part id="P1"><part-name>Overlap</part-name></score-part></part-list>
@@ -161,8 +161,8 @@ test('PA-12 fails closed on retained sustained overlap instead of guessing hand 
   assert.throws(
     () => convertMusicXmlToInternalPolyphonicTabV2(input, preservedDecisions(2)),
     (error) => {
-      assert.equal(error.code, 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION');
-      assert.equal(error.details.reason, 'RETAINED_SUSTAINED_OVERLAP_NOT_SUPPORTED');
+      assert.equal(error.code, 'UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION');
+      assert.equal(error.details.reason, 'OVERLAPPING_NOTES_WITHIN_ONE_VOICE');
       return true;
     },
   );
