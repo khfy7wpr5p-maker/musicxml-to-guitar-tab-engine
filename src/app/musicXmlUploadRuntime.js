@@ -368,7 +368,7 @@ function graceWriterTransitions(model) {
       string: note.string,
       fret: note.fret,
     }))),
-  }))));
+  })));
 }
 
 function buildExactPitchPreservingDecisions(sourceModel, normalization) {
