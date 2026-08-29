@@ -71,6 +71,7 @@ const SAFE_STAFF_DETAILS_CHILDREN = new Set([
   'staff-type',
   'staff-lines',
   'staff-size',
+  'staff-tuning',
 ]);
 const SAFE_STAFF_DETAILS_ATTRIBUTES = new Set([
   'number',
@@ -78,6 +79,14 @@ const SAFE_STAFF_DETAILS_ATTRIBUTES = new Set([
   'print-object',
   'print-spacing',
 ]);
+const SAFE_CLEF_ATTRIBUTES = new Set([
+  'number',
+  'additional',
+  'size',
+  'after-barline',
+  'print-object',
+]);
+const SAFE_CLEF_SIGNS = new Set(['G', 'F', 'C', 'TAB', 'percussion', 'jianpu', 'none']);
 const ALLOWED_NOTE_CHILDREN = new Set([
   'pitch',
   'rest',
@@ -311,14 +320,91 @@ function safeSimpleBarline(node) {
   );
 }
 
+function safeStaffTuning(node) {
+  if (!hasOnlyUnqualifiedAttributes(node, new Set(['line']))) return false;
+  const line = getAttribute(node, 'line');
+  if (line !== undefined && (!/^\d+$/.test(line) || Number(line) < 1 || Number(line) > 16)) return false;
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.some((child) => !['tuning-step', 'tuning-alter', 'tuning-octave'].includes(child.name))) {
+    return false;
+  }
+  const steps = directChildren(node, 'tuning-step');
+  const alters = directChildren(node, 'tuning-alter');
+  const octaves = directChildren(node, 'tuning-octave');
+  if (steps.length !== 1 || alters.length > 1 || octaves.length !== 1) return false;
+  if (
+    hasSameNamespaceChildren(steps[0])
+    || !hasOnlyUnqualifiedAttributes(steps[0], new Set())
+    || !['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(steps[0].text.trim())
+  ) return false;
+  if (alters.length === 1) {
+    const alter = scalarInteger(alters[0]);
+    if (alter === null || alter < -2 || alter > 2) return false;
+  }
+  const octave = scalarInteger(octaves[0]);
+  return octave !== null && octave >= 0 && octave <= 9;
+}
+
 function safeStaffDetails(node) {
   const unsafeChildren = node.children.some((child) => (
-    child.uri === node.uri && !SAFE_STAFF_DETAILS_CHILDREN.has(child.name)
+    child.uri === node.uri
+    && (!SAFE_STAFF_DETAILS_CHILDREN.has(child.name)
+      || (child.name === 'staff-tuning' && !safeStaffTuning(child)))
   ));
   if (unsafeChildren) return false;
   return !node.attributes.some((attribute) => (
     attribute.uri.length === 0 && !SAFE_STAFF_DETAILS_ATTRIBUTES.has(attribute.name)
   ));
+}
+
+function safeClef(node) {
+  if (!hasOnlyUnqualifiedAttributes(node, SAFE_CLEF_ATTRIBUTES)) return false;
+  const number = getAttribute(node, 'number');
+  if (number !== undefined && (!/^\d+$/.test(number) || Number(number) < 1 || Number(number) > 16)) {
+    return false;
+  }
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.some((child) => !['sign', 'line', 'clef-octave-change'].includes(child.name))) return false;
+  const signs = directChildren(node, 'sign');
+  const lines = directChildren(node, 'line');
+  const octaveChanges = directChildren(node, 'clef-octave-change');
+  if (signs.length !== 1 || lines.length > 1 || octaveChanges.length > 1) return false;
+  if (
+    hasSameNamespaceChildren(signs[0])
+    || !hasOnlyUnqualifiedAttributes(signs[0], new Set())
+    || !SAFE_CLEF_SIGNS.has(signs[0].text.trim())
+  ) return false;
+  if (lines.length === 1) {
+    const line = scalarInteger(lines[0]);
+    if (line === null || line < 1 || line > 8) return false;
+  }
+  if (octaveChanges.length === 1) {
+    const change = scalarInteger(octaveChanges[0]);
+    if (change === null || change < -4 || change > 4) return false;
+  }
+  return true;
+}
+
+function safeTechnical(node) {
+  if (!hasOnlyUnqualifiedAttributes(node, new Set())) return false;
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.length === 0 || children.some((child) => !['string', 'fret'].includes(child.name))) {
+    return false;
+  }
+  const strings = directChildren(node, 'string');
+  const frets = directChildren(node, 'fret');
+  if (strings.length > 1 || frets.length > 1 || (strings.length === 0 && frets.length === 0)) return false;
+  for (const stringNode of strings) {
+    if (!hasOnlyUnqualifiedAttributes(stringNode, new Set(['placement']))) return false;
+    const string = scalarInteger(stringNode);
+    if (string === null || string < 1 || string > 16) return false;
+  }
+  for (const fretNode of frets) {
+    if (!hasOnlyUnqualifiedAttributes(fretNode, new Set(['placement']))) return false;
+    const fret = scalarInteger(fretNode);
+    if (fret === null || fret < 0 || fret > 48) return false;
+  }
+  return true;
 }
 
 function parseKeySignature(node, measureIndex) {
@@ -343,27 +429,6 @@ function parseKeySignature(node, measureIndex) {
     if (!['major', 'minor'].includes(mode)) throw unsupported('key');
   }
   return Object.freeze({ measureIndex, fifths, mode });
-}
-
-function requireStandardNotationClef(node) {
-  if (!hasOnlyUnqualifiedAttributes(node, new Set(['number']))) throw unsupported('clef');
-  if ((getAttribute(node, 'number') || '1') !== '1') throw unsupported('clef');
-  const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.some((child) => !['sign', 'line'].includes(child.name))) throw unsupported('clef');
-  const signs = directChildren(node, 'sign');
-  const lines = directChildren(node, 'line');
-  if (
-    signs.length !== 1
-    || lines.length !== 1
-    || hasSameNamespaceChildren(signs[0])
-    || hasSameNamespaceChildren(lines[0])
-    || !hasOnlyUnqualifiedAttributes(signs[0], new Set())
-    || !hasOnlyUnqualifiedAttributes(lines[0], new Set())
-    || signs[0].text.trim() !== 'G'
-    || scalarInteger(lines[0]) !== 2
-  ) {
-    throw unsupported('clef');
-  }
 }
 
 function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) {
@@ -391,12 +456,16 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       continue;
     }
     if (child.name === 'clef') {
-      requireStandardNotationClef(child);
+      if (!safeClef(child)) throw unsupported('clef');
+      ignoredFeatures.add('attributes:clef-layout');
       continue;
     }
     if (child.name === 'staff-details') {
       if (!safeStaffDetails(child)) throw unsupported('staff-details');
       ignoredFeatures.add('attributes:staff-details');
+      if (directChildren(child, 'staff-tuning').length > 0) {
+        ignoredFeatures.add('attributes:staff-tuning-provenance');
+      }
       continue;
     }
     if (IGNORED_ATTRIBUTE_CHILDREN.has(child.name)) {
@@ -421,6 +490,10 @@ function sanitizeNotations(node, ignoredFeatures) {
       continue;
     }
     if (child.name === 'articulations' && safeArticulations(child, ignoredFeatures)) {
+      continue;
+    }
+    if (child.name === 'technical' && safeTechnical(child)) {
+      ignoredFeatures.add('notation:technical:string-fret-provenance');
       continue;
     }
     throw unsupported(`notation:${child.name}`);
