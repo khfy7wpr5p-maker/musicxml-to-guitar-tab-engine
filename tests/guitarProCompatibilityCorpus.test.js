@@ -39,7 +39,11 @@ test('COMPAT-01C Guitar Pro export-profile provenance normalizes deterministical
   const first = processMusicXmlUpload({ fileName: FIXTURE_NAME, bytes });
   const second = processMusicXmlUpload({ fileName: FIXTURE_NAME, bytes });
 
-  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(
+    first.status,
+    MUSICXML_UPLOAD_STATUS.PASS,
+    `unexpected preflight: ${JSON.stringify(first.preflight)}`,
+  );
   assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.deepEqual(first, second);
   assert.equal(first.preflight.status, 'WARNING');
