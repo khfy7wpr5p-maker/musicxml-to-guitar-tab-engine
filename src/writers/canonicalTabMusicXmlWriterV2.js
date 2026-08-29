@@ -53,6 +53,27 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
+function exactDataDescriptors(value, expected, path) {
+  if (!isPlainObject(value)) return null;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== expected.length
+    || expected.some((field) => !Object.hasOwn(descriptors, field))
+    || keys.some((key) => typeof key !== 'string' || !expected.includes(key))
+    || expected.some((field) => (
+      !descriptors[field].enumerable || !Object.hasOwn(descriptors[field], 'value')
+    ))
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.chordLabels must use exact enumerable data properties.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: path },
+    );
+  }
+  return descriptors;
+}
+
 function normalizeOptions(options) {
   if (!isPlainObject(options)) {
     throw new CanonicalTabMusicXmlWriterV2Error(
@@ -60,7 +81,12 @@ function normalizeOptions(options) {
       'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
     );
   }
-  const normalized = { pretty: false, trailingNewline: false, notationContext: null };
+  const normalized = {
+    pretty: false,
+    trailingNewline: false,
+    notationContext: null,
+    chordLabels: Object.freeze([]),
+  };
   const allowed = new Set(Object.keys(normalized));
   for (const key of Reflect.ownKeys(options)) {
     if (typeof key !== 'string' || !allowed.has(key)) {
@@ -82,6 +108,10 @@ function normalizeOptions(options) {
       normalized.notationContext = normalizeNotationContext(descriptor.value);
       continue;
     }
+    if (key === 'chordLabels') {
+      normalized.chordLabels = normalizeChordLabels(descriptor.value);
+      continue;
+    }
     if (typeof descriptor.value !== 'boolean') {
       throw new CanonicalTabMusicXmlWriterV2Error(
         `options.${key} must be boolean.`,
@@ -92,6 +122,106 @@ function normalizeOptions(options) {
     normalized[key] = descriptor.value;
   }
   return normalized;
+}
+
+function normalizeChordSpelling(value, path, optional = false) {
+  if (value === null && optional) return null;
+  const descriptors = exactDataDescriptors(value, ['step', 'alter'], path);
+  const step = descriptors?.step.value;
+  const alter = descriptors?.alter.value;
+  if (
+    !descriptors
+    || !['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(step)
+    || !Number.isInteger(alter)
+    || alter < -2
+    || alter > 2
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.chordLabels contains an invalid pitch spelling.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: path },
+    );
+  }
+  return Object.freeze({ step, alter });
+}
+
+function normalizeChordLabels(value) {
+  if (
+    !Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+    || value.length > 4000
+    || Reflect.ownKeys(value).some((key) => (
+      key !== 'length'
+      && (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/.test(key) || Number(key) >= value.length)
+    ))
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.chordLabels must be a bounded native array.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: 'chordLabels' },
+    );
+  }
+  const allowedKinds = new Set([
+    'major', 'minor', 'diminished', 'augmented', 'dominant',
+    'major-seventh', 'minor-seventh', 'half-diminished', 'diminished-seventh',
+  ]);
+  const labels = [];
+  let previousMeasureIndex = -1;
+  let previousOnset = -1;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.chordLabels must be dense.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `chordLabels[${index}]` },
+      );
+    }
+    const entry = value[index];
+    const expected = [
+      'measureIndex', 'onsetDivisions', 'label', 'root', 'kind', 'bass', 'source',
+    ];
+    const descriptors = exactDataDescriptors(entry, expected, `chordLabels[${index}]`);
+    const measureIndex = descriptors?.measureIndex.value;
+    const onsetDivisions = descriptors?.onsetDivisions.value;
+    const label = descriptors?.label.value;
+    const root = descriptors?.root.value;
+    const kind = descriptors?.kind.value;
+    const bass = descriptors?.bass.value;
+    const source = descriptors?.source.value;
+    if (
+      !descriptors
+      || !Number.isInteger(measureIndex)
+      || measureIndex < 0
+      || !Number.isInteger(onsetDivisions)
+      || onsetDivisions < 0
+      || typeof label !== 'string'
+      || label.length === 0
+      || label.length > 32
+      || !allowedKinds.has(kind)
+      || !['EXPLICIT_MUSICXML', 'DERIVED_EXACT_SIMULTANEITY'].includes(source)
+      || measureIndex < previousMeasureIndex
+      || (measureIndex === previousMeasureIndex && onsetDivisions <= previousOnset)
+    ) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.chordLabels contains an invalid or unordered label.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `chordLabels[${index}]` },
+      );
+    }
+    labels.push(Object.freeze({
+      measureIndex,
+      onsetDivisions,
+      label,
+      root: normalizeChordSpelling(root, `chordLabels[${index}].root`),
+      kind,
+      bass: normalizeChordSpelling(bass, `chordLabels[${index}].bass`, true),
+      source,
+    }));
+    previousMeasureIndex = measureIndex;
+    previousOnset = onsetDivisions;
+  }
+  return Object.freeze(labels);
 }
 
 function normalizeNotationContext(value) {
@@ -456,6 +586,45 @@ function writeBackup(builder, duration) {
   builder.close('backup');
 }
 
+function writeHarmony(builder, label) {
+  builder.open('harmony', ' print-frame="no"');
+  builder.open('root');
+  builder.element('root-step', label.root.step);
+  if (label.root.alter !== 0) builder.element('root-alter', String(label.root.alter));
+  builder.close('root');
+  const rootText = `${label.root.step}${label.root.alter < 0
+    ? 'b'.repeat(-label.root.alter)
+    : '#'.repeat(label.root.alter)}`;
+  const kindText = label.label.slice(rootText.length);
+  builder.element(
+    'kind',
+    label.kind,
+    kindText.length > 0
+      ? ` text="${escapeAttribute(kindText, 'options.chordLabels.label')}"`
+      : '',
+  );
+  if (label.bass) {
+    builder.open('bass');
+    builder.element('bass-step', label.bass.step);
+    if (label.bass.alter !== 0) builder.element('bass-alter', String(label.bass.alter));
+    builder.close('bass');
+  }
+  builder.element('staff', '1');
+  builder.close('harmony');
+}
+
+function writeHarmonyTrack(builder, labels, measure) {
+  if (labels.length === 0) return;
+  let cursor = 0;
+  for (const label of labels) {
+    writeForward(builder, label.onsetDivisions - cursor);
+    writeHarmony(builder, label);
+    cursor = label.onsetDivisions;
+  }
+  writeForward(builder, measure.expectedDurationDivisions - cursor);
+  writeBackup(builder, measure.expectedDurationDivisions);
+}
+
 function renderTrack(
   builder,
   events,
@@ -556,6 +725,20 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
     }
     keySignatures.set(keySignature.measureIndex, keySignature);
   }
+  const chordLabelsByMeasure = new Map();
+  for (const label of normalizedOptions.chordLabels) {
+    const measure = canonicalTabResult.measures[label.measureIndex];
+    if (!measure || label.onsetDivisions >= measure.expectedDurationDivisions) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.chordLabels references an unknown measure or onset.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { measureIndex: label.measureIndex, onsetDivisions: label.onsetDivisions },
+      );
+    }
+    const labels = chordLabelsByMeasure.get(label.measureIndex) || [];
+    labels.push(label);
+    chordLabelsByMeasure.set(label.measureIndex, labels);
+  }
   checkpoint(processing, 'canonical-tab-musicxml-v2:validated');
   const tuningByString = prepareTuning(canonicalTabResult, processing);
   const dispositions = buildDispositionIndex(canonicalTabResult, processing);
@@ -597,6 +780,7 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
       measureIndex === 0 ? null : canonicalTabResult.measures[measureIndex - 1],
       keySignatures.get(measureIndex) || null,
     );
+    writeHarmonyTrack(builder, chordLabelsByMeasure.get(measureIndex) || [], measure);
 
     const activeTracks = tracks
       .map((track) => ({ track, events: eventsForTrack(measure, track, dispositions) }))

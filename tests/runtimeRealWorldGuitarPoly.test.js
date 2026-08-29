@@ -180,14 +180,6 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
       xml: source.replace('<staccato/>', '<unknown-articulation/>'),
     },
     {
-      name: 'source-harmony',
-      expectedFeature: 'harmony',
-      xml: source.replace(
-        '<barline',
-        '<harmony><root><root-step>C</root-step></root><kind>major</kind></harmony><barline',
-      ),
-    },
-    {
       name: 'octave-shift-direction',
       expectedFeature: 'direction',
       xml: source.replace(
@@ -208,6 +200,21 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
   for (const entry of cases) {
     assertBlockedUnsupported(entry.name, entry.xml, entry.expectedFeature);
   }
+
+  const advancedHarmony = processMusicXmlUpload({
+    fileName: 'advanced-harmony.musicxml',
+    bytes: Buffer.from(source.replace(
+      '<barline',
+      '<harmony><root><root-step>C</root-step></root><kind>major</kind><degree><degree-value>9</degree-value><degree-alter>0</degree-alter><degree-type>add</degree-type></degree></harmony><barline',
+    )),
+  });
+  assert.equal(advancedHarmony.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(advancedHarmony.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(advancedHarmony.preflight.issues[0].code, 'UNSUPPORTED_BASIC_MUSICXML_HARMONY');
+  assert.equal(
+    advancedHarmony.preflight.issues[0].details.reason,
+    'UNSUPPORTED_HARMONY_CHILD',
+  );
 });
 
 test('runtime rejects a late guitar transpose instead of applying it to earlier notes', () => {
