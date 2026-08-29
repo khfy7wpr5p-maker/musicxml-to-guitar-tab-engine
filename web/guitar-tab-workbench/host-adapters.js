@@ -96,6 +96,41 @@
     });
   }
 
+  function transpositionQuery(request) {
+    assert(request && typeof request === 'object', 'Document transposition request is required.');
+    assert(request.bytes instanceof Uint8Array, 'Document transposition requires owned source bytes.');
+    assert(request.bytes.byteLength <= MAX_SOURCE_BYTES, 'Document transposition source bytes exceed the fixed size limit.');
+    assert(typeof request.fileName === 'string' && request.fileName.length > 0, 'Document transposition requires a file name.');
+    assert(
+      typeof request.expectedInputSha256 === 'string'
+        && /^[0-9a-f]{64}$/.test(request.expectedInputSha256),
+      'Document transposition requires the immutable source SHA-256.',
+    );
+    const operation = request.operation;
+    assert(operation && typeof operation === 'object', 'Document transposition requires an operation.');
+    const hasSemitones = Object.hasOwn(operation, 'semitones');
+    const hasTargetKey = Object.hasOwn(operation, 'targetKey');
+    assert(hasSemitones !== hasTargetKey, 'Document transposition requires exactly one operation kind.');
+    const query = new URLSearchParams({
+      fileName: request.fileName,
+      sha: request.expectedInputSha256,
+    });
+    if (hasSemitones) {
+      assert(Number.isSafeInteger(operation.semitones), 'Document transposition semitones must be an integer.');
+      assert(operation.spelling === 'sharps' || operation.spelling === 'flats', 'Semitone transposition requires a spelling preference.');
+      query.set('semitones', String(operation.semitones));
+      query.set('spelling', operation.spelling);
+    } else {
+      assert(typeof operation.targetKey === 'string' && operation.targetKey.length > 0, 'Document transposition target key is required.');
+      query.set('targetKey', operation.targetKey);
+      if (operation.spelling !== undefined && operation.spelling !== null) {
+        assert(operation.spelling === 'sharps' || operation.spelling === 'flats', 'Document transposition spelling preference is invalid.');
+        query.set('spelling', operation.spelling);
+      }
+    }
+    return query.toString();
+  }
+
   function createRuntimeApiAdapter(options = {}) {
     const apiBaseUrl = normalizeSameOriginPath(options.apiBaseUrl, '/api', 'apiBaseUrl');
 
@@ -133,6 +168,15 @@
         });
         return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },
+      async transpose(request) {
+        const query = transpositionQuery(request);
+        const response = await fetch(`${apiBaseUrl}/transpose?${query}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/octet-stream'},
+          body: request.bytes,
+        });
+        return readJsonResponse(response, 'Document transposition request failed.');
+      },
       loadPreview: null,
     });
   }
@@ -157,6 +201,9 @@
         throw readOnlyError();
       },
       async polyphonicEdit() {
+        throw readOnlyError();
+      },
+      async transpose() {
         throw readOnlyError();
       },
       async loadPreview() {

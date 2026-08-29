@@ -72,6 +72,7 @@
     const upload = options.upload;
     const edit = options.edit;
     const polyphonicEdit = options.polyphonicEdit;
+    const transpose = options.transpose;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
     assert(alphaTab && typeof alphaTab.AlphaTabApi === 'function', 'alphaTab is required.');
     assert(typeof upload === 'function', 'A bounded upload function is required.');
@@ -79,6 +80,10 @@
     assert(
       polyphonicEdit === undefined || typeof polyphonicEdit === 'function',
       'polyphonicEdit must be a function when provided.',
+    );
+    assert(
+      transpose === undefined || typeof transpose === 'function',
+      'transpose must be a function when provided.',
     );
 
     const documentRef = root.ownerDocument;
@@ -98,6 +103,12 @@
     const editOctave = root.querySelector('[data-role="edit-octave"]');
     const applyEditButton = root.querySelector('[data-role="apply-edit"]');
     const cancelEditButton = root.querySelector('[data-role="cancel-edit"]');
+    const transposeStatus = root.querySelector('[data-role="transpose-status"]');
+    const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
+    const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
+    const transposeDownButton = root.querySelector('[data-role="transpose-down"]');
+    const transposeUpButton = root.querySelector('[data-role="transpose-up"]');
+    const transposeTargetButton = root.querySelector('[data-role="transpose-target"]');
 
     assert(
       fileInput && playButton && stopButton && scoreHost && issueList
@@ -105,11 +116,19 @@
       && applyEditButton && cancelEditButton,
       'Workbench markup is incomplete.',
     );
+    if (typeof transpose === 'function') {
+      assert(
+        transposeStatus && transposeSpelling && transposeTargetKey
+        && transposeDownButton && transposeUpButton && transposeTargetButton,
+        'Workbench transposition markup is incomplete.',
+      );
+    }
 
     const state = {
       destroyed: false,
       loading: false,
       editing: false,
+      transposing: false,
       runtimeResult: null,
       scoreLoaded: false,
       playerReady: false,
@@ -212,8 +231,22 @@
       );
     }
 
+    function canTranspose() {
+      return Boolean(
+        typeof transpose === 'function'
+        && !state.loading
+        && !state.editing
+        && !state.transposing
+        && state.scoreLoaded
+        && state.runtimeResult?.status === 'PASS'
+        && session.sourceBytes
+        && session.expectedInputSha256
+        && session.commands.length === 0,
+      );
+    }
+
     function updateControls() {
-      const busy = state.loading || state.editing;
+      const busy = state.loading || state.editing || state.transposing;
       const playbackReady = !busy
         && state.scoreLoaded
         && state.playerReady
@@ -226,6 +259,13 @@
       editStep.disabled = busy || !state.selectedEvent;
       editAlter.disabled = busy || !state.selectedEvent;
       editOctave.disabled = busy || !state.selectedEvent;
+      if (transposeSpelling) transposeSpelling.disabled = !canTranspose();
+      if (transposeTargetKey) transposeTargetKey.disabled = !canTranspose();
+      if (transposeDownButton) transposeDownButton.disabled = !canTranspose();
+      if (transposeUpButton) transposeUpButton.disabled = !canTranspose();
+      if (transposeTargetButton) {
+        transposeTargetButton.disabled = !canTranspose() || !transposeTargetKey?.value;
+      }
     }
 
     function measureStarts() {
@@ -1045,6 +1085,65 @@
       }
     }
 
+    async function applyDocumentTransposition(operation) {
+      if (!canTranspose()) return false;
+      assert(operation && typeof operation === 'object', 'Document transposition operation is required.');
+      const spelling = transposeSpelling.value;
+      const requestOperation = Object.hasOwn(operation, 'semitones')
+        ? { semitones: operation.semitones, spelling }
+        : { targetKey: operation.targetKey };
+
+      state.transposing = true;
+      state.lastError = null;
+      if (state.playerReady) api.stop();
+      setText(transposeStatus, 'Transposing and regenerating TAB…');
+      updateControls();
+
+      try {
+        const result = await transpose({
+          fileName: session.sourceFileName,
+          bytes: new Uint8Array(session.sourceBytes),
+          expectedInputSha256: session.expectedInputSha256,
+          operation: requestOperation,
+        });
+        assert(result && typeof result === 'object', 'Document transposition result is invalid.');
+        assert(result.status === 'PASS' || result.status === 'BLOCKED', 'Document transposition result status is invalid.');
+        if (result.status === 'BLOCKED') {
+          const message = result.preflight?.issues?.[0]?.message || 'Document transposition was blocked.';
+          state.lastError = message;
+          renderIssues(result.preflight?.issues || []);
+          setText(transposeStatus, `Blocked · ${message}`);
+          return false;
+        }
+        assert(typeof result.sourceMusicXml === 'string' && result.sourceMusicXml.length > 0, 'PASS transposition result is missing transformed source MusicXML.');
+        assert(
+          typeof result.input?.sha256 === 'string' && /^[0-9a-f]{64}$/.test(result.input.sha256),
+          'PASS transposition result is missing a transformed source SHA-256 identity.',
+        );
+        const nextSourceBytes = new TextEncoder().encode(result.sourceMusicXml);
+        assert(nextSourceBytes.byteLength <= MAX_CLIENT_UPLOAD_BYTES, 'Transformed MusicXML exceeds the 5 MiB client boundary.');
+        if (session.sourceBytes) session.sourceBytes.fill(0);
+        session.sourceBytes = nextSourceBytes;
+        session.expectedInputSha256 = result.input.sha256;
+        session.commands = [];
+        state.revisionNumber = 0;
+        setText(transposeStatus, `Applied · ${result.transposition?.semitones ?? 0} semitone(s) · revision reset`);
+        return setRuntimeResult(result);
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        setText(transposeStatus, `Transposition failed: ${state.lastError}`);
+        renderIssues([{
+          code: 'WORKBENCH_TRANSPOSITION_FAILED',
+          message: state.lastError,
+          location: null,
+        }]);
+        return false;
+      } finally {
+        state.transposing = false;
+        updateControls();
+      }
+    }
+
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
@@ -1070,6 +1169,23 @@
       clearSelection();
       updateControls();
     });
+    if (transposeDownButton) {
+      transposeDownButton.addEventListener('click', async () => {
+        await applyDocumentTransposition({ semitones: -1 });
+      });
+    }
+    if (transposeUpButton) {
+      transposeUpButton.addEventListener('click', async () => {
+        await applyDocumentTransposition({ semitones: 1 });
+      });
+    }
+    if (transposeTargetButton) {
+      transposeTargetButton.addEventListener('click', async () => {
+        if (!transposeTargetKey?.value) return;
+        await applyDocumentTransposition({ targetKey: transposeTargetKey.value });
+      });
+    }
+    if (transposeTargetKey) transposeTargetKey.addEventListener('change', updateControls);
 
     api.error.on((error) => {
       state.lastError = error?.message || String(error);
@@ -1122,6 +1238,7 @@
       selectNote,
       selectEvent: selectEventByIdentity,
       applySelectedEdit,
+      applyDocumentTransposition,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
         return Object.freeze({
@@ -1148,6 +1265,7 @@
           playDisabled: playButton.disabled,
           stopDisabled: stopButton.disabled,
           applyEditDisabled: applyEditButton.disabled,
+          transposeDisabled: transposeDownButton ? transposeDownButton.disabled : true,
         });
       },
       destroy() {

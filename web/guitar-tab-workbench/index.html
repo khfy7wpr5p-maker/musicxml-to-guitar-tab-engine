@@ -183,6 +183,40 @@
               <div class="workbench-facts__wide"><dt>Source SHA-256</dt><dd class="workbench-fact-mono" data-role="document-sha">—</dd></div>
               <div class="workbench-facts__wide"><dt>Authority</dt><dd data-role="document-authority">Deterministic TAB result · browser UI does not mutate TAB directly.</dd></div>
             </dl>
+            <section class="workbench-editor workbench-transposition" aria-label="Document transposition">
+              <div class="workbench-editor__heading">
+                <h3>Transpose document</h3>
+                <strong data-role="transpose-status">Load a document to transpose.</strong>
+              </div>
+              <div class="workbench-editor__controls">
+                <label>
+                  <span>Spelling</span>
+                  <select data-role="transpose-spelling" disabled>
+                    <option value="sharps">Sharps (#)</option>
+                    <option value="flats">Flats (b)</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Target key</span>
+                  <select data-role="transpose-target-key" disabled>
+                    <option value="">Choose target key</option>
+                    <option>Cb major</option><option>Gb major</option><option>Db major</option><option>Ab major</option>
+                    <option>Eb major</option><option>Bb major</option><option>F major</option><option>C major</option>
+                    <option>G major</option><option>D major</option><option>A major</option><option>E major</option>
+                    <option>B major</option><option>F# major</option><option>C# major</option>
+                    <option>Ab minor</option><option>Eb minor</option><option>Bb minor</option><option>F minor</option>
+                    <option>C minor</option><option>G minor</option><option>D minor</option><option>A minor</option>
+                    <option>E minor</option><option>B minor</option><option>F# minor</option><option>C# minor</option>
+                    <option>G# minor</option><option>D# minor</option><option>A# minor</option>
+                  </select>
+                </label>
+              </div>
+              <div class="workbench-editor__actions">
+                <button data-role="transpose-down" type="button" disabled>−1 semitone</button>
+                <button data-role="transpose-up" type="button" disabled>+1 semitone</button>
+                <button data-role="transpose-target" type="button" disabled>Apply target key</button>
+              </div>
+            </section>
           </section>
         </aside>
       </div>
