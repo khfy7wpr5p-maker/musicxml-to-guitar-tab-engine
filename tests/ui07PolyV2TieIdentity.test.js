@@ -18,24 +18,22 @@ const unisonFixture = fs.readFileSync(
   path.join(__dirname, 'fixtures/ui07-poly-unison.musicxml'),
 );
 
-test('UI-07 keeps retained POLY_V2 ties fail-closed at deterministic final selection', () => {
+test('UI-07 routes retained POLY_V2 ties through sustained canonical selection', () => {
   const result = processMusicXmlUpload({
     fileName: 'ui07-poly-unison-tie.musicxml',
     bytes: retainedTieFixture,
   });
 
-  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.status, 'PASS');
   assert.equal(result.route, 'POLY_V2');
-  assert.equal(result.preflight.issues.length, 1);
-  assert.equal(
-    result.preflight.issues[0].code,
-    'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION',
-  );
-  assert.equal(result.preflight.issues[0].details.reason, 'RETAINED_TIE_NOT_SUPPORTED');
-  assert.match(
-    result.preflight.issues[0].message,
-    /separately versioned sustained-sonority selector/i,
-  );
+  const tieSegments = result.canonicalTabResult.noteDispositions.filter((entry) => (
+    entry.sourceEventId === 'P1:measure:0:note:0'
+    || entry.sourceEventId === 'P1:measure:1:note:0'
+  ));
+  assert.equal(tieSegments.length, 2);
+  assert.deepEqual(tieSegments[0].selectedPosition, tieSegments[1].selectedPosition);
+  assert.match(result.musicXml, /<tie type="start"\/>/);
+  assert.match(result.musicXml, /<tie type="stop"\/>/);
 });
 
 test('UI-07 untied unison keeps exact source identity and edits only the acknowledged peer', () => {
