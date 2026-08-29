@@ -11,6 +11,9 @@ const { processMusicXmlNoteEdit } = require('./musicXmlNoteEditRuntime');
 const {
   processMusicXmlPolyphonicNoteEditV2,
 } = require('./musicXmlPolyphonicNoteEditRuntimeV2');
+const {
+  processMusicXmlDocumentTransposition,
+} = require('./musicXmlDocumentTranspositionRuntime');
 
 const RUNTIME_HOST_VERSION = '1.0.0';
 const EDIT_CONTENT_TYPE = 'application/vnd.st-guitar-tab-edit+octet-stream';
@@ -197,6 +200,42 @@ function readSingleQueryValue(url, name) {
   return values[0];
 }
 
+function readOptionalSingleQueryValue(url, name) {
+  const values = url.searchParams.getAll(name);
+  if (values.length === 0) return null;
+  if (values.length !== 1 || values[0].length === 0) {
+    throw new RuntimeHttpHostError(
+      `Query parameter ${name} may appear at most once and must not be empty.`,
+      400,
+      'INVALID_QUERY',
+    );
+  }
+  return values[0];
+}
+
+function transpositionOperation(url) {
+  const semitones = readOptionalSingleQueryValue(url, 'semitones');
+  const targetKey = readOptionalSingleQueryValue(url, 'targetKey');
+  const spelling = readOptionalSingleQueryValue(url, 'spelling');
+  if ((semitones === null) === (targetKey === null)) {
+    throw new RuntimeHttpHostError(
+      'Transposition requires exactly one of semitones or targetKey.',
+      400,
+      'INVALID_TRANSPOSITION_QUERY',
+    );
+  }
+  if (semitones !== null && !/^-?\d+$/.test(semitones)) {
+    throw new RuntimeHttpHostError(
+      'Transposition semitones must be an integer.',
+      400,
+      'INVALID_TRANSPOSITION_QUERY',
+    );
+  }
+  return semitones !== null
+    ? { semitones: Number(semitones), ...(spelling === null ? {} : { spelling }) }
+    : { targetKey, ...(spelling === null ? {} : { spelling }) };
+}
+
 function resolveInside(root, relativePath) {
   let decoded;
   try {
@@ -261,6 +300,26 @@ function createRuntimeHttpServer(options = {}) {
         const fileName = readSingleQueryValue(url, 'fileName');
         const bytes = await readBoundedBody(request);
         writeJson(response, 200, processMusicXmlUpload({ fileName, bytes }));
+        return;
+      }
+
+      if (url.pathname === '/api/transpose') {
+        if (request.method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        requireOctetStream(request);
+        const fileName = readSingleQueryValue(url, 'fileName');
+        const expectedInputSha256 = readSingleQueryValue(url, 'sha');
+        const operation = transpositionOperation(url);
+        const bytes = await readBoundedBody(request);
+        writeJson(response, 200, processMusicXmlDocumentTransposition({
+          fileName,
+          bytes,
+          expectedInputSha256,
+          operation,
+        }));
         return;
       }
 

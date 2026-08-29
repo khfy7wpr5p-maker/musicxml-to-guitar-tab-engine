@@ -12,6 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '../..');
 const { processMusicXmlUpload } = require('../../src/app/musicXmlUploadRuntime');
 const { processMusicXmlNoteEdit } = require('../../src/app/musicXmlNoteEditRuntime');
+const { processMusicXmlDocumentTransposition } = require('../../src/app/musicXmlDocumentTranspositionRuntime');
 
 const browserExecutable = process.env.BROWSER_EXECUTABLE;
 assert.ok(browserExecutable && fs.existsSync(browserExecutable));
@@ -75,6 +76,12 @@ function pageHtml() {
         <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
         <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
         <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
+        <strong data-role="transpose-status"></strong>
+        <select data-role="transpose-spelling" disabled><option value="sharps">Sharps</option><option value="flats">Flats</option></select>
+        <select data-role="transpose-target-key" disabled><option value="">Choose target key</option><option>D major</option></select>
+        <button data-role="transpose-down" type="button" disabled>−1 semitone</button>
+        <button data-role="transpose-up" type="button" disabled>+1 semitone</button>
+        <button data-role="transpose-target" type="button" disabled>Apply target key</button>
       </section>
       <section class="workbench-issues">
         <div class="workbench-issues__heading"><h2>Issues</h2><span data-role="issue-count"></span></div>
@@ -87,7 +94,7 @@ function pageHtml() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const smoke = window.__workbenchSmoke = {error:null,uploadCalls:0,editCalls:0};
+  const smoke = window.__workbenchSmoke = {error:null,uploadCalls:0,editCalls:0,transposeCalls:0};
   const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
@@ -112,12 +119,30 @@ function pageHtml() {
     if(!response.ok) throw new Error(payload?.message || 'edit failed');
     return payload;
   };
+  const transpose = async request => {
+    smoke.transposeCalls += 1;
+    const operation = request.operation;
+    const query = new URLSearchParams({
+      fileName:request.fileName,
+      sha:request.expectedInputSha256,
+      ...(Object.hasOwn(operation,'semitones')
+        ? {semitones:String(operation.semitones),spelling:operation.spelling}
+        : {targetKey:operation.targetKey}),
+    });
+    const response = await fetch('/api/transpose?' + query.toString(), {
+      method:'POST', headers:{'content-type':'application/octet-stream'}, body:request.bytes,
+    });
+    const payload = await response.json();
+    if(!response.ok) throw new Error(payload?.message || 'transpose failed');
+    return payload;
+  };
   try {
     window.__workbench = GuitarTabWorkbench.mount({
       root:document.querySelector('[data-guitar-tab-workbench]'),
       alphaTab:window.alphaTab,
       upload,
       edit,
+      transpose,
       assetBaseUrl:'/assets',
       scriptFileUrl:window.location.origin + '/assets/alphatab.js',
       playerMode:window.alphaTab.PlayerMode.EnabledExternalMedia,
@@ -191,6 +216,27 @@ const server = http.createServer((request, response) => {
           bytes,
           expectedInputSha256:url.searchParams.get('sha') || '',
           commands:JSON.parse(String(request.headers['x-st-edit-commands'] || 'null')),
+        });
+        response.writeHead(200, {'content-type':'application/json; charset=utf-8'});
+        response.end(JSON.stringify(result));
+      } catch (error) {
+        response.writeHead(400, {'content-type':'application/json; charset=utf-8'});
+        response.end(JSON.stringify({message:error?.message || String(error)}));
+      }
+    });
+    return;
+  }
+  if (url.pathname === '/api/transpose' && request.method === 'POST') {
+    collectBody(request, response, (bytes) => {
+      try {
+        const semitones = url.searchParams.get('semitones');
+        const result = processMusicXmlDocumentTransposition({
+          fileName:url.searchParams.get('fileName') || '',
+          bytes,
+          expectedInputSha256:url.searchParams.get('sha') || '',
+          operation:semitones === null
+            ? {targetKey:url.searchParams.get('targetKey') || ''}
+            : {semitones:Number(semitones),spelling:url.searchParams.get('spelling') || ''},
         });
         response.writeHead(200, {'content-type':'application/json; charset=utf-8'});
         response.end(JSON.stringify(result));
@@ -291,6 +337,26 @@ try {
   assert.ok(passState.svgCount > 0);
   assert.match(passState.issueText,/No blocking issues/);
 
+  await page.click('[data-role="transpose-up"]');
+  await page.waitForFunction(
+    () => window.__workbenchSmoke?.error
+      || (window.__workbenchSmoke?.transposeCalls === 1
+        && window.__workbench?.snapshot().scoreLoaded === true
+        && /Applied/.test(document.querySelector('[data-role="transpose-status"]').textContent)),
+    {timeout:30000},
+  );
+  const transposed = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    transposeCalls:window.__workbenchSmoke.transposeCalls,
+    status:document.querySelector('[data-role="transpose-status"]').textContent,
+    svgCount:document.querySelectorAll('[data-role="score"] svg').length,
+  }));
+  assert.equal(transposed.transposeCalls,1);
+  assert.equal(transposed.snapshot.revisionNumber,0);
+  assert.equal(transposed.snapshot.revisionCommandCount,0);
+  assert.match(transposed.status,/Applied/);
+  assert.ok(transposed.svgCount > 0);
+
   const selected = await page.evaluate(() => {
     const note = window.__workbench.api.score.tracks[0].staves[0].bars[0].voices[0].beats[1].notes[0];
     const before = window.__workbench.snapshot().runtimeResult.canonicalTabResult.measures[0].events[1];
@@ -299,7 +365,7 @@ try {
   });
   assert.equal(selected.accepted,true);
   assert.equal(selected.snapshot.selectedEvent.eventId,'m1-e1');
-  assert.equal(selected.snapshot.selectedEvent.pitch.written,'D#3');
+  assert.equal(selected.snapshot.selectedEvent.pitch.written,'E3');
   assert.equal(selected.snapshot.applyEditDisabled,false);
 
   await page.select('[data-role="edit-step"]','G');
@@ -443,6 +509,7 @@ try {
     blockedTieEdit:blockedTieEdit.snapshot,
     warningFocus:warningFocus.snapshot,
     blockedLoad:blockedLoad.snapshot,
+    transposed:transposed.snapshot,
     browserMessages:messages,
   })}\n`);
 } finally {

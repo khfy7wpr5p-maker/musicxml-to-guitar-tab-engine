@@ -152,6 +152,44 @@ test('runtime host exposes the separated POLY_V2 edit endpoint without changing 
   assert.equal(edit.payload.revision.appliedEdits[0].afterPitch.written, 'E4');
 });
 
+test('runtime host exposes bounded document transposition without browser-side MusicXML mutation', async (t) => {
+  const origin = await startServer(t);
+  const upload = await json(await fetch(`${origin}/api/upload?fileName=fixture.musicxml`, {
+    method: 'POST',
+    headers: {'content-type': 'application/octet-stream'},
+    body: monoFixture,
+  }));
+  assert.equal(upload.payload.status, 'PASS');
+
+  const transposed = await json(await fetch(
+    `${origin}/api/transpose?fileName=fixture.musicxml&sha=${upload.payload.input.sha256}&semitones=1&spelling=flats`,
+    {
+      method: 'POST',
+      headers: {'content-type': 'application/octet-stream'},
+      body: monoFixture,
+    },
+  ));
+  assert.equal(transposed.response.status, 200);
+  assert.equal(transposed.payload.status, 'PASS');
+  assert.equal(transposed.payload.route, 'MONO_V1');
+  assert.equal(transposed.payload.transposition.semitones, 1);
+  assert.equal(transposed.payload.transposition.spelling, 'flats');
+  assert.notEqual(transposed.payload.input.sha256, upload.payload.input.sha256);
+  assert.match(transposed.payload.sourceMusicXml, /<step>F<\/step>/);
+  assert.match(transposed.payload.musicXml, /<sign>TAB<\/sign>/);
+
+  const invalid = await json(await fetch(
+    `${origin}/api/transpose?fileName=fixture.musicxml&sha=${upload.payload.input.sha256}&semitones=1&targetKey=D`,
+    {
+      method: 'POST',
+      headers: {'content-type': 'application/octet-stream'},
+      body: monoFixture,
+    },
+  ));
+  assert.equal(invalid.response.status, 400);
+  assert.equal(invalid.payload.code, 'INVALID_TRANSPOSITION_QUERY');
+});
+
 test('runtime host transports Unicode POLY_V2 source identities through the UTF-8 edit body', async (t) => {
   const origin = await startServer(t);
   const unicodeFixture = Buffer.from(polyFixture.toString('utf8').split('P1').join('乐'), 'utf8');

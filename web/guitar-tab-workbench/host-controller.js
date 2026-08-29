@@ -113,6 +113,9 @@
       applySelectedEdit() {
         return workbench.applySelectedEdit();
       },
+      applyDocumentTransposition(operation) {
+        return workbench.applyDocumentTransposition(operation);
+      },
       snapshot() {
         return workbench.snapshot();
       },
@@ -242,6 +245,7 @@
       upload: adapter.upload,
       edit: adapter.edit,
       polyphonicEdit: adapter.polyphonicEdit,
+      transpose: adapter.transpose,
       assetBaseUrl: assetUrls.assetBaseUrl,
       scriptFileUrl: assetUrls.scriptFileUrl,
       soundFontUrl: assetUrls.soundFontUrl,

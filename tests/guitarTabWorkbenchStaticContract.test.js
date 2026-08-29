@@ -41,6 +41,12 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'runtime-upload-action',
     'load-demo',
     'preview-notice',
+    'transpose-status',
+    'transpose-spelling',
+    'transpose-target-key',
+    'transpose-down',
+    'transpose-up',
+    'transpose-target',
   ]) {
     assert.match(html, new RegExp(`data-role=["']${role}["']`));
   }
@@ -58,6 +64,7 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostAdapters, /\/api/);
   assert.match(hostAdapters, /\/upload\?fileName=/);
   assert.match(hostAdapters, /\/edit/);
+  assert.match(hostAdapters, /\/transpose\?/);
   assert.match(hostAdapters, /application\/octet-stream/);
   assert.match(hostAdapters, /application\/vnd\.st-guitar-tab-edit\+octet-stream/);
   assert.match(hostAdapters, /TextEncoder/);
@@ -65,6 +72,7 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostAdapters, /expectedInputSha256/);
   assert.match(hostAdapters, /function polyV2RuntimeCommands/);
   assert.match(hostAdapters, /polyV2RuntimeCommands\(request\?\.commands\)/);
+  assert.match(hostAdapters, /function transpositionQuery/);
   assert.match(hostAdapters, /createRuntimeApiAdapter/);
   assert.match(hostAdapters, /createStaticPreviewAdapter/);
   assert.match(hostAdapters, /same-origin path/);
@@ -90,6 +98,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /selectEventByIdentity/);
   assert.match(script, /expectedInputSha256/);
   assert.match(script, /commands:\s*pendingCommands\.map/);
+  assert.match(script, /function applyDocumentTransposition/);
+  assert.match(script, /session\.commands\.length === 0/);
   assert.match(script, /api\.load\(new TextEncoder\(\)\.encode\(result\.musicXml\)\)/);
   assert.match(script, /api\.play\(\)/);
   assert.match(script, /api\.stop\(\)/);
