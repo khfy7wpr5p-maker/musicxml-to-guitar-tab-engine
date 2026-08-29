@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>BWV 565 grace transition fixture</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="11">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note>
+        <grace slash="yes"/>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff>
+        <beam number="1">begin</beam>
+      </note>
+      <note>
+        <grace slash="yes"/>
+        <pitch><step>G</step><octave>4</octave></pitch>
+        <voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff>
+        <beam number="1">end</beam>
+      </note>
+      <note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff>
+      </note>
+      <backup><duration>16</duration></backup>
+      <note><rest/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+  </part>
+</score-partwise>

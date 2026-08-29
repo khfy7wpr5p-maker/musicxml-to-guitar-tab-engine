@@ -4,6 +4,7 @@ const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { parsePitchName } = require('../music/pitch');
 const { isProcessingRuntime } = require('../core/processingRuntime');
+const { GUITAR_STRING_COUNT, DEFAULT_FRET_RANGE } = require('../guitar/tuning');
 const {
   CANONICAL_TAB_RESULT_V2_VERSION,
   CanonicalTabResultV2ContractError,
@@ -12,6 +13,8 @@ const {
 
 const MUSICXML_VERSION = '4.0';
 const MAX_OUTPUT_VOICE_TRACKS = 64;
+const MAX_GRACE_TRANSITION_GROUPS = 128;
+const MAX_GRACE_TRANSITION_NOTES = 256;
 
 class CanonicalTabMusicXmlWriterV2Error extends EngineError {
   constructor(message, code = 'INVALID_CANONICAL_TAB_MUSICXML_V2_RESULT', details = {}) {
@@ -86,6 +89,7 @@ function normalizeOptions(options) {
     trailingNewline: false,
     notationContext: null,
     chordLabels: Object.freeze([]),
+    graceTransitions: Object.freeze([]),
   };
   const allowed = new Set(Object.keys(normalized));
   for (const key of Reflect.ownKeys(options)) {
@@ -110,6 +114,10 @@ function normalizeOptions(options) {
     }
     if (key === 'chordLabels') {
       normalized.chordLabels = normalizeChordLabels(descriptor.value);
+      continue;
+    }
+    if (key === 'graceTransitions') {
+      normalized.graceTransitions = normalizeGraceTransitions(descriptor.value);
       continue;
     }
     if (typeof descriptor.value !== 'boolean') {
@@ -224,6 +232,192 @@ function normalizeChordLabels(value) {
   return Object.freeze(labels);
 }
 
+function normalizeGracePitch(value, path) {
+  const descriptors = exactDataDescriptors(value, ['step', 'alter', 'octave'], path);
+  const step = descriptors?.step.value;
+  const alter = descriptors?.alter.value;
+  const octave = descriptors?.octave.value;
+  if (
+    !descriptors
+    || !['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(step)
+    || !Number.isInteger(alter)
+    || alter < -2
+    || alter > 2
+    || !Number.isSafeInteger(octave)
+    || Object.is(octave, -0)
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.graceTransitions contains an invalid grace pitch.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: path },
+    );
+  }
+  return Object.freeze({ step, alter, octave });
+}
+
+function normalizeGraceTransitions(value) {
+  if (
+    !Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+    || value.length > MAX_GRACE_TRANSITION_GROUPS
+    || Reflect.ownKeys(value).some((key) => (
+      key !== 'length'
+      && (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/.test(key) || Number(key) >= value.length)
+    ))
+  ) {
+    throw new CanonicalTabMusicXmlWriterV2Error(
+      'options.graceTransitions must be a bounded native array.',
+      'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+      { field: 'graceTransitions' },
+    );
+  }
+
+  const groups = [];
+  const anchors = new Set();
+  let eventCount = 0;
+  let previousMeasureIndex = -1;
+  for (let groupIndex = 0; groupIndex < value.length; groupIndex += 1) {
+    if (!Object.hasOwn(value, groupIndex)) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.graceTransitions must be dense.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `graceTransitions[${groupIndex}]` },
+      );
+    }
+    const entry = value[groupIndex];
+    const expected = [
+      'graceGroupId', 'measureIndex', 'voice', 'staff', 'anchorSourceEventId', 'notes',
+    ];
+    const descriptors = exactDataDescriptors(entry, expected, `graceTransitions[${groupIndex}]`);
+    const graceGroupId = descriptors?.graceGroupId.value;
+    const measureIndex = descriptors?.measureIndex.value;
+    const voice = descriptors?.voice.value;
+    const staff = descriptors?.staff.value;
+    const anchorSourceEventId = descriptors?.anchorSourceEventId.value;
+    const notesValue = descriptors?.notes.value;
+    if (
+      !descriptors
+      || typeof graceGroupId !== 'string'
+      || graceGroupId.length === 0
+      || graceGroupId.length > 512
+      || !Number.isInteger(measureIndex)
+      || measureIndex < 0
+      || measureIndex < previousMeasureIndex
+      || typeof voice !== 'string'
+      || voice.length === 0
+      || voice.length > 64
+      || !Number.isInteger(staff)
+      || staff < 1
+      || staff > 2
+      || typeof anchorSourceEventId !== 'string'
+      || anchorSourceEventId.length === 0
+      || anchorSourceEventId.length > 512
+      || anchors.has(anchorSourceEventId)
+      || !Array.isArray(notesValue)
+      || isProxy(notesValue)
+      || Object.getPrototypeOf(notesValue) !== Array.prototype
+      || notesValue.length < 1
+      || notesValue.length > 2
+      || Reflect.ownKeys(notesValue).some((key) => (
+        key !== 'length'
+        && (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/.test(key) || Number(key) >= notesValue.length)
+      ))
+    ) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.graceTransitions contains an invalid or unordered grace group.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { field: `graceTransitions[${groupIndex}]` },
+      );
+    }
+    eventCount += notesValue.length;
+    if (eventCount > MAX_GRACE_TRANSITION_NOTES) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.graceTransitions exceeds the fixed grace-note boundary.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { limit: MAX_GRACE_TRANSITION_NOTES, observed: eventCount },
+      );
+    }
+
+    const notes = [];
+    for (let noteIndex = 0; noteIndex < notesValue.length; noteIndex += 1) {
+      if (!Object.hasOwn(notesValue, noteIndex)) {
+        throw new CanonicalTabMusicXmlWriterV2Error(
+          'Grace transition note arrays must be dense.',
+          'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+          { field: `graceTransitions[${groupIndex}].notes[${noteIndex}]` },
+        );
+      }
+      const note = notesValue[noteIndex];
+      const noteExpected = [
+        'graceEventId', 'orderIndex', 'pitch', 'nominalType', 'slash', 'stem', 'beam', 'string', 'fret',
+      ];
+      const noteDescriptors = exactDataDescriptors(
+        note,
+        noteExpected,
+        `graceTransitions[${groupIndex}].notes[${noteIndex}]`,
+      );
+      const graceEventId = noteDescriptors?.graceEventId.value;
+      const orderIndex = noteDescriptors?.orderIndex.value;
+      const nominalType = noteDescriptors?.nominalType.value;
+      const slash = noteDescriptors?.slash.value;
+      const stem = noteDescriptors?.stem.value;
+      const beam = noteDescriptors?.beam.value;
+      const string = noteDescriptors?.string.value;
+      const fret = noteDescriptors?.fret.value;
+      const expectedBeam = notesValue.length === 1 ? null : (noteIndex === 0 ? 'begin' : 'end');
+      if (
+        !noteDescriptors
+        || typeof graceEventId !== 'string'
+        || graceEventId.length === 0
+        || graceEventId.length > 512
+        || orderIndex !== noteIndex
+        || nominalType !== 'eighth'
+        || slash !== 'yes'
+        || (stem !== null && stem !== 'up' && stem !== 'down')
+        || beam !== expectedBeam
+        || !Number.isInteger(string)
+        || string < 1
+        || string > GUITAR_STRING_COUNT
+        || !Number.isInteger(fret)
+        || fret < DEFAULT_FRET_RANGE.minimumFret
+        || fret > DEFAULT_FRET_RANGE.maximumFret
+      ) {
+        throw new CanonicalTabMusicXmlWriterV2Error(
+          'options.graceTransitions contains an invalid grace note.',
+          'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+          { field: `graceTransitions[${groupIndex}].notes[${noteIndex}]` },
+        );
+      }
+      notes.push(Object.freeze({
+        graceEventId,
+        orderIndex,
+        pitch: normalizeGracePitch(
+          noteDescriptors.pitch.value,
+          `graceTransitions[${groupIndex}].notes[${noteIndex}].pitch`,
+        ),
+        nominalType,
+        slash,
+        stem,
+        beam,
+        string,
+        fret,
+      }));
+    }
+    anchors.add(anchorSourceEventId);
+    previousMeasureIndex = measureIndex;
+    groups.push(Object.freeze({
+      graceGroupId,
+      measureIndex,
+      voice,
+      staff,
+      anchorSourceEventId,
+      notes: Object.freeze(notes),
+    }));
+  }
+  return Object.freeze(groups);
+}
+
 function normalizeNotationContext(value) {
   if (!isPlainObject(value) || Reflect.ownKeys(value).some((key) => key !== 'keySignatures')) {
     throw new CanonicalTabMusicXmlWriterV2Error(
@@ -258,7 +452,7 @@ function normalizeNotationContext(value) {
       throw new CanonicalTabMusicXmlWriterV2Error(
         'options.notationContext.keySignatures must be dense.',
         'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
-        { field: `notationContext.keySignatures[${index}]` },
+        { field: 'notationContext.keySignatures' },
       );
     }
     const entry = descriptor.value[index];
@@ -428,6 +622,32 @@ function buildFingerIndex(result, runtime) {
   return fingers;
 }
 
+function buildGraceTransitionIndex(result, graceTransitions) {
+  const byAnchor = new Map();
+  for (let groupIndex = 0; groupIndex < graceTransitions.length; groupIndex += 1) {
+    const group = graceTransitions[groupIndex];
+    const measure = result.measures[group.measureIndex];
+    const anchor = measure?.events.find((event) => event.sourceEventId === group.anchorSourceEventId);
+    if (
+      !measure
+      || !anchor
+      || anchor.type !== 'note'
+      || anchor.voice !== group.voice
+      || anchor.staff !== group.staff
+      || anchor.source?.chordWithPrevious === true
+      || byAnchor.has(group.anchorSourceEventId)
+    ) {
+      throw new CanonicalTabMusicXmlWriterV2Error(
+        'options.graceTransitions references an invalid, chorded, or duplicate anchor.',
+        'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+        { graceGroupId: group.graceGroupId, anchorSourceEventId: group.anchorSourceEventId },
+      );
+    }
+    byAnchor.set(group.anchorSourceEventId, group);
+  }
+  return byAnchor;
+}
+
 function trackKey(event) {
   return `${event.staff}\u0000${event.voice}`;
 }
@@ -536,6 +756,26 @@ function writePitch(builder, pitch, octaveOffset) {
 function writeTies(builder, event, elementName) {
   if (event.tieStop) builder.empty(elementName, ' type="stop"');
   if (event.tieStart) builder.empty(elementName, ' type="start"');
+}
+
+function writeGraceNote(builder, grace, outputStaff, outputVoice) {
+  builder.open('note');
+  builder.empty('grace', ' slash="yes"');
+  writePitch(builder, grace.pitch, outputStaff === 1 ? 1 : 0);
+  builder.element('voice', String(outputVoice));
+  builder.element('type', grace.nominalType);
+  if (grace.stem !== null) builder.element('stem', grace.stem);
+  builder.element('staff', String(outputStaff));
+  if (grace.beam !== null) builder.element('beam', grace.beam, ' number="1"');
+  if (outputStaff === 2) {
+    builder.open('notations');
+    builder.open('technical');
+    builder.element('string', String(grace.string));
+    builder.element('fret', String(grace.fret));
+    builder.close('technical');
+    builder.close('notations');
+  }
+  builder.close('note');
 }
 
 function writeNote(builder, event, disposition, finger, outputStaff, outputVoice, chord) {
@@ -678,6 +918,18 @@ function renderTrack(
       continue;
     }
 
+    const graceTransition = resultIndexes.graceTransitions.get(event.sourceEventId);
+    if (graceTransition) {
+      if (chord) {
+        throw unsupported('Grace transition anchors cannot be serialized as chord members.', {
+          sourceEventId: event.sourceEventId,
+        });
+      }
+      for (const grace of graceTransition.notes) {
+        writeGraceNote(builder, grace, outputStaff, outputVoice);
+      }
+    }
+
     writeNote(
       builder,
       event,
@@ -739,12 +991,16 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
     labels.push(label);
     chordLabelsByMeasure.set(label.measureIndex, labels);
   }
+  const graceTransitions = buildGraceTransitionIndex(
+    canonicalTabResult,
+    normalizedOptions.graceTransitions,
+  );
   checkpoint(processing, 'canonical-tab-musicxml-v2:validated');
   const tuningByString = prepareTuning(canonicalTabResult, processing);
   const dispositions = buildDispositionIndex(canonicalTabResult, processing);
   const fingers = buildFingerIndex(canonicalTabResult, processing);
   const tracks = collectTrackRecords(canonicalTabResult, dispositions, processing);
-  const indexes = { dispositions, fingers };
+  const indexes = { dispositions, fingers, graceTransitions };
   const builder = new XmlBuilder(normalizedOptions.pretty, processing);
 
   builder.line('<?xml version="1.0" encoding="UTF-8"?>');
