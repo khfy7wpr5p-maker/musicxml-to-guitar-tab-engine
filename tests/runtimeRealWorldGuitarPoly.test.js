@@ -53,7 +53,7 @@ test('runtime routes real-world single-staff multi-voice guitar notation through
   assert.equal(result.preflight.issues[0].details.pitchOctaveShift, -1);
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:transpose'));
   assert.equal(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:key'), false);
-  assert.equal(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef'), false);
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef-layout'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:direction:metronome-tempo'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:barline:style'));
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('notation:slur'));
@@ -111,17 +111,74 @@ test('runtime routes real-world single-staff multi-voice guitar notation through
   assert.match(result.musicXml, /<step>F<\/step><alter>1<\/alter><octave>4<\/octave>/);
 });
 
-test('runtime fails closed on unsupported key or clef semantics instead of dropping notation fidelity', () => {
+test('runtime accepts explicit-pitch notation with non-G clef layout metadata', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const result = processMusicXmlUpload({
+    fileName: 'f-clef-layout.musicxml',
+    bytes: Buffer.from(source.replace(
+      '<clef><sign>G</sign><line>2</line></clef>',
+      '<clef><sign>F</sign><line>4</line></clef>',
+    )),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.preflight.status, 'WARNING');
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef-layout'));
+  assert.equal(result.canonicalTabResult.noteDispositions[0].targetPitch.written, 'E3');
+});
+
+test('runtime accepts bounded source string/fret provenance without treating it as target fingering authority', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const result = processMusicXmlUpload({
+    fileName: 'source-fingering-provenance.musicxml',
+    bytes: Buffer.from(source.replace(
+      '<articulations><staccato/></articulations>',
+      '<technical><string>6</string><fret>12</fret></technical>',
+    )),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.ok(
+    result.preflight.issues[0].details.ignoredFeatures
+      .includes('notation:technical:string-fret-provenance'),
+  );
+  assert.equal(result.canonicalTabResult.noteDispositions[0].targetPitch.written, 'E3');
+  assert.notDeepEqual(result.canonicalTabResult.noteDispositions[0].selectedPosition, {
+    string: 6,
+    fret: 12,
+  });
+});
+
+test('runtime accepts bounded staff-tuning provenance while recomputing standard-guitar TAB', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const withStaffTuning = source.replace(
+    '<clef><sign>G</sign><line>2</line></clef>',
+    '<staff-details number="1"><staff-lines>6</staff-lines><staff-tuning line="1"><tuning-step>E</tuning-step><tuning-octave>4</tuning-octave></staff-tuning></staff-details><clef><sign>TAB</sign><line>5</line></clef>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'source-staff-tuning-provenance.musicxml',
+    bytes: Buffer.from(withStaffTuning),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:staff-details'));
+  assert.ok(
+    result.preflight.issues[0].details.ignoredFeatures
+      .includes('attributes:staff-tuning-provenance'),
+  );
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef-layout'));
+  assert.match(result.musicXml, /<staff-tuning line="1"><tuning-step>E<\/tuning-step><tuning-octave>2<\/tuning-octave><\/staff-tuning>/);
+});
+
+test('runtime fails closed on unsupported key semantics instead of dropping notation fidelity', () => {
   const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
   assertBlockedUnsupported(
     'unsupported-key-mode',
     source.replace('<fifths>0</fifths>', '<fifths>0</fifths><mode>dorian</mode>'),
     'key',
-  );
-  assertBlockedUnsupported(
-    'unsupported-clef',
-    source.replace('<clef><sign>G</sign><line>2</line></clef>', '<clef><sign>F</sign><line>4</line></clef>'),
-    'clef',
   );
 });
 
@@ -159,11 +216,11 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
   const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
   const cases = [
     {
-      name: 'technical-fingering',
+      name: 'advanced-technical-semantics',
       expectedFeature: 'notation:technical',
       xml: source.replace(
         '<articulations><staccato/></articulations>',
-        '<technical><string>1</string><fret>0</fret></technical>',
+        '<technical><hammer-on type="start">H</hammer-on></technical>',
       ),
     },
     {
