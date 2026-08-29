@@ -440,8 +440,10 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       continue;
     }
     if (child.name === 'staves') {
-      if (scalarInteger(child) !== 1) throw unsupported('staves');
+      const staffCount = scalarInteger(child);
+      if (staffCount === null || staffCount < 1 || staffCount > 2) throw unsupported('staves');
       children.push(cloneNode(child));
+      if (staffCount === 2) ignoredFeatures.add('attributes:two-staff-layout');
       continue;
     }
     if (child.name === 'transpose') {
@@ -532,7 +534,8 @@ function sanitizeNote(node, pitchOctaveShift, ignoredFeatures) {
       continue;
     }
     if (child.name === 'staff') {
-      if (scalarInteger(child) !== 1) throw unsupported('note-staff');
+      const staff = scalarInteger(child);
+      if (staff === null || staff < 1 || staff > 2) throw unsupported('note-staff');
       children.push(cloneNode(child));
       continue;
     }
