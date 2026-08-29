@@ -38,6 +38,11 @@ const {
 const {
   tryProjectRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
+const {
+  extractBasicMusicXmlHarmony,
+  resolveBasicMusicXmlHarmonyReferences,
+} = require('./basicMusicXmlHarmonyExtractor');
+const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -494,24 +499,42 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let processing;
+  let harmonyExtraction;
   try {
     processing = resolveProcessingRuntime(normalizedOptions.processing, runtime);
     processing.checkpoint('app-upload:start', { byteLength: normalizedUpload.bytes.byteLength });
     normalizeXmlInput(normalizedUpload.bytes, { maxBytes: DEFAULT_MAX_XML_BYTES });
     processing.checkpoint('app-upload:safety-complete');
-  } catch (error) {
-    return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.UNRESOLVED, issueFromError(error));
-  }
-
-  let monophonic;
-  try {
-    monophonic = convertMusicXmlToCanonicalTab(
-      normalizedUpload.bytes,
-      { parser: {}, guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
+    harmonyExtraction = extractBasicMusicXmlHarmony(
+      parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing),
       processing,
     );
   } catch (error) {
-    return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.MONO_V1, issueFromError(error));
+    const route = error?.code === 'UNSUPPORTED_BASIC_MUSICXML_HARMONY'
+      ? MUSICXML_UPLOAD_ROUTE.POLY_V2
+      : MUSICXML_UPLOAD_ROUTE.UNRESOLVED;
+    return blockedResult(identity, route, issueFromError(error));
+  }
+
+  let monophonic;
+  if (harmonyExtraction.references.length > 0) {
+    monophonic = {
+      preflight: {
+        canProcess: false,
+        issues: [{ category: 'capability', code: 'BASIC_HARMONY_REQUIRES_POLY_V2' }],
+      },
+      canonicalTabResult: null,
+    };
+  } else {
+    try {
+      monophonic = convertMusicXmlToCanonicalTab(
+        normalizedUpload.bytes,
+        { parser: {}, guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
+        processing,
+      );
+    } catch (error) {
+      return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.MONO_V1, issueFromError(error));
+    }
   }
 
   if (monophonic.preflight.canProcess && monophonic.canonicalTabResult) {
@@ -561,7 +584,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   let runtimeProjection = null;
   try {
     processing.checkpoint('app-upload:poly:start');
-    const parsedDocument = parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing);
+    const parsedDocument = harmonyExtraction.parsedDocument;
     const projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
     let sourceModel;
     if (projectedMirror) {
@@ -582,12 +605,25 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       ? projectedMirror.normalization
       : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
-    const conversion = (projectedMirror || runtimeProjection)
+    const explicitHarmonyFacts = resolveBasicMusicXmlHarmonyReferences(
+      harmonyExtraction.references,
+      sourceModel,
+    );
+    const chordLabels = createBasicChordLabelModel(
+      sourceModel,
+      explicitHarmonyFacts,
+      processing,
+    ).labels;
+    const writerOptions = {
+      ...(runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {}),
+      chordLabels,
+    };
+    const conversion = (projectedMirror || runtimeProjection || chordLabels.length > 0)
       ? convertProjectedMirrorToCanonicalTab(
         sourceModel,
         decisions,
         processing,
-        runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {},
+        writerOptions,
       )
       : convertMusicXmlToInternalPolyphonicTabV2(
         normalizedUpload.bytes,

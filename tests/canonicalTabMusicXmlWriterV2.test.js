@@ -101,6 +101,55 @@ test('v2 writer preserves bounded runtime key-signature context without widening
   );
 });
 
+test('v2 writer emits one bounded basic harmony timing lane without duplicating it on TAB staff', () => {
+  const result = createCanonicalTabV2CompatibilityFixture();
+  const chordLabels = [{
+    measureIndex: 0,
+    onsetDivisions: 0,
+    label: 'C/E',
+    root: { step: 'C', alter: 0 },
+    kind: 'major',
+    bass: { step: 'E', alter: 0 },
+    source: 'EXPLICIT_MUSICXML',
+  }];
+  const xml = serializeCanonicalTabResultV2ToMusicXml(result, { chordLabels });
+
+  assert.equal(count(xml, /<harmony print-frame="no">/g), 1);
+  assert.match(xml, /<root><root-step>C<\/root-step><\/root>/);
+  assert.match(xml, /<kind text="\/E">major<\/kind>/);
+  assert.match(xml, /<bass><bass-step>E<\/bass-step><\/bass>/);
+  assert.match(xml, /<staff>1<\/staff><\/harmony>/);
+  assert.doesNotMatch(xml, /<staff>2<\/staff><\/harmony>/);
+  assert.equal(parseParsedMusicXmlDocument(xml).root.name, 'score-partwise');
+  assert.equal(Object.isFrozen(result), true);
+});
+
+test('v2 writer rejects hostile chord-label options without invoking accessors', () => {
+  const result = createCanonicalTabV2CompatibilityFixture();
+  let getterCalled = false;
+  const hostile = {
+    measureIndex: 0,
+    onsetDivisions: 0,
+    get label() {
+      getterCalled = true;
+      return 'C';
+    },
+    root: { step: 'C', alter: 0 },
+    kind: 'major',
+    bass: null,
+    source: 'EXPLICIT_MUSICXML',
+  };
+  expectWriterCode(
+    () => serializeCanonicalTabResultV2ToMusicXml(result, { chordLabels: [hostile] }),
+    'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+  );
+  assert.equal(getterCalled, false);
+  expectWriterCode(
+    () => serializeCanonicalTabResultV2ToMusicXml(result, { chordLabels: new Proxy([], {}) }),
+    'INVALID_CANONICAL_TAB_MUSICXML_V2_OPTIONS',
+  );
+});
+
 test('v2 writer rejects v1 artifacts and semantically mutated v2 values fail closed', () => {
   expectWriterCode(
     () => serializeCanonicalTabResultV2ToMusicXml(createCanonicalTabCompatibilityFixture()),

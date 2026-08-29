@@ -31,6 +31,11 @@ const {
 const {
   tryProjectRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
+const {
+  extractBasicMusicXmlHarmony,
+  resolveBasicMusicXmlHarmonyReferences,
+} = require('./basicMusicXmlHarmonyExtractor');
+const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
 
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.0.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
@@ -407,7 +412,9 @@ function blocked(inputIdentity, route, blockingIssue, revision = null) {
 
 function projectEditableSource(bytes, processing) {
   processing.checkpoint('app-poly-note-edit:parse:start');
-  const parsedDocument = parseParsedMusicXmlDocument(bytes, {}, processing);
+  const rawParsedDocument = parseParsedMusicXmlDocument(bytes, {}, processing);
+  const harmonyExtraction = extractBasicMusicXmlHarmony(rawParsedDocument, processing);
+  const parsedDocument = harmonyExtraction.parsedDocument;
   const mirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
   let runtimeProjection = null;
   let sourceModel;
@@ -435,6 +442,10 @@ function projectEditableSource(bytes, processing) {
     sourceModel,
     tabStaffMirrorCollapsed: Boolean(mirror),
     notationContext: runtimeProjection?.notationContext ?? null,
+    explicitHarmonyFacts: resolveBasicMusicXmlHarmonyReferences(
+      harmonyExtraction.references,
+      sourceModel,
+    ),
   };
 }
 
@@ -722,9 +733,17 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       processing,
     );
     assertNoSilentChange(revisedSourceModel, canonicalTabResult);
+    const chordLabels = createBasicChordLabelModel(
+      revisedSourceModel,
+      projected.explicitHarmonyFacts,
+      processing,
+    ).labels;
     const musicXml = serializeCanonicalTabResultV2ToMusicXml(
       canonicalTabResult,
-      projected.notationContext ? { notationContext: projected.notationContext } : {},
+      {
+        ...(projected.notationContext ? { notationContext: projected.notationContext } : {}),
+        chordLabels,
+      },
       processing,
     );
     processing.checkpoint('app-poly-note-edit:complete', {

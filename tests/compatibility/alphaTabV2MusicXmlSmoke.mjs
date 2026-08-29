@@ -87,7 +87,17 @@ function renderScore(score) {
 }
 
 const result = createCanonicalTabV2CompatibilityFixture();
-const xml = serializeCanonicalTabResultV2ToMusicXml(result);
+const xml = serializeCanonicalTabResultV2ToMusicXml(result, {
+  chordLabels: [{
+    measureIndex: 0,
+    onsetDivisions: 0,
+    label: 'C',
+    root: { step: 'C', alter: 0 },
+    kind: 'major',
+    bass: null,
+    source: 'EXPLICIT_MUSICXML',
+  }],
+});
 const score = loadScore(xml);
 
 assert.equal(score.tracks.length, 1);
@@ -97,6 +107,8 @@ const notation = score.tracks[0].staves[0];
 const tablature = score.tracks[0].staves[1];
 assert.equal(notation.showStandardNotation, true);
 assert.equal(tablature.showTablature, true);
+assert.deepEqual([...notation.chords.values()].map((chord) => chord.name), ['C']);
+assert.ok(allBeats(notation).some((beat) => beat.chordId !== null));
 assert.deepEqual([...tablature.tuning], [64, 59, 55, 50, 45, 40]);
 
 const expectedDispositions = result.noteDispositions.filter((entry) => entry.disposition === 'KEEP');
