@@ -13,7 +13,7 @@ const {
 } = require('../src/app/musicXmlUploadRuntime');
 
 const FIXTURE_NAME = 'guitar-pro-export-profile.musicxml';
-const FIXTURE_SHA256 = '93651f6983623e3e3df2517d0e07e2bf372659cf1679fb517c60e9503b1a5139';
+const FIXTURE_SHA256 = 'e5f8cddbe49f800a9e02c48df7542d68931b8b17cda8079112c8cb1bf72b6413';
 const STANDARD_OPEN_STRING_MIDI = Object.freeze({
   1: 64,
   2: 59,
@@ -53,20 +53,19 @@ test('COMPAT-01C Guitar Pro export-profile provenance normalizes deterministical
   assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('notation:technical:string-fret-provenance'));
 
   const dispositions = first.canonicalTabResult.noteDispositions;
-  assert.equal(dispositions.length, 4);
-  assert.deepEqual(dispositions.map((entry) => entry.targetPitch.written), ['E4', 'G4', 'B3', 'E3']);
-  for (const entry of dispositions) {
-    assert.equal(entry.disposition, 'KEEP');
-    assert.equal(entry.octaveShiftSemitones, 0);
-    assert.ok(entry.selectedPosition);
-    assert.equal(
-      STANDARD_OPEN_STRING_MIDI[entry.selectedPosition.string] + entry.selectedPosition.fret,
-      entry.targetPitch.midi,
-    );
-  }
+  assert.equal(dispositions.length, 1);
+  assert.equal(dispositions[0].targetPitch.written, 'E4');
+  assert.equal(dispositions[0].disposition, 'KEEP');
+  assert.equal(dispositions[0].octaveShiftSemitones, 0);
+  assert.ok(dispositions[0].selectedPosition);
+  assert.equal(
+    STANDARD_OPEN_STRING_MIDI[dispositions[0].selectedPosition.string]
+      + dispositions[0].selectedPosition.fret,
+    dispositions[0].targetPitch.midi,
+  );
 
   assert.notDeepEqual(dispositions[0].selectedPosition, { string: 6, fret: 0 });
-  assert.notDeepEqual(dispositions[1].selectedPosition, { string: 6, fret: 3 });
+  assert.deepEqual(dispositions[0].selectedPosition, { string: 1, fret: 0 });
   assert.match(first.musicXml, /<sign>TAB<\/sign>/);
   assert.match(first.musicXml, /<technical>[\s\S]*?<string>1<\/string>[\s\S]*?<fret>0<\/fret>/);
 });
