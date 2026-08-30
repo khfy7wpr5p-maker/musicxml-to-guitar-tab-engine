@@ -50,7 +50,18 @@ test('extracts only verified Guitar Pro / MusicXML technique shapes as SAFE_META
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.records));
   assert.ok(result.records.every((entry) => entry.capabilityClass === 'SAFE_METADATA_ONLY'));
-  assert.ok(result.records.every((entry) => entry.pairingId === null && entry.pairingBasis === null && entry.sourcePairingToken === null));
+  const pairedHammer = result.records.filter((entry) => entry.kind === 'HAMMER_ON');
+  assert.equal(pairedHammer.length, 2);
+  assert.ok(pairedHammer[0].pairingId);
+  assert.equal(pairedHammer[0].pairingId, pairedHammer[1].pairingId);
+  assert.equal(pairedHammer[0].pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.equal(pairedHammer[1].pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.equal(pairedHammer[0].sourcePairingToken, pairedHammer[1].sourcePairingToken);
+  assert.ok(
+    result.records
+      .filter((entry) => entry.kind !== 'HAMMER_ON')
+      .every((entry) => entry.pairingId === null && entry.pairingBasis === null && entry.sourcePairingToken === null),
+  );
 
   const hammerStart = result.records.find((entry) => entry.kind === 'HAMMER_ON' && entry.state === 'START');
   assert.deepEqual(hammerStart.sourceAttributes, { number: '1', type: 'start' });
@@ -73,14 +84,19 @@ test('extracts only verified Guitar Pro / MusicXML technique shapes as SAFE_META
   assert.equal(position.sourceText, '2');
 });
 
-test('balanced hammer-on endpoints are preserved as two unpaired provenance records', () => {
+test('balanced non-overlapping hammer-on endpoints receive deterministic source pairing identity', () => {
   const result = provenance([
     note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
     note('<notations><technical><hammer-on number="1" type="stop"/></technical></notations>'),
   ]);
   assert.equal(result.recordCount, 2);
   assert.deepEqual(result.records.map((entry) => entry.state), ['START', 'STOP']);
-  assert.deepEqual(result.records.map((entry) => entry.pairingId), [null, null]);
+  assert.ok(result.records[0].pairingId);
+  assert.equal(result.records[0].pairingId, result.records[1].pairingId);
+  assert.equal(result.records[0].pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.equal(result.records[1].pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.equal(result.records[0].sourcePairingToken, result.records[1].sourcePairingToken);
+  assert.match(result.records[0].sourcePairingToken, /^p0\.m0\.n0\..*>p0\.m0\.n1\./);
 });
 
 test('endpoint validation rejects missing, orphan, conflicting-number and cross-context endpoints without inferring pairing', () => {
@@ -117,16 +133,37 @@ test('endpoint validation rejects missing, orphan, conflicting-number and cross-
   }
 });
 
-test('balanced repeated endpoint numbers remain metadata-only and never receive automatic pairing identity', () => {
+test('reused hammer number may pair only when source order proves two non-overlapping pairs', () => {
   const result = provenance([
     note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical><slide number="5" type="start"/></notations>'),
     note('<notations><technical><hammer-on number="1" type="stop"/><hammer-on number="1" type="start">H</hammer-on></technical><slide number="5" type="stop"/><slide number="5" type="start"/></notations>'),
     note('<notations><technical><hammer-on number="1" type="stop"/></technical><slide number="5" type="stop"/></notations>'),
   ]);
   assert.equal(result.recordCount, 8);
-  assert.ok(result.records.every((entry) => entry.pairingId === null));
-  assert.ok(result.records.every((entry) => entry.pairingBasis === null));
-  assert.ok(result.records.every((entry) => entry.sourcePairingToken === null));
+  const hammers = result.records.filter((entry) => entry.kind === 'HAMMER_ON');
+  assert.equal(hammers.length, 4);
+  assert.ok(hammers.every((entry) => entry.pairingBasis === 'DETERMINISTIC_SOURCE_IDENTITY'));
+  assert.equal(hammers[0].pairingId, hammers[1].pairingId);
+  assert.equal(hammers[2].pairingId, hammers[3].pairingId);
+  assert.notEqual(hammers[0].pairingId, hammers[2].pairingId);
+  assert.ok(
+    result.records
+      .filter((entry) => entry.kind === 'SLIDE')
+      .every((entry) => entry.pairingId === null && entry.pairingBasis === null && entry.sourcePairingToken === null),
+  );
+});
+
+test('overlapping reused-number hammer chain remains unpaired because number and nesting do not prove identity', () => {
+  const result = provenance([
+    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
+    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on><hammer-on number="1" type="stop"/></technical></notations>'),
+    note('<notations><technical><hammer-on number="1" type="stop"/></technical></notations>'),
+  ]);
+  const hammers = result.records.filter((entry) => entry.kind === 'HAMMER_ON');
+  assert.equal(hammers.length, 4);
+  assert.ok(hammers.every((entry) => entry.pairingId === null));
+  assert.ok(hammers.every((entry) => entry.pairingBasis === null));
+  assert.ok(hammers.every((entry) => entry.sourcePairingToken === null));
 });
 
 test('repeated extraction is deterministic and never mutates parsed source', () => {
@@ -158,6 +195,36 @@ test('provenance contract rejects musical facts, physical authority and unbounde
   assert.throws(() => createGuitarTechniqueProvenance({ ...base, pitch: 'E4' }), (error) => error instanceof GuitarTechniqueProvenanceError && error.code === 'GUITAR_TECHNIQUE_AUTHORITY_FORBIDDEN');
   assert.throws(() => createGuitarTechniqueProvenance({ ...base, capabilityClass: 'PHYSICAL_SEMANTICS_SUPPORTED' }), (error) => error.code === 'GUITAR_TECHNIQUE_PHYSICAL_AUTHORITY_FORBIDDEN');
   assert.throws(() => createGuitarTechniqueProvenance({ ...base, sourceText: 'x'.repeat(257) }), (error) => error.code === 'GUITAR_TECHNIQUE_PROVENANCE_LIMIT_EXCEEDED');
+
+  const hammer = {
+    ...base,
+    kind: 'HAMMER_ON',
+    subtype: 'musicxml-hammer-on',
+    sourcePath: 'note/notations/technical/hammer-on',
+    sourceAttributes: { number: '1', type: 'start' },
+    sourceText: 'H',
+    normalizedSemantics: 'HAMMER_ON',
+  };
+  const paired = createGuitarTechniqueProvenance({
+    ...hammer,
+    pairingId: 'HAMMER_ON:n1:0123456789abcdef01234567',
+    pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
+    sourcePairingToken: 'p0.m0.n0.o0.t0.h0>p0.m0.n1.o0.t0.h0',
+  });
+  assert.equal(paired.pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.throws(
+    () => createGuitarTechniqueProvenance({
+      ...base,
+      pairingId: 'SLIDE:n1:0123456789abcdef01234567',
+      pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
+      sourcePairingToken: 'p0>p1',
+    }),
+    (error) => error.code === 'GUITAR_TECHNIQUE_PAIRING_KIND_NOT_CLEARED',
+  );
+  assert.throws(
+    () => createGuitarTechniqueProvenance({ ...hammer, pairingId: 'HAMMER_ON:partial' }),
+    (error) => error.code === 'GUITAR_TECHNIQUE_NON_DETERMINISTIC_PAIRING_FORBIDDEN',
+  );
 });
 
 test('artificial harmonic and uncleared technical children remain fail-closed', () => {
