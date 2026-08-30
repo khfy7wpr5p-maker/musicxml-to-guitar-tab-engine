@@ -51,7 +51,7 @@ PS-1 is fact-only. It has no guitar arrangement, string, fret, finger, barre, re
 
 ### PS-2 — Sustain / Tie Graph
 
-Future stage. Connects tie chains and cross-measure sustain identity without changing pitch or voice semantics.
+Internal, facts-only stage. Connects tie chains and cross-measure sustain identity without changing pitch or voice semantics. Its precise input, output and fail-closed compatibility boundary is defined in `ps-sustain-tie-graph-contract.md`.
 
 ### PS-3 — Active Sonority Model
 

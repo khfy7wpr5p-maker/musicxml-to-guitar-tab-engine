@@ -8,7 +8,7 @@ const {
   validatePolyphonicSourceModel,
 } = require('./polyphonicSourceModel');
 
-const SUSTAIN_TIE_GRAPH_VERSION = '1.0.0';
+const SUSTAIN_TIE_GRAPH_VERSION = '1.1.0';
 const SUSTAIN_TIE_GRAPH_DOCUMENT_TYPE = 'SustainTieGraph';
 const SUSTAIN_TIE_GRAPH_AUTHORITY = 'SUSTAIN_TIE_FACTS_ONLY';
 const MAX_SUSTAIN_TIE_SEGMENTS = DEFAULT_PROCESSING_LIMITS.maxEvents;
@@ -66,6 +66,14 @@ function createSegment(measure, event, segmentIndex) {
   });
 }
 
+function canReopenClosedTieChain(builder, measure, event) {
+  if (!builder || !event.tieStop || !event.tieStart) return false;
+  const previousSegment = builder.segments[builder.segments.length - 1];
+  return previousSegment.tieStop
+    && !previousSegment.tieStart
+    && isContiguous(previousSegment, measure, event);
+}
+
 function finalizeChain(builder) {
   const segments = Object.freeze([...builder.segments]);
   const first = segments[0];
@@ -96,7 +104,8 @@ function createSustainTieGraph(sourceModel, runtime = null) {
   checkpoint(runtime, 'sustain-tie-graph:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const openByKey = new Map();
-  const chains = [];
+  const closedByKey = new Map();
+  const builders = [];
   const memberships = [];
   let observedTieSegments = 0;
   let nextChainIndex = 0;
@@ -124,10 +133,16 @@ function createSustainTieGraph(sourceModel, runtime = null) {
 
       if (event.tieStop) {
         if (!builder) {
-          throw invalid('Tie stop has no matching open sustain chain.', 'ORPHAN_TIE_STOP', {
-            sourceEventId: event.sourceEventId,
-            ...eventLocation(measure, event),
-          });
+          const closedBuilder = closedByKey.get(key) || null;
+          if (!canReopenClosedTieChain(closedBuilder, measure, event)) {
+            throw invalid('Tie stop has no matching open sustain chain.', 'ORPHAN_TIE_STOP', {
+              sourceEventId: event.sourceEventId,
+              ...eventLocation(measure, event),
+            });
+          }
+          builder = closedBuilder;
+          closedByKey.delete(key);
+          openByKey.set(key, builder);
         }
         const previousSegment = builder.segments[builder.segments.length - 1];
         if (!isContiguous(previousSegment, measure, event)) {
@@ -174,6 +189,8 @@ function createSustainTieGraph(sourceModel, runtime = null) {
           segments: [],
         };
         nextChainIndex += 1;
+        builders.push(builder);
+        closedByKey.delete(key);
         openByKey.set(key, builder);
       }
 
@@ -193,7 +210,7 @@ function createSustainTieGraph(sourceModel, runtime = null) {
 
       if (event.tieStop && !event.tieStart) {
         openByKey.delete(key);
-        chains.push(finalizeChain(builder));
+        closedByKey.set(key, builder);
       }
     }
   }
@@ -210,7 +227,9 @@ function createSustainTieGraph(sourceModel, runtime = null) {
     });
   }
 
-  chains.sort((left, right) => left.sustainChainId.localeCompare(right.sustainChainId));
+  const chains = builders
+    .map((builder) => finalizeChain(builder))
+    .sort((left, right) => left.sustainChainId.localeCompare(right.sustainChainId));
   memberships.sort((left, right) => left.sourceEventId.localeCompare(right.sourceEventId));
 
   const result = Object.freeze({
