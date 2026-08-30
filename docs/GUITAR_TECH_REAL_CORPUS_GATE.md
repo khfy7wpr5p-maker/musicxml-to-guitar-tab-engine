@@ -2,9 +2,9 @@
 
 ## Status
 
-Current prerequisite state: `HOLD_REAL_CORPUS_REEXECUTION_REQUIRED`.
+Current prerequisite state: `PASS`.
 
-`PROD-TECH-03` must not be merged until the committed gate state is changed to `PASS` by a fresh, reviewed audit of the exact nine-file Guitar Pro 7.6.0 corpus.
+The exact nine-file Guitar Pro 7.6.0 corpus was freshly re-executed against production runtime SHA `f4ecc51bd110b5e80ff7dd47e709b164ac34e78d`. `PROD-TECH-03` may proceed only while the expected base is that audited SHA or a verification-only descendant whose `src`, `package.json`, and `package-lock.json` runtime tree is equivalent under `scripts/check-guitar-tech-stage-gate.js`.
 
 This gate is intentionally separate from production runtime behavior. It does not change parsing, projection, candidate generation, solver state, ranking, or physical semantics.
 
@@ -85,8 +85,29 @@ A generated report alone does not unlock the next stage when blocker drift exist
 
 `node scripts/check-guitar-tech-stage-gate.js PROD-TECH-03 <expected-base-sha>` then must return exit code 0.
 
-The required Node test suite also checks the gate automatically for branches named `stage/prod-tech-03-*`. While the committed state is HOLD, such a branch cannot obtain green required Node checks.
+The required Node test suite also checks the gate automatically for branches named `stage/prod-tech-03-*`. A later change to `src`, `package.json`, or `package-lock.json` makes the audit stale unless a fresh corpus audit is performed.
+
+## Reviewed audit
+
+Reviewed report: `verification/guitar-tech-real-corpus-reviewed-audit-f4ecc51.json`.
+
+Reviewed report SHA-256: `71727f159542b9699fd117fbb6e2c93fa7b0754abffbf968d5b03239d6e7bacc`.
+
+Fresh results:
+
+- corpus identity: 9/9 verified;
+- deterministic two-run execution: 9/9;
+- source-byte immutability: 9/9;
+- XML safety accepted: 8/9;
+- POLY route reached: 8/9;
+- POLY_V2 PASS: 0/9;
+- changed blockers requiring review: 2.
+
+The two changed blockers were reviewed as non-regressions:
+
+1. `[Air]鸟之诗.xml`: the former hammer-on blocker is cleared and the next visible blocker is grace-note `<notehead>normal</notehead>`. This is classified `ACCIDENTAL_BLOCKED` display metadata and is tracked as separate compatibility work; it is not bundled into `PROD-TECH-03`.
+2. `[Angel Beats!]Brave Song.xml`: the next visible blocker is `note/notations/technical/down-bow`. This remains `UNKNOWN_NEEDS_REVIEW` and fail-closed because no authorized Guitar Pro guitar-semantic mapping exists.
 
 ## Current decision
 
-The gate infrastructure itself may be merged because it changes verification policy only. The current gate state deliberately remains HOLD until the exact external corpus is re-executed as runtime bytes. Therefore `PROD-TECH-03` is not authorized by this infrastructure merge alone.
+The real-corpus prerequisite for `PROD-TECH-03` is `PASS`. No runtime regression was detected by the audit. The gate remains fail-closed for any later runtime-tree drift, and the two newly exposed blockers remain separate from `PROD-TECH-03` scope.
