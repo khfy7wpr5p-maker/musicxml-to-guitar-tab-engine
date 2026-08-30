@@ -111,6 +111,13 @@ function withTwoStaff(xml) {
     );
 }
 
+function withObservedGuitarProDirections(xml) {
+  return xml.replace(
+    '    <note>',
+    '    <direction directive="yes"><direction-type><metronome parentheses="no" default-y="40"><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>\n    <direction><direction-type><dynamics><mf/></dynamics></direction-type></direction>\n    <note>',
+  );
+}
+
 test('POLY production chain accepts ordinary two-voice input without musical change', () => {
   const result = assertDeterministicPolyPass('ordinary-two-voice', fixture('ps6-counterpoint-2v.musicxml'));
   assert.equal(result.canonicalTabResult.measures.length > 0, true);
@@ -171,6 +178,36 @@ test('POLY production chain accepts source technical string/fret only as provena
   assert.deepEqual(eventSnapshot(result), BASE_RUNTIME_SNAPSHOT);
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('notation:technical:string-fret-provenance'));
   assert.notDeepEqual(result.canonicalTabResult.noteDispositions[0].selectedPosition, { string: 6, fret: 12 });
+});
+
+test('POLY production chain accepts the observed Guitar Pro metronome and dynamics forms as provenance', () => {
+  const result = assertDeterministicPolyPass(
+    'guitar-pro-safe-directions',
+    withObservedGuitarProDirections(runtimeFixture()),
+  );
+  assert.deepEqual(eventSnapshot(result), BASE_RUNTIME_SNAPSHOT);
+  const ignored = result.preflight.issues[0].details.ignoredFeatures;
+  assert.ok(ignored.includes('measure:direction:metronome-tempo'));
+  assert.ok(ignored.includes('measure:direction:dynamics'));
+});
+
+test('POLY production chain remains fail-closed for timing-affecting or unbounded directions', () => {
+  for (const [name, direction] of [
+    ['offset', '<direction><offset>1</offset><direction-type><dynamics><mf/></dynamics></direction-type></direction>'],
+    ['octave-shift', '<direction><direction-type><octave-shift type="up" size="8"/></direction-type></direction>'],
+    ['navigation-sound', '<direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dacapo="yes"/></direction>'],
+    ['unbounded-dynamic', '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>'],
+    ['invalid-layout', '<direction directive="yes"><direction-type><metronome parentheses="maybe" default-y="40"><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>'],
+  ]) {
+    const result = processMusicXmlUpload({
+      fileName: `unsupported-direction-${name}.musicxml`,
+      bytes: Buffer.from(runtimeFixture().replace('    <note>', `    ${direction}\n    <note>`)),
+    });
+    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED, name);
+    assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2, name);
+    assert.equal(result.canonicalTabResult, null, name);
+    assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
+  }
 });
 
 test('POLY production chain accepts the combined producer profile without losing notes or timing', () => {

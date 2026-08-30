@@ -5,6 +5,7 @@ const { EngineError } = require('../errors/engineError');
 const DEFAULT_MAX_XML_BYTES = 5 * 1024 * 1024;
 
 const TRUSTED_MUSICXML_PARTWISE_DOCTYPES = Object.freeze([
+  /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 2\.0 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/2\.0\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i,
   /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 4\.0\.3 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i,
   /^(\uFEFF?\s*(?:<\?xml\b[^?]*\?>\s*)?)<!DOCTYPE\s+score-partwise\s+PUBLIC\s+(['"])-\/\/Recordare\/\/DTD MusicXML 3\.1 Partwise\/\/EN\2\s+(['"])http:\/\/www\.musicxml\.org\/dtds\/partwise\.dtd\3\s*>(?=\s*<score-partwise(?:\s|>))/i,
 ]);

