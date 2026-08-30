@@ -2,7 +2,12 @@
 
 const { EngineError } = require('../errors/engineError');
 const { createGuitarConfiguration } = require('./tuning');
-const { getPositionCandidates, positionToMidi, validateMidi } = require('./fretboard');
+const {
+  getPositionCandidates,
+  positionToMidi,
+  relativeFretToAbsoluteFret,
+  validateMidi,
+} = require('./fretboard');
 
 class PlayabilityError extends EngineError {
   constructor(message, code, details = {}) {
@@ -36,11 +41,7 @@ function validatePosition(position, expectedMidi, options = {}) {
     });
   }
 
-  if (
-    !Number.isInteger(position.fret) ||
-    position.fret < configuration.minimumFret ||
-    position.fret > configuration.maximumFret
-  ) {
+  if (!Number.isInteger(position.fret) || position.fret < 0) {
     throw new PlayabilityError('Fret is outside the configured range.', 'INVALID_POSITION', {
       position,
       minimumFret: configuration.minimumFret,
@@ -48,7 +49,17 @@ function validatePosition(position, expectedMidi, options = {}) {
     });
   }
 
-  const actualMidi = positionToMidi(position, configuration.tuning);
+  const absoluteFret = relativeFretToAbsoluteFret(position.fret, configuration);
+  if (absoluteFret < configuration.minimumFret || absoluteFret > configuration.maximumFret) {
+    throw new PlayabilityError('Fret is outside the configured range.', 'INVALID_POSITION', {
+      position,
+      absoluteFret,
+      minimumFret: configuration.minimumFret,
+      maximumFret: configuration.maximumFret,
+    });
+  }
+
+  const actualMidi = positionToMidi(position, configuration);
   if (actualMidi !== expectedMidi) {
     throw new PlayabilityError(
       'The selected string and fret do not reproduce the expected pitch.',
