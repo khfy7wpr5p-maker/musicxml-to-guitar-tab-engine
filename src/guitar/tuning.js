@@ -3,7 +3,9 @@
 const { EngineError } = require('../errors/engineError');
 const { pitchNameToMidi } = require('../music/pitch');
 
-const GUITAR_CONFIGURATION_VERSION = '1.1.0';
+// Keep the existing serialized/canonical configuration version stable in PR-1.
+// Capo/fret semantics are additive internal facts; Canonical V2 exposure is staged for PR-7.
+const GUITAR_CONFIGURATION_VERSION = '1.0.0';
 const GUITAR_STRING_COUNT = 6;
 const GUITAR_FRET_SEMANTICS = 'RELATIVE_FROM_CAPO';
 const MAX_ADJACENT_OPEN_STRING_INTERVAL = 12;
@@ -95,27 +97,6 @@ function normalizePitch(entry) {
   return entry.pitch.trim();
 }
 
-function validatePhysicalTuningOrder(tuning) {
-  for (let index = 0; index < tuning.length - 1; index += 1) {
-    const higherString = tuning[index];
-    const lowerString = tuning[index + 1];
-    const interval = higherString.midi - lowerString.midi;
-    if (interval <= 0 || interval > MAX_ADJACENT_OPEN_STRING_INTERVAL) {
-      throw new GuitarConfigurationError(
-        'String 1 through 6 open pitches must descend strictly with bounded adjacent intervals.',
-        {
-          higherString: higherString.number,
-          higherMidi: higherString.midi,
-          lowerString: lowerString.number,
-          lowerMidi: lowerString.midi,
-          interval,
-          maximumAdjacentInterval: MAX_ADJACENT_OPEN_STRING_INTERVAL,
-        },
-      );
-    }
-  }
-}
-
 function validateTuning(tuning = STANDARD_TUNING) {
   if (!Array.isArray(tuning) || tuning.length !== GUITAR_STRING_COUNT) {
     throw new GuitarConfigurationError(`A six-string tuning must define exactly ${GUITAR_STRING_COUNT} strings.`);
@@ -139,7 +120,6 @@ function validateTuning(tuning = STANDARD_TUNING) {
     };
   });
   normalized.sort((a, b) => a.number - b.number);
-  validatePhysicalTuningOrder(normalized);
   return normalized;
 }
 
@@ -150,13 +130,30 @@ function createGuitarConfiguration(options = {}) {
     range.maximumFret,
   );
   const tuning = validateTuning(options.tuning || STANDARD_TUNING);
-  return Object.freeze({
+
+  // Preserve the exact enumerable shape used by existing MONO/POLY/canonical paths.
+  // The new immutable physical facts are non-enumerable until their serialized
+  // exposure is deliberately introduced in later migration stages.
+  const configuration = {
     tuning: Object.freeze(tuning.map((entry) => Object.freeze(entry))),
     minimumFret: range.minimumFret,
     maximumFret: range.maximumFret,
-    capoFret,
-    fretSemantics: GUITAR_FRET_SEMANTICS,
+  };
+  Object.defineProperties(configuration, {
+    capoFret: {
+      value: capoFret,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+    fretSemantics: {
+      value: GUITAR_FRET_SEMANTICS,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
   });
+  return Object.freeze(configuration);
 }
 
 module.exports = {
