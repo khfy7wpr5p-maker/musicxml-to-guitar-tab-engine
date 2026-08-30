@@ -142,11 +142,19 @@ test('identity mismatch, nondeterminism, byte mutation and blocker drift cannot 
   }
 });
 
-test('current state deliberately blocks PROD-TECH-03 until a fresh reviewed corpus PASS exists', () => {
-  const verdict = validateStageGate(state, { targetStage: 'PROD-TECH-03' });
-  assert.equal(verdict.ok, false);
-  assert.ok(verdict.reasons.includes('REAL_CORPUS_GATE_NOT_PASS'));
-  assert.ok(verdict.reasons.includes('PROD_TECH_03_MERGE_NOT_ALLOWED'));
+test('current state permits PROD-TECH-03 after the fresh reviewed real-corpus PASS', () => {
+  const verdict = validateStageGate(state, {
+    targetStage: 'PROD-TECH-03',
+    expectedBaseSha: 'f4ecc51bd110b5e80ff7dd47e709b164ac34e78d',
+  });
+  assert.equal(verdict.ok, true, verdict.reasons.join(', '));
+  assert.equal(state.status, 'PASS');
+  assert.equal(state.prodTech03MergeAllowed, true);
+  assert.equal(state.corpusIdentityVerified, true);
+  assert.equal(state.twoRunDeterminismVerified, true);
+  assert.equal(state.sourceByteImmutabilityVerified, true);
+  assert.equal(state.blockerDiffReviewed, true);
+  assert.match(state.auditReportSha256, /^[a-f0-9]{64}$/);
 });
 
 test('stage gate permits verification-only descendants but rejects unproven runtime drift', () => {
