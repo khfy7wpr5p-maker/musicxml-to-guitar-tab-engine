@@ -178,6 +178,34 @@ test('PS-6B6A preserves grace provenance and never adds duration fields to sidec
   }
 });
 
+test('PS-6B6A accepts only exact grace notehead=normal display metadata without changing grace facts', () => {
+  const baseline = extractPolyphonicGraceOrnaments(parsed(singleGraceScore()));
+  const source = parsed(singleGraceScore({
+    grace: { extraChildren: '<notehead>normal</notehead>' },
+  }));
+  const before = JSON.stringify(source);
+  const accepted = extractPolyphonicGraceOrnaments(source);
+
+  assert.deepEqual(accepted.graceOrnamentGroups, baseline.graceOrnamentGroups);
+  assert.equal(JSON.stringify(source), before);
+
+  const unsupportedNoteheads = [
+    '<notehead>diamond</notehead>',
+    '<notehead filled="yes">normal</notehead>',
+    '<notehead><display-text>normal</display-text></notehead>',
+    '<notehead>normal</notehead><notehead>normal</notehead>',
+  ];
+  for (const notehead of unsupportedNoteheads) {
+    assert.throws(
+      () => extractPolyphonicGraceOrnaments(parsed(singleGraceScore({
+        grace: { extraChildren: notehead },
+      }))),
+      (error) => error.code === 'UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT'
+        && error.details.feature === 'notehead',
+    );
+  }
+});
+
 test('PS-6B6A leaves the ParsedMusicXML authority unchanged and returns immutable sidecar/main data', () => {
   const source = parsed(bwvGracePairScore());
   const before = JSON.stringify(source);
