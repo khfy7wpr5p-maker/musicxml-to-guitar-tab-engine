@@ -499,6 +499,47 @@ function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing
   return { canonicalTabResult, musicXml };
 }
 
+function rebaseHarmonyReferencesAfterGraceExtraction(references, graceOrnamentGroups) {
+  if (references.length === 0 || graceOrnamentGroups.length === 0) return references;
+
+  const removedSourceOrdersByMeasure = new Map();
+  for (const group of graceOrnamentGroups) {
+    const sourceOrders = removedSourceOrdersByMeasure.get(group.measureIndex) || [];
+    for (const note of group.notes) sourceOrders.push(note.originalSourceOrder);
+    removedSourceOrdersByMeasure.set(group.measureIndex, sourceOrders);
+  }
+  for (const sourceOrders of removedSourceOrdersByMeasure.values()) {
+    sourceOrders.sort((left, right) => left - right);
+  }
+
+  return Object.freeze(references.map((reference) => {
+    const removedSourceOrders = removedSourceOrdersByMeasure.get(reference.measureIndex) || [];
+    let removedBeforeReference = 0;
+    while (
+      removedBeforeReference < removedSourceOrders.length
+      && removedSourceOrders[removedBeforeReference] < reference.nextSourceOrder
+    ) {
+      removedBeforeReference += 1;
+    }
+    if (removedBeforeReference === 0) return reference;
+    return Object.freeze({
+      ...reference,
+      nextSourceOrder: reference.nextSourceOrder - removedBeforeReference,
+    });
+  }));
+}
+
+function notationContextFromGraceProjection(graceProjection) {
+  const keySignatures = graceProjection.notationContextMarkers
+    .filter((marker) => marker.kind === 'key')
+    .map((marker) => Object.freeze({
+      measureIndex: marker.measureIndex,
+      fifths: marker.fifths,
+      mode: null,
+    }));
+  return Object.freeze({ keySignatures: Object.freeze(keySignatures) });
+}
+
 function convertGraceProjectionToCanonicalTab(
   graceProjection,
   decisions,
@@ -693,8 +734,14 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       ? projectedMirror.normalization
       : noRepresentationNormalization();
     const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
+    const harmonyReferences = graceProjection
+      ? rebaseHarmonyReferencesAfterGraceExtraction(
+        harmonyExtraction.references,
+        graceProjection.graceOrnamentGroups,
+      )
+      : harmonyExtraction.references;
     const explicitHarmonyFacts = resolveBasicMusicXmlHarmonyReferences(
-      harmonyExtraction.references,
+      harmonyReferences,
       sourceModel,
     );
     const chordLabels = createBasicChordLabelModel(
@@ -704,6 +751,9 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     ).labels;
     const writerOptions = {
       ...(runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {}),
+      ...(graceProjection
+        ? { notationContext: notationContextFromGraceProjection(graceProjection) }
+        : {}),
       chordLabels,
     };
     let conversion;

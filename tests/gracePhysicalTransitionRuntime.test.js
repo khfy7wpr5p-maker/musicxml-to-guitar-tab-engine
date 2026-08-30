@@ -124,3 +124,43 @@ test('PS-6B6B fails closed when a grace pitch has no exact standard-guitar posit
   assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_GRACE_PHYSICAL_TRANSITION');
   assert.equal(result.preflight.issues[0].details.reason, 'NO_EXACT_GRACE_POSITION');
 });
+
+test('PS-6B6B rebases harmony ordinals after grace removal and preserves the label', () => {
+  const source = fixture().toString('utf8');
+  const withHarmony = source.replace(
+    '      <note>\n        <pitch><step>F</step><octave>4</octave></pitch>\n        <duration>16</duration>',
+    `      <harmony>
+        <root><root-step>C</root-step></root><kind>major</kind><staff>1</staff>
+      </harmony>
+      <note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>16</duration>`,
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'bach-bwv565-grace-with-harmony.musicxml',
+    bytes: Buffer.from(withHarmony),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.match(
+    result.musicXml,
+    /<harmony print-frame="no"><root><root-step>C<\/root-step><\/root><kind>major<\/kind><staff>1<\/staff><\/harmony>/,
+  );
+});
+
+test('PS-6B6B forwards grace-sidecar key signatures to the MusicXML writer', () => {
+  const source = fixture().toString('utf8');
+  const withKeySignature = source.replace(
+    '        <divisions>4</divisions>',
+    '        <divisions>4</divisions>\n        <key><fifths>-2</fifths></key>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'bach-bwv565-grace-with-key.musicxml',
+    bytes: Buffer.from(withKeySignature),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.match(result.musicXml, /<attributes><divisions>4<\/divisions><key><fifths>-2<\/fifths><\/key>/);
+});
