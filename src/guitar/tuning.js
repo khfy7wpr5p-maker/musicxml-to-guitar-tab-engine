@@ -6,6 +6,7 @@ const { pitchNameToMidi } = require('../music/pitch');
 const GUITAR_CONFIGURATION_VERSION = '1.1.0';
 const GUITAR_STRING_COUNT = 6;
 const GUITAR_FRET_SEMANTICS = 'RELATIVE_FROM_CAPO';
+const MAX_ADJACENT_OPEN_STRING_INTERVAL = 12;
 
 const STANDARD_TUNING = Object.freeze([
   Object.freeze({ number: 6, pitch: 'E2', midi: 40 }),
@@ -55,14 +56,10 @@ function validateFretRange({ minimumFret = 0, maximumFret = 20 } = {}) {
 
 function validateCapoFret(capoFret = 0, maximumFret = DEFAULT_FRET_RANGE.maximumFret) {
   if (!Number.isInteger(capoFret)) {
-    throw new GuitarConfigurationError('capoFret must be an integer.', {
-      capoFret,
-    });
+    throw new GuitarConfigurationError('capoFret must be an integer.', { capoFret });
   }
   if (capoFret < 0) {
-    throw new GuitarConfigurationError('capoFret cannot be negative.', {
-      capoFret,
-    });
+    throw new GuitarConfigurationError('capoFret cannot be negative.', { capoFret });
   }
   if (capoFret > MAX_CAPO_FRET || capoFret > maximumFret) {
     throw new GuitarConfigurationError('capoFret exceeds the configured bounded fretboard.', {
@@ -74,26 +71,19 @@ function validateCapoFret(capoFret = 0, maximumFret = DEFAULT_FRET_RANGE.maximum
 }
 
 function normalizePitch(entry) {
-  if (entry.pitch === undefined || entry.pitch === null) {
-    return null;
-  }
-
+  if (entry.pitch === undefined || entry.pitch === null) return null;
   if (typeof entry.pitch !== 'string' || entry.pitch.trim().length === 0) {
-    throw new GuitarConfigurationError('Open-string pitch names must be non-empty strings when provided.', {
-      entry,
-    });
+    throw new GuitarConfigurationError('Open-string pitch names must be non-empty strings when provided.', { entry });
   }
-
   let pitchMidi;
   try {
     pitchMidi = pitchNameToMidi(entry.pitch);
-  } catch (error) {
+  } catch {
     throw new GuitarConfigurationError('Open-string pitch names must be valid scientific pitch names.', {
       entry,
       pitch: entry.pitch,
     });
   }
-
   if (pitchMidi !== entry.midi) {
     throw new GuitarConfigurationError('Open-string pitch and MIDI values must describe the same pitch.', {
       string: entry.number,
@@ -102,53 +92,54 @@ function normalizePitch(entry) {
       pitchMidi,
     });
   }
-
   return entry.pitch.trim();
+}
+
+function validatePhysicalTuningOrder(tuning) {
+  for (let index = 0; index < tuning.length - 1; index += 1) {
+    const higherString = tuning[index];
+    const lowerString = tuning[index + 1];
+    const interval = higherString.midi - lowerString.midi;
+    if (interval <= 0 || interval > MAX_ADJACENT_OPEN_STRING_INTERVAL) {
+      throw new GuitarConfigurationError(
+        'String 1 through 6 open pitches must descend strictly with bounded adjacent intervals.',
+        {
+          higherString: higherString.number,
+          higherMidi: higherString.midi,
+          lowerString: lowerString.number,
+          lowerMidi: lowerString.midi,
+          interval,
+          maximumAdjacentInterval: MAX_ADJACENT_OPEN_STRING_INTERVAL,
+        },
+      );
+    }
+  }
 }
 
 function validateTuning(tuning = STANDARD_TUNING) {
   if (!Array.isArray(tuning) || tuning.length !== GUITAR_STRING_COUNT) {
-    throw new GuitarConfigurationError(
-      `A six-string tuning must define exactly ${GUITAR_STRING_COUNT} strings.`,
-    );
+    throw new GuitarConfigurationError(`A six-string tuning must define exactly ${GUITAR_STRING_COUNT} strings.`);
   }
-
   const seenNumbers = new Set();
-
   const normalized = tuning.map((entry) => {
-    if (
-      !entry
-      || !Number.isInteger(entry.number)
-      || entry.number < 1
-      || entry.number > GUITAR_STRING_COUNT
-    ) {
-      throw new GuitarConfigurationError(
-        `String number must be an integer from 1 to ${GUITAR_STRING_COUNT}.`,
-        { entry },
-      );
+    if (!entry || !Number.isInteger(entry.number) || entry.number < 1 || entry.number > GUITAR_STRING_COUNT) {
+      throw new GuitarConfigurationError(`String number must be an integer from 1 to ${GUITAR_STRING_COUNT}.`, { entry });
     }
-
     if (seenNumbers.has(entry.number)) {
-      throw new GuitarConfigurationError('String numbers must be unique.', {
-        string: entry.number,
-      });
+      throw new GuitarConfigurationError('String numbers must be unique.', { string: entry.number });
     }
     seenNumbers.add(entry.number);
-
     if (!Number.isInteger(entry.midi) || entry.midi < 0 || entry.midi > 127) {
-      throw new GuitarConfigurationError('Open-string MIDI values must be integers from 0 to 127.', {
-        entry,
-      });
+      throw new GuitarConfigurationError('Open-string MIDI values must be integers from 0 to 127.', { entry });
     }
-
     return {
       number: entry.number,
       pitch: normalizePitch(entry),
       midi: entry.midi,
     };
   });
-
   normalized.sort((a, b) => a.number - b.number);
+  validatePhysicalTuningOrder(normalized);
   return normalized;
 }
 
@@ -159,7 +150,6 @@ function createGuitarConfiguration(options = {}) {
     range.maximumFret,
   );
   const tuning = validateTuning(options.tuning || STANDARD_TUNING);
-
   return Object.freeze({
     tuning: Object.freeze(tuning.map((entry) => Object.freeze(entry))),
     minimumFret: range.minimumFret,
@@ -173,6 +163,7 @@ module.exports = {
   GUITAR_CONFIGURATION_VERSION,
   GUITAR_STRING_COUNT,
   GUITAR_FRET_SEMANTICS,
+  MAX_ADJACENT_OPEN_STRING_INTERVAL,
   STANDARD_TUNING,
   DEFAULT_FRET_RANGE,
   MAX_CAPO_FRET,
