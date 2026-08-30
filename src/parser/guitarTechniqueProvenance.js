@@ -26,10 +26,6 @@ function directChildren(node, name) {
   return node.children.filter((child) => child.name === name && child.uri === node.uri);
 }
 
-function unqualifiedAttributes(node) {
-  return node.attributes.filter((attribute) => attribute.uri.length === 0);
-}
-
 function attributeMap(node, allowedNames, path) {
   const result = {};
   const seen = new Set();
@@ -46,8 +42,15 @@ function attributeMap(node, allowedNames, path) {
   return Object.freeze(Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b))));
 }
 
+function requireSameNamespaceChildren(node, path) {
+  if (node.children.some((child) => child.uri !== node.uri)) {
+    fail(`${path} contains foreign-namespace children.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
+  }
+}
+
 function scalarInteger(node, path, minimum, maximum, allowedAttributes = new Set()) {
   attributeMap(node, allowedAttributes, path);
+  requireSameNamespaceChildren(node, path);
   if (node.children.length !== 0 || !/^-?\d+$/.test(node.text.trim())) {
     fail(`${path} must be an integer scalar.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   }
@@ -120,6 +123,7 @@ function record(records, input) {
 function parseHammerOn(node, records) {
   const path = 'note/notations/technical/hammer-on';
   const attrs = attributeMap(node, new Set(['number', 'type']), path);
+  requireSameNamespaceChildren(node, path);
   if (!/^\d+$/.test(attrs.number || '') || Number(attrs.number) < 1 || Number(attrs.number) > 16) {
     fail(`${path} requires bounded number 1..16.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   }
@@ -138,6 +142,7 @@ function parseHammerOn(node, records) {
 function parseSlide(node, records) {
   const path = 'note/notations/slide';
   const attrs = attributeMap(node, new Set(['number', 'type']), path);
+  requireSameNamespaceChildren(node, path);
   if (!/^\d+$/.test(attrs.number || '') || Number(attrs.number) < 1 || Number(attrs.number) > 16) fail(`${path} requires bounded number 1..16.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (!['start', 'stop'].includes(attrs.type)) fail(`${path} requires type=start|stop.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (node.children.length !== 0 || node.text.trim().length !== 0) fail(`${path} must be an empty marker.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
@@ -149,13 +154,15 @@ function parseSlide(node, records) {
 
 function emptyMarker(node, path) {
   attributeMap(node, new Set(), path);
+  requireSameNamespaceChildren(node, path);
   return node.children.length === 0 && node.text.trim().length === 0;
 }
 
 function parseHarmonic(node, records) {
   const path = 'note/notations/technical/harmonic';
   attributeMap(node, new Set(), path);
-  const children = node.children.filter((child) => child.uri === node.uri);
+  requireSameNamespaceChildren(node, path);
+  const children = node.children;
   if (children.length === 0 && node.text.trim().length === 0) {
     record(records, { kind: 'HARMONIC', subtype: 'unspecified-harmonic-marker', state: 'SINGLE', sourcePath: path, sourceAttributes: Object.freeze({}), sourceText: '', normalizedSemantics: 'HARMONIC_UNSPECIFIED' });
     return;
@@ -187,7 +194,8 @@ function parsePositionChild(node, records) {
 function parseTechnical(node, records) {
   const path = 'note/notations/technical';
   attributeMap(node, new Set(), path);
-  const children = node.children.filter((child) => child.uri === node.uri);
+  requireSameNamespaceChildren(node, path);
+  const children = node.children;
   if (children.length === 0) fail(`${path} must contain verified technique evidence.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   const allowed = new Set(['harmonic', 'hammer-on', 'string', 'fret', 'fingering', 'pluck']);
   if (children.some((child) => !allowed.has(child.name))) {
@@ -214,12 +222,14 @@ function parseTechnical(node, records) {
 function parsePlay(node, records) {
   const path = 'note/play';
   attributeMap(node, new Set(), path);
+  requireSameNamespaceChildren(node, path);
   if (node.children.length !== 1) fail(`${path} is outside the verified straight-mute shape.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   const muteNodes = directChildren(node, 'mute');
   if (muteNodes.length !== 1) fail(`${path} is outside the verified straight-mute shape.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   const mute = muteNodes[0];
   const mutePath = 'note/play/mute';
   attributeMap(mute, new Set(), mutePath);
+  requireSameNamespaceChildren(mute, mutePath);
   if (mute.children.length !== 0 || mute.text.trim() !== 'straight') fail(`${mutePath} must be exact text straight.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: mutePath });
   record(records, { kind: 'MUTE', subtype: 'straight', state: 'SINGLE', sourcePath: mutePath, sourceAttributes: Object.freeze({}), sourceText: 'straight', normalizedSemantics: 'MUTE_STRAIGHT' });
 }
