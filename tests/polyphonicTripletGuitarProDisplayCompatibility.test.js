@@ -63,7 +63,6 @@ test('accepts exact Guitar Pro bracketed-below triplet display and deduplicates 
       measureIndex: 0,
       measureNumber: '45',
       sourceOrder: 0,
-      isChordMember: false,
       notationChildIndex: 0,
     },
     {
@@ -77,7 +76,6 @@ test('accepts exact Guitar Pro bracketed-below triplet display and deduplicates 
       measureIndex: 0,
       measureNumber: '45',
       sourceOrder: 3,
-      isChordMember: false,
       notationChildIndex: 0,
     },
   ]);
