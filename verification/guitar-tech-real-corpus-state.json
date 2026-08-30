@@ -4,13 +4,14 @@
   "verifiedStage": "PROD-TECH-02",
   "prerequisiteFor": "PROD-TECH-03",
   "stageMergeCommit": "063e36a2f874ddd49320b3e896402532dc4fa5f2",
-  "status": "HOLD_REAL_CORPUS_REEXECUTION_REQUIRED",
-  "prodTech03MergeAllowed": false,
-  "auditedMainSha": null,
-  "auditReportSha256": null,
-  "corpusIdentityVerified": false,
-  "twoRunDeterminismVerified": false,
-  "sourceByteImmutabilityVerified": false,
-  "blockerDiffReviewed": false,
-  "reason": "The required nine-file external Guitar Pro corpus has not yet been re-executed against the post-PROD-TECH-02 production main in an environment exposing the source files as runtime bytes. A historical audit is not a substitute for a fresh run."
+  "status": "PASS",
+  "prodTech03MergeAllowed": true,
+  "auditedMainSha": "f73c8c118b0ff6df72a640a6a72cd5cc8f929b69",
+  "auditReportSha256": "6adb64e883e736a3effc749ffa13be0504e389604db78ebbdfab9c968d59acd7",
+  "corpusIdentityVerified": true,
+  "twoRunDeterminismVerified": true,
+  "sourceByteImmutabilityVerified": true,
+  "blockerDiffReviewed": true,
+  "reviewedReportPath": "verification/guitar-tech-real-corpus-post-prod-tech-02-reviewed-report.json",
+  "reason": "Fresh exact nine-file Guitar Pro 7.6.0 corpus rerun on audited production main verified 9/9 SHA-256 identity, 9/9 two-run determinism, and 9/9 source-byte immutability. Two newly exposed blockers were reviewed and classified as legitimate fail-closed capability boundaries."
 }
