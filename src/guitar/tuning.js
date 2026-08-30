@@ -3,8 +3,9 @@
 const { EngineError } = require('../errors/engineError');
 const { pitchNameToMidi } = require('../music/pitch');
 
-const GUITAR_CONFIGURATION_VERSION = '1.0.0';
+const GUITAR_CONFIGURATION_VERSION = '1.1.0';
 const GUITAR_STRING_COUNT = 6;
+const GUITAR_FRET_SEMANTICS = 'RELATIVE_FROM_CAPO';
 
 const STANDARD_TUNING = Object.freeze([
   Object.freeze({ number: 6, pitch: 'E2', midi: 40 }),
@@ -19,6 +20,7 @@ const DEFAULT_FRET_RANGE = Object.freeze({
   minimumFret: 0,
   maximumFret: 20,
 });
+const MAX_CAPO_FRET = DEFAULT_FRET_RANGE.maximumFret;
 
 class GuitarConfigurationError extends EngineError {
   constructor(message, details = {}) {
@@ -49,6 +51,26 @@ function validateFretRange({ minimumFret = 0, maximumFret = 20 } = {}) {
   }
 
   return { minimumFret, maximumFret };
+}
+
+function validateCapoFret(capoFret = 0, maximumFret = DEFAULT_FRET_RANGE.maximumFret) {
+  if (!Number.isInteger(capoFret)) {
+    throw new GuitarConfigurationError('capoFret must be an integer.', {
+      capoFret,
+    });
+  }
+  if (capoFret < 0) {
+    throw new GuitarConfigurationError('capoFret cannot be negative.', {
+      capoFret,
+    });
+  }
+  if (capoFret > MAX_CAPO_FRET || capoFret > maximumFret) {
+    throw new GuitarConfigurationError('capoFret exceeds the configured bounded fretboard.', {
+      capoFret,
+      maximumCapoFret: Math.min(MAX_CAPO_FRET, maximumFret),
+    });
+  }
+  return capoFret;
 }
 
 function normalizePitch(entry) {
@@ -132,22 +154,31 @@ function validateTuning(tuning = STANDARD_TUNING) {
 
 function createGuitarConfiguration(options = {}) {
   const range = validateFretRange(options);
+  const capoFret = validateCapoFret(
+    Object.hasOwn(options, 'capoFret') ? options.capoFret : 0,
+    range.maximumFret,
+  );
   const tuning = validateTuning(options.tuning || STANDARD_TUNING);
 
   return Object.freeze({
     tuning: Object.freeze(tuning.map((entry) => Object.freeze(entry))),
     minimumFret: range.minimumFret,
     maximumFret: range.maximumFret,
+    capoFret,
+    fretSemantics: GUITAR_FRET_SEMANTICS,
   });
 }
 
 module.exports = {
   GUITAR_CONFIGURATION_VERSION,
   GUITAR_STRING_COUNT,
+  GUITAR_FRET_SEMANTICS,
   STANDARD_TUNING,
   DEFAULT_FRET_RANGE,
+  MAX_CAPO_FRET,
   GuitarConfigurationError,
   validateFretRange,
+  validateCapoFret,
   validateTuning,
   createGuitarConfiguration,
 };
