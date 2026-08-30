@@ -1,0 +1,43 @@
+name: Verification Runtime Export
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Record source identity
+        run: |
+          printf '%s\n' "$GITHUB_SHA" > VERIFICATION_GITHUB_SHA.txt
+          node --version > VERIFICATION_NODE_VERSION.txt
+          npm --version > VERIFICATION_NPM_VERSION.txt
+
+      - name: Package exact checkout and dependencies
+        run: tar --exclude=.git -czf /tmp/musicxml-runtime-checkout.tgz .
+
+      - name: Upload verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musicxml-runtime-checkout
+          path: /tmp/musicxml-runtime-checkout.tgz
+          if-no-files-found: error
+          retention-days: 1
