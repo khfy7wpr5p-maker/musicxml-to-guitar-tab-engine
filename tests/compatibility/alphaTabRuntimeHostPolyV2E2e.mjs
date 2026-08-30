@@ -120,7 +120,7 @@ try {
   process.stdout.write(`${JSON.stringify({
     browser: await browser.version(),
     route: edited.snapshot.runtimeResult.route,
-    revisionNumber: edited.snapshot.runtimeResult.revisionNumber,
+    revisionNumber: edited.snapshot.revisionNumber,
     sourceEventId: edited.snapshot.selectedEvent.sourceEventId,
     sourceGroupId: edited.snapshot.selectedEvent.sourceGroupId,
     apiRequests,
