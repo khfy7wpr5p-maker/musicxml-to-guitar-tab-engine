@@ -1,0 +1,16 @@
+{
+  "documentType": "GuitarTechniqueProductionStageGateState",
+  "contractVersion": "1.0.0",
+  "verifiedStage": "PROD-TECH-02",
+  "prerequisiteFor": "PROD-TECH-03",
+  "stageMergeCommit": "063e36a2f874ddd49320b3e896402532dc4fa5f2",
+  "status": "HOLD_REAL_CORPUS_REEXECUTION_REQUIRED",
+  "prodTech03MergeAllowed": false,
+  "auditedMainSha": null,
+  "auditReportSha256": null,
+  "corpusIdentityVerified": false,
+  "twoRunDeterminismVerified": false,
+  "sourceByteImmutabilityVerified": false,
+  "blockerDiffReviewed": false,
+  "reason": "The required nine-file external Guitar Pro corpus has not yet been re-executed against the post-PROD-TECH-02 production main in an environment exposing the source files as runtime bytes. A historical audit is not a substitute for a fresh run."
+}
