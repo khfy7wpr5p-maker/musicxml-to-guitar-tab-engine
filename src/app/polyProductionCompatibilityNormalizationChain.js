@@ -8,6 +8,9 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 const {
+  normalizeVerifiedGuitarTechniqueProvenance,
+} = require('./guitarTechniqueCompatibilityNormalizer');
+const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
 
@@ -46,12 +49,15 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
 ) {
   runtime?.checkpoint('poly-production-compatibility:start');
 
-  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+  const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
     parsedDocument,
+  );
+  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+    techniqueNormalization.parsedDocument,
   );
   const representationDocument = runtimeNormalization
     ? runtimeNormalization.parsedDocument
-    : parsedDocument;
+    : techniqueNormalization.parsedDocument;
   // This extractor is the existing composite semantic chain: presentation and
   // directions -> notation context -> staccato -> exact 3:2 triplets -> grace.
   const semanticNormalization = extractPolyphonicGraceOrnaments(
@@ -81,6 +87,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     ...(semanticNormalization.staccatoMarkers.length > 0
       ? ['notation:articulation:staccato']
       : []),
+    ...techniqueNormalization.ignoredFeatures,
     ...(runtimeNormalization?.ignoredFeatures || []),
   ])].sort());
   const pitchOctaveShift = runtimeNormalization?.pitchOctaveShift || 0;
@@ -95,12 +102,14 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     eventCount: sourceModel.eventCount,
     extractedGraceEventCount: semanticNormalization.extractedGraceEventCount,
     ignoredFeatureCount: ignoredFeatures.length,
+    guitarTechniqueProvenanceRecordCount: techniqueNormalization.guitarTechniqueProvenance.recordCount,
   });
 
   return Object.freeze({
     contractVersion: POLY_PRODUCTION_COMPATIBILITY_NORMALIZATION_CHAIN_VERSION,
     sourceModel,
     mainSourceModel: sourceModel,
+    guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
     graceOrnamentGroups: semanticNormalization.graceOrnamentGroups,
     extractedFeatures: semanticNormalization.extractedFeatures,
     musicalMaterialAccounting: Object.freeze({
