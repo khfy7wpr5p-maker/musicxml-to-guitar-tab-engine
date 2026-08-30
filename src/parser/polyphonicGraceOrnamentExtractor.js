@@ -18,6 +18,7 @@ const POLYPHONIC_GRACE_SOLVER_STATUS = Object.freeze({
   MAIN_SOURCE_COMPLETE: 'MAIN_SOURCE_COMPLETE',
   BLOCKED_PENDING_PHYSICAL_INTEGRATION: 'BLOCKED_PENDING_GRACE_PHYSICAL_INTEGRATION',
 });
+const SAFE_GRACE_NOMINAL_TYPES = new Set(['eighth', '32nd']);
 const MAX_GRACE_GROUPS = 128;
 const MAX_GRACE_EVENTS = 256;
 const MAX_SCALAR_LENGTH = 64;
@@ -337,7 +338,14 @@ function parseGraceNote(note, location, expectedBeamText) {
     throw unsupported('Grace staff must be 1 or 2.', { ...location, staff: staffText });
   }
   const type = requireSingleChild(note, 'type', location);
-  requireExactLeaf(type, 'type', location, { text: 'eighth', attributes: {} });
+  const nominalType = requireExactLeaf(type, 'type', location, { attributes: {} });
+  if (!SAFE_GRACE_NOMINAL_TYPES.has(nominalType)) {
+    throw unsupported('Grace type has an unsupported nominal value.', {
+      ...location,
+      field: 'type',
+      observed: nominalType,
+    });
+  }
   const stem = parseOptionalStem(note, location);
   validateOptionalNormalNotehead(note, location);
   const beam = parseBeam(note, location, expectedBeamText);
@@ -346,7 +354,7 @@ function parseGraceNote(note, location, expectedBeamText) {
     pitch,
     voice,
     staff,
-    nominalType: 'eighth',
+    nominalType,
     slash: 'yes',
     stem,
     beam,
