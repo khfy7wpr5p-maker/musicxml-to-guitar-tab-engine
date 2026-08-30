@@ -57,6 +57,7 @@ function nativeDenseArray(value, path) {
   ) {
     throw invalid(`${path} must be a native non-proxy array.`, { path });
   }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
   for (const key of Reflect.ownKeys(value)) {
     if (
       key !== 'length'
@@ -73,8 +74,13 @@ function nativeDenseArray(value, path) {
     }
   }
   for (let index = 0; index < value.length; index += 1) {
-    if (!Object.hasOwn(value, index)) {
-      throw invalid(`${path} must be dense.`, { path, index });
+    const descriptor = descriptors[String(index)];
+    if (
+      !descriptor
+      || !descriptor.enumerable
+      || !Object.hasOwn(descriptor, 'value')
+    ) {
+      throw invalid(`${path} numeric slots must be enumerable data properties.`, { path, index });
     }
   }
   return value;
