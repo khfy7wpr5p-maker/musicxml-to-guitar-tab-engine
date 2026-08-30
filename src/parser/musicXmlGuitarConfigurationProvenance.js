@@ -130,16 +130,35 @@ function extractMusicXmlGuitarConfigurationProvenance(parsedDocument) {
           const location = { partIndex, partId: attribute(part, 'id') || null, measureIndex, measureNumber: attribute(measure, 'number') || null, childIndex, staffDetailsIndex, staffNumber: attribute(staffDetails, 'number') || '1' };
           const configuration = parseStaffDetails(staffDetails, location);
           if (!configuration) return;
-          if (measureIndex !== 0 || timingStarted) fail('Mid-score tuning/capo introduction or change is unsupported.', 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE', location);
-          records.push(Object.freeze({ ...location, configuration, fingerprint: fingerprint(configuration) }));
+          records.push(Object.freeze({
+            ...location,
+            afterSolveStart: measureIndex !== 0 || timingStarted,
+            configuration,
+            fingerprint: fingerprint(configuration),
+          }));
         });
       });
     });
   });
   const technicalCount = countTechnicalEvidence(parsedDocument.root);
   if (records.length === 0) return Object.freeze({ documentType: 'MusicXmlGuitarConfigurationProvenance', contractVersion: MUSICXML_GUITAR_CONFIGURATION_PROVENANCE_VERSION, status: 'ABSENT', authority: 'SOURCE_CONFIGURATION_EVIDENCE_ONLY', configuration: null, recordCount: 0, records: Object.freeze([]), sourceTechnicalPositionEvidenceCount: technicalCount, sourceTechnicalPositionsAreSolverAuthority: false });
+
+  if (records[0].afterSolveStart) {
+    fail('Explicit guitar configuration first appears after the immutable solve scope begins.', 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE', records[0]);
+  }
   const unique = new Set(records.map((record) => record.fingerprint));
-  if (unique.size !== 1) fail('MusicXML contains conflicting explicit guitar configurations.', 'AMBIGUOUS_GUITAR_CONFIGURATION_PROVENANCE', { recordCount: records.length, uniqueConfigurationCount: unique.size });
+  if (unique.size !== 1) {
+    const hasLaterDeclaration = records.some((record) => record.afterSolveStart);
+    fail(
+      hasLaterDeclaration
+        ? 'MusicXML changes explicit guitar configuration after the immutable solve scope begins.'
+        : 'MusicXML contains conflicting explicit guitar configurations.',
+      hasLaterDeclaration
+        ? 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE'
+        : 'AMBIGUOUS_GUITAR_CONFIGURATION_PROVENANCE',
+      { recordCount: records.length, uniqueConfigurationCount: unique.size },
+    );
+  }
   return Object.freeze({ documentType: 'MusicXmlGuitarConfigurationProvenance', contractVersion: MUSICXML_GUITAR_CONFIGURATION_PROVENANCE_VERSION, status: 'EXPLICIT', authority: 'SOURCE_CONFIGURATION_EVIDENCE_ONLY', configuration: records[0].configuration, recordCount: records.length, records: Object.freeze(records), sourceTechnicalPositionEvidenceCount: technicalCount, sourceTechnicalPositionsAreSolverAuthority: false });
 }
 
