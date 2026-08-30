@@ -5,6 +5,9 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 const {
+  extractPolyphonicGraceOrnaments,
+} = require('../parser/polyphonicGraceOrnamentExtractor');
+const {
   STANDARD_GUITAR_WRITTEN_PITCH_OCTAVE_SHIFT,
   isStandardGuitarTranspose,
   shiftWrittenPitchByOctaves,
@@ -105,7 +108,9 @@ const ALLOWED_NOTE_CHILDREN = new Set([
   'footnote',
   'level',
   'chord',
+  'grace',
   'lyric',
+  'time-modification',
 ]);
 
 function directChildren(node, name) {
@@ -491,7 +496,25 @@ function sanitizeNotations(node, ignoredFeatures) {
       ignoredFeatures.add('notation:slur');
       continue;
     }
+    if (
+      child.name === 'articulations'
+      && child.text.trim().length === 0
+      && child.attributes.length === 0
+      && child.children.length === 1
+      && child.children[0].uri === child.uri
+      && child.children[0].name === 'staccato'
+      && child.children[0].text.trim().length === 0
+      && child.children[0].attributes.length === 0
+      && child.children[0].children.length === 0
+    ) {
+      children.push(cloneNode(child));
+      continue;
+    }
     if (child.name === 'articulations' && safeArticulations(child, ignoredFeatures)) {
+      continue;
+    }
+    if (child.name === 'tuplet' || child.name === 'fermata') {
+      children.push(cloneNode(child));
       continue;
     }
     if (child.name === 'technical' && safeTechnical(child)) {
@@ -569,7 +592,7 @@ function derivedDocument(parsedDocument, partList, scorePart, part, measures) {
   };
 }
 
-function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
+function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
   if (
     !parsedDocument
     || parsedDocument.documentType !== 'ParsedMusicXmlDocument'
@@ -660,15 +683,41 @@ function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
 
   if (pitchOctaveShift !== 0) ignoredFeatures.add('guitar:sounding-octave-normalization');
   const derived = derivedDocument(parsedDocument, partList, scorePart, parts[0], measures);
-  const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(derived, runtime);
   return Object.freeze({
-    sourceModel,
+    parsedDocument: derived,
     pitchOctaveShift,
     notationContext: Object.freeze({ keySignatures: Object.freeze(keySignatures) }),
     ignoredFeatures: Object.freeze([...ignoredFeatures].sort()),
   });
 }
 
+function tryProjectRuntimeGuitarNotation(parsedDocument, runtime = null) {
+  const normalization = tryNormalizeRuntimeGuitarNotation(parsedDocument);
+  if (!normalization) return null;
+  const semanticNormalization = extractPolyphonicGraceOrnaments(
+    normalization.parsedDocument,
+    runtime,
+  );
+  if (semanticNormalization.graceOrnamentGroups.length > 0) {
+    throw unsupported('grace-requires-production-compatibility-chain');
+  }
+  return Object.freeze({
+    ...normalization,
+    sourceModel: projectParsedMusicXmlToPolyphonicSourceModel(
+      semanticNormalization.parsedMainDocument,
+      runtime,
+    ),
+    ignoredFeatures: Object.freeze([...new Set([
+      ...normalization.ignoredFeatures,
+      ...semanticNormalization.ignoredFeatures,
+      ...(semanticNormalization.staccatoMarkers.length > 0
+        ? ['notation:articulation:staccato']
+        : []),
+    ])].sort()),
+  });
+}
+
 module.exports = {
+  tryNormalizeRuntimeGuitarNotation,
   tryProjectRuntimeGuitarNotation,
 };

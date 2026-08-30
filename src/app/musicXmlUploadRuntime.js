@@ -10,20 +10,11 @@ const {
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
 const { convertMusicXmlToCanonicalTab } = require('../core/conversionPipeline');
 const {
-  convertMusicXmlToInternalPolyphonicTabV2,
-} = require('../core/internalPolyphonicConversionPipelineV2');
-const {
   createCanonicalTabResultV2,
 } = require('../tab/canonicalTabResultV2');
 const {
   parseParsedMusicXmlDocument,
 } = require('../parser/parsedMusicXmlDocument');
-const {
-  projectParsedMusicXmlToPolyphonicSourceModel,
-} = require('../parser/polyphonicMusicXmlProjector');
-const {
-  projectParsedMusicXmlWithGraceOrnamentExtraction,
-} = require('../parser/polyphonicGraceOrnamentExtractor');
 const {
   createGracePhysicalTransitionModel,
 } = require('../music/gracePhysicalTransitionModel');
@@ -42,8 +33,8 @@ const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
 const {
-  tryProjectRuntimeGuitarNotation,
-} = require('./runtimeGuitarNotationNormalizer');
+  projectParsedMusicXmlThroughPolyProductionCompatibilityChain,
+} = require('./polyProductionCompatibilityNormalizationChain');
 const {
   extractBasicMusicXmlHarmony,
   resolveBasicMusicXmlHarmonyReferences,
@@ -329,23 +320,6 @@ function noRepresentationNormalization() {
   });
 }
 
-function parsedDocumentHasGraceNotes(parsedDocument) {
-  const root = parsedDocument.root;
-  for (const part of root.children) {
-    if (part.uri !== root.uri || part.name !== 'part') continue;
-    for (const measure of part.children) {
-      if (measure.uri !== part.uri || measure.name !== 'measure') continue;
-      for (const note of measure.children) {
-        if (note.uri !== measure.uri || note.name !== 'note') continue;
-        if (note.children.some((child) => child.uri === note.uri && child.name === 'grace')) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
 function graceWriterTransitions(model) {
   return Object.freeze(model.groups.map((group) => Object.freeze({
     graceGroupId: group.graceGroupId,
@@ -529,17 +503,6 @@ function rebaseHarmonyReferencesAfterGraceExtraction(references, graceOrnamentGr
   }));
 }
 
-function notationContextFromGraceProjection(graceProjection) {
-  const keySignatures = graceProjection.notationContextMarkers
-    .filter((marker) => marker.kind === 'key')
-    .map((marker) => Object.freeze({
-      measureIndex: marker.measureIndex,
-      fifths: marker.fifths,
-      mode: null,
-    }));
-  return Object.freeze({ keySignatures: Object.freeze(keySignatures) });
-}
-
 function convertGraceProjectionToCanonicalTab(
   graceProjection,
   decisions,
@@ -703,7 +666,6 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let normalization = null;
-  let runtimeProjection = null;
   let graceProjection = null;
   try {
     processing.checkpoint('app-upload:poly:start');
@@ -712,23 +674,12 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     let sourceModel;
     if (projectedMirror) {
       sourceModel = projectedMirror.sourceModel;
-    } else if (parsedDocumentHasGraceNotes(parsedDocument)) {
-      graceProjection = projectParsedMusicXmlWithGraceOrnamentExtraction(
+    } else {
+      graceProjection = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
         parsedDocument,
         processing,
       );
       sourceModel = graceProjection.mainSourceModel;
-    } else {
-      try {
-        sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
-      } catch (projectionError) {
-        if (projectionError?.code !== 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE') {
-          throw projectionError;
-        }
-        runtimeProjection = tryProjectRuntimeGuitarNotation(parsedDocument, processing);
-        if (!runtimeProjection) throw projectionError;
-        sourceModel = runtimeProjection.sourceModel;
-      }
     }
     normalization = projectedMirror
       ? projectedMirror.normalization
@@ -750,9 +701,8 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       processing,
     ).labels;
     const writerOptions = {
-      ...(runtimeProjection ? { notationContext: runtimeProjection.notationContext } : {}),
       ...(graceProjection
-        ? { notationContext: notationContextFromGraceProjection(graceProjection) }
+        ? { notationContext: graceProjection.notationContext }
         : {}),
       chordLabels,
     };
@@ -765,25 +715,19 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         writerOptions,
       );
     } else {
-      conversion = (projectedMirror || runtimeProjection || chordLabels.length > 0)
-        ? convertProjectedMirrorToCanonicalTab(
-          sourceModel,
-          decisions,
-          processing,
-          writerOptions,
-        )
-        : convertMusicXmlToInternalPolyphonicTabV2(
-          normalizedUpload.bytes,
-          decisions,
-          {},
-          processing,
-        );
+      conversion = convertProjectedMirrorToCanonicalTab(
+        sourceModel,
+        decisions,
+        processing,
+        writerOptions,
+      );
     }
     assertNoSilentMusicalChange(sourceModel, conversion.canonicalTabResult, normalization);
     processing.checkpoint('app-upload:poly-complete');
 
-    const compatibilityIssues = runtimeProjection
-      ? [runtimeCompatibilityIssue(runtimeProjection)]
+    const compatibilityIssues = graceProjection
+      && (graceProjection.pitchOctaveShift !== 0 || graceProjection.ignoredFeatures.length > 0)
+      ? [runtimeCompatibilityIssue(graceProjection)]
       : [];
     return deepFreeze({
       documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
