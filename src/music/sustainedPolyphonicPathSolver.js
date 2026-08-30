@@ -192,7 +192,10 @@ function buildPointCandidates(point, runtime, pointIndex) {
   }
 
   const candidates = point.physicalCandidates.map((physical, candidateIndex) => {
-    checkpoint(runtime, 'sustained-polyphonic-path:point-candidate', { pointIndex, candidateIndex });
+    checkpoint(runtime, 'sustained-polyphonic-path:point-candidate', {
+      pointIndex,
+      candidateIndex,
+    });
     return Object.freeze({
       physical,
       positionStateCandidateId: positionStateIdForCandidate(point, physical),
@@ -277,7 +280,9 @@ function countHeldFingerSubstitutions(previousAssignments, currentAssignments, h
     const previous = previousAssignments.get(logicalNoteId);
     const current = currentAssignments.get(logicalNoteId);
     if (!previous || !current) {
-      throw invalid('Held logical-note assignment disappeared from a prepared transition.', { logicalNoteId });
+      throw invalid('Held logical-note assignment disappeared from a prepared transition.', {
+        logicalNoteId,
+      });
     }
     if (previous.string !== current.string || previous.fret !== current.fret) {
       throw invalid('PS-5 received a PS-4B hold bucket that changed exact string/fret placement.', {
@@ -296,17 +301,24 @@ function countHeldFingerSubstitutions(previousAssignments, currentAssignments, h
 function prepareHoldTransition(transition, previousStates, previousPoint, currentPoint) {
   const previousBucketByPositionId = new Map();
   const currentBucketByPositionId = new Map();
+
   for (let bucketIndex = 0; bucketIndex < transition.buckets.length; bucketIndex += 1) {
     const bucket = transition.buckets[bucketIndex];
     for (const positionStateCandidateId of bucket.previousStateCandidateIds) {
       if (previousBucketByPositionId.has(positionStateCandidateId)) {
-        throw invalid('PS-4B previous position state appeared in more than one hold bucket.', { transitionId: transition.transitionId, positionStateCandidateId });
+        throw invalid('PS-4B previous position state appeared in more than one hold bucket.', {
+          transitionId: transition.transitionId,
+          positionStateCandidateId,
+        });
       }
       previousBucketByPositionId.set(positionStateCandidateId, bucketIndex);
     }
     for (const positionStateCandidateId of bucket.currentStateCandidateIds) {
       if (currentBucketByPositionId.has(positionStateCandidateId)) {
-        throw invalid('PS-4B current position state appeared in more than one hold bucket.', { transitionId: transition.transitionId, positionStateCandidateId });
+        throw invalid('PS-4B current position state appeared in more than one hold bucket.', {
+          transitionId: transition.transitionId,
+          positionStateCandidateId,
+        });
       }
       currentBucketByPositionId.set(positionStateCandidateId, bucketIndex);
     }
@@ -316,7 +328,12 @@ function prepareHoldTransition(transition, previousStates, previousPoint, curren
   for (const state of previousStates) {
     const bucketIndex = previousBucketByPositionId.get(state.candidate.positionStateCandidateId);
     if (bucketIndex === undefined) continue;
-    const assignments = heldAssignmentMap(state.candidate, transition.holdLogicalNoteIds, previousPoint, 'previous');
+    const assignments = heldAssignmentMap(
+      state.candidate,
+      transition.holdLogicalNoteIds,
+      previousPoint,
+      'previous',
+    );
     const signature = heldFingerSignature(assignments, transition.holdLogicalNoteIds);
     let groups = groupsByBucket.get(bucketIndex);
     if (!groups) {
@@ -325,7 +342,10 @@ function prepareHoldTransition(transition, previousStates, previousPoint, curren
     }
     let group = groups.get(signature);
     if (!group) {
-      group = { assignments, byAnchor: new Map() };
+      group = {
+        assignments,
+        byAnchor: new Map(),
+      };
       groups.set(signature, group);
     }
     const anchor = state.candidate.anchorFret;
@@ -333,14 +353,21 @@ function prepareHoldTransition(transition, previousStates, previousPoint, curren
     if (!incumbent || compareStates(state, incumbent) < 0) group.byAnchor.set(anchor, state);
   }
 
-  return Object.freeze({ currentBucketByPositionId, groupsByBucket, previousPoint, currentPoint });
+  return Object.freeze({
+    currentBucketByPositionId,
+    groupsByBucket,
+    previousPoint,
+    currentPoint,
+  });
 }
 
 function candidatePreviousGroups(candidate, transition, prepared) {
   if (transition.compatibilityMode === TRANSITION_COMPATIBILITY_MODE.ALL_TO_ALL) {
     return Object.freeze([Object.freeze({ assignments: null, byAnchor: prepared })]);
   }
-  if (transition.compatibilityMode !== TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS) return Object.freeze([]);
+  if (transition.compatibilityMode !== TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS) {
+    return Object.freeze([]);
+  }
   const bucketIndex = prepared.currentBucketByPositionId.get(candidate.positionStateCandidateId);
   if (bucketIndex === undefined) return Object.freeze([]);
   const groups = prepared.groupsByBucket.get(bucketIndex);
@@ -353,14 +380,31 @@ function bestExtension(candidate, previousGroups, transition, currentPoint) {
     ? null
     : heldAssignmentMap(candidate, transition.holdLogicalNoteIds, currentPoint, 'current');
   let best = null;
+
   for (const group of previousGroups) {
     const substitutionCount = currentAssignments === null
       ? 0
-      : countHeldFingerSubstitutions(group.assignments, currentAssignments, transition.holdLogicalNoteIds);
+      : countHeldFingerSubstitutions(
+        group.assignments,
+        currentAssignments,
+        transition.holdLogicalNoteIds,
+      );
     for (const [anchor, previous] of group.byAnchor) {
       const cost = extendCost(previous.cost, candidate, anchor, substitutionCount);
-      if (!best || compareNumberArrays(cost, best.cost) < 0 || (compareNumberArrays(cost, best.cost) === 0 && previous.tieRank < best.previousTieRank)) {
-        best = { candidate, previous, cost, previousTieRank: previous.tieRank };
+      if (
+        !best
+        || compareNumberArrays(cost, best.cost) < 0
+        || (
+          compareNumberArrays(cost, best.cost) === 0
+          && previous.tieRank < best.previousTieRank
+        )
+      ) {
+        best = {
+          candidate,
+          previous,
+          cost,
+          previousTieRank: previous.tieRank,
+        };
       }
     }
   }
@@ -369,13 +413,20 @@ function bestExtension(candidate, previousGroups, transition, currentPoint) {
 
 function assignTieRanks(states) {
   const ordered = states.slice().sort((left, right) => (
-    left.previousTieRank - right.previousTieRank || left.candidateRank - right.candidateRank
+    left.previousTieRank - right.previousTieRank
+    || left.candidateRank - right.candidateRank
   ));
-  for (let rank = 0; rank < ordered.length; rank += 1) ordered[rank].tieRank = rank;
+  for (let rank = 0; rank < ordered.length; rank += 1) {
+    ordered[rank].tieRank = rank;
+  }
 }
 
 function assertTransitionAlignment(transition, previousPoint, currentPoint, transitionIndex) {
-  if (transition.transitionIndex !== transitionIndex || transition.from.sonorityPointId !== previousPoint.sonorityPointId || transition.to.sonorityPointId !== currentPoint.sonorityPointId) {
+  if (
+    transition.transitionIndex !== transitionIndex
+    || transition.from.sonorityPointId !== previousPoint.sonorityPointId
+    || transition.to.sonorityPointId !== currentPoint.sonorityPointId
+  ) {
     throw invalid('PS-4B transition endpoints diverged from PS-4C physical point order.', {
       transitionIndex,
       transitionId: transition.transitionId,
@@ -388,33 +439,57 @@ function assertTransitionAlignment(transition, previousPoint, currentPoint, tran
 }
 
 function selectPath(points, pointCandidates, transitions, runtime) {
-  let states = pointCandidates[0].map((candidate, candidateRank) => Object.freeze({ candidate, previous: null, cost: initialCost(candidate), tieRank: candidateRank }));
+  let states = pointCandidates[0].map((candidate, candidateRank) => Object.freeze({
+    candidate,
+    previous: null,
+    cost: initialCost(candidate),
+    tieRank: candidateRank,
+  }));
+
   for (let pointIndex = 1; pointIndex < pointCandidates.length; pointIndex += 1) {
     checkpoint(runtime, 'sustained-polyphonic-path:path-point', { pointIndex });
     const transitionIndex = pointIndex - 1;
     const transition = transitions[transitionIndex];
     const previousPoint = points[pointIndex - 1];
     const currentPoint = points[pointIndex];
-    if (!transition) throw invalid('PS-5 lost an expected PS-4B transition.', { transitionIndex });
+    if (!transition) {
+      throw invalid('PS-5 lost an expected PS-4B transition.', { transitionIndex });
+    }
     assertTransitionAlignment(transition, previousPoint, currentPoint, transitionIndex);
     if (transition.status !== TRANSITION_STATUS.COMPATIBLE) {
-      throw unsupported('No exact hold-preserving transition exists between adjacent sustained sonorities.', 'UNPLAYABLE_SUSTAINED_TRANSITION', {
-        transitionId: transition.transitionId,
-        transitionReason: transition.reason,
-        fromSonorityPointId: previousPoint.sonorityPointId,
-        toSonorityPointId: currentPoint.sonorityPointId,
-      });
+      throw unsupported(
+        'No exact hold-preserving transition exists between adjacent sustained sonorities.',
+        'UNPLAYABLE_SUSTAINED_TRANSITION',
+        {
+          transitionId: transition.transitionId,
+          transitionReason: transition.reason,
+          fromSonorityPointId: previousPoint.sonorityPointId,
+          toSonorityPointId: currentPoint.sonorityPointId,
+        },
+      );
     }
 
     let prepared;
     if (transition.compatibilityMode === TRANSITION_COMPATIBILITY_MODE.ALL_TO_ALL) {
-      if (transition.holdLogicalNoteIds.length !== 0) throw invalid('ALL_TO_ALL transition cannot carry held logical-note identities.', { transitionId: transition.transitionId });
+      if (transition.holdLogicalNoteIds.length !== 0) {
+        throw invalid('ALL_TO_ALL transition cannot carry held logical-note identities.', {
+          transitionId: transition.transitionId,
+        });
+      }
       prepared = bestByAnchor(states);
     } else if (transition.compatibilityMode === TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS) {
-      if (transition.holdLogicalNoteIds.length === 0) throw invalid('Hold-bucket transition requires held logical-note identities.', { transitionId: transition.transitionId });
+      if (transition.holdLogicalNoteIds.length === 0) {
+        throw invalid('Hold-bucket transition requires held logical-note identities.', {
+          transitionId: transition.transitionId,
+        });
+      }
       prepared = prepareHoldTransition(transition, states, previousPoint, currentPoint);
     } else {
-      throw unsupported('Sustained transition exposes no compatible deterministic path mode.', 'UNPLAYABLE_SUSTAINED_TRANSITION', { transitionId: transition.transitionId, compatibilityMode: transition.compatibilityMode });
+      throw unsupported(
+        'Sustained transition exposes no compatible deterministic path mode.',
+        'UNPLAYABLE_SUSTAINED_TRANSITION',
+        { transitionId: transition.transitionId, compatibilityMode: transition.compatibilityMode },
+      );
     }
 
     const drafts = [];
@@ -424,13 +499,33 @@ function selectPath(points, pointCandidates, transitions, runtime) {
       const previousGroups = candidatePreviousGroups(candidate, transition, prepared);
       const best = bestExtension(candidate, previousGroups, transition, currentPoint);
       if (!best) continue;
-      drafts.push({ candidate, previous: best.previous, cost: best.cost, previousTieRank: best.previousTieRank, candidateRank, tieRank: 0 });
+      drafts.push({
+        candidate,
+        previous: best.previous,
+        cost: best.cost,
+        previousTieRank: best.previousTieRank,
+        candidateRank,
+        tieRank: 0,
+      });
     }
+
     if (drafts.length === 0) {
-      throw unsupported('No deterministic physical path preserves held string/fret continuity.', 'NO_HOLD_PRESERVING_PHYSICAL_PATH', { transitionId: transition.transitionId, holdLogicalNoteIds: transition.holdLogicalNoteIds });
+      throw unsupported(
+        'No deterministic physical path preserves held string/fret continuity.',
+        'NO_HOLD_PRESERVING_PHYSICAL_PATH',
+        {
+          transitionId: transition.transitionId,
+          holdLogicalNoteIds: transition.holdLogicalNoteIds,
+        },
+      );
     }
     assignTieRanks(drafts);
-    states = drafts.map((state) => Object.freeze({ candidate: state.candidate, previous: state.previous, cost: state.cost, tieRank: state.tieRank }));
+    states = drafts.map((state) => Object.freeze({
+      candidate: state.candidate,
+      previous: state.previous,
+      cost: state.cost,
+      tieRank: state.tieRank,
+    }));
   }
 
   states.sort(compareStates);
@@ -445,12 +540,20 @@ function selectPath(points, pointCandidates, transitions, runtime) {
 }
 
 function copyBarres(barres) {
-  return Object.freeze(barres.map((barre) => Object.freeze({ finger: barre.finger, fret: barre.fret, startString: barre.startString, endString: barre.endString, stringSpan: barre.stringSpan, kind: barre.kind })));
+  return Object.freeze(barres.map((barre) => Object.freeze({
+    finger: barre.finger,
+    fret: barre.fret,
+    startString: barre.startString,
+    endString: barre.endString,
+    stringSpan: barre.stringSpan,
+    kind: barre.kind,
+  })));
 }
 
 function buildSelectedFacts(points, path) {
   const selectedPointStates = [];
   const logical = new Map();
+
   for (let pointIndex = 0; pointIndex < points.length; pointIndex += 1) {
     const point = points[pointIndex];
     const selected = path.selected[pointIndex].physical;
@@ -490,11 +593,28 @@ function buildSelectedFacts(points, path) {
         };
         logical.set(assignment.logicalNoteId, record);
       } else {
-        if (record.sustainChainId !== assignment.sustainChainId || record.voice !== assignment.voice || record.staff !== assignment.staff || record.targetMidi !== assignment.targetMidi || record.string !== assignment.string || record.fret !== assignment.fret) {
-          throw invalid('Selected path changed exact string/fret placement for one active logical note.', { logicalNoteId: assignment.logicalNoteId, sonorityPointId: point.sonorityPointId });
+        if (
+          record.sustainChainId !== assignment.sustainChainId
+          || record.voice !== assignment.voice
+          || record.staff !== assignment.staff
+          || record.targetMidi !== assignment.targetMidi
+          || record.string !== assignment.string
+          || record.fret !== assignment.fret
+        ) {
+          throw invalid('Selected path changed exact string/fret placement for one active logical note.', {
+            logicalNoteId: assignment.logicalNoteId,
+            sonorityPointId: point.sonorityPointId,
+          });
         }
         if (record.finalFinger !== assignment.finger) {
-          record.fingerSubstitutions.push(Object.freeze({ pointIndex, sonorityPointId: point.sonorityPointId, measureIndex: point.measureIndex, timeDivisions: point.timeDivisions, fromFinger: record.finalFinger, toFinger: assignment.finger }));
+          record.fingerSubstitutions.push(Object.freeze({
+            pointIndex,
+            sonorityPointId: point.sonorityPointId,
+            measureIndex: point.measureIndex,
+            timeDivisions: point.timeDivisions,
+            fromFinger: record.finalFinger,
+            toFinger: assignment.finger,
+          }));
           record.finalFinger = assignment.finger;
         }
       }
@@ -519,7 +639,10 @@ function buildSelectedFacts(points, path) {
       sourceEventIds: Object.freeze([...record.sourceEventIds].sort()),
     }));
 
-  return Object.freeze({ selectedPointStates: Object.freeze(selectedPointStates), logicalNoteSelections: Object.freeze(logicalNoteSelections) });
+  return Object.freeze({
+    selectedPointStates: Object.freeze(selectedPointStates),
+    logicalNoteSelections: Object.freeze(logicalNoteSelections),
+  });
 }
 
 function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, guitarOptions = {}) {
@@ -530,9 +653,14 @@ function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, gui
   validateModelHeaders(source, physical, transitions);
   const points = flattenPhysicalPoints(physical);
 
-  if (points.length === 0) throw unsupported('Sustained path selection requires at least one sonority point.', 'NO_SONORITY_POINTS');
+  if (points.length === 0) {
+    throw unsupported('Sustained path selection requires at least one sonority point.', 'NO_SONORITY_POINTS');
+  }
   if (transitions.transitionCount !== Math.max(0, points.length - 1)) {
-    throw invalid('PS-4B transition count diverged from PS-4C physical point count.', { pointCount: points.length, transitionCount: transitions.transitionCount });
+    throw invalid('PS-4B transition count diverged from PS-4C physical point count.', {
+      pointCount: points.length,
+      transitionCount: transitions.transitionCount,
+    });
   }
 
   let observedPathStates = 0;
@@ -541,14 +669,23 @@ function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, gui
     const candidates = buildPointCandidates(point, runtime, pointIndex);
     observedPathStates = safeAdd(observedPathStates, candidates.length, 'pathStateCount');
     if (observedPathStates > MAX_SUSTAINED_PATH_STATES) {
-      throw unsupported('Sustained path state count exceeds the fixed aggregate boundary.', 'SUSTAINED_PATH_STATE_LIMIT_EXCEEDED', { limit: MAX_SUSTAINED_PATH_STATES, observed: observedPathStates });
+      throw unsupported(
+        'Sustained path state count exceeds the fixed aggregate boundary.',
+        'SUSTAINED_PATH_STATE_LIMIT_EXCEEDED',
+        { limit: MAX_SUSTAINED_PATH_STATES, observed: observedPathStates },
+      );
     }
     return candidates;
   });
 
   const path = selectPath(points, pointCandidates, transitions.transitions, runtime);
   const facts = buildSelectedFacts(points, path);
-  checkpoint(runtime, 'sustained-polyphonic-path:complete', { pointCount: points.length, pathStateCount: observedPathStates, selectedLogicalNoteCount: facts.logicalNoteSelections.length });
+
+  checkpoint(runtime, 'sustained-polyphonic-path:complete', {
+    pointCount: points.length,
+    pathStateCount: observedPathStates,
+    selectedLogicalNoteCount: facts.logicalNoteSelections.length,
+  });
 
   return Object.freeze({
     documentType: SUSTAINED_POLYPHONIC_PATH_SELECTION_DOCUMENT_TYPE,
@@ -557,9 +694,19 @@ function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, gui
     transitionPolicy: SUSTAINED_POLYPHONIC_PATH_TRANSITION_POLICY,
     fingerSubstitutionPolicy: SUSTAINED_POLYPHONIC_PATH_FINGER_SUBSTITUTION_POLICY,
     authority: SUSTAINED_POLYPHONIC_PATH_SELECTION_AUTHORITY,
-    source: Object.freeze({ documentType: POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE, contractVersion: POLYPHONIC_SOURCE_MODEL_VERSION, partId: source.source.partId }),
-    physicalStates: Object.freeze({ documentType: SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_DOCUMENT_TYPE, contractVersion: SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_VERSION }),
-    transitions: Object.freeze({ documentType: SUSTAINED_GUITAR_TRANSITION_MODEL_DOCUMENT_TYPE, contractVersion: SUSTAINED_GUITAR_TRANSITION_MODEL_VERSION }),
+    source: Object.freeze({
+      documentType: POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE,
+      contractVersion: POLYPHONIC_SOURCE_MODEL_VERSION,
+      partId: source.source.partId,
+    }),
+    physicalStates: Object.freeze({
+      documentType: SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_DOCUMENT_TYPE,
+      contractVersion: SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_VERSION,
+    }),
+    transitions: Object.freeze({
+      documentType: SUSTAINED_GUITAR_TRANSITION_MODEL_DOCUMENT_TYPE,
+      contractVersion: SUSTAINED_GUITAR_TRANSITION_MODEL_VERSION,
+    }),
     pointCount: points.length,
     pathStateCount: observedPathStates,
     selectedLogicalNoteCount: facts.logicalNoteSelections.length,
