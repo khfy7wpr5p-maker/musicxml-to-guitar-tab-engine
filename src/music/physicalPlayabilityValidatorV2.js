@@ -49,7 +49,7 @@ function invalid(message, details = {}) {
 
 function validationLimitExceeded(observed, details = {}) {
   return new PhysicalPlayabilityValidationError(
-    'PA-9 aggregate physical-playability validation count exceeds the fixed limit.',
+    'PA-9 physical-playability validation count exceeds the fixed per-group limit.',
     'PHYSICAL_PLAYABILITY_VALIDATION_LIMIT_EXCEEDED',
     {
       limit: MAX_PHYSICAL_PLAYABILITY_VALIDATIONS,
@@ -382,6 +382,8 @@ function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtim
       throw invalid('PA-9 encountered an invalid PA-8 snapshot group.', { groupIndex });
     }
 
+    let groupShapeCandidateCount = 0;
+
     const voicingCandidates = new Array(group.voicingCandidates.length);
     for (let voicingIndex = 0; voicingIndex < group.voicingCandidates.length; voicingIndex += 1) {
       checkpoint(runtime, 'physical-playability-v2:voicing', { groupIndex, voicingIndex });
@@ -410,14 +412,15 @@ function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtim
           voicingIndex,
           shapeIndex,
         });
-        const observed = counters.shapeCandidates + 1;
+        const observed = groupShapeCandidateCount + 1;
         if (observed > MAX_PHYSICAL_PLAYABILITY_VALIDATIONS) {
           throw validationLimitExceeded(observed, {
             sourceGroupId: group.sourceGroupId,
             voicingCandidateId: voicing.voicingCandidateId,
           });
         }
-        counters.shapeCandidates = observed;
+        groupShapeCandidateCount = observed;
+        counters.shapeCandidates += 1;
 
         const verdict = buildShapeVerdict(
           voicing.shapeCandidates[shapeIndex],

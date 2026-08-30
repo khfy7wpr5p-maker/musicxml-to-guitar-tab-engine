@@ -168,7 +168,7 @@ test('PA-9 remains deadline-bounded and cancellation-aware through upstream reco
   );
 });
 
-test('PA-9 preserves the inherited PA-8 complete-assignment attempt ceiling', () => {
+test('PA-9 preserves the inherited PA-8 per-source-group assignment attempt ceiling', () => {
   const source = sourceModel(score([
     note('C', { octave: 4 }),
     note('D', { octave: 4, chord: true }),
@@ -189,7 +189,7 @@ test('PA-9 preserves the inherited PA-8 complete-assignment attempt ceiling', ()
   );
 });
 
-test('PA-9 preserves the inherited PA-8 aggregate shape ceiling', () => {
+test('PA-9 validates PA-8 shapes per source group without changing their aggregate identity', () => {
   const xml = multiMeasureScore(
     121,
     note('C', { octave: 4, duration: 16, type: 'whole' }),
@@ -197,14 +197,14 @@ test('PA-9 preserves the inherited PA-8 aggregate shape ceiling', () => {
   );
   const source = sourceModel(xml);
 
-  assert.throws(
-    () => validatePhysicalPlayabilityV2(source, preserveAllSourceNotes(source)),
-    (error) => (
-      error
-      && error.code === 'LEFT_HAND_SHAPE_CANDIDATE_LIMIT_EXCEEDED'
-      && error.details.limit === 20_000
-      && error.details.observed === 20_001
-    ),
+  const validation = validatePhysicalPlayabilityV2(source, preserveAllSourceNotes(source));
+  assert.ok(validation.shapeCandidateCount > 20_000);
+  assert.equal(
+    validation.groups.every((group) => (
+      group.voicingCandidates.reduce((count, voicing) => count + voicing.shapeCandidateCount, 0)
+      <= 20_000
+    )),
+    true,
   );
 });
 

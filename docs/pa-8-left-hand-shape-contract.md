@@ -38,8 +38,8 @@ The original MusicXML/source model remains immutable source truth.
 - policy: `ORDERED_FRET_FINGER_BARRE_1.0`
 - fretting fingers: `1..4`
 - open-string marker: finger `0`
-- fixed aggregate shape-candidate ceiling: 20,000
-- fixed aggregate complete-assignment-attempt ceiling: 100,000
+- fixed per-source-group shape-candidate ceiling: 20,000
+- fixed per-source-group complete-assignment-attempt ceiling: 100,000
 
 ## Structural finger semantics
 
@@ -137,11 +137,11 @@ PA-8 fails closed when:
 
 - upstream source/arrangement/reduction/voicing recomputation fails;
 - a recomputed PA-7 position has invalid identity, MIDI, string or fret facts;
-- generated shape candidates would exceed 20,000;
-- complete finger-assignment attempts would exceed 100,000;
+- generated shape candidates in one source group would exceed 20,000;
+- complete finger-assignment attempts in one source group would exceed 100,000;
 - processing deadline or cancellation is reached.
 
-The assignment-attempt ceiling bounds enumeration even when attempted finger vectors are rejected.
+The ceilings bound each independently processed source group even when attempted finger vectors are rejected. Aggregate work remains bounded by the authentic PA-7 candidate snapshot and the existing ProcessingRuntime deadline/cancellation boundary; it is not a second source of candidate ordering or selection authority.
 
 ## Required evidence
 
@@ -156,7 +156,7 @@ PA-8 cannot be considered merge-ready without:
 - zero-shape behavior where structurally unavailable;
 - PA-7 position/provenance preservation;
 - deep immutability;
-- aggregate shape and assignment-attempt ceiling coverage;
+- per-source-group shape and assignment-attempt ceiling coverage;
 - deadline/cancellation coverage;
 - hostile upstream fail-closed coverage;
 - full repository regression;

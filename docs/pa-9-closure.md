@@ -98,10 +98,10 @@ A PA-8 voicing with zero shape candidates remains zero-shape. A non-empty PA-8 v
 
 PA-9 reuses the existing optional `ProcessingRuntime` and remains deadline/cancellation aware.
 
-Verified inherited ceilings include:
+Verified inherited per-source-group ceilings include:
 
-- PA-8 complete finger-assignment attempt ceiling: `100,000`; fail closed at observed `100,001`;
-- PA-8 aggregate shape-candidate ceiling: `20,000`; fail closed at observed `20,001`.
+- PA-8 complete finger-assignment attempt ceiling: `100,000`; fail closed at observed `100,001` within one source group;
+- PA-8 shape-candidate ceiling: `20,000`; fail closed at observed `20,001` within one source group.
 
 Hostile source and hostile arrangement-decision inputs remain fail closed through upstream validation. Returned PA-9 records and arrays are deeply immutable.
 

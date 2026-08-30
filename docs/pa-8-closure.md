@@ -63,8 +63,8 @@ The model:
 - rejects barre assignments that would conflict with an active pitch inside the barre span
 - permits zero valid shape candidates rather than mutating or silently dropping notes
 - uses deterministic candidate identifiers/order
-- has a fixed aggregate 20,000 shape-candidate ceiling
-- has a fixed aggregate 100,000 complete finger-assignment-attempt ceiling
+- has a fixed per-source-group 20,000 shape-candidate ceiling
+- has a fixed per-source-group 100,000 complete finger-assignment-attempt ceiling
 - reuses the existing optional `ProcessingRuntime` deadline/cancellation boundary
 - returns deeply immutable output
 
