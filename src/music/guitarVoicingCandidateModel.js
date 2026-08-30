@@ -5,6 +5,7 @@ const {
   GUITAR_CONFIGURATION_VERSION,
   GUITAR_STRING_COUNT,
   DEFAULT_FRET_RANGE,
+  createGuitarConfiguration,
 } = require('../guitar/tuning');
 const {
   getPositionCandidates,
@@ -86,17 +87,21 @@ function buildInstructionIndex(reduction, runtime) {
   return bySourceEventId;
 }
 
-function validatePosition(position, targetMidi, sourceEventId, sourceGroupId) {
+function validatePosition(position, targetMidi, sourceEventId, sourceGroupId, configuration) {
+  const absoluteFret = Number.isInteger(position?.fret)
+    ? configuration.capoFret + position.fret
+    : null;
   if (
     !position
     || !Number.isInteger(position.string)
     || position.string < 1
     || position.string > GUITAR_STRING_COUNT
     || !Number.isInteger(position.fret)
-    || position.fret < DEFAULT_FRET_RANGE.minimumFret
-    || position.fret > DEFAULT_FRET_RANGE.maximumFret
+    || position.fret < 0
+    || absoluteFret < configuration.minimumFret
+    || absoluteFret > configuration.maximumFret
   ) {
-    throw invalid('Existing fretboard candidate logic returned an invalid standard-guitar position.', {
+    throw invalid('Existing fretboard candidate logic returned an invalid six-string guitar position.', {
       sourceGroupId,
       sourceEventId,
       targetMidi,
@@ -105,7 +110,7 @@ function validatePosition(position, targetMidi, sourceEventId, sourceGroupId) {
 
   let observedMidi;
   try {
-    observedMidi = positionToMidi(position);
+    observedMidi = positionToMidi(position, configuration);
   } catch {
     throw invalid('PA-7 could not round-trip a generated guitar position.', {
       sourceGroupId,
@@ -128,7 +133,7 @@ function validatePosition(position, targetMidi, sourceEventId, sourceGroupId) {
   }
 }
 
-function enumerateGroupCandidates(group, activeEntries, runtime, counter) {
+function enumerateGroupCandidates(group, activeEntries, runtime, counter, configuration) {
   if (activeEntries.length > GUITAR_STRING_COUNT) {
     return Object.freeze([]);
   }
@@ -140,7 +145,7 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter) {
       memberIndex,
     });
     const entry = activeEntries[memberIndex];
-    const positions = getPositionCandidates(entry.targetMidi);
+    const positions = getPositionCandidates(entry.targetMidi, configuration);
     const normalized = new Array(positions.length);
 
     for (let positionIndex = 0; positionIndex < positions.length; positionIndex += 1) {
@@ -150,7 +155,7 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter) {
         positionIndex,
       });
       const position = positions[positionIndex];
-      validatePosition(position, entry.targetMidi, entry.sourceEventId, group.groupId);
+      validatePosition(position, entry.targetMidi, entry.sourceEventId, group.groupId, configuration);
       normalized[positionIndex] = Object.freeze({
         sourceEventId: entry.sourceEventId,
         targetMidi: entry.targetMidi,
@@ -215,10 +220,16 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter) {
   return Object.freeze(candidates);
 }
 
-function createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, runtime = null) {
+function createGuitarVoicingCandidateModel(
+  sourceModel,
+  arrangementDecisions,
+  runtime = null,
+  guitarOptions = {},
+) {
   checkpoint(runtime, 'guitar-voicing-candidate-model:start');
 
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+  const configuration = createGuitarConfiguration(guitarOptions);
   const grouping = createSimultaneousEventModel(source, runtime);
   const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
   const instructionsBySourceEventId = buildInstructionIndex(reduction, runtime);
@@ -289,7 +300,13 @@ function createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, ru
         continue;
       }
 
-      const candidates = enumerateGroupCandidates(group, activeEntries, runtime, counter);
+      const candidates = enumerateGroupCandidates(
+        group,
+        activeEntries,
+        runtime,
+        counter,
+        configuration,
+      );
       groups.push(Object.freeze({
         sourceGroupId: group.groupId,
         onsetDivisions: group.onsetDivisions,
@@ -325,8 +342,8 @@ function createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, ru
     configuration: Object.freeze({
       contractVersion: GUITAR_CONFIGURATION_VERSION,
       stringCount: GUITAR_STRING_COUNT,
-      minimumFret: DEFAULT_FRET_RANGE.minimumFret,
-      maximumFret: DEFAULT_FRET_RANGE.maximumFret,
+      minimumFret: configuration.minimumFret,
+      maximumFret: configuration.maximumFret,
     }),
     groupCount: groups.length,
     candidateCount: counter.count,
