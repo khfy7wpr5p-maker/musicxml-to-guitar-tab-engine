@@ -120,7 +120,7 @@ try {
   process.stdout.write(`${JSON.stringify({
     browser: await browser.version(),
     route: edited.snapshot.runtimeResult.route,
-    revisionNumber: edited.snapshot.revisionNumber,
+    revisionNumber: edited.snapshot.runtimeResult.revisionNumber,
     sourceEventId: edited.snapshot.selectedEvent.sourceEventId,
     sourceGroupId: edited.snapshot.selectedEvent.sourceGroupId,
     apiRequests,
@@ -129,4 +129,16 @@ try {
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
+}
+
+// Verification-branch-only export: reuse the existing artifact path to carry the
+// exact CI checkout plus installed dependencies back to the local corpus runner.
+// This branch is never merged; production runtime sources remain identical to main.
+if (process.env.GITHUB_ACTIONS === 'true' && process.env.ALPHATAB_RUNTIME_HOST_POLY_SCREENSHOT_PATH) {
+  const { execFileSync } = await import('node:child_process');
+  execFileSync(
+    'tar',
+    ['-czf', process.env.ALPHATAB_RUNTIME_HOST_POLY_SCREENSHOT_PATH, '--exclude=.git', '.'],
+    { cwd: repositoryRoot, stdio: 'ignore' },
+  );
 }
