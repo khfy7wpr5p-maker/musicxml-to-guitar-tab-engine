@@ -56,7 +56,7 @@ const SAFE_SLUR_ATTRIBUTES = new Set([
   'placement',
   'orientation',
 ]);
-const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement']);
+const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement', 'directive']);
 const SAFE_BARLINE_STYLES = new Set([
   'regular',
   'dotted',
@@ -252,10 +252,39 @@ function positiveTempo(node) {
   return Number.isFinite(value) && value > 0 && value <= 1000 ? value : null;
 }
 
+function hasSafeMetronomeDirectionAttributes(node) {
+  const seen = new Set();
+  for (const attribute of node.attributes) {
+    if (attribute.uri.length !== 0 || !SAFE_DIRECTION_ATTRIBUTES.has(attribute.name)) return false;
+    if (seen.has(attribute.name)) return false;
+    seen.add(attribute.name);
+    if (attribute.name === 'placement' && !['above', 'below'].includes(attribute.value)) return false;
+    if (attribute.name === 'directive' && attribute.value !== 'yes') return false;
+  }
+  return true;
+}
+
+function hasSafeMetronomeLayoutAttributes(node) {
+  const seen = new Set();
+  for (const attribute of node.attributes) {
+    if (attribute.uri.length !== 0 || !['parentheses', 'default-y'].includes(attribute.name)) {
+      return false;
+    }
+    if (seen.has(attribute.name)) return false;
+    seen.add(attribute.name);
+    if (attribute.name === 'parentheses' && !['yes', 'no'].includes(attribute.value)) return false;
+    if (
+      attribute.name === 'default-y'
+      && (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(attribute.value)
+        || !Number.isFinite(Number(attribute.value))
+        || Math.abs(Number(attribute.value)) > 1_000_000)
+    ) return false;
+  }
+  return true;
+}
+
 function safeMetronomeDirection(node) {
-  if (!hasOnlyUnqualifiedAttributes(node, SAFE_DIRECTION_ATTRIBUTES)) return false;
-  const placement = getAttribute(node, 'placement');
-  if (placement !== undefined && !['above', 'below'].includes(placement)) return false;
+  if (!hasSafeMetronomeDirectionAttributes(node)) return false;
 
   const children = node.children.filter((child) => child.uri === node.uri);
   if (children.some((child) => child.name !== 'direction-type' && child.name !== 'sound')) {
@@ -278,7 +307,7 @@ function safeMetronomeDirection(node) {
   }
 
   const metronome = metronomeNodes[0];
-  if (!hasOnlyUnqualifiedAttributes(metronome, new Set())) return false;
+  if (!hasSafeMetronomeLayoutAttributes(metronome)) return false;
   const metronomeChildren = metronome.children.filter((child) => child.uri === metronome.uri);
   if (metronomeChildren.some((child) => !['beat-unit', 'per-minute'].includes(child.name))) {
     return false;
@@ -308,6 +337,30 @@ function safeMetronomeDirection(node) {
     if (numericTempo !== perMinute) return false;
   }
   return true;
+}
+
+function safeGuitarProDynamicsDirection(node) {
+  if (node.attributes.length !== 0) return false;
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (children.length !== 1) return false;
+  const directionTypes = directChildren(node, 'direction-type');
+  if (directionTypes.length !== 1) return false;
+
+  const directionType = directionTypes[0];
+  if (directionType.attributes.length !== 0 || directionType.children.length !== 1) return false;
+  const dynamicsNodes = directChildren(directionType, 'dynamics');
+  if (dynamicsNodes.length !== 1) return false;
+
+  const dynamics = dynamicsNodes[0];
+  if (dynamics.attributes.length !== 0 || dynamics.children.length !== 1) return false;
+  const mark = dynamics.children[0];
+  return (
+    mark.uri === dynamics.uri
+    && ['p', 'mf', 'f'].includes(mark.name)
+    && mark.attributes.length === 0
+    && mark.children.length === 0
+    && mark.text.trim().length === 0
+  );
 }
 
 function safeSimpleBarline(node) {
@@ -662,9 +715,15 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         continue;
       }
       if (child.name === 'direction') {
-        if (!safeMetronomeDirection(child)) throw unsupported('direction');
-        ignoredFeatures.add('measure:direction:metronome-tempo');
-        continue;
+        if (safeMetronomeDirection(child)) {
+          ignoredFeatures.add('measure:direction:metronome-tempo');
+          continue;
+        }
+        if (safeGuitarProDynamicsDirection(child)) {
+          ignoredFeatures.add('measure:direction:dynamics');
+          continue;
+        }
+        throw unsupported('direction');
       }
       if (child.name === 'barline') {
         if (!safeSimpleBarline(child)) throw unsupported('barline');
