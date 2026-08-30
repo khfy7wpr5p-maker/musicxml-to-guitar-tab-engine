@@ -14,7 +14,9 @@ const {
   validateManifest,
 } = require('../scripts/guitar-tech-real-corpus-gate');
 const {
+  runtimeTreeEquivalent,
   validateStageGate,
+  validateStageGateFromRepository,
 } = require('../scripts/check-guitar-tech-stage-gate');
 
 function blockedResult(extra = {}) {
@@ -147,10 +149,41 @@ test('current state deliberately blocks PROD-TECH-03 until a fresh reviewed corp
   assert.ok(verdict.reasons.includes('PROD_TECH_03_MERGE_NOT_ALLOWED'));
 });
 
+test('stage gate permits verification-only descendants but rejects unproven runtime drift', () => {
+  const passState = {
+    ...state,
+    status: 'PASS',
+    prodTech03MergeAllowed: true,
+    auditedMainSha: 'a'.repeat(40),
+    auditReportSha256: 'b'.repeat(64),
+    corpusIdentityVerified: true,
+    twoRunDeterminismVerified: true,
+    sourceByteImmutabilityVerified: true,
+    blockerDiffReviewed: true,
+  };
+  assert.equal(validateStageGate(passState, {
+    expectedBaseSha: 'c'.repeat(40),
+    auditedRuntimeEquivalent: true,
+  }).ok, true);
+  const stale = validateStageGate(passState, {
+    expectedBaseSha: 'c'.repeat(40),
+    auditedRuntimeEquivalent: false,
+  });
+  assert.equal(stale.ok, false);
+  assert.ok(stale.reasons.includes('AUDITED_MAIN_RUNTIME_STALE'));
+});
+
+test('runtime-equivalence check fails closed for unknown git identities', () => {
+  assert.equal(runtimeTreeEquivalent({
+    auditedMainSha: '0'.repeat(40),
+    expectedBaseSha: '1'.repeat(40),
+  }), false);
+});
+
 test('required CI on a PROD-TECH-03 stage branch enforces the committed real-corpus gate state', () => {
   const branch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || '';
   if (!/(?:^|\/)prod-tech-03(?:-|$)/i.test(branch)) return;
   const expectedBaseSha = process.env.GUITAR_TECH_EXPECTED_BASE_SHA || null;
-  const verdict = validateStageGate(state, { targetStage: 'PROD-TECH-03', expectedBaseSha });
+  const verdict = validateStageGateFromRepository(state, { targetStage: 'PROD-TECH-03', expectedBaseSha });
   assert.equal(verdict.ok, true, `PROD-TECH-03 is blocked by real-corpus gate: ${verdict.reasons.join(', ')}`);
 });
