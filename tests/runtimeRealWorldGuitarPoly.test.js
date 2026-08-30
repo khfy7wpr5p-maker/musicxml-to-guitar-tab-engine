@@ -38,6 +38,20 @@ function assertBlockedUnsupported(name, xml, expectedFeature) {
   assert.equal(result.preflight.issues[0].details.feature, expectedFeature, name);
 }
 
+function musicalFactSnapshot(result) {
+  return result.canonicalTabResult.measures.flatMap((measure) => measure.events.map((event) => ({
+    type: event.type,
+    voice: event.voice,
+    staff: event.staff,
+    onset: event.onsetDivisions,
+    duration: event.durationDivisions,
+    chordWithPrevious: event.source.chordWithPrevious,
+    pitch: event.pitch?.written ?? null,
+    tieStart: event.tieStart,
+    tieStop: event.tieStop,
+  })));
+}
+
 test('runtime routes real-world single-staff multi-voice guitar notation through POLY_V2 with sounding-octave normalization', () => {
   const result = processMusicXmlUpload({
     fileName: 'real-guitar.musicxml',
@@ -151,6 +165,41 @@ test('runtime accepts bounded source string/fret provenance without treating it 
   });
 });
 
+test('runtime accepts the exact Guitar Pro empty harmonic technical form as provenance', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const baseline = processMusicXmlUpload({ fileName: 'harmonic-baseline.musicxml', bytes: Buffer.from(source) });
+  const withHarmonic = source.replace(
+    '<articulations><staccato/></articulations>',
+    '<articulations><staccato/></articulations><technical><harmonic/><string>6</string><fret>12</fret></technical>',
+  );
+  const first = processMusicXmlUpload({ fileName: 'guitar-pro-harmonic.musicxml', bytes: Buffer.from(withHarmonic) });
+  const second = processMusicXmlUpload({ fileName: 'guitar-pro-harmonic.musicxml', bytes: Buffer.from(withHarmonic) });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(first, second);
+  assert.deepEqual(musicalFactSnapshot(first), musicalFactSnapshot(baseline));
+  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('notation:technical:harmonic-provenance'));
+  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('notation:technical:string-fret-provenance'));
+});
+
+test('runtime accepts the exact Guitar Pro straight-mute play form as provenance', () => {
+  const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
+  const baseline = processMusicXmlUpload({ fileName: 'straight-mute-baseline.musicxml', bytes: Buffer.from(source) });
+  const withStraightMute = source.replace(
+    '<duration>4</duration><voice>1</voice>',
+    '<duration>4</duration><play><mute>straight</mute></play><voice>1</voice>',
+  );
+  const first = processMusicXmlUpload({ fileName: 'guitar-pro-straight-mute.musicxml', bytes: Buffer.from(withStraightMute) });
+  const second = processMusicXmlUpload({ fileName: 'guitar-pro-straight-mute.musicxml', bytes: Buffer.from(withStraightMute) });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(first, second);
+  assert.deepEqual(musicalFactSnapshot(first), musicalFactSnapshot(baseline));
+  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('note:play:straight-mute-provenance'));
+});
+
 test('runtime accepts bounded staff-tuning provenance while recomputing standard-guitar TAB', () => {
   const source = fixture('runtime-realworld-guitar-poly.musicxml').toString('utf8');
   const withStaffTuning = source.replace(
@@ -221,6 +270,30 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
       xml: source.replace(
         '<articulations><staccato/></articulations>',
         '<technical><hammer-on type="start">H</hammer-on></technical>',
+      ),
+    },
+    {
+      name: 'non-empty-harmonic',
+      expectedFeature: 'notation:technical',
+      xml: source.replace(
+        '<articulations><staccato/></articulations>',
+        '<technical><harmonic><natural/></harmonic></technical>',
+      ),
+    },
+    {
+      name: 'unknown-play-mute',
+      expectedFeature: 'note-child:play',
+      xml: source.replace(
+        '<duration>4</duration><voice>1</voice>',
+        '<duration>4</duration><play><mute>palm</mute></play><voice>1</voice>',
+      ),
+    },
+    {
+      name: 'conflicting-play-mute',
+      expectedFeature: 'note-child:play',
+      xml: source.replace(
+        '<duration>4</duration><voice>1</voice>',
+        '<duration>4</duration><play><mute>straight</mute><mute>straight</mute></play><voice>1</voice>',
       ),
     },
     {
