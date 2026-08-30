@@ -34,7 +34,7 @@ test('COMPAT-01C pins the documented Guitar Pro MusicXML export profile by sha25
   );
 });
 
-test('COMPAT-01C Guitar Pro export-profile provenance normalizes deterministically without trusting source TAB fingering', () => {
+test('COMPAT-01C Guitar Pro export-profile provenance follows MONO guitar register semantics without trusting source TAB fingering', () => {
   const bytes = fixture();
   const first = processMusicXmlUpload({ fileName: FIXTURE_NAME, bytes });
   const second = processMusicXmlUpload({ fileName: FIXTURE_NAME, bytes });
@@ -44,28 +44,35 @@ test('COMPAT-01C Guitar Pro export-profile provenance normalizes deterministical
     MUSICXML_UPLOAD_STATUS.PASS,
     `unexpected preflight: ${JSON.stringify(first.preflight)}`,
   );
-  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
   assert.deepEqual(first, second);
-  assert.equal(first.preflight.status, 'WARNING');
+  assert.equal(first.preflight.status, 'PASS');
   assert.equal(first.preflight.canProcess, true);
-  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef-layout'));
-  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('attributes:staff-tuning-provenance'));
-  assert.ok(first.preflight.issues[0].details.ignoredFeatures.includes('notation:technical:string-fret-provenance'));
+  assert.deepEqual(first.preflight.issues, []);
 
-  const dispositions = first.canonicalTabResult.noteDispositions;
-  assert.equal(dispositions.length, 1);
-  assert.equal(dispositions[0].targetPitch.written, 'E4');
-  assert.equal(dispositions[0].disposition, 'KEEP');
-  assert.equal(dispositions[0].octaveShiftSemitones, 0);
-  assert.ok(dispositions[0].selectedPosition);
+  const notes = first.canonicalTabResult.measures[0].events.filter(
+    (event) => event.type === 'note',
+  );
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].pitch.written, 'E3');
+  assert.equal(notes[0].pitch.midi, 52);
+  assert.ok(notes[0].selectedPosition);
   assert.equal(
-    STANDARD_OPEN_STRING_MIDI[dispositions[0].selectedPosition.string]
-      + dispositions[0].selectedPosition.fret,
-    dispositions[0].targetPitch.midi,
+    STANDARD_OPEN_STRING_MIDI[notes[0].selectedPosition.string]
+      + notes[0].selectedPosition.fret,
+    notes[0].pitch.midi,
   );
 
-  assert.notDeepEqual(dispositions[0].selectedPosition, { string: 6, fret: 0 });
-  assert.deepEqual(dispositions[0].selectedPosition, { string: 1, fret: 0 });
+  assert.notDeepEqual(notes[0].selectedPosition, { string: 6, fret: 0 });
+  assert.deepEqual(notes[0].selectedPosition, { string: 4, fret: 2 });
+  assert.match(first.musicXml, /<octave-change>-1<\/octave-change>/);
   assert.match(first.musicXml, /<sign>TAB<\/sign>/);
-  assert.match(first.musicXml, /<technical>[\s\S]*?<string>1<\/string>[\s\S]*?<fret>0<\/fret>/);
+  assert.match(
+    first.musicXml,
+    /<pitch><step>E<\/step><octave>4<\/octave><\/pitch>[\s\S]*?<staff>1<\/staff>/,
+  );
+  assert.match(
+    first.musicXml,
+    /<pitch><step>E<\/step><octave>3<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>[\s\S]*?<technical>[\s\S]*?<string>4<\/string>[\s\S]*?<fret>2<\/fret>/,
+  );
 });
