@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const { EngineError } = require('../errors/engineError');
 
 const GUITAR_TECHNIQUE_PROVENANCE_VERSION = '1.0.0';
@@ -69,6 +70,59 @@ function boundedSourceText(value) {
   return value;
 }
 
+function validatePairing(input, kind, state) {
+  const pairingFields = ['pairingId', 'pairingBasis', 'sourcePairingToken'];
+  const hasAnyPairing = pairingFields.some(
+    (field) => Object.hasOwn(input, field) && input[field] !== undefined && input[field] !== null,
+  );
+  if (!hasAnyPairing) {
+    return Object.freeze({ pairingId: null, pairingBasis: null, sourcePairingToken: null });
+  }
+  if (kind !== 'HAMMER_ON') {
+    fail(
+      'Deterministic pairing is not cleared for this technique kind.',
+      'GUITAR_TECHNIQUE_PAIRING_KIND_NOT_CLEARED',
+      { kind },
+    );
+  }
+  if (state !== 'START' && state !== 'STOP') {
+    fail(
+      'Only START or STOP technique provenance may carry deterministic pairing identity.',
+      'GUITAR_TECHNIQUE_PAIRING_STATE_INVALID',
+      { state },
+    );
+  }
+  if (
+    typeof input.pairingId !== 'string'
+    || input.pairingId.length < 1
+    || input.pairingId.length > 96
+    || !/^[A-Za-z0-9_.:-]+$/.test(input.pairingId)
+  ) {
+    fail('pairingId must be a bounded deterministic identifier.', 'GUITAR_TECHNIQUE_PAIRING_INVALID');
+  }
+  if (input.pairingBasis !== 'DETERMINISTIC_SOURCE_IDENTITY') {
+    fail(
+      'pairingBasis must prove deterministic source identity.',
+      'GUITAR_TECHNIQUE_NON_DETERMINISTIC_PAIRING_FORBIDDEN',
+    );
+  }
+  if (
+    typeof input.sourcePairingToken !== 'string'
+    || input.sourcePairingToken.length < 1
+    || input.sourcePairingToken.length > 128
+  ) {
+    fail(
+      'sourcePairingToken must be a bounded deterministic source token.',
+      'GUITAR_TECHNIQUE_PAIRING_INVALID',
+    );
+  }
+  return Object.freeze({
+    pairingId: input.pairingId,
+    pairingBasis: input.pairingBasis,
+    sourcePairingToken: input.sourcePairingToken,
+  });
+}
+
 function createGuitarTechniqueProvenance(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Technique provenance input must be an object.');
   for (const field of FORBIDDEN_AUTHORITY_FIELDS) {
@@ -95,6 +149,7 @@ function createGuitarTechniqueProvenance(input) {
     copiedAttributes[key] = value;
   }
 
+  const pairing = validatePairing(input, input.kind, input.state);
   return Object.freeze({
     documentType: 'GuitarTechniqueProvenance',
     contractVersion: GUITAR_TECHNIQUE_PROVENANCE_VERSION,
@@ -104,16 +159,18 @@ function createGuitarTechniqueProvenance(input) {
     sourcePath: input.sourcePath,
     sourceAttributes: Object.freeze(copiedAttributes),
     sourceText: boundedSourceText(input.sourceText),
-    pairingId: null,
-    pairingBasis: null,
-    sourcePairingToken: null,
+    pairingId: pairing.pairingId,
+    pairingBasis: pairing.pairingBasis,
+    sourcePairingToken: pairing.sourcePairingToken,
     normalizedSemantics: input.normalizedSemantics,
     capabilityClass: SAFE_METADATA_ONLY,
   });
 }
 
 function record(records, input) {
+  const recordIndex = records.length;
   records.push(createGuitarTechniqueProvenance({ ...input, capabilityClass: SAFE_METADATA_ONLY }));
+  return recordIndex;
 }
 
 function parseHammerOn(node, records) {
@@ -127,11 +184,11 @@ function parseHammerOn(node, records) {
   if ((attrs.type === 'start' && text !== 'H') || (attrs.type === 'stop' && text !== '')) {
     fail(`${path} text does not match the verified Guitar Pro source form.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   }
-  record(records, {
+  const recordIndex = record(records, {
     kind: 'HAMMER_ON', subtype: 'musicxml-hammer-on', state: attrs.type === 'start' ? 'START' : 'STOP',
     sourcePath: path, sourceAttributes: attrs, sourceText: text, normalizedSemantics: 'HAMMER_ON',
   });
-  return attrs;
+  return Object.freeze({ attrs, recordIndex });
 }
 
 function parseSlide(node, records) {
@@ -204,20 +261,26 @@ function pairingContextFromNote(note, partIndex) {
   return Object.freeze({ partIndex, voice, staff });
 }
 
-function pushPairEvent(pairEvents, context, kind, attrs) {
+function pushPairEvent(pairEvents, context, kind, attrs, recordIndex = null, sourceToken = null) {
   pairEvents.push(Object.freeze({
     ...context,
     kind,
     number: attrs.number,
     state: attrs.type,
+    recordIndex,
+    sourceToken,
   }));
+}
+
+function pairEventKey(event) {
+  return `${event.partIndex}\u0000${event.voice}\u0000${event.staff}\u0000${event.kind}\u0000${event.number}`;
 }
 
 function validatePairEvents(pairEvents) {
   const balances = new Map();
   const labels = new Map();
   for (const event of pairEvents) {
-    const key = `${event.partIndex}\u0000${event.voice}\u0000${event.staff}\u0000${event.kind}\u0000${event.number}`;
+    const key = pairEventKey(event);
     const current = balances.get(key) || 0;
     labels.set(key, event);
     if (event.state === 'start') {
@@ -240,7 +303,91 @@ function validatePairEvents(pairEvents) {
   }
 }
 
-function parseTechnical(node, records, pairEvents, pairingContext) {
+function sourceIdentityToken(location, markerIndex) {
+  const token = [
+    `p${location.partIndex}`,
+    `m${location.measureIndex}`,
+    `n${location.noteIndex}`,
+    `o${location.notationsIndex}`,
+    `t${location.technicalIndex}`,
+    `h${markerIndex}`,
+  ].join('.');
+  if (token.length > 64) {
+    fail(
+      'Technique source identity token exceeds the bounded pairing contract.',
+      'GUITAR_TECHNIQUE_PROVENANCE_LIMIT_EXCEEDED',
+    );
+  }
+  return token;
+}
+
+function rebindRecordWithPairing(recordValue, pairing) {
+  return createGuitarTechniqueProvenance({
+    kind: recordValue.kind,
+    subtype: recordValue.subtype,
+    state: recordValue.state,
+    sourcePath: recordValue.sourcePath,
+    sourceAttributes: recordValue.sourceAttributes,
+    sourceText: recordValue.sourceText,
+    normalizedSemantics: recordValue.normalizedSemantics,
+    capabilityClass: SAFE_METADATA_ONLY,
+    ...pairing,
+  });
+}
+
+function applyDeterministicHammerPairing(records, pairEvents) {
+  const groups = new Map();
+  for (const event of pairEvents) {
+    if (event.kind !== 'HAMMER_ON') continue;
+    const key = pairEventKey(event);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(event);
+  }
+
+  for (const events of groups.values()) {
+    let balance = 0;
+    let segment = [];
+    let ambiguous = false;
+    for (const event of events) {
+      segment.push(event);
+      if (event.state === 'start') {
+        balance += 1;
+        if (balance > 1) ambiguous = true;
+      } else {
+        balance -= 1;
+      }
+
+      if (balance !== 0) continue;
+      if (
+        !ambiguous
+        && segment.length === 2
+        && segment[0].state === 'start'
+        && segment[1].state === 'stop'
+        && Number.isInteger(segment[0].recordIndex)
+        && Number.isInteger(segment[1].recordIndex)
+        && typeof segment[0].sourceToken === 'string'
+        && typeof segment[1].sourceToken === 'string'
+      ) {
+        const start = segment[0];
+        const stop = segment[1];
+        const sourcePairingToken = `${start.sourceToken}>${stop.sourceToken}`;
+        const pairingDigest = crypto.createHash('sha256').update(sourcePairingToken).digest('hex').slice(0, 24);
+        const pairingId = `HAMMER_ON:n${start.number}:${pairingDigest}`;
+        const pairing = {
+          pairingId,
+          pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
+          sourcePairingToken,
+        };
+        records[start.recordIndex] = rebindRecordWithPairing(records[start.recordIndex], pairing);
+        records[stop.recordIndex] = rebindRecordWithPairing(records[stop.recordIndex], pairing);
+      }
+      segment = [];
+      ambiguous = false;
+    }
+  }
+}
+
+function parseTechnical(node, records, pairEvents, pairingContext, location) {
   const path = 'note/notations/technical';
   attributeMap(node, new Set(), path);
   requireSameNamespaceChildren(node, path);
@@ -261,13 +408,20 @@ function parseTechnical(node, records, pairEvents, pairingContext) {
     if (hammerSeen.has(key)) fail(`${path}/hammer-on contains duplicate event markers.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: `${path}/hammer-on` });
     hammerSeen.add(key);
   }
-  for (const child of children) {
+  children.forEach((child, childIndex) => {
     if (child.name === 'harmonic') parseHarmonic(child, records);
     else if (child.name === 'hammer-on') {
-      const attrs = parseHammerOn(child, records);
-      pushPairEvent(pairEvents, pairingContext(), 'HAMMER_ON', attrs);
+      const parsedHammer = parseHammerOn(child, records);
+      pushPairEvent(
+        pairEvents,
+        pairingContext(),
+        'HAMMER_ON',
+        parsedHammer.attrs,
+        parsedHammer.recordIndex,
+        sourceIdentityToken(location, childIndex),
+      );
     } else parsePositionChild(child, records);
-  }
+  });
 }
 
 function parsePlay(node, records) {
@@ -285,7 +439,7 @@ function parsePlay(node, records) {
   record(records, { kind: 'MUTE', subtype: 'straight', state: 'SINGLE', sourcePath: mutePath, sourceAttributes: Object.freeze({}), sourceText: 'straight', normalizedSemantics: 'MUTE_STRAIGHT' });
 }
 
-function parseNote(node, records, pairEvents, partIndex) {
+function parseNote(node, records, pairEvents, partIndex, measureIndex, noteIndex) {
   const plays = directChildren(node, 'play');
   if (plays.length > 1) fail('note/play is duplicated; mute provenance scope is ambiguous.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/play' });
   for (const play of plays) parsePlay(play, records);
@@ -296,13 +450,19 @@ function parseNote(node, records, pairEvents, partIndex) {
     return context;
   };
 
-  for (const notations of directChildren(node, 'notations')) {
+  directChildren(node, 'notations').forEach((notations, notationsIndex) => {
     const slideSeen = new Set();
-    for (const child of notations.children) {
-      if (child.uri !== notations.uri) continue;
+    notations.children.forEach((child, technicalIndex) => {
+      if (child.uri !== notations.uri) return;
       if (child.name === 'technical') {
-        parseTechnical(child, records, pairEvents, pairingContext);
-        continue;
+        parseTechnical(
+          child,
+          records,
+          pairEvents,
+          pairingContext,
+          Object.freeze({ partIndex, measureIndex, noteIndex, notationsIndex, technicalIndex }),
+        );
+        return;
       }
       if (child.name === 'slide') {
         const attrs = attributeMap(child, new Set(['number', 'type']), 'note/notations/slide');
@@ -312,8 +472,8 @@ function parseNote(node, records, pairEvents, partIndex) {
         const parsedAttrs = parseSlide(child, records);
         pushPairEvent(pairEvents, pairingContext(), 'SLIDE', parsedAttrs);
       }
-    }
-  }
+    });
+  });
 }
 
 function extractGuitarTechniqueProvenance(parsedDocument) {
@@ -324,11 +484,14 @@ function extractGuitarTechniqueProvenance(parsedDocument) {
   const pairEvents = [];
   const parts = directChildren(parsedDocument.root, 'part');
   parts.forEach((part, partIndex) => {
-    for (const measure of directChildren(part, 'measure')) {
-      for (const note of directChildren(measure, 'note')) parseNote(note, records, pairEvents, partIndex);
-    }
+    directChildren(part, 'measure').forEach((measure, measureIndex) => {
+      directChildren(measure, 'note').forEach((note, noteIndex) => {
+        parseNote(note, records, pairEvents, partIndex, measureIndex, noteIndex);
+      });
+    });
   });
   validatePairEvents(pairEvents);
+  applyDeterministicHammerPairing(records, pairEvents);
   return Object.freeze({
     documentType: 'GuitarTechniqueProvenanceCollection',
     contractVersion: COLLECTION_VERSION,
