@@ -109,6 +109,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     contractVersion: POLY_PRODUCTION_COMPATIBILITY_NORMALIZATION_CHAIN_VERSION,
     sourceModel,
     mainSourceModel: sourceModel,
+    parsedMainDocument: semanticNormalization.parsedMainDocument,
     guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
     graceOrnamentGroups: semanticNormalization.graceOrnamentGroups,
     extractedFeatures: semanticNormalization.extractedFeatures,
