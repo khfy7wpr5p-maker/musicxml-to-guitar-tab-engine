@@ -146,10 +146,10 @@ function emptyPhysicalState(point) {
   });
 }
 
-function createSustainedLeftHandPhysicalStateModel(sourceModel, runtime = null) {
+function createSustainedLeftHandPhysicalStateModel(sourceModel, runtime = null, guitarOptions = {}) {
   checkpoint(runtime, 'sustained-left-hand-physical:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
-  const positionModel = createSustainedGuitarPositionStateModel(source, runtime);
+  const positionModel = createSustainedGuitarPositionStateModel(source, runtime, guitarOptions);
   const shapeCounters = { shapeCandidates: 0, assignmentAttempts: 0 };
   const measures = [];
   let pointCount = 0;
