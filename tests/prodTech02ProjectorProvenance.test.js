@@ -44,7 +44,14 @@ test('PROD-TECH-02 projects verified SAFE_METADATA_ONLY technique provenance wit
   assert.equal(projected.guitarTechniqueProvenance.capabilityClass, 'SAFE_METADATA_ONLY');
   assert.equal(projected.guitarTechniqueProvenance.physicalSemanticsEnabled, false);
   assert.equal(projected.guitarTechniqueProvenance.recordCount, 8);
-  assert.ok(projected.guitarTechniqueProvenance.records.every((entry) => entry.pairingId === null));
+  const hammers = projected.guitarTechniqueProvenance.records.filter((entry) => entry.kind === 'HAMMER_ON');
+  assert.equal(hammers.length, 2);
+  assert.ok(hammers[0].pairingId);
+  assert.equal(hammers[0].pairingId, hammers[1].pairingId);
+  assert.equal(hammers[0].pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  assert.equal(hammers[0].sourcePairingToken, hammers[1].sourcePairingToken);
+  const slides = projected.guitarTechniqueProvenance.records.filter((entry) => entry.kind === 'SLIDE');
+  assert.ok(slides.every((entry) => entry.pairingId === null));
   assert.ok(projected.ignoredFeatures.includes('notation:technical:hammer-on-provenance'));
   assert.ok(projected.ignoredFeatures.includes('notation:slide:guitar-technique-provenance'));
   assert.ok(projected.ignoredFeatures.includes('notation:technical:harmonic-provenance'));
