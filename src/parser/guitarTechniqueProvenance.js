@@ -70,9 +70,7 @@ function boundedSourceText(value) {
 }
 
 function createGuitarTechniqueProvenance(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    fail('Technique provenance input must be an object.');
-  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Technique provenance input must be an object.');
   for (const field of FORBIDDEN_AUTHORITY_FIELDS) {
     if (Object.hasOwn(input, field)) {
       fail('Technique provenance must not carry musical facts or solver authority.', 'GUITAR_TECHNIQUE_AUTHORITY_FORBIDDEN', { field });
@@ -80,9 +78,7 @@ function createGuitarTechniqueProvenance(input) {
   }
   if (!KINDS.has(input.kind)) fail('Unsupported guitar technique provenance kind.', 'UNSUPPORTED_GUITAR_TECHNIQUE_KIND', { kind: input.kind });
   if (!STATES.has(input.state)) fail('Unsupported guitar technique provenance state.', 'UNSUPPORTED_GUITAR_TECHNIQUE_STATE', { state: input.state });
-  if (input.capabilityClass !== SAFE_METADATA_ONLY) {
-    fail('PROD-TECH-01 only authorizes metadata-only provenance.', 'GUITAR_TECHNIQUE_PHYSICAL_AUTHORITY_FORBIDDEN');
-  }
+  if (input.capabilityClass !== SAFE_METADATA_ONLY) fail('PROD-TECH-01 only authorizes metadata-only provenance.', 'GUITAR_TECHNIQUE_PHYSICAL_AUTHORITY_FORBIDDEN');
   if (typeof input.subtype !== 'string' || input.subtype.length < 1 || input.subtype.length > 96) fail('Technique subtype must be bounded.');
   if (typeof input.sourcePath !== 'string' || input.sourcePath.length > 192 || !/^note(?:\/[A-Za-z][A-Za-z0-9_-]*)+$/.test(input.sourcePath)) fail('Technique sourcePath is invalid.');
   if (typeof input.normalizedSemantics !== 'string' || !/^[A-Z][A-Z0-9_:-]*$/.test(input.normalizedSemantics) || input.normalizedSemantics.length > 96) fail('Technique normalized semantics is invalid.');
@@ -124,9 +120,7 @@ function parseHammerOn(node, records) {
   const path = 'note/notations/technical/hammer-on';
   const attrs = attributeMap(node, new Set(['number', 'type']), path);
   requireSameNamespaceChildren(node, path);
-  if (!/^\d+$/.test(attrs.number || '') || Number(attrs.number) < 1 || Number(attrs.number) > 16) {
-    fail(`${path} requires bounded number 1..16.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
-  }
+  if (!/^\d+$/.test(attrs.number || '') || Number(attrs.number) < 1 || Number(attrs.number) > 16) fail(`${path} requires bounded number 1..16.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (!['start', 'stop'].includes(attrs.type)) fail(`${path} requires type=start|stop.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (node.children.length !== 0) fail(`${path} must not contain children.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   const text = node.text.trim();
@@ -137,6 +131,7 @@ function parseHammerOn(node, records) {
     kind: 'HAMMER_ON', subtype: 'musicxml-hammer-on', state: attrs.type === 'start' ? 'START' : 'STOP',
     sourcePath: path, sourceAttributes: attrs, sourceText: text, normalizedSemantics: 'HAMMER_ON',
   });
+  return attrs;
 }
 
 function parseSlide(node, records) {
@@ -150,6 +145,7 @@ function parseSlide(node, records) {
     kind: 'SLIDE', subtype: 'musicxml-slide', state: attrs.type === 'start' ? 'START' : 'STOP',
     sourcePath: path, sourceAttributes: attrs, sourceText: '', normalizedSemantics: 'SLIDE',
   });
+  return attrs;
 }
 
 function emptyMarker(node, path) {
@@ -191,7 +187,60 @@ function parsePositionChild(node, records) {
   }
 }
 
-function parseTechnical(node, records) {
+function pairingContextFromNote(note, partIndex) {
+  const voices = directChildren(note, 'voice');
+  const staffs = directChildren(note, 'staff');
+  if (voices.length !== 1 || staffs.length !== 1) {
+    fail('Paired guitar technique evidence requires explicit voice and staff context.', 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING', { path: 'note' });
+  }
+  const voice = voices[0].text.trim();
+  const staff = staffs[0].text.trim();
+  if (voices[0].attributes.length !== 0 || voices[0].children.length !== 0 || voice.length < 1 || voice.length > 64 || /\s/.test(voice)) {
+    fail('Technique voice context is invalid.', 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING', { path: 'note/voice' });
+  }
+  if (staffs[0].attributes.length !== 0 || staffs[0].children.length !== 0 || !/^\d+$/.test(staff) || Number(staff) < 1 || Number(staff) > 16) {
+    fail('Technique staff context is invalid.', 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING', { path: 'note/staff' });
+  }
+  return Object.freeze({ partIndex, voice, staff });
+}
+
+function pushPairEvent(pairEvents, context, kind, attrs) {
+  pairEvents.push(Object.freeze({
+    ...context,
+    kind,
+    number: attrs.number,
+    state: attrs.type,
+  }));
+}
+
+function validatePairEvents(pairEvents) {
+  const balances = new Map();
+  const labels = new Map();
+  for (const event of pairEvents) {
+    const key = `${event.partIndex}\u0000${event.voice}\u0000${event.staff}\u0000${event.kind}\u0000${event.number}`;
+    const current = balances.get(key) || 0;
+    labels.set(key, event);
+    if (event.state === 'start') {
+      balances.set(key, current + 1);
+      continue;
+    }
+    if (current <= 0) {
+      fail('Technique stop marker has no preceding compatible start marker.', 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING', {
+        kind: event.kind, number: event.number, voice: event.voice, staff: event.staff,
+      });
+    }
+    balances.set(key, current - 1);
+  }
+  for (const [key, balance] of balances) {
+    if (balance === 0) continue;
+    const event = labels.get(key);
+    fail('Technique start marker has no compatible stop endpoint.', 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING', {
+      kind: event.kind, number: event.number, voice: event.voice, staff: event.staff, unmatchedStarts: balance,
+    });
+  }
+}
+
+function parseTechnical(node, records, pairEvents, pairingContext) {
   const path = 'note/notations/technical';
   attributeMap(node, new Set(), path);
   requireSameNamespaceChildren(node, path);
@@ -214,8 +263,10 @@ function parseTechnical(node, records) {
   }
   for (const child of children) {
     if (child.name === 'harmonic') parseHarmonic(child, records);
-    else if (child.name === 'hammer-on') parseHammerOn(child, records);
-    else parsePositionChild(child, records);
+    else if (child.name === 'hammer-on') {
+      const attrs = parseHammerOn(child, records);
+      pushPairEvent(pairEvents, pairingContext(), 'HAMMER_ON', attrs);
+    } else parsePositionChild(child, records);
   }
 }
 
@@ -234,29 +285,32 @@ function parsePlay(node, records) {
   record(records, { kind: 'MUTE', subtype: 'straight', state: 'SINGLE', sourcePath: mutePath, sourceAttributes: Object.freeze({}), sourceText: 'straight', normalizedSemantics: 'MUTE_STRAIGHT' });
 }
 
-function parseNote(node, records) {
+function parseNote(node, records, pairEvents, partIndex) {
   const plays = directChildren(node, 'play');
-  if (plays.length > 1) {
-    fail('note/play is duplicated; mute provenance scope is ambiguous.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/play' });
-  }
+  if (plays.length > 1) fail('note/play is duplicated; mute provenance scope is ambiguous.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/play' });
   for (const play of plays) parsePlay(play, records);
+
+  let context = null;
+  const pairingContext = () => {
+    if (!context) context = pairingContextFromNote(node, partIndex);
+    return context;
+  };
 
   for (const notations of directChildren(node, 'notations')) {
     const slideSeen = new Set();
     for (const child of notations.children) {
       if (child.uri !== notations.uri) continue;
       if (child.name === 'technical') {
-        parseTechnical(child, records);
+        parseTechnical(child, records, pairEvents, pairingContext);
         continue;
       }
       if (child.name === 'slide') {
         const attrs = attributeMap(child, new Set(['number', 'type']), 'note/notations/slide');
         const key = `${attrs.number || ''}:${attrs.type || ''}`;
-        if (slideSeen.has(key)) {
-          fail('note/notations/slide contains duplicate event markers.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/notations/slide' });
-        }
+        if (slideSeen.has(key)) fail('note/notations/slide contains duplicate event markers.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/notations/slide' });
         slideSeen.add(key);
-        parseSlide(child, records);
+        const parsedAttrs = parseSlide(child, records);
+        pushPairEvent(pairEvents, pairingContext(), 'SLIDE', parsedAttrs);
       }
     }
   }
@@ -267,11 +321,14 @@ function extractGuitarTechniqueProvenance(parsedDocument) {
     fail('Expected ParsedMusicXmlDocument score-partwise input.');
   }
   const records = [];
-  for (const part of directChildren(parsedDocument.root, 'part')) {
+  const pairEvents = [];
+  const parts = directChildren(parsedDocument.root, 'part');
+  parts.forEach((part, partIndex) => {
     for (const measure of directChildren(part, 'measure')) {
-      for (const note of directChildren(measure, 'note')) parseNote(note, records);
+      for (const note of directChildren(measure, 'note')) parseNote(note, records, pairEvents, partIndex);
     }
-  }
+  });
+  validatePairEvents(pairEvents);
   return Object.freeze({
     documentType: 'GuitarTechniqueProvenanceCollection',
     contractVersion: COLLECTION_VERSION,
