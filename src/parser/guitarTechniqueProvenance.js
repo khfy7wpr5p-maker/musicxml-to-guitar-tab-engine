@@ -235,12 +235,29 @@ function parsePlay(node, records) {
 }
 
 function parseNote(node, records) {
-  for (const play of directChildren(node, 'play')) parsePlay(play, records);
+  const plays = directChildren(node, 'play');
+  if (plays.length > 1) {
+    fail('note/play is duplicated; mute provenance scope is ambiguous.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/play' });
+  }
+  for (const play of plays) parsePlay(play, records);
+
   for (const notations of directChildren(node, 'notations')) {
+    const slideSeen = new Set();
     for (const child of notations.children) {
       if (child.uri !== notations.uri) continue;
-      if (child.name === 'technical') parseTechnical(child, records);
-      else if (child.name === 'slide') parseSlide(child, records);
+      if (child.name === 'technical') {
+        parseTechnical(child, records);
+        continue;
+      }
+      if (child.name === 'slide') {
+        const attrs = attributeMap(child, new Set(['number', 'type']), 'note/notations/slide');
+        const key = `${attrs.number || ''}:${attrs.type || ''}`;
+        if (slideSeen.has(key)) {
+          fail('note/notations/slide contains duplicate event markers.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/notations/slide' });
+        }
+        slideSeen.add(key);
+        parseSlide(child, records);
+      }
     }
   }
 }
