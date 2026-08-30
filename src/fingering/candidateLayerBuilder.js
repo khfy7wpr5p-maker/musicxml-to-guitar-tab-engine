@@ -227,6 +227,7 @@ function normalizeBuilderOptions(options) {
   }
   const allowedFields = new Set([
     'tuning',
+    'capoFret',
     'minimumFret',
     'maximumFret',
     'writtenPitchOctaveShift',
@@ -248,7 +249,7 @@ function normalizeBuilderOptions(options) {
   }
 
   const guitarOptions = {};
-  for (const field of ['tuning', 'minimumFret', 'maximumFret']) {
+  for (const field of ['tuning', 'capoFret', 'minimumFret', 'maximumFret']) {
     if (Object.hasOwn(options, field)) guitarOptions[field] = options[field];
   }
   return {
