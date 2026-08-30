@@ -1,0 +1,56 @@
+{
+  "documentType": "GuitarTechniqueRealCorpusManifest",
+  "contractVersion": "1.0.0",
+  "producer": "Guitar Pro 7.6.0",
+  "entrypoint": "processMusicXmlUpload()",
+  "sourceFilesCommitted": false,
+  "requiredRunCount": 2,
+  "historicalBaselineArtifact": "guitar-pro-harmonic-play-audit-results.json",
+  "files": [
+    {
+      "fileName": "[Air]てんとう虫(瓢虫).xml",
+      "sha256": "6fdbccad2038ad549376778832a5ac5183fa8235907d7a69982e28d6658cae06",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "staff-details", "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Air]回想录.xml",
+      "sha256": "72147d477a047338d3ee6140dffce02e60daf3c9454d7c289ba069c986969ba2",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "staff-details", "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Air]夢語り.xml",
+      "sha256": "f5a46ae0a45b99deac63df8ab265b7ffab218f41e1f373c7ef7f88cf89f19874",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNPLAYABLE_SOURCE_PITCH", "feature": null, "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Air]银色.xml",
+      "sha256": "a17b4a65844e99f7d55f8c7a91a2d0eb60049c147a25376512f961ffafce8eb0",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "staff-details", "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Air]鸟之诗.xml",
+      "sha256": "9c40607822baf52de03db555664446ecc33f5adda80fdb1aa6175b0e8a3602c6",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "notation:technical", "classification": "UNKNOWN_NEEDS_REVIEW", "semanticCause": "hammer-on" }
+    },
+    {
+      "fileName": "[Angel Beats!]Brave Song.xml",
+      "sha256": "666f78180e07b14aae83ac1d2733ee2a0236645cb04e965d91e5a4d168a1cfaa",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "staff-details", "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Angel Beats!]一番の宝物.xml",
+      "sha256": "d7849359b7c8f71f631d2c1c607b9c878ecd0b20ab4d4de4f06c07445a5f677b",
+      "baseline": { "status": "BLOCKED", "route": "UNRESOLVED", "code": "XML_ELEMENT_LIMIT_EXCEEDED", "feature": null, "classification": "LEGITIMATE_BLOCKED" }
+    },
+    {
+      "fileName": "[Beck]Face.xml",
+      "sha256": "8d22370d81ac4cab63f27e440c006e85b35f50303ba4041e026ae39094ba0104",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "direction", "classification": "ACCIDENTAL_BLOCKED", "semanticCause": "rehearsal" }
+    },
+    {
+      "fileName": "[CLANNAD]メグメル(幻想).xml",
+      "sha256": "d87f6da5c47c2bf60f203512e7a4921bfe1985ec60898da270d57d30fa71b8c5",
+      "baseline": { "status": "BLOCKED", "route": "POLY_V2", "code": "UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE", "feature": "notation:technical", "classification": "LEGITIMATE_BLOCKED", "semanticCause": "artificial-harmonic" }
+    }
+  ]
+}
