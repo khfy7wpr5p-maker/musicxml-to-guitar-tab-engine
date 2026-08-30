@@ -111,6 +111,7 @@ const ALLOWED_NOTE_CHILDREN = new Set([
   'grace',
   'lyric',
   'time-modification',
+  'play',
 ]);
 
 function directChildren(node, name) {
@@ -444,25 +445,53 @@ function safeClef(node) {
 }
 
 function safeTechnical(node) {
-  if (!hasOnlyUnqualifiedAttributes(node, new Set())) return false;
-  const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.length === 0 || children.some((child) => !['string', 'fret'].includes(child.name))) {
+  if (node.attributes.length !== 0 || node.children.some((child) => child.uri !== node.uri)) {
     return false;
   }
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (
+    children.length === 0
+    || children.some((child) => !['harmonic', 'string', 'fret'].includes(child.name))
+  ) {
+    return false;
+  }
+  const harmonics = directChildren(node, 'harmonic');
   const strings = directChildren(node, 'string');
   const frets = directChildren(node, 'fret');
-  if (strings.length > 1 || frets.length > 1 || (strings.length === 0 && frets.length === 0)) return false;
+  if (harmonics.length > 1 || strings.length > 1 || frets.length > 1) return false;
+  if (harmonics.length === 1 && (
+    harmonics[0].children.length !== 0
+    || harmonics[0].attributes.length !== 0
+    || harmonics[0].text.trim().length !== 0
+  )) return false;
+  if (harmonics.length === 0 && strings.length === 0 && frets.length === 0) return false;
   for (const stringNode of strings) {
-    if (!hasOnlyUnqualifiedAttributes(stringNode, new Set(['placement']))) return false;
+    if (stringNode.attributes.some((attribute) => (
+      attribute.uri.length !== 0 || attribute.name !== 'placement'
+    ))) return false;
     const string = scalarInteger(stringNode);
     if (string === null || string < 1 || string > 16) return false;
   }
   for (const fretNode of frets) {
-    if (!hasOnlyUnqualifiedAttributes(fretNode, new Set(['placement']))) return false;
+    if (fretNode.attributes.some((attribute) => (
+      attribute.uri.length !== 0 || attribute.name !== 'placement'
+    ))) return false;
     const fret = scalarInteger(fretNode);
     if (fret === null || fret < 0 || fret > 48) return false;
   }
   return true;
+}
+
+function safeGuitarProStraightMutePlay(node) {
+  if (node.attributes.length !== 0 || node.children.length !== 1) return false;
+  const muteNodes = directChildren(node, 'mute');
+  if (muteNodes.length !== 1) return false;
+  const mute = muteNodes[0];
+  return (
+    mute.attributes.length === 0
+    && mute.children.length === 0
+    && mute.text.trim() === 'straight'
+  );
 }
 
 function parseKeySignature(node, measureIndex) {
@@ -571,7 +600,12 @@ function sanitizeNotations(node, ignoredFeatures) {
       continue;
     }
     if (child.name === 'technical' && safeTechnical(child)) {
-      ignoredFeatures.add('notation:technical:string-fret-provenance');
+      if (directChildren(child, 'harmonic').length === 1) {
+        ignoredFeatures.add('notation:technical:harmonic-provenance');
+      }
+      if (directChildren(child, 'string').length > 0 || directChildren(child, 'fret').length > 0) {
+        ignoredFeatures.add('notation:technical:string-fret-provenance');
+      }
       continue;
     }
     throw unsupported(`notation:${child.name}`);
@@ -618,6 +652,11 @@ function sanitizeNote(node, pitchOctaveShift, ignoredFeatures) {
     if (child.name === 'notations') {
       const notations = sanitizeNotations(child, ignoredFeatures);
       if (notations) children.push(notations);
+      continue;
+    }
+    if (child.name === 'play') {
+      if (!safeGuitarProStraightMutePlay(child)) throw unsupported('note-child:play');
+      ignoredFeatures.add('note:play:straight-mute-provenance');
       continue;
     }
     if (child.name === 'pitch') {
