@@ -286,10 +286,10 @@ function createTransition(previousPoint, currentPoint, runtime, transitionIndex,
   });
 }
 
-function createSustainedGuitarTransitionModel(sourceModel, runtime = null) {
+function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guitarOptions = {}) {
   checkpoint(runtime, 'sustained-guitar-transition:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
-  const positions = createSustainedGuitarPositionStateModel(source, runtime);
+  const positions = createSustainedGuitarPositionStateModel(source, runtime, guitarOptions);
   const points = flattenPoints(positions);
   const transitions = [];
   const aggregateCounter = { count: 0 };
