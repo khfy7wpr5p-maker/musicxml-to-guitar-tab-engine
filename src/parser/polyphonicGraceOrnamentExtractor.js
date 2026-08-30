@@ -254,6 +254,29 @@ function parseOptionalStem(note, location) {
   return value;
 }
 
+function validateOptionalNormalNotehead(note, location) {
+  const noteheads = directChildren(note, 'notehead');
+  if (noteheads.length > 1) {
+    throw unsupported('Grace note may contain at most one notehead element.', {
+      ...location,
+      feature: 'notehead',
+      observedCount: noteheads.length,
+    });
+  }
+  if (noteheads.length === 0) return;
+  try {
+    requireExactLeaf(noteheads[0], 'notehead', location, { text: 'normal', attributes: {} });
+  } catch (error) {
+    if (error instanceof PolyphonicGraceOrnamentExtractorError) {
+      throw unsupported('Grace notehead must be exact display-only normal metadata.', {
+        ...location,
+        feature: 'notehead',
+      });
+    }
+    throw error;
+  }
+}
+
 function parseBeam(note, location, expectedBeamText) {
   const beams = directChildren(note, 'beam');
   if (expectedBeamText === null) {
@@ -292,7 +315,9 @@ function parseGraceNote(note, location, expectedBeamText) {
     throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', location);
   }
 
-  const allowedChildren = new Set(['grace', 'pitch', 'voice', 'type', 'stem', 'staff', 'beam']);
+  const allowedChildren = new Set([
+    'grace', 'pitch', 'voice', 'type', 'stem', 'notehead', 'staff', 'beam',
+  ]);
   for (const child of note.children) {
     if (child.uri !== note.uri || !allowedChildren.has(child.name)) {
       throw unsupported('Grace note contains unsupported musical semantics.', {
@@ -314,6 +339,7 @@ function parseGraceNote(note, location, expectedBeamText) {
   const type = requireSingleChild(note, 'type', location);
   requireExactLeaf(type, 'type', location, { text: 'eighth', attributes: {} });
   const stem = parseOptionalStem(note, location);
+  validateOptionalNormalNotehead(note, location);
   const beam = parseBeam(note, location, expectedBeamText);
 
   return Object.freeze({

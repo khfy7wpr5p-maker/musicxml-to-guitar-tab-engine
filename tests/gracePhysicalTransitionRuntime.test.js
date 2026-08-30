@@ -104,6 +104,27 @@ test('PS-6B6B resolves the pinned BWV 565 F4→G4→F4 grace chain without inven
   assert.equal(require('../src').createGracePhysicalTransitionModel, undefined);
 });
 
+test('production accepts exact grace notehead=normal as display-only metadata', () => {
+  const source = fixture().toString('utf8');
+  const withNormalNoteheads = source.replaceAll(
+    '<stem>up</stem><staff>1</staff>',
+    '<stem>up</stem><notehead>normal</notehead><staff>1</staff>',
+  );
+  const baseline = processMusicXmlUpload({
+    fileName: 'grace-notehead-normal.musicxml',
+    bytes: Buffer.from(source),
+  });
+  const accepted = processMusicXmlUpload({
+    fileName: 'grace-notehead-normal.musicxml',
+    bytes: Buffer.from(withNormalNoteheads),
+  });
+
+  assert.equal(accepted.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(accepted.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(accepted.canonicalTabResult, baseline.canonicalTabResult);
+  assert.equal(accepted.musicXml, baseline.musicXml);
+});
+
 test('PS-6B6B fails closed when a grace pitch has no exact standard-guitar position', () => {
   const source = fixture().toString('utf8');
   const unplayable = source.replace(
