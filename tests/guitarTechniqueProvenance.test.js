@@ -15,8 +15,13 @@ function score(notes, version = '4.0') {
   return `<?xml version="1.0"?><score-partwise version="${version}"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>${notes.join('')}</measure></part></score-partwise>`;
 }
 
-function note(body = '', pitch = '<pitch><step>E</step><octave>4</octave></pitch>') {
-  return `<note>${pitch}<duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff>${body}</note>`;
+function note(
+  body = '',
+  pitch = '<pitch><step>E</step><octave>4</octave></pitch>',
+  voice = '1',
+  staff = '1',
+) {
+  return `<note>${pitch}<duration>1</duration><voice>${voice}</voice><type>quarter</type><staff>${staff}</staff>${body}</note>`;
 }
 
 function parsed(notes) {
@@ -77,9 +82,56 @@ test('same-number hammer-on start+stop on one note is preserved as two unpaired 
   assert.deepEqual(result.records.map((entry) => entry.pairingId), [null, null]);
 });
 
+test('endpoint validation rejects missing, orphan, conflicting-number and cross-context endpoints without inferring pairing', () => {
+  const cases = [
+    [
+      note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
+    ],
+    [
+      note('<notations><technical><hammer-on number="1" type="stop"/></technical></notations>'),
+    ],
+    [
+      note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
+      note('<notations><technical><hammer-on number="2" type="stop"/></technical></notations>'),
+    ],
+    [
+      note('<notations><slide number="5" type="start"/></notations>'),
+    ],
+    [
+      note('<notations><slide number="5" type="start"/></notations>', undefined, '1', '1'),
+      note('<notations><slide number="5" type="stop"/></notations>', undefined, '2', '1'),
+    ],
+    [
+      note('<notations><slide number="5" type="start"/></notations>', undefined, '1', '1'),
+      note('<notations><slide number="5" type="stop"/></notations>', undefined, '1', '2'),
+    ],
+  ];
+
+  for (const notes of cases) {
+    assert.throws(
+      () => provenance(notes),
+      (error) => error instanceof GuitarTechniqueProvenanceError
+        && error.code === 'UNSUPPORTED_GUITAR_TECHNIQUE_PAIRING',
+    );
+  }
+});
+
+test('balanced repeated endpoint numbers remain metadata-only and never receive automatic pairing identity', () => {
+  const result = provenance([
+    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical><slide number="5" type="start"/></notations>'),
+    note('<notations><technical><hammer-on number="1" type="stop"/><hammer-on number="1" type="start">H</hammer-on></technical><slide number="5" type="stop"/><slide number="5" type="start"/></notations>'),
+    note('<notations><technical><hammer-on number="1" type="stop"/></technical><slide number="5" type="stop"/></notations>'),
+  ]);
+  assert.equal(result.recordCount, 8);
+  assert.ok(result.records.every((entry) => entry.pairingId === null));
+  assert.ok(result.records.every((entry) => entry.pairingBasis === null));
+  assert.ok(result.records.every((entry) => entry.sourcePairingToken === null));
+});
+
 test('repeated extraction is deterministic and never mutates parsed source', () => {
   const source = parsed([
     note('<notations><technical><harmonic/><string>1</string><fret>12</fret></technical><slide number="6" type="start"/></notations>'),
+    note('<notations><slide number="6" type="stop"/></notations>'),
   ]);
   const before = structuredClone(source);
   const first = extractGuitarTechniqueProvenance(source);
@@ -146,15 +198,21 @@ test('malformed position/performance evidence remains fail-closed', () => {
   assert.throws(() => provenance([note('<play><mute>straight</mute><other-play/></play>')]), GuitarTechniqueProvenanceError);
 });
 
-test('PROD-TECH-01 does not silently bundle strict-projector acceptance', () => {
-  const hammer = parsed([note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>')]);
+test('PROD-TECH-01B keeps balanced endpoints provenance-only and does not silently bundle strict-projector acceptance', () => {
+  const hammer = parsed([
+    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
+    note('<notations><technical><hammer-on number="1" type="stop"/></technical></notations>'),
+  ]);
   assert.doesNotThrow(() => extractGuitarTechniqueProvenance(hammer));
   assert.throws(
     () => tryNormalizeRuntimeGuitarNotation(hammer),
     (error) => error.code === 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE' && error.details.feature === 'notation:technical',
   );
 
-  const slide = parsed([note('<notations><slide number="5" type="start"/></notations>')]);
+  const slide = parsed([
+    note('<notations><slide number="5" type="start"/></notations>'),
+    note('<notations><slide number="5" type="stop"/></notations>'),
+  ]);
   assert.doesNotThrow(() => extractGuitarTechniqueProvenance(slide));
   assert.throws(
     () => tryNormalizeRuntimeGuitarNotation(slide),
