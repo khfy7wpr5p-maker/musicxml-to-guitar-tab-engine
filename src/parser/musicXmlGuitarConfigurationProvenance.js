@@ -2,7 +2,11 @@
 
 const { EngineError } = require('../errors/engineError');
 const { pitchNameToMidi } = require('../music/pitch');
-const { GUITAR_STRING_COUNT, createGuitarConfiguration } = require('../guitar/tuning');
+const {
+  GUITAR_STRING_COUNT,
+  MAX_ADJACENT_OPEN_STRING_INTERVAL,
+  createGuitarConfiguration,
+} = require('../guitar/tuning');
 
 const MUSICXML_GUITAR_CONFIGURATION_PROVENANCE_VERSION = '1.0.0';
 
@@ -71,6 +75,29 @@ function parseStaffTuning(node, path) {
   return { line, number: 7 - line, pitch, midi };
 }
 
+function validatePhysicalTuningOrder(tuning, location) {
+  for (let index = 0; index < tuning.length - 1; index += 1) {
+    const higherString = tuning[index];
+    const lowerString = tuning[index + 1];
+    const interval = higherString.midi - lowerString.midi;
+    if (interval <= 0 || interval > MAX_ADJACENT_OPEN_STRING_INTERVAL) {
+      fail(
+        'MusicXML open-string pitches are physically inconsistent for the bounded six-string profile.',
+        'INVALID_GUITAR_CONFIGURATION_PROVENANCE',
+        {
+          ...location,
+          higherString: higherString.number,
+          higherMidi: higherString.midi,
+          lowerString: lowerString.number,
+          lowerMidi: lowerString.midi,
+          interval,
+          maximumAdjacentInterval: MAX_ADJACENT_OPEN_STRING_INTERVAL,
+        },
+      );
+    }
+  }
+}
+
 function parseStaffDetails(node, location) {
   const tuningNodes = directChildren(node, 'staff-tuning');
   const capoNodes = directChildren(node, 'capo');
@@ -92,6 +119,7 @@ function parseStaffDetails(node, location) {
   for (let line = 1; line <= 6; line += 1) if (!byLine.has(line)) fail('Missing staff-tuning line.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', { ...location, line });
   const capoFret = capoNodes.length === 0 ? 0 : integerText(capoNodes[0], 'staff-details.capo');
   const tuning = [...byLine.values()].sort((a, b) => a.number - b.number).map(({ number, pitch, midi }) => ({ number, pitch, midi }));
+  validatePhysicalTuningOrder(tuning, location);
   try { return createGuitarConfiguration({ tuning, capoFret }); } catch (error) {
     fail('MusicXML guitar configuration is internally inconsistent.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', { ...location, causeCode: error?.code || null });
   }
