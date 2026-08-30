@@ -31,6 +31,7 @@ const {
 } = require('../writers/canonicalTabMusicXmlWriterV2');
 const {
   tryProjectExactTabStaffMirror,
+  tryProjectExactTabStaffMirrorAfterSemanticNormalization,
 } = require('./exactTabStaffMirrorNormalizer');
 const {
   projectParsedMusicXmlThroughPolyProductionCompatibilityChain,
@@ -670,16 +671,33 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   try {
     processing.checkpoint('app-upload:poly:start');
     const parsedDocument = harmonyExtraction.parsedDocument;
-    const projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
+    let projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
     let sourceModel;
+    let compatibilityProjection = null;
     if (projectedMirror) {
       sourceModel = projectedMirror.sourceModel;
     } else {
-      graceProjection = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
+      compatibilityProjection = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
         parsedDocument,
         processing,
       );
-      sourceModel = graceProjection.mainSourceModel;
+      projectedMirror = tryProjectExactTabStaffMirrorAfterSemanticNormalization(
+        parsedDocument,
+        compatibilityProjection.parsedMainDocument,
+        compatibilityProjection.graceOrnamentGroups,
+        compatibilityProjection.mainSourceModel,
+        processing,
+      );
+      sourceModel = projectedMirror
+        ? projectedMirror.sourceModel
+        : compatibilityProjection.mainSourceModel;
+      graceProjection = projectedMirror
+        ? Object.freeze({
+          ...compatibilityProjection,
+          mainSourceModel: sourceModel,
+          graceOrnamentGroups: projectedMirror.graceOrnamentGroups,
+        })
+        : compatibilityProjection;
     }
     normalization = projectedMirror
       ? projectedMirror.normalization

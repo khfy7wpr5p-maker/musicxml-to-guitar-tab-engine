@@ -88,6 +88,38 @@ function initialWriterAttributes(measureNodes) {
   return attributes;
 }
 
+function hasExactTabStaffEvidence(parsedDocument) {
+  const root = parsedDocument.root;
+  const parts = directChildren(root, 'part');
+  if (parts.length !== 1) return false;
+
+  const measures = directChildren(parts[0], 'measure');
+  if (measures.length === 0) return false;
+
+  let declaredTwoStaves = false;
+  let declaredTabClef = false;
+  for (const measure of measures) {
+    for (const attributes of directChildren(measure, 'attributes')) {
+      const stavesNodes = directChildren(attributes, 'staves');
+      if (stavesNodes.length > 1) return false;
+      for (const staves of stavesNodes) {
+        if (scalarInteger(staves) !== 2) return false;
+        declaredTwoStaves = true;
+      }
+      const staffTwoClefs = directChildren(attributes, 'clef').filter(
+        (clef) => (getAttribute(clef, 'number') || '1') === '2',
+      );
+      if (staffTwoClefs.length > 1) return false;
+      for (const clef of staffTwoClefs) {
+        const signs = directChildren(clef, 'sign');
+        if (signs.length !== 1 || signs[0].text.trim().toUpperCase() !== 'TAB') return false;
+        declaredTabClef = true;
+      }
+    }
+  }
+  return declaredTwoStaves && declaredTabClef;
+}
+
 function notationPitchOctaveShift(attributesNodes) {
   const transposeNodes = attributesNodes.flatMap((attributes) => directChildren(attributes, 'transpose'));
   if (transposeNodes.length === 0) return 0;
@@ -308,7 +340,7 @@ function buildMeasure(measureNode, sourceStaff, boundary, empty, pitchOctaveShif
     if (child.name === 'attributes') {
       const attributes = sanitizedAttributes(child);
       if (!attributes) return null;
-      children.push(attributes);
+      if (attributes.children.length > 0) children.push(attributes);
       continue;
     }
     if (empty) continue;
@@ -365,7 +397,54 @@ function exactModelsMatch(notationModel, tabModel) {
   return true;
 }
 
-function tryProjectExactTabStaffMirror(parsedDocument, runtime) {
+function sourceEventById(sourceModel, sourceEventId) {
+  for (const measure of sourceModel.measures) {
+    const match = measure.events.find((event) => event.sourceEventId === sourceEventId);
+    if (match) return match;
+  }
+  return null;
+}
+
+function graceGroupFingerprint(group, sourceModel) {
+  const anchor = sourceEventById(sourceModel, group.anchor.projectedSourceEventId);
+  if (!anchor) return null;
+  return JSON.stringify([
+    group.measureIndex,
+    group.measureNumber,
+    group.notes.map((note) => [
+      note.orderIndex,
+      note.pitch.midi,
+      note.nominalType,
+      note.slash,
+      note.stem,
+      note.beam,
+    ]),
+    fingerprint(anchor),
+  ]);
+}
+
+function retainExactNotationGraceGroups(graceOrnamentGroups, fullSourceModel, notationModel) {
+  const notationGroups = graceOrnamentGroups.filter((group) => group.staff === 1);
+  const tabGroups = graceOrnamentGroups.filter((group) => group.staff === 2);
+  if (notationGroups.length !== tabGroups.length) return null;
+
+  for (let index = 0; index < notationGroups.length; index += 1) {
+    const notationFingerprint = graceGroupFingerprint(notationGroups[index], fullSourceModel);
+    const tabFingerprint = graceGroupFingerprint(tabGroups[index], fullSourceModel);
+    if (
+      notationFingerprint === null
+      || tabFingerprint === null
+      || notationFingerprint !== tabFingerprint
+      || !sourceEventById(notationModel, notationGroups[index].anchor.projectedSourceEventId)
+    ) {
+      return null;
+    }
+  }
+  return Object.freeze([...notationGroups]);
+}
+
+function tryProjectExactTabStaffMirror(parsedDocument, runtime, options = {}) {
+  const skipInitialWriterAttributes = options.skipInitialWriterAttributes === true;
   const root = parsedDocument.root;
   if (
     root.children.some(
@@ -396,10 +475,13 @@ function tryProjectExactTabStaffMirror(parsedDocument, runtime) {
 
   const measureNodes = directChildren(parts[0], 'measure');
   if (measureNodes.length === 0) return null;
-  const initialAttributes = initialWriterAttributes(measureNodes);
-  if (!initialAttributes) return null;
-  const notationOctaveShift = notationPitchOctaveShift([initialAttributes]);
-  if (notationOctaveShift === null) return null;
+  let notationOctaveShift = 0;
+  if (!skipInitialWriterAttributes) {
+    const initialAttributes = initialWriterAttributes(measureNodes);
+    if (!initialAttributes) return null;
+    notationOctaveShift = notationPitchOctaveShift([initialAttributes]);
+    if (notationOctaveShift === null) return null;
+  }
 
   const notationMeasures = [];
   const tabMeasures = [];
@@ -464,6 +546,35 @@ function tryProjectExactTabStaffMirror(parsedDocument, runtime) {
   });
 }
 
+function tryProjectExactTabStaffMirrorAfterSemanticNormalization(
+  originalParsedDocument,
+  normalizedParsedDocument,
+  graceOrnamentGroups,
+  fullSourceModel,
+  runtime,
+) {
+  if (!hasExactTabStaffEvidence(originalParsedDocument)) return null;
+  if (!Array.isArray(graceOrnamentGroups) || !fullSourceModel) return null;
+
+  const projection = tryProjectExactTabStaffMirror(normalizedParsedDocument, runtime, {
+    skipInitialWriterAttributes: true,
+  });
+  if (!projection) return null;
+
+  const retainedGraceOrnamentGroups = retainExactNotationGraceGroups(
+    graceOrnamentGroups,
+    fullSourceModel,
+    projection.sourceModel,
+  );
+  if (!retainedGraceOrnamentGroups) return null;
+
+  return Object.freeze({
+    ...projection,
+    graceOrnamentGroups: retainedGraceOrnamentGroups,
+  });
+}
+
 module.exports = {
   tryProjectExactTabStaffMirror,
+  tryProjectExactTabStaffMirrorAfterSemanticNormalization,
 };
