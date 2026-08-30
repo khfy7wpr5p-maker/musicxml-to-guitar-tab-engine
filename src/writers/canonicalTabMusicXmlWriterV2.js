@@ -372,7 +372,7 @@ function normalizeGraceTransitions(value) {
         || graceEventId.length === 0
         || graceEventId.length > 512
         || orderIndex !== noteIndex
-        || nominalType !== 'eighth'
+        || !['eighth', '32nd'].includes(nominalType)
         || slash !== 'yes'
         || (stem !== null && stem !== 'up' && stem !== 'down')
         || beam !== expectedBeam
