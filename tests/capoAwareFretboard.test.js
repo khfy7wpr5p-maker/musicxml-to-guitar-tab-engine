@@ -10,6 +10,7 @@ const {
   positionToMidi,
   relativeFretToAbsoluteFret,
 } = require('../src/guitar/fretboard');
+const { validatePosition } = require('../src/guitar/playability');
 
 const DROP_D = [
   { number: 1, pitch: 'E4', midi: 64 },
@@ -105,6 +106,16 @@ test('pitch -> candidates -> positionToMidi round-trip is exact across six confi
 test('legacy positionToMidi tuning-array argument retains capo-0 behavior', () => {
   assert.equal(positionToMidi({ string: 6, fret: 0 }, DROP_D), 38);
   assert.equal(positionToMidi({ string: 6, fret: 2 }, DROP_D), 40);
+});
+
+test('validatePosition preserves capo configuration and applies absolute fret bounds', () => {
+  const options = { capoFret: 2, maximumFret: 20 };
+  assert.equal(validatePosition({ string: 6, fret: 0 }, pitchNameToMidi('F#2'), options), true);
+  assert.equal(validatePosition({ string: 1, fret: 18 }, 84, options), true);
+  assert.throws(
+    () => validatePosition({ string: 1, fret: 19 }, 85, options),
+    (error) => error && error.code === 'INVALID_POSITION',
+  );
 });
 
 test('capo candidate generation never mutates pitch/configuration facts or invents a playable fallback', () => {
