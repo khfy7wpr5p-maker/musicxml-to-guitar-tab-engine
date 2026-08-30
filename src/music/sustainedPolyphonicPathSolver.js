@@ -645,11 +645,11 @@ function buildSelectedFacts(points, path) {
   });
 }
 
-function createSustainedPolyphonicPathSelection(sourceModel, runtime = null) {
+function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, guitarOptions = {}) {
   checkpoint(runtime, 'sustained-polyphonic-path:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
-  const physical = createSustainedLeftHandPhysicalStateModel(source, runtime);
-  const transitions = createSustainedGuitarTransitionModel(source, runtime);
+  const physical = createSustainedLeftHandPhysicalStateModel(source, runtime, guitarOptions);
+  const transitions = createSustainedGuitarTransitionModel(source, runtime, guitarOptions);
   validateModelHeaders(source, physical, transitions);
   const points = flattenPhysicalPoints(physical);
 

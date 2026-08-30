@@ -182,7 +182,7 @@ function validateBarreFacts(shape, sourceGroupId, voicingCandidateId) {
   }
 }
 
-function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId) {
+function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId, guitarOptions = {}) {
   if (
     !shape
     || typeof shape.shapeCandidateId !== 'string'
@@ -238,6 +238,7 @@ function validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId)
     validatePosition(
       { string: assignment.string, fret: assignment.fret },
       assignment.targetMidi,
+      guitarOptions,
     );
 
     if (assignment.fret === 0) {
@@ -330,8 +331,14 @@ function hasFingerReachViolation(fingerToFret) {
   return false;
 }
 
-function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId) {
-  const facts = validateShapeFacts(shape, positions, voicingCandidateId, sourceGroupId);
+function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId, guitarOptions = {}) {
+  const facts = validateShapeFacts(
+    shape,
+    positions,
+    voicingCandidateId,
+    sourceGroupId,
+    guitarOptions,
+  );
   const reasonCodes = [];
   if (facts.fretSpan > MAXIMUM_STATIC_FRET_SPAN) {
     reasonCodes.push(PLAYABILITY_REJECTION_REASONS.FRET_SPAN_EXCEEDED);
