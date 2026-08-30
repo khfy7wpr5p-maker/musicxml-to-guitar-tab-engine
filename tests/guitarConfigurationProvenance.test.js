@@ -117,20 +117,34 @@ test('public request validation is exact, hostile-safe and fail-closed', () => {
   assert.throws(() => normalizeGuitarConfigurationRequest({ capoFret: 0, tuning: malformed }), /scientific pitch/i);
   assert.throws(() => normalizeGuitarConfigurationRequest({ ...request(STANDARD), extra: true }), /unknown field/i);
   assert.throws(() => normalizeGuitarConfigurationRequest(new Proxy(request(STANDARD), {})), /non-proxy/i);
-  let getterRead = false;
-  const hostile = { string: 1 };
-  Object.defineProperty(hostile, 'pitch', { enumerable: true, get() { getterRead = true; return 'E4'; } });
-  assert.throws(() => normalizeGuitarConfigurationRequest({ capoFret: 0, tuning: [hostile, ...STANDARD.slice(1).map((entry) => ({ ...entry }))] }), /data properties/i);
-  assert.equal(getterRead, false);
+
+  let entryGetterRead = false;
+  const hostileEntry = { string: 1 };
+  Object.defineProperty(hostileEntry, 'pitch', { enumerable: true, get() { entryGetterRead = true; return 'E4'; } });
+  assert.throws(() => normalizeGuitarConfigurationRequest({ capoFret: 0, tuning: [hostileEntry, ...STANDARD.slice(1).map((entry) => ({ ...entry }))] }), /data properties/i);
+  assert.equal(entryGetterRead, false);
+
+  let slotGetterRead = false;
+  const hostileSlots = STANDARD.map((entry) => ({ ...entry }));
+  Object.defineProperty(hostileSlots, '0', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      slotGetterRead = true;
+      return { string: 1, pitch: 'E4' };
+    },
+  });
+  assert.throws(
+    () => normalizeGuitarConfigurationRequest({ capoFret: 0, tuning: hostileSlots }),
+    /numeric slots must be enumerable data properties/i,
+  );
+  assert.equal(slotGetterRead, false);
 });
 
 test('public and source trust boundaries reject physically inconsistent string ordering', () => {
   const inverted = STANDARD.map((entry) => ({ ...entry })); inverted[0].pitch = 'A2';
   assert.throws(() => normalizeGuitarConfigurationRequest({ capoFret: 0, tuning: inverted }), /descend strictly/i);
-
-  const invalidSource = [
-    { string: 1, pitch: 'A2' }, ...STANDARD.slice(1),
-  ];
+  const invalidSource = [{ string: 1, pitch: 'A2' }, ...STANDARD.slice(1)];
   const parsed = parseParsedMusicXmlDocument(score([configuredMeasure(invalidSource, 0)]));
   assert.throws(() => extractMusicXmlGuitarConfigurationProvenance(parsed), MusicXmlGuitarConfigurationProvenanceError);
 });
@@ -166,25 +180,16 @@ test('identical later declarations are repetition; real mid-score retuning is un
     `<attributes>${staffDetails(STANDARD, 2)}</attributes>${note()}`,
   ]));
   assert.equal(extractMusicXmlGuitarConfigurationProvenance(same).recordCount, 2);
-
   const changed = parseParsedMusicXmlDocument(score([
     configuredMeasure(STANDARD, 0),
     `<attributes>${staffDetails(DROP_D, 0)}</attributes>${note()}`,
   ]));
-  assert.throws(
-    () => extractMusicXmlGuitarConfigurationProvenance(changed),
-    (error) => error.code === 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE',
-  );
+  assert.throws(() => extractMusicXmlGuitarConfigurationProvenance(changed), (error) => error.code === 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE');
 });
 
 test('configuration first introduced after timing begins is unsupported', () => {
-  const parsed = parseParsedMusicXmlDocument(score([
-    `${note()}<attributes>${staffDetails(STANDARD, 2)}</attributes>`,
-  ]));
-  assert.throws(
-    () => extractMusicXmlGuitarConfigurationProvenance(parsed),
-    (error) => error.code === 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE',
-  );
+  const parsed = parseParsedMusicXmlDocument(score([`${note()}<attributes>${staffDetails(STANDARD, 2)}</attributes>`]));
+  assert.throws(() => extractMusicXmlGuitarConfigurationProvenance(parsed), (error) => error.code === 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE');
 });
 
 test('source technical string/fret is provenance only and never solver authority', () => {
