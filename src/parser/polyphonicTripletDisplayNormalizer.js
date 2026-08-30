@@ -145,15 +145,65 @@ function parseExactTupletDisplay(node, location) {
     && attributes.type === 'start'
     && attributes.bracket === 'no'
   ) {
-    return Object.freeze({ type: 'start', bracket: false });
+    return Object.freeze({
+      type: 'start',
+      bracket: false,
+      profile: 'LEGACY_UNBRACKETED',
+      placement: null,
+      number: null,
+    });
   }
   if (names.length === 1 && names[0] === 'type' && attributes.type === 'stop') {
-    return Object.freeze({ type: 'stop', bracket: null });
+    return Object.freeze({
+      type: 'stop',
+      bracket: null,
+      profile: 'LEGACY_UNBRACKETED',
+      placement: null,
+      number: null,
+    });
   }
-  throw unsupported('Only exact triplet start bracket="no" and attribute-free stop display markers are supported.', {
+  if (
+    names.length === 4
+    && names[0] === 'bracket'
+    && names[1] === 'number'
+    && names[2] === 'placement'
+    && names[3] === 'type'
+    && (attributes.type === 'start' || attributes.type === 'stop')
+    && attributes.bracket === 'yes'
+    && attributes.number === '1'
+    && attributes.placement === 'below'
+  ) {
+    return Object.freeze({
+      type: attributes.type,
+      bracket: true,
+      profile: 'GUITAR_PRO_BRACKETED_BELOW_1',
+      placement: 'below',
+      number: '1',
+    });
+  }
+  throw unsupported('Only exact bounded triplet display marker profiles are supported.', {
     ...location,
     observedAttributes: attributes,
   });
+}
+
+function sameDisplayIdentity(left, right) {
+  return Boolean(
+    left
+    && right
+    && left.profile === right.profile
+    && left.bracket === right.bracket
+    && left.placement === right.placement
+    && left.number === right.number
+  );
+}
+
+function stopMatchesOpenDisplay(openDisplay, stopDisplay) {
+  if (!openDisplay || !stopDisplay || stopDisplay.type !== 'stop') return false;
+  if (openDisplay.profile === 'LEGACY_UNBRACKETED') {
+    return stopDisplay.profile === 'LEGACY_UNBRACKETED';
+  }
+  return sameDisplayIdentity(openDisplay, stopDisplay);
 }
 
 function sanitizeNotations(notations, context, markers, laneState, tripletMarkerKeys) {
@@ -167,7 +217,8 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
       throw unsupported('At most one tuplet display marker per note is supported in this stage.', context);
     }
 
-    const location = { ...context, notationChildIndex };
+    const { isChordMember, ...publicContext } = context;
+    const location = { ...publicContext, notationChildIndex };
     const tripletKey = `${context.measureIndex}:${context.sourceOrder}`;
     if (!tripletMarkerKeys.has(tripletKey)) {
       throw invalid('Tuplet display must be backed by a validated 3:2 time-modification on the same note.', location);
@@ -178,17 +229,38 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
     const open = laneState.get(laneKey);
     if (display.type === 'start') {
       if (open) {
-        throw invalid('Nested or overlapping tuplets in the same voice/staff lane are not supported.', {
-          ...location,
-          laneKey,
-        });
+        const duplicateChordMarker = Boolean(
+          isChordMember
+          && context.sourceOrder === open.lastSourceOrder + 1
+          && sameDisplayIdentity(open.display, display)
+        );
+        if (!duplicateChordMarker) {
+          throw invalid('Nested or overlapping tuplets in the same voice/staff lane are not supported.', {
+            ...location,
+            laneKey,
+          });
+        }
+        open.lastSourceOrder = context.sourceOrder;
+        return null;
       }
-      laneState.set(laneKey, location);
+      laneState.set(laneKey, {
+        location,
+        display,
+        lastSourceOrder: context.sourceOrder,
+      });
     } else {
       if (!open) {
         throw invalid('Tuplet stop must match an earlier start in the same voice/staff lane.', {
           ...location,
           laneKey,
+        });
+      }
+      if (!stopMatchesOpenDisplay(open.display, display)) {
+        throw invalid('Tuplet stop display identity must match the open start in the same lane.', {
+          ...location,
+          laneKey,
+          openProfile: open.display.profile,
+          stopProfile: display.profile,
         });
       }
       laneState.delete(laneKey);
@@ -198,6 +270,8 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
       kind: 'triplet-display',
       type: display.type,
       bracket: display.bracket,
+      ...(display.placement === null ? {} : { placement: display.placement }),
+      ...(display.number === null ? {} : { number: display.number }),
       voice: context.voice,
       staff: context.staff,
       ...location,
@@ -212,11 +286,19 @@ function sanitizeNote(note, context, markers, laneState, tripletMarkerKeys) {
   }
   const voice = scalarLaneValue(note, 'voice', '1', context);
   const staff = scalarLaneValue(note, 'staff', '1', context);
+  const chordNodes = directChildren(note, 'chord');
+  if (chordNodes.length > 1) {
+    throw invalid('Chord membership must be unambiguous when tuplet display is present.', {
+      ...context,
+      observedChordMarkerCount: chordNodes.length,
+    });
+  }
+  const isChordMember = chordNodes.length === 1;
   return cloneNode(note, (noteChild) => {
     if (noteChild.uri === note.uri && noteChild.name === 'notations') {
       return sanitizeNotations(
         noteChild,
-        { ...context, voice, staff },
+        { ...context, voice, staff, isChordMember },
         markers,
         laneState,
         tripletMarkerKeys,
