@@ -152,7 +152,11 @@ function enforcePairBudget(pairCount, aggregateCounter, transitionIndex) {
     throw new SustainedGuitarTransitionModelError(
       'PS-4B potential compatibility pairs exceed the fixed per-transition boundary.',
       'SUSTAINED_TRANSITION_PAIR_LIMIT_EXCEEDED',
-      { transitionIndex, limit: MAX_TRANSITION_COMPATIBILITY_PAIRS, observed: pairCount },
+      {
+        transitionIndex,
+        limit: MAX_TRANSITION_COMPATIBILITY_PAIRS,
+        observed: pairCount,
+      },
     );
   }
   const aggregate = safeAdd(aggregateCounter.count, pairCount, { transitionIndex });
@@ -160,7 +164,11 @@ function enforcePairBudget(pairCount, aggregateCounter, transitionIndex) {
     throw new SustainedGuitarTransitionModelError(
       'PS-4B aggregate compatibility pairs exceed the fixed model boundary.',
       'SUSTAINED_TRANSITION_TOTAL_PAIR_LIMIT_EXCEEDED',
-      { transitionIndex, limit: MAX_AGGREGATE_COMPATIBILITY_PAIRS, observed: aggregate },
+      {
+        transitionIndex,
+        limit: MAX_AGGREGATE_COMPATIBILITY_PAIRS,
+        observed: aggregate,
+      },
     );
   }
   aggregateCounter.count = aggregate;
@@ -174,25 +182,67 @@ function createTransition(previousPoint, currentPoint, runtime, transitionIndex,
   const base = {
     transitionId: `sustained-transition:${transitionIndex}`,
     transitionIndex,
-    from: Object.freeze({ sonorityPointId: previousPoint.sonorityPointId, measureIndex: previousPoint.measureIndex, timeDivisions: previousPoint.timeDivisions, stateCount: previousStates.length }),
-    to: Object.freeze({ sonorityPointId: currentPoint.sonorityPointId, measureIndex: currentPoint.measureIndex, timeDivisions: currentPoint.timeDivisions, stateCount: currentStates.length }),
+    from: Object.freeze({
+      sonorityPointId: previousPoint.sonorityPointId,
+      measureIndex: previousPoint.measureIndex,
+      timeDivisions: previousPoint.timeDivisions,
+      stateCount: previousStates.length,
+    }),
+    to: Object.freeze({
+      sonorityPointId: currentPoint.sonorityPointId,
+      measureIndex: currentPoint.measureIndex,
+      timeDivisions: currentPoint.timeDivisions,
+      stateCount: currentStates.length,
+    }),
     holdLogicalNoteIds,
   };
 
   if (previousStates.length === 0 || currentStates.length === 0) {
-    return Object.freeze({ ...base, status: TRANSITION_STATUS.UNPLAYABLE_EXACT, reason: 'UNPLAYABLE_ENDPOINT', compatibilityMode: TRANSITION_COMPATIBILITY_MODE.NONE, potentialPairCount: 0, buckets: Object.freeze([]) });
+    return Object.freeze({
+      ...base,
+      status: TRANSITION_STATUS.UNPLAYABLE_EXACT,
+      reason: 'UNPLAYABLE_ENDPOINT',
+      compatibilityMode: TRANSITION_COMPATIBILITY_MODE.NONE,
+      potentialPairCount: 0,
+      buckets: Object.freeze([]),
+    });
   }
 
   ensureHoldWasPreviouslyActive(previousStates, holdLogicalNoteIds, previousPoint);
+
   if (holdLogicalNoteIds.length === 0) {
     const pairCount = safeMultiply(previousStates.length, currentStates.length, { transitionIndex });
     enforcePairBudget(pairCount, aggregateCounter, transitionIndex);
-    return Object.freeze({ ...base, status: TRANSITION_STATUS.COMPATIBLE, reason: null, compatibilityMode: TRANSITION_COMPATIBILITY_MODE.ALL_TO_ALL, potentialPairCount: pairCount, buckets: Object.freeze([]) });
+    return Object.freeze({
+      ...base,
+      status: TRANSITION_STATUS.COMPATIBLE,
+      reason: null,
+      compatibilityMode: TRANSITION_COMPATIBILITY_MODE.ALL_TO_ALL,
+      potentialPairCount: pairCount,
+      buckets: Object.freeze([]),
+    });
   }
 
-  const previousBySignature = groupByHoldSignature(previousStates, holdLogicalNoteIds, previousPoint, 'previous', runtime, transitionIndex);
-  const currentBySignature = groupByHoldSignature(currentStates, holdLogicalNoteIds, currentPoint, 'current', runtime, transitionIndex);
-  const signatures = [...currentBySignature.keys()].filter((signature) => previousBySignature.has(signature)).sort();
+  const previousBySignature = groupByHoldSignature(
+    previousStates,
+    holdLogicalNoteIds,
+    previousPoint,
+    'previous',
+    runtime,
+    transitionIndex,
+  );
+  const currentBySignature = groupByHoldSignature(
+    currentStates,
+    holdLogicalNoteIds,
+    currentPoint,
+    'current',
+    runtime,
+    transitionIndex,
+  );
+
+  const signatures = [...currentBySignature.keys()]
+    .filter((signature) => previousBySignature.has(signature))
+    .sort();
   const buckets = [];
   let pairCount = 0;
   for (let bucketIndex = 0; bucketIndex < signatures.length; bucketIndex += 1) {
@@ -200,17 +250,40 @@ function createTransition(previousPoint, currentPoint, runtime, transitionIndex,
     const signature = signatures[bucketIndex];
     const previousStateCandidateIds = Object.freeze([...previousBySignature.get(signature)].sort());
     const currentStateCandidateIds = Object.freeze([...currentBySignature.get(signature)].sort());
-    const bucketPairCount = safeMultiply(previousStateCandidateIds.length, currentStateCandidateIds.length, { transitionIndex, bucketIndex });
+    const bucketPairCount = safeMultiply(
+      previousStateCandidateIds.length,
+      currentStateCandidateIds.length,
+      { transitionIndex, bucketIndex },
+    );
     pairCount = safeAdd(pairCount, bucketPairCount, { transitionIndex, bucketIndex });
-    buckets.push(Object.freeze({ holdSignature: signature, previousStateCandidateIds, currentStateCandidateIds, potentialPairCount: bucketPairCount }));
+    buckets.push(Object.freeze({
+      holdSignature: signature,
+      previousStateCandidateIds,
+      currentStateCandidateIds,
+      potentialPairCount: bucketPairCount,
+    }));
   }
 
   if (buckets.length === 0) {
-    return Object.freeze({ ...base, status: TRANSITION_STATUS.UNPLAYABLE_EXACT, reason: 'NO_HOLD_PRESERVING_TRANSITION', compatibilityMode: TRANSITION_COMPATIBILITY_MODE.NONE, potentialPairCount: 0, buckets: Object.freeze([]) });
+    return Object.freeze({
+      ...base,
+      status: TRANSITION_STATUS.UNPLAYABLE_EXACT,
+      reason: 'NO_HOLD_PRESERVING_TRANSITION',
+      compatibilityMode: TRANSITION_COMPATIBILITY_MODE.NONE,
+      potentialPairCount: 0,
+      buckets: Object.freeze([]),
+    });
   }
 
   enforcePairBudget(pairCount, aggregateCounter, transitionIndex);
-  return Object.freeze({ ...base, status: TRANSITION_STATUS.COMPATIBLE, reason: null, compatibilityMode: TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS, potentialPairCount: pairCount, buckets: Object.freeze(buckets) });
+  return Object.freeze({
+    ...base,
+    status: TRANSITION_STATUS.COMPATIBLE,
+    reason: null,
+    compatibilityMode: TRANSITION_COMPATIBILITY_MODE.HOLD_SIGNATURE_BUCKETS,
+    potentialPairCount: pairCount,
+    buckets: Object.freeze(buckets),
+  });
 }
 
 function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guitarOptions = {}) {
@@ -223,8 +296,16 @@ function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guita
   let unplayableTransitionCount = 0;
 
   for (let transitionIndex = 0; transitionIndex < Math.max(0, points.length - 1); transitionIndex += 1) {
-    const transition = createTransition(points[transitionIndex], points[transitionIndex + 1], runtime, transitionIndex, aggregateCounter);
-    if (transition.status === TRANSITION_STATUS.UNPLAYABLE_EXACT) unplayableTransitionCount += 1;
+    const transition = createTransition(
+      points[transitionIndex],
+      points[transitionIndex + 1],
+      runtime,
+      transitionIndex,
+      aggregateCounter,
+    );
+    if (transition.status === TRANSITION_STATUS.UNPLAYABLE_EXACT) {
+      unplayableTransitionCount += 1;
+    }
     transitions.push(transition);
   }
 
@@ -232,15 +313,26 @@ function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guita
     documentType: SUSTAINED_GUITAR_TRANSITION_MODEL_DOCUMENT_TYPE,
     contractVersion: SUSTAINED_GUITAR_TRANSITION_MODEL_VERSION,
     authority: SUSTAINED_GUITAR_TRANSITION_MODEL_AUTHORITY,
-    source: Object.freeze({ documentType: POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE, contractVersion: POLYPHONIC_SOURCE_MODEL_VERSION, partId: source.source.partId }),
-    positionStates: Object.freeze({ documentType: SUSTAINED_GUITAR_POSITION_STATE_MODEL_DOCUMENT_TYPE, contractVersion: SUSTAINED_GUITAR_POSITION_STATE_MODEL_VERSION }),
+    source: Object.freeze({
+      documentType: POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE,
+      contractVersion: POLYPHONIC_SOURCE_MODEL_VERSION,
+      partId: source.source.partId,
+    }),
+    positionStates: Object.freeze({
+      documentType: SUSTAINED_GUITAR_POSITION_STATE_MODEL_DOCUMENT_TYPE,
+      contractVersion: SUSTAINED_GUITAR_POSITION_STATE_MODEL_VERSION,
+    }),
     pointCount: points.length,
     transitionCount: transitions.length,
     unplayableTransitionCount,
     potentialCompatibilityPairCount: aggregateCounter.count,
     transitions: Object.freeze(transitions),
   });
-  checkpoint(runtime, 'sustained-guitar-transition:complete', { transitionCount: result.transitionCount, unplayableTransitionCount, potentialCompatibilityPairCount: result.potentialCompatibilityPairCount });
+  checkpoint(runtime, 'sustained-guitar-transition:complete', {
+    transitionCount: result.transitionCount,
+    unplayableTransitionCount,
+    potentialCompatibilityPairCount: result.potentialCompatibilityPairCount,
+  });
   return result;
 }
 
