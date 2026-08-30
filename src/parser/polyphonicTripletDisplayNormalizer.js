@@ -217,7 +217,8 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
       throw unsupported('At most one tuplet display marker per note is supported in this stage.', context);
     }
 
-    const location = { ...context, notationChildIndex };
+    const { isChordMember, ...publicContext } = context;
+    const location = { ...publicContext, notationChildIndex };
     const tripletKey = `${context.measureIndex}:${context.sourceOrder}`;
     if (!tripletMarkerKeys.has(tripletKey)) {
       throw invalid('Tuplet display must be backed by a validated 3:2 time-modification on the same note.', location);
@@ -229,7 +230,7 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
     if (display.type === 'start') {
       if (open) {
         const duplicateChordMarker = Boolean(
-          context.isChordMember
+          isChordMember
           && context.sourceOrder === open.lastSourceOrder + 1
           && sameDisplayIdentity(open.display, display)
         );
