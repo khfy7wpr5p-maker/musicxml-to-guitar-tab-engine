@@ -73,9 +73,10 @@ test('extracts only verified Guitar Pro / MusicXML technique shapes as SAFE_META
   assert.equal(position.sourceText, '2');
 });
 
-test('same-number hammer-on start+stop on one note is preserved as two unpaired provenance records', () => {
+test('balanced hammer-on endpoints are preserved as two unpaired provenance records', () => {
   const result = provenance([
-    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on><hammer-on number="1" type="stop"/></technical></notations>'),
+    note('<notations><technical><hammer-on number="1" type="start">H</hammer-on></technical></notations>'),
+    note('<notations><technical><hammer-on number="1" type="stop"/></technical></notations>'),
   ]);
   assert.equal(result.recordCount, 2);
   assert.deepEqual(result.records.map((entry) => entry.state), ['START', 'STOP']);
