@@ -5,6 +5,7 @@ const {
   GUITAR_CONFIGURATION_VERSION,
   GUITAR_STRING_COUNT,
   DEFAULT_FRET_RANGE,
+  createGuitarConfiguration,
 } = require('../guitar/tuning');
 const {
   getPositionCandidates,
@@ -51,17 +52,21 @@ function checkpoint(runtime, phase, details = {}) {
   if (runtime) runtime.checkpoint(phase, details);
 }
 
-function validateGeneratedPosition(position, targetMidi, logicalNoteId) {
+function validateGeneratedPosition(position, targetMidi, logicalNoteId, configuration) {
+  const absoluteFret = Number.isInteger(position?.fret)
+    ? configuration.capoFret + position.fret
+    : null;
   if (
     !position
     || !Number.isInteger(position.string)
     || position.string < 1
     || position.string > GUITAR_STRING_COUNT
     || !Number.isInteger(position.fret)
-    || position.fret < DEFAULT_FRET_RANGE.minimumFret
-    || position.fret > DEFAULT_FRET_RANGE.maximumFret
+    || position.fret < 0
+    || absoluteFret < configuration.minimumFret
+    || absoluteFret > configuration.maximumFret
   ) {
-    throw invalid('Fretboard candidate logic returned an invalid standard-guitar position.', {
+    throw invalid('Fretboard candidate logic returned an invalid six-string guitar position.', {
       logicalNoteId,
       targetMidi,
     });
@@ -69,7 +74,7 @@ function validateGeneratedPosition(position, targetMidi, logicalNoteId) {
 
   let observedMidi;
   try {
-    observedMidi = positionToMidi(position);
+    observedMidi = positionToMidi(position, configuration);
   } catch {
     throw invalid('PS-4A could not round-trip a generated guitar position.', {
       logicalNoteId,
@@ -98,7 +103,7 @@ function noteDisposition(point, logicalNoteId) {
   });
 }
 
-function buildPositionLayers(point, runtime, location) {
+function buildPositionLayers(point, runtime, location, configuration) {
   const layers = new Array(point.activeNotes.length);
   for (let noteIndex = 0; noteIndex < point.activeNotes.length; noteIndex += 1) {
     checkpoint(runtime, 'sustained-guitar-position-state:note', {
@@ -107,7 +112,7 @@ function buildPositionLayers(point, runtime, location) {
     });
     const fact = point.activeNotes[noteIndex];
     const targetMidi = fact.pitch.midi;
-    const positions = getPositionCandidates(targetMidi);
+    const positions = getPositionCandidates(targetMidi, configuration);
     const normalized = new Array(positions.length);
     for (let positionIndex = 0; positionIndex < positions.length; positionIndex += 1) {
       checkpoint(runtime, 'sustained-guitar-position-state:position', {
@@ -116,7 +121,7 @@ function buildPositionLayers(point, runtime, location) {
         positionIndex,
       });
       const position = positions[positionIndex];
-      validateGeneratedPosition(position, targetMidi, fact.logicalNoteId);
+      validateGeneratedPosition(position, targetMidi, fact.logicalNoteId, configuration);
       normalized[positionIndex] = Object.freeze({
         logicalNoteId: fact.logicalNoteId,
         sourceEventId: fact.sourceEventId,
@@ -140,7 +145,7 @@ function stateSignature(positions) {
   )).join(';');
 }
 
-function enumerateStates(point, runtime, location, aggregateCounter) {
+function enumerateStates(point, runtime, location, aggregateCounter, configuration) {
   if (point.activeNotes.length === 0) {
     return Object.freeze({
       status: SUSTAINED_POSITION_POINT_STATUS.EMPTY_SONORITY,
@@ -156,7 +161,7 @@ function enumerateStates(point, runtime, location, aggregateCounter) {
     });
   }
 
-  const layers = buildPositionLayers(point, runtime, location);
+  const layers = buildPositionLayers(point, runtime, location, configuration);
   if (layers.some((layer) => layer.length === 0)) {
     return Object.freeze({
       status: SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT,
@@ -238,9 +243,10 @@ function enumerateStates(point, runtime, location, aggregateCounter) {
   });
 }
 
-function createSustainedGuitarPositionStateModel(sourceModel, runtime = null) {
+function createSustainedGuitarPositionStateModel(sourceModel, runtime = null, guitarOptions = {}) {
   checkpoint(runtime, 'sustained-guitar-position-state:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+  const configuration = createGuitarConfiguration(guitarOptions);
   const sonority = createActiveSonorityModel(source, runtime);
   const measures = [];
   const aggregateCounter = { count: 0 };
@@ -259,6 +265,7 @@ function createSustainedGuitarPositionStateModel(sourceModel, runtime = null) {
         runtime,
         { measureIndex, pointIndex, sonorityPointId: sonorityPoint.sonorityPointId },
         aggregateCounter,
+        configuration,
       );
       if (enumerated.status === SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT) {
         unplayablePointCount += 1;
@@ -302,8 +309,8 @@ function createSustainedGuitarPositionStateModel(sourceModel, runtime = null) {
     guitar: Object.freeze({
       contractVersion: GUITAR_CONFIGURATION_VERSION,
       stringCount: GUITAR_STRING_COUNT,
-      minimumFret: DEFAULT_FRET_RANGE.minimumFret,
-      maximumFret: DEFAULT_FRET_RANGE.maximumFret,
+      minimumFret: configuration.minimumFret,
+      maximumFret: configuration.maximumFret,
     }),
     pointCount,
     candidateCount: aggregateCounter.count,
