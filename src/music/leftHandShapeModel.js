@@ -40,7 +40,7 @@ function invalid(message, details = {}) {
 
 function shapeLimitExceeded(observed, details = {}) {
   return new LeftHandShapeModelError(
-    'PA-8 aggregate left-hand shape candidate count exceeds the fixed model limit.',
+    'PA-8 left-hand shape candidate count exceeds the fixed per-group model limit.',
     'LEFT_HAND_SHAPE_CANDIDATE_LIMIT_EXCEEDED',
     {
       limit: MAX_LEFT_HAND_SHAPE_CANDIDATES,
@@ -52,7 +52,7 @@ function shapeLimitExceeded(observed, details = {}) {
 
 function assignmentAttemptLimitExceeded(observed, details = {}) {
   return new LeftHandShapeModelError(
-    'PA-8 aggregate complete finger-assignment attempt count exceeds the fixed model limit.',
+    'PA-8 complete finger-assignment attempt count exceeds the fixed per-group limit.',
     'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED',
     {
       limit: MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS,
@@ -278,6 +278,10 @@ function buildShapeCandidate(candidateId, positions, fingers, shapeIndex) {
 
 function enumerateShapeCandidates(candidateId, positions, runtime, counters, sourceGroupId) {
   const shapeCandidates = [];
+  if (!Number.isSafeInteger(counters.groupShapeCandidates)) counters.groupShapeCandidates = 0;
+  if (!Number.isSafeInteger(counters.groupAssignmentAttempts)) {
+    counters.groupAssignmentAttempts = 0;
+  }
   const fingers = new Array(positions.length).fill(OPEN_STRING_FINGER);
   const frettedIndexes = [];
   for (let index = 0; index < positions.length; index += 1) {
@@ -293,18 +297,20 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
       shapeCandidateCount: counters.shapeCandidates,
     });
     if (frettedIndex === frettedIndexes.length) {
-      const observedAttempts = counters.assignmentAttempts + 1;
+      const observedAttempts = counters.groupAssignmentAttempts + 1;
       if (observedAttempts > MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS) {
         throw assignmentAttemptLimitExceeded(observedAttempts, { sourceGroupId, voicingCandidateId: candidateId });
       }
-      counters.assignmentAttempts = observedAttempts;
+      counters.groupAssignmentAttempts = observedAttempts;
+      counters.assignmentAttempts += 1;
       const shape = buildShapeCandidate(candidateId, positions, fingers, shapeCandidates.length);
       if (!shape) return;
-      const observedShapes = counters.shapeCandidates + 1;
+      const observedShapes = counters.groupShapeCandidates + 1;
       if (observedShapes > MAX_LEFT_HAND_SHAPE_CANDIDATES) {
         throw shapeLimitExceeded(observedShapes, { sourceGroupId, voicingCandidateId: candidateId });
       }
-      counters.shapeCandidates = observedShapes;
+      counters.groupShapeCandidates = observedShapes;
+      counters.shapeCandidates += 1;
       shapeCandidates.push(shape);
       return;
     }
@@ -333,6 +339,9 @@ function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime =
     if (!group || typeof group.sourceGroupId !== 'string' || !Array.isArray(group.candidates)) {
       throw invalid('PA-8 encountered an invalid PA-7 snapshot group.', { groupIndex });
     }
+
+    counters.groupShapeCandidates = 0;
+    counters.groupAssignmentAttempts = 0;
 
     const voicingCandidates = new Array(group.candidates.length);
     for (let candidateIndex = 0; candidateIndex < group.candidates.length; candidateIndex += 1) {

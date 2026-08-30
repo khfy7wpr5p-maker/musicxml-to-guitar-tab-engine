@@ -145,7 +145,7 @@ test('PA-8 emits zero shapes rather than mutating or dropping a five-distinct-fr
   assert.deepEqual(voicing.positions.map((position) => position.fret), [1, 3, 5, 7, 9]);
 });
 
-test('PA-8 fails closed at the aggregate complete-assignment attempt ceiling', () => {
+test('PA-8 fails closed at the per-source-group complete-assignment attempt ceiling', () => {
   const source = sourceModel(score([
     note('C', { octave: 4 }),
     note('D', { octave: 4, chord: true }),
@@ -166,7 +166,7 @@ test('PA-8 fails closed at the aggregate complete-assignment attempt ceiling', (
   );
 });
 
-test('PA-8 fails closed at the aggregate shape-candidate ceiling before assignment attempts are exhausted', () => {
+test('PA-8 scopes shape enumeration to each source group while preserving the fixed per-group ceiling', () => {
   const xml = multiMeasureScore(
     121,
     note('C', { octave: 4, duration: 16, type: 'whole' }),
@@ -174,14 +174,14 @@ test('PA-8 fails closed at the aggregate shape-candidate ceiling before assignme
   );
   const source = sourceModel(xml);
 
-  assert.throws(
-    () => createLeftHandShapeModel(source, preserveAllSourceNotes(source)),
-    (error) => (
-      error
-      && error.code === 'LEFT_HAND_SHAPE_CANDIDATE_LIMIT_EXCEEDED'
-      && error.details.limit === 20_000
-      && error.details.observed === 20_001
-    ),
+  const model = createLeftHandShapeModel(source, preserveAllSourceNotes(source));
+  assert.ok(model.shapeCandidateCount > 20_000);
+  assert.equal(
+    model.groups.every((group) => (
+      group.voicingCandidates.reduce((count, voicing) => count + voicing.shapeCandidateCount, 0)
+      <= 20_000
+    )),
+    true,
   );
 });
 
