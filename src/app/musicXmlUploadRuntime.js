@@ -41,18 +41,17 @@ const {
   resolveBasicMusicXmlHarmonyReferences,
 } = require('./basicMusicXmlHarmonyExtractor');
 const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
+const {
+  SCORE_ROUTE,
+  SCORE_STATUS,
+  SOURCE_REVIEW_AVAILABILITY,
+  buildScoreState,
+} = require('./reviewableScoreState');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
-const MUSICXML_UPLOAD_STATUS = Object.freeze({
-  PASS: 'PASS',
-  BLOCKED: 'BLOCKED',
-});
-const MUSICXML_UPLOAD_ROUTE = Object.freeze({
-  MONO_V1: 'MONO_V1',
-  POLY_V2: 'POLY_V2',
-  UNRESOLVED: 'UNRESOLVED',
-});
+const MUSICXML_UPLOAD_STATUS = SCORE_STATUS;
+const MUSICXML_UPLOAD_ROUTE = SCORE_ROUTE;
 const ALLOWED_UPLOAD_EXTENSIONS = Object.freeze(['.musicxml', '.xml']);
 const MAX_UPLOAD_FILE_NAME_LENGTH = 255;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
@@ -280,10 +279,15 @@ function issueFromError(error) {
 }
 
 function blockedResult(identity, route, issue, normalization = null) {
+  const scoreState = buildScoreState({
+    route,
+    issues: [issue],
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.NOT_AVAILABLE,
+  });
   return deepFreeze({
     documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
     contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
-    status: MUSICXML_UPLOAD_STATUS.BLOCKED,
+    status: scoreState.status,
     route,
     input: identity,
     preflight: {
