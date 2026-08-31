@@ -1,131 +1,150 @@
 # AI Context — Read This First
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
-
-This is the active read-first status for coding agents and reviewers. Historical versioned contracts, closure records and sealed scientific evidence remain exact historical records and are not rewritten when the live architecture advances.
-
-## Executable authority
-
-Current package metadata: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
-
-The public conversion path remains deterministic and monophonic:
-
-```text
-MusicXML → XML safety/ProcessingBudget → ParsedMusicXmlDocument 1.0.0
-→ supported monophonic semantic projection → CanonicalMusicDocument
-→ physical candidates → deterministic cost + DP optimizer
-→ CanonicalTabResult 1.0.0 → canonical validator
-→ JSON / ASCII TAB / TAB MusicXML
-```
-
-`CanonicalTabResult 1.0.0` is the only public downstream TAB authority. Package-root exports remain exactly the approved conversion, preflight, fretboard, error-detection and writer APIs. No PA, teacher benchmark, learned model, GuitarSet adapter or runtime-shadow bridge is exported.
-
-## Current PA state
-
-- PA-1 `PolyphonicSourceModel 1.0.0`: ✅ internal
-- PA-2 projection sequence: ✅ closed
-- PA-3 `SimultaneousEventModel 1.0.0`: ✅ internal
-- PA-4 `GuitarArrangementPlan 1.0.0`: ✅ internal
-- PA-5 `DeterministicVoiceAnalysis 1.0.0`: ✅ internal
-- PA-6 `DeterministicReductionPlan 1.0.0`: ✅ internal
-- PA-7 `GuitarVoicingCandidateModel 1.0.0`: ✅ internal, standard six-string frets 0..20
-- deterministic PA-7 single-generation immutable handoff: ✅ merged
-- PA-8 `LeftHandShapeModel 1.0.0`: ✅ internal
-- PA-9 `PhysicalPlayabilityValidation 2.0.0`: ✅ internal
-- PA-10.0–PA-10.5: ✅ merged canonical-v2 compatibility/design contracts
-- PA-11 evaluation chain: ✅ merged through PA-11.4A
-- deterministic final polyphonic selector: ✅ internal, non-ML and fail-closed
-- `CanonicalTabResult 2.0.0` runtime/validator/writer: ✅ internal
-- PA-12 internal polyphonic E2E: ✅ implemented, non-public
-- PA-13 public polyphonic API: 🔒 not implemented
-
-PA-10.3 defines v1↔v2 coexistence/migration rules, PA-10.4 defines minimal `CanonicalTabResult 2.0.0`, and PA-10.5 defines exact-version fail-closed dispatch. The internal v2 runtime/writer and PA-12 path create no package-root/public v2 authority; the public dispatcher remains separately gated.
-
-## GuitarSet v2 state
-
-Retained model identity is `GUITARSET-OBSERVED-VOICING-MODEL.v2`.
-
-Controlled offline status remains `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
-
-Historical sealed evidence remains:
-
-`evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
-
-Its byte SHA-256 is `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`. It records 4/4 candidate-bearing coverage, 153/153 candidate preservation, one zero-candidate NO_SCORE group, 1/4 baseline agreement, three disagreements, 48 fret-20 candidates, zero shadow errors and 10/10 deterministic reproduction.
-
-Observed positive GuitarSet gold remains frets 0..19 while candidate domain is 0..20, therefore `fret20QualityAuthority=false`.
-
-## Runtime shadow connection
-
-Current gate: `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1`.
-
-Approved architecture:
-
-```text
-PA-7 generation exactly once
-        ↓
-authentic immutable PA-7 snapshot
-        ├─→ PA-8 → PA-9 → deterministic baseline selection
-        └─→ detached deeply frozen read-copy → GuitarSet v2 score/evidence only
-```
-
-Runtime shadow connection: internal default-off.
-
-The reviewed `src/learning/guitarsetVoicingModelV2RuntimeShadow.js` bridge is the only source call site allowed to reach the v2 shadow adapter. Ordinary runtime modules do not activate that bridge, and `src/index.js` does not export it.
-
-Authority boundary:
-
-- runtime shadow connection: internal default-off
-- explicit internal shadow execution through reviewed bridge: allowed
-- live/user input: false
-- candidate generation/mutation/filter/deletion by learned code: false
-- authoritative optimizer/canonical/TAB effect: false
-- checkpoint mutation: false
-- refit/retraining: false
-- `fret20QualityAuthority=false`
-- production: false
-
-The deterministic result is created from the same single-generation PA-7 handoff. Shadow scoring receives only a detached, deeply frozen read-copy. Shadow/model/artifact failures are converted to isolated diagnostic evidence and cannot replace the deterministic result.
-
-The retained development model and underlying offline-parity adapter keep their historical `runtime_connection_authorized=false` and `shadow_execution_authorized=false` provenance fields. The engine-side review does not rewrite those artifacts or grant model authority.
-
-## Compatibility status
-
-PR #146 passed the protected Node.js 18/20/22, alphaTab import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Each later change must pass its applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
-
-MuseScore semantic import/re-export/round-trip and production PDF remain unverified/not implemented. Synth compatibility is not production-playback authority.
-
-## Non-negotiable rules
-
-1. Source MusicXML is immutable source truth.
-2. Parsing does not choose strings/frets; writers do not rerun optimization.
-3. Physical validation precedes learned scoring.
-4. Deterministic behavior remains reproducible and authoritative wherever currently defined.
-5. Public monophonic rejection rules may not be weakened to expose internal polyphony.
-6. PA-7 enumeration order is not preference.
-7. PA-8 structural fingering is not universal ergonomics.
-8. PA-9 `PLAYABLE_WITHIN_POLICY` is not universal anatomy/comfort/tempo truth.
-9. Teacher approval is evaluation evidence, not training consent or production authority.
-10. Fixed evaluation benchmarks remain separate from training data.
-11. Learned/shadow modules may score only pre-existing valid candidates and cannot fabricate, delete, filter or mutate them.
-12. Historical evidence must not be silently regenerated under a newer model/protocol.
-13. Internal `CanonicalTabResult 2.0.0` runtime and PA-12 do not create package-root/public v2 authority.
-14. Runtime shadow connection does not imply final-selection authority.
-15. Live/user-input shadow activation, learned decision authority, public polyphony, production playback/PDF and release remain separate consequential gates.
+This is the active read-first context for coding agents and reviewers. Historical versioned contracts, closure records, corpus audits, PR numbers, commit SHAs, and sealed scientific evidence remain historical records; they are not current architecture authority merely because they are retained in the repository.
 
 ## Source-of-truth order
 
 When sources disagree:
 
-1. merged source/tests/workflows/package metadata on `main`;
-2. applicable runtime contract modules;
-3. exact versioned contract/closure/evidence documents;
-4. this file;
-5. `docs/current-status.md`;
-6. `docs/package-status.md`;
-7. `docs/ARCHITECTURE.md`, `README.md`, `docs/polyphonic-guitar-arrangement-foundation.md`;
-8. older historical/planning drafts.
+1. merged source/tests/workflows/package metadata on protected `main`;
+2. applicable runtime contract modules and exact error/limit constants;
+3. live architecture documents dated 2026-08-31 or later;
+4. exact versioned contract/closure/evidence documents for the revision they describe;
+5. older historical/planning drafts.
 
 `docs/DATA-CONTRACT.md` is a deprecated historical draft and is not current runtime authority.
+
+## Executable authority
+
+Current package metadata:
+
+- version `0.1.0`;
+- `private: true`;
+- license `SEE LICENSE IN LICENSE`;
+- Node.js >=18.
+
+The package root remains deliberately narrow and deterministic:
+
+```text
+MusicXML → XML safety / ProcessingRuntime
+→ supported monophonic semantic projection
+→ CanonicalMusicDocument
+→ physical candidates
+→ deterministic cost + DP optimizer
+→ CanonicalTabResult 1.0.0
+→ canonical validator
+→ JSON / ASCII TAB / TAB MusicXML
+```
+
+`CanonicalTabResult 1.0.0` remains public package-root TAB authority. No PA/PS stage, teacher benchmark, learned model, GuitarSet adapter, runtime-shadow bridge, or internal POLY_V2 conversion pipeline is exported from `src/index.js`.
+
+The application/internal polyphonic path is broader:
+
+```text
+MusicXML
+→ XML safety / bounded parser
+→ representation compatibility normalizers
+→ PolyphonicSourceModel
+→ temporal / tie / sustain graph
+→ active sonority
+→ guitar position candidates
+→ PA-8 / PA-9 physical states
+→ sustained path solver when required
+→ deterministic canonical final selection
+→ CanonicalTabResult 2.0.0
+→ internal/application MusicXML writer
+```
+
+The two authority boundaries must not be conflated.
+
+## Current PA / PS state
+
+- PA-1 `PolyphonicSourceModel 1.0.0`: ✅ internal
+- PA-2 bounded projection: ✅ internal
+- PA-3 `SimultaneousEventModel 1.0.0`: ✅ internal
+- PA-4 `GuitarArrangementPlan 1.0.0`: ✅ internal
+- PA-5 `DeterministicVoiceAnalysis 1.0.0`: ✅ internal
+- PA-6 `DeterministicReductionPlan 1.0.0`: ✅ internal
+- PA-7 `GuitarVoicingCandidateModel 1.0.0`: ✅ internal
+- PA-8 `LeftHandShapeModel 1.0.0`: ✅ internal; fixed ceilings 20,000 shapes / 100,000 assignment attempts per independently processed group
+- PA-9 `PhysicalPlayabilityValidation 2.0.0`: ✅ internal
+- PA-10.0–PA-10.5 canonical-v2 compatibility/design: ✅ merged
+- PA-11 evaluation chain through PA-11.4A: ✅ merged
+- PA-12 internal polyphonic E2E: ✅ implemented / non-package-root
+- PS-2 `SustainTieGraph 1.2.0`: ✅ active
+- PS-3 logical sustain continuity: ✅ active
+- PS-4A active sonority: ✅ active
+- PS-4C sustained PA-8/PA-9 physical enumeration: ✅ active
+- sustained canonical final selection: ✅ active for the exact recognized fallback boundary
+- PA-13 public polyphonic API: 🔒 not implemented
+
+The sustained PA-8 enforcement window is per PS-4A sonority point, not a whole-score aggregate budget. Fixed ceilings and enumeration/ranking rules are unchanged.
+
+## MusicXML compatibility boundary
+
+Production compatibility rules are generic representation contracts. They are filename-independent, SHA-independent, bounded, deterministic, fail-closed, and source-immutable.
+
+Current exact compatibility includes:
+
+- reviewed Guitar Pro grace representation;
+- exact attribute-free grace nominal types `eighth` and `32nd`;
+- exact Guitar Pro bracketed-below 3:2 triplet display backed by validated time-modification semantics;
+- exact normalized notation/TAB staff mirror collapse after original staff-2 TAB evidence and semantic equality are proven;
+- exact contiguous closed sustain-stop continuation under PS-2 v1.2.0.
+
+**Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
+
+## Sustain / tie / same-voice rule
+
+A true orphan tie stop still fails closed as `INVALID_SUSTAIN_TIE_GRAPH` / `ORPHAN_TIE_STOP`. Representation compatibility does not synthesize a source `tieStart` or alter pitch, timing, voice, or staff.
+
+**VALID SAME-VOICE CHORD ≠ INDEPENDENT OVERLAPPING NOTES WITHIN ONE VOICE.**
+
+Exact same-voice MusicXML `<chord/>` members form one attack group. Lane occupancy extends to the maximum end of all chord members. A later independent non-chord attack before that maximum end remains fail-closed as `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` / `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`; no implicit voice split is invented.
+
+## GuitarSet v2 / runtime-shadow state
+
+Retained model identity: `GUITARSET-OBSERVED-VOICING-MODEL.v2`.
+
+Controlled offline status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`.
+
+Historical sealed evidence remains at:
+
+`evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
+
+Observed positive GuitarSet gold remains frets 0..19 while the PA-7 candidate domain is 0..20, therefore `fret20QualityAuthority=false`.
+
+Current reviewed runtime-shadow gate: `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1`.
+
+Authority boundary:
+
+- runtime shadow connection: internal default-off
+- live/user input: false
+- candidate generation/mutation/filter/deletion by learned code: false
+- authoritative optimizer/canonical/TAB effect: false
+- checkpoint mutation/refit/retraining: false
+- `fret20QualityAuthority=false`
+- production: false
+
+The shadow adapter receives only a detached, deeply frozen read-copy of an authentic single-generation PA-7 snapshot. It may produce diagnostic evidence only and cannot replace deterministic selection.
+
+## Non-negotiable rules
+
+1. Source MusicXML bytes and source musical facts are immutable source truth.
+2. Parsing/normalization does not choose strings/frets; writers do not rerun optimization or selection.
+3. Compatibility normalization removes or interprets only proven representation differences and never guesses missing semantics.
+4. Physical validation precedes learned scoring; learned/shadow output is non-authoritative.
+5. Candidate order is enumeration, not preference; compatibility changes cannot alter physical rules, solver ranking/cost, or tie-breaks.
+6. Fixed processing/resource limits are not raised as corpus-specific fixes.
+7. Deadline/cancellation and deep-immutability boundaries remain active.
+8. Ambiguous/unsupported semantics are valid fail-closed outcomes.
+9. Public monophonic rejection rules may not be weakened merely to expose internal polyphony.
+10. Internal `CanonicalTabResult 2.0.0` and PA-12 do not create package-root/public v2 authority.
+11. Runtime shadow connection does not imply final-selection authority.
+12. Renderer output is presentation evidence, not semantic authority.
+13. Real corpus is regression/evidence material only; filename/SHA dispatch is forbidden.
+14. Production playback/PDF, broader public polyphony, and learned decision authority remain separate consequential gates unless independently verified.
+
+For detailed live contracts read `docs/ARCHITECTURE.md`, `docs/current-status.md`, `docs/musicxml-compatibility.md`, `docs/ps-sustain-tie-graph-contract.md`, `docs/pa-8-left-hand-shape-contract.md`, and `docs/pa-12-internal-polyphonic-e2e.md`.

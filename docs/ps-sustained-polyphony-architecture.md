@@ -1,98 +1,97 @@
-# PS Sustained Polyphony Architecture
+# Sustained Polyphony Architecture
 
-Status: INTERNAL / DEFAULT-OFF / NON-PUBLIC
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
 
-This document defines the safety and authority boundary for extending the existing deterministic polyphonic guitar selector toward sustained, contrapuntal material such as multi-voice guitar fugues.
+Status: ACTIVE INTERNAL/APPLICATION ARCHITECTURE / NON-PACKAGE-ROOT
 
-## Goal
-
-Support time-overlapping independent voices without silently changing musical meaning. The target end-state is exact source-identity preservation through a bounded deterministic guitar-state search that can represent attacks, holds, releases, ties and cross-measure continuity.
-
-## Non-goals for PS-0 / PS-1
-
-- no package-root public API changes;
-- no automatic runtime routing;
-- no replacement or mutation of `deterministicPolyphonicFinalSelector.js`;
-- no learned/ML authority;
-- no external solver dependency;
-- no string/fret decisions in the temporal model;
-- no silent note deletion, octave displacement, voice merging or tie removal;
-- no claim of Bach-level support until the PS-6 corpus gate passes.
-
-## Safety invariants
-
-1. Existing MONO and bounded POLY behavior remains authoritative and unchanged.
-2. New PS stages are internal and opt-in until separately promoted.
-3. Unsupported musical or physical states fail closed.
-4. Source event identity remains immutable across every PS stage.
-5. Musical correctness outranks ergonomic preference.
-6. A solver may report `UNPLAYABLE_EXACT`; it must not silently reduce the score.
-7. Resource use remains bounded by the existing processing runtime plus stage-specific limits.
-8. Every new stage must revalidate its input contract before deriving output.
-9. No browser-only or renderer-only state may become TAB authority.
-10. Package-root exports remain unchanged through PS-0 / PS-1.
+This document describes the current sustained-note path. Earlier versions of this file described PS-3/PS-4/PS-5 as future work; that status is superseded by the merged implementation now used by the canonical-v2 sustained fallback.
 
 ## Stage map
 
-### PS-0 — Architecture Contract
+```text
+PolyphonicSourceModel
+  ↓
+PS-2 SustainTieGraph 1.2.0
+  ↓
+PS-3 logical sustain/tie continuity
+  ↓
+PS-4A Active Sonority Model
+  ↓
+PS-4B/position-state candidate construction
+  ↓
+PS-4C Sustained Left-Hand Physical State Model
+      ├─ shared PA-8 finger/barre enumerator
+      └─ shared PA-9 static physical validator
+  ↓
+sustained transition model / path solver
+  ↓
+PA-12 sustained canonical final selection
+  ↓
+CanonicalTabResult 2.0.0
+```
 
-Locks scope, authority, fail-closed behavior and coexistence with the current selector.
+The ordinary deterministic selector remains the first path. `src/tab/canonicalTabResultV2.js` routes only the specifically recognized retained-sustain/tie unsupported cases to the sustained selector. This is not a general catch-all fallback.
 
-### PS-1 — Temporal Event Model
+## PS-2 — source-derived sustain facts
 
-Derives bounded musical time facts from `PolyphonicSourceModel`:
+`src/music/sustainTieGraph.js` derives immutable chains from exact source identity `(staff, voice, MIDI pitch, written pitch)`. The contract supports ordinary source ties and the bounded exact contiguous closed-stop representation documented in [`ps-sustain-tie-graph-contract.md`](ps-sustain-tie-graph-contract.md).
 
-- ATTACK: pitched event begins at a temporal point;
-- HOLD: previously active pitched event remains active after the point;
-- RELEASE: pitched event ends at the point;
-- ACTIVE: held plus newly attacked events after releases are applied.
+A true orphan stop, mismatch, non-contiguous continuation, ambiguous start, or unterminated chain remains fail-closed. PS-2 never synthesizes a source tie or note.
 
-PS-1 is fact-only. It has no guitar arrangement, string, fret, finger, barre, reduction or optimization authority.
+## PS-3 — logical continuity
 
-### PS-2 — Sustain / Tie Graph
+Logical continuity follows sealed PS-2 chain order. Every non-final chain segment keeps the same logical note active through the successor. The final segment releases it. This avoids treating a representation-level closed-stop boundary as a new independent musical attack while preserving raw source flags unchanged.
 
-Internal, facts-only stage. Connects tie chains and cross-measure sustain identity without changing pitch or voice semantics. Its precise input, output and fail-closed compatibility boundary is defined in `ps-sustain-tie-graph-contract.md`.
+## PS-4A — active sonority
 
-### PS-3 — Active Sonority Model
+The active-sonority layer turns source attacks plus sustained holds/releases into ordered time points. A note may therefore remain active at later sonority points without being re-attacked.
 
-Future stage. Produces the exact active-note set at each musically relevant state transition, including voice and sustain provenance.
+Same-voice MusicXML `<chord/>` members are not independent voice events. They belong to one validated attack group. The source-lane occupancy bound is nevertheless the maximum member end; a later independent non-chord event before that bound is invalid overlap, not a chord.
 
-### PS-4 — Sustained Guitar State
+## PS-4C / PA-8 / PA-9 — physical state
 
-Future stage. Reuses existing fretboard, PA-7, PA-8 and PA-9 facts to represent physically held strings, frets, fingers and barres across transitions.
+`src/music/sustainedLeftHandPhysicalStateModel.js` consumes exact sustained position states, adapts them to the shared PA-8 enumerator, validates with PA-9, and converts only provenance-consistent playable shapes back into sustained physical candidates.
 
-### PS-5 — Sustained Polyphonic Selector
+The PA-8 numerical ceilings are shared and unchanged:
 
-Future stage. Performs bounded deterministic state-space search across sustained guitar states. The existing static-attack selector remains intact as a separate authority path.
+- 20,000 shape candidates;
+- 100,000 complete assignment attempts.
 
-### PS-6 — Bach Validation Ladder
+On this sustained path, the enforcement window is reset exactly once per PS-4A sonority point. Ordered position states inside that point share the point's fixed window. Earlier points cannot exhaust a later point's window. Aggregate counters are reporting only.
 
-Future evidence gate:
+## Transition / path solver
 
-1. one held note plus one later attack;
-2. two independent voices;
-3. two voices with ties;
-4. three independent voices;
-5. three voices with sustained chordal interaction;
-6. four independent voices;
-7. four voices with cross-measure ties;
-8. real Bach/fugal guitar transcription corpus;
-9. multiple real-world exported MusicXML sources.
+The sustained transition/path stages choose among already constructed physically valid states. They do not gain authority to mutate source musical facts. Candidate traversal, physical rules, ranking/cost, and deterministic tie-break remain separate contracts and are not compatibility-normalization levers.
 
-No broad sustained-polyphony claim is permitted before these gates are evidenced.
+## Canonical final selection
 
-## Integration strategy
+`src/music/sustainedCanonicalFinalSelector.js` requires exact preserved projection for retained notes. It does not authorize a source pitch transformation or octave shift to make the score fit the guitar.
 
-The existing architecture remains:
+Before sustained selection it validates same-source-lane occupancy:
 
-`MusicXML -> PolyphonicSourceModel -> SimultaneousEventModel -> PA-7 -> PA-8 -> PA-9 -> deterministicPolyphonicFinalSelector -> CanonicalTabResultV2`
+- exact `<chord/>` members are one attack group;
+- chord members extend occupancy to the maximum member end;
+- a later independent non-chord attack before that end throws `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` with reason `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`.
 
-The PS line begins beside, not inside, the existing selector:
+No implicit voice split is created.
 
-`PolyphonicSourceModel -> PS-1 Temporal Event Model -> PS-2 Sustain/Tie -> PS-3 Active Sonority -> PS-4 Sustained Guitar State -> PS-5 Sustained Selector -> CanonicalTabResultV2`
+## Cross-cutting invariants
 
-Until promotion, PS output is not routed into upload/runtime/editor paths.
+The sustained path preserves:
 
-## Coexistence with UI-08 / PR #171
+- immutable source bytes and source facts;
+- deep immutability of derived authoritative models;
+- deterministic output;
+- bounded resource use;
+- shared runtime deadline/cancellation;
+- fail-closed ambiguity/unsupported semantics;
+- no filename/SHA special cases;
+- no semantic guessing;
+- no learned/shadow ranking authority;
+- package-root API isolation.
 
-The PS-0/PS-1 branch is based on main after UI-11 and intentionally avoids the runtime-normalization files being changed by UI-08. UI-08 addresses real-world MusicXML admission and standard guitar written/sounding normalization; PS addresses sustained contrapuntal selection. These are complementary but separate concerns.
+## Relationship to real corpus
+
+Real Guitar Pro corpus runs are regression evidence. They can prove that a generic representation contract is needed and can verify source-byte immutability/determinism after implementation. They are never runtime dispatch keys.
+
+For live repository status see [`current-status.md`](current-status.md). Historical PS closure records remain evidence for the revision/stage they describe.

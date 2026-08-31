@@ -1,107 +1,115 @@
-# TAB MusicXML Compatibility Validation
+# MusicXML Compatibility Contract
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-23 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
 
-Architecture convergence base: `200d55ebc4863471c8c50b59e9ba6a6115806dd6` (merged PR #136).
+This document defines the production compatibility-normalization boundary. It is not a list of corpus-specific exceptions.
 
-This document records the current compatibility boundary for MusicXML emitted by the public `CanonicalTabResult 1.0.0` writer. Compatibility tools are downstream observers and never gain fingering, candidate, optimizer, canonical or production authority.
+## Core rule
 
-## Latest verified evidence
+Every compatibility rule must be:
 
-PR #136 exact-head verification:
+- filename-independent;
+- SHA-independent;
+- driven by exact MusicXML shape and already-proven semantics;
+- bounded;
+- deterministic;
+- fail-closed outside its reviewed shape;
+- source-immutable.
 
-- Tests #764: **PASS** on Node.js 18 / 20 / 22;
-- MusicXML Compatibility #533: **PASS**;
-- alphaTab 1.8.4 MusicXML import: **PASS**;
-- alphaTab SVG render: **PASS**;
-- alphaTab browser renderer/cursor on Node.js 22: **PASS**.
+**Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
-The compatibility workflow itself runs the complete repository suite before the renderer checks, so PR #136's frozen GuitarSet v2 parity/isolation tests were included in that passing repository state. PR #136 does not alter public writer semantics.
+A real corpus file may reveal a representation difference. The resulting production change is acceptable only when the representation can be described and tested generically without referring to that file's identity.
 
-## Current verdict
+## Authority boundary
 
-**Strong alphaTab import/render/cursor compatibility evidence; production playback, MuseScore semantic round-trip and PDF remain open.**
+Compatibility normalizers are representation adapters. They do not own or change:
 
-Verified:
+- source pitch/octave;
+- onset/duration;
+- voice/staff;
+- tie semantics beyond exact facts/approved representation continuity;
+- chord membership;
+- arrangement decisions;
+- candidate generation order;
+- PA-8/PA-9 physical rules;
+- solver ranking/cost/tie-break;
+- canonical final selection authority.
 
-- deterministic public TAB MusicXML writer contract;
-- well-formed MusicXML output for the supported public scope;
-- alphaTab import and SVG rendering on Node.js 18/20/22;
-- browser rendering and bar/beat cursor behavior in headless Chrome;
-- standard notation + six-line TAB compatibility fixture;
-- double-digit fret rendering, ties, beams and selected-position fidelity;
-- public writer output remains independent of alternative unselected candidates.
+A renderer is not semantic authority. A writer serializes canonical truth and may not correct or rerun selection.
 
-Not established:
+## Current exact compatibility profiles
 
-- production alphaTab synth/player readiness;
-- real MuseScore Studio semantic import/re-export/round-trip;
-- MuseScore PDF export;
-- production PDF adapter/viewer;
-- production score/TAB application viewer;
-- application persistence/export/share.
+### Guitar Pro grace representation
 
-## Workflow semantics
+`src/parser/polyphonicGraceOrnamentExtractor.js` handles the reviewed exact slashed grace profile. Grace musical material is preserved in an order-only sidecar contract. No numeric grace duration or onset is invented unless MusicXML provides separately supported timing semantics.
 
-`.github/workflows/musicxml-compatibility.yml` uses a pinned compatibility environment.
+The exact nominal type whitelist is:
 
-For Node.js 18/20/22 it:
+- `eighth`;
+- `32nd`.
 
-1. installs project dependencies with scripts disabled;
-2. runs the complete `npm test` suite;
-3. installs pinned alphaTab `1.8.4` without changing the repository;
-4. runs the alphaTab MusicXML importer smoke test;
-5. runs the alphaTab SVG renderer smoke test.
+The type element must be the exact bounded attribute-free leaf representation. Other values, duplicate/attributed/nested forms, grace rests, unsupported grace chords, or unsupported semantics remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
 
-On Node.js 22, a separate browser job:
+The already-reviewed exact normal grace notehead is display metadata only and does not alter pitch/timing/voice/staff or physical selection.
 
-1. finds an existing Chrome/Chromium executable;
-2. runs the validated alphaTab browser renderer/cursor test;
-3. runs the synth diagnostic;
-4. uploads the renderer screenshot artifact.
+### Guitar Pro 3:2 triplet display
 
-The synth diagnostic is configured `continue-on-error: true`. Therefore a successful `MusicXML Compatibility` workflow is **not** proof of production synth/player readiness.
+`src/parser/polyphonicTripletDisplayNormalizer.js` treats MusicXML timing and display as separate concerns.
 
-The MuseScore job only checks whether a MuseScore CLI command is preinstalled. When it is absent, the job exits successfully without running import, re-export, semantic round-trip or PDF tests. Workflow success must not be described as MuseScore semantic compatibility evidence.
-
-## Public authority boundary
+Timing authority remains the validated exact 3:2 `<time-modification>` contract. In addition to the legacy exact display form, the normalizer may remove and record the exact Guitar Pro display marker:
 
 ```text
-CanonicalTabResult 1.0.0
-        ↓
-TAB MusicXML writer
-        ↓
-┌───────────────────────┬────────────────────────┐
-│ alphaTab compatibility│ future MuseScore adapter│
-└───────────────────────┴────────────────────────┘
+placement="below"
+number="1"
+bracket="yes"
+type="start" | "stop"
 ```
 
-Neither renderer may recalculate, replace or correct engine fingering. A renderer failure cannot mutate a valid canonical result.
+The marker must be backed by validated 3:2 timing provenance on the same note and matched in the same staff/voice lane. This does not rescale duration. Conflicting identity/style/placement, genuine overlap, unmatched markers, malformed markup, and unsupported tuplets remain fail-closed.
 
-## Relationship to the current internal architecture
+### Exact notation/TAB staff mirror collapse
 
-The repository now also contains merged internal PA-8 `LeftHandShapeModel 1.0.0`, PA-9 `PhysicalPlayabilityValidation 2.0.0`, PA-10.5 canonical-v2 dispatch design, and PA-11.4A evaluation-only revoicing candidates. None is package-root public and none changes the public writer contract.
+`src/app/exactTabStaffMirrorNormalizer.js` may collapse a representation-only staff-2 mirror only after all of the following are proven:
 
-The isolated `GUITARSET-OBSERVED-VOICING-MODEL.v2` adapter has completed Python↔Node parity and exact-main controlled-offline evidence. Candidate domain 0..20 matches PA-7, but observed positive GuitarSet gold remains 0..19, so `fret20QualityAuthority=false`.
+1. the original parsed MusicXML declares two staves and staff 2 has an exact TAB clef;
+2. the bounded staff timing boundary/cursor form is valid;
+3. staff 1 and staff 2 project to exact normalized musical event equality in every measure;
+4. compared facts include event type, onset, duration, pitch, tie flags, and `<chord/>` membership;
+5. grace mirror groups and anchor identity match under the dedicated grace compatibility contract;
+6. staff-2 TAB technical string/fret representation is not promoted into source musical semantics.
 
-Evidence status: `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`; immutable artifact `evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`, byte SHA-256 `a9224b54a70b64f51b829aa106f42832abe366b7dafc454d15e73acf092841ba`.
+If any proof fails, collapse does not occur. The normalizer does not use filename or source SHA.
 
-Current learned authority remains:
+### Closed sustain/tie representation
 
-- controlled repository-fixture execution: complete
-- live/user input: false
-- runtime connection: false
-- authoritative optimizer/canonical/TAB effect: false
-- production: false
+`src/music/sustainTieGraph.js` v1.2.0 owns the bounded representation compatibility for repeated exact closed sustain stops. A current `tieStop` can continue the last closed chain only when the previous segment is an exact contiguous same-identity closed `tieStop` without `tieStart` and the ordinary timing-contiguity rule holds.
 
-Next human/consequential gate: `RUNTIME_SHADOW_CONNECTION_REVIEW`.
+The source flags are retained unchanged. No `tieStart` is synthesized. A genuine unmatched stop remains `ORPHAN_TIE_STOP` and fails closed.
 
-## Compatibility fixtures
+## Same-voice chord boundary
 
-The repository keeps deterministic fixtures for single-note and multi-measure TAB MusicXML behavior. Coverage includes standard notation and TAB staves, six-string tuning, pickup/measure behavior, supported rhythm values, dots, ties, beams, accidentals, rests, open strings and double-digit frets.
+MusicXML `<chord/>` is source semantics, not display decoration. Exact validated same-voice chord members are one attack group.
 
-Alternative valid guitar positions are deliberately present in compatibility data so tests can prove that only the already-selected canonical position reaches writer output.
+This does **not** permit arbitrary same-voice overlap:
 
-## Safety conclusion
+- chord-group occupancy extends to the maximum member end;
+- a later independent non-chord attack before that maximum end fails closed as `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`;
+- compatibility code may not invent a second voice.
 
-No compatibility evidence currently identifies a public TAB MusicXML writer defect. The remaining renderer/product gaps are downstream productization work and must not be used to weaken the deterministic core or to infer runtime authority for internal PA/learning components.
+## Source immutability
+
+Compatibility processing may construct normalized immutable derived representations, but it may not mutate the caller's source bytes or rewrite source-model musical facts in place. Corpus gates compare source-byte hashes before and after runtime execution.
+
+## Determinism and resource safety
+
+Compatibility work shares the repository processing-runtime boundary and remains subject to fixed limits, deadline/cancellation, bounded collections, and deterministic ordering. A compatibility fix may not solve a blocker by:
+
+- raising a fixed ceiling without a separate resource-contract review;
+- reordering candidates;
+- changing physical playability rules;
+- changing solver ranking/cost/tie-break;
+- using corpus-specific dispatch.
+
+## Renderer evidence
+
+The protected compatibility matrix continues to exercise Node.js 18/20/22 and alphaTab import/render/browser-cursor paths. These checks are evidence that serialized output is consumable; they do not grant alphaTab, MuseScore, or another renderer authority to change engine semantics. Synth/player, MuseScore semantic round-trip, PDF, hosted persistence, and product-release readiness remain separate gates unless explicitly verified elsewhere.

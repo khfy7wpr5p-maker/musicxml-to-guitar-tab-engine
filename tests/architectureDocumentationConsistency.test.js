@@ -9,7 +9,6 @@ const packageApi = require('..');
 const packageJson = require('../package.json');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const CONVERGENCE_BASE = '50859edb322e65a3c8d3db74564fef871f10623f';
 const ACTIVE_ARCHITECTURE_DOCS = [
   'README.md',
   'AI_CONTEXT.md',
@@ -18,39 +17,111 @@ const ACTIVE_ARCHITECTURE_DOCS = [
   'docs/package-status.md',
   'docs/polyphonic-guitar-arrangement-foundation.md',
 ];
+const CURRENT_STAGE_STATUS_DOCS = [
+  'AI_CONTEXT.md',
+  'docs/package-status.md',
+  'docs/polyphonic-guitar-arrangement-foundation.md',
+];
+const RUNTIME_SHADOW_DOCS = [
+  'AI_CONTEXT.md',
+  'docs/package-status.md',
+  'docs/polyphonic-guitar-arrangement-foundation.md',
+];
 const REVIEW_DOC = 'docs/guitarset-v2-runtime-shadow-connection-review-v1.md';
+const SUPERSEDED_CONVERGENCE_BASE = '50859edb322e65a3c8d3db74564fef871f10623f';
 
 function read(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
-test('active architecture documents converge on the PR #145 base and PR #146 runtime-shadow review', () => {
+test('active architecture documents use the 2026-08-31 live snapshot', () => {
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
-    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-08-24/, `${relativePath} snapshot marker`);
-    assert.ok(text.includes(CONVERGENCE_BASE), `${relativePath} convergence base`);
-    assert.ok(text.includes('PR #145'), `${relativePath} PR #145 base`);
-    assert.ok(text.includes('PR #146'), `${relativePath} PR #146 runtime-shadow review`);
-    assert.ok(text.includes('PR #150'), `${relativePath} PR #150 PA-12 implementation`);
+    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-08-31/, `${relativePath} snapshot marker`);
+    assert.equal(text.includes('ARCHITECTURE-SNAPSHOT: 2026-08-24'), false, `${relativePath} stale snapshot marker`);
+    assert.equal(text.includes(SUPERSEDED_CONVERGENCE_BASE), false, `${relativePath} stale convergence base`);
+    assert.equal(text.includes('Architecture convergence base:'), false, `${relativePath} stale convergence claim`);
   }
-  assert.equal(fs.existsSync(path.join(REPO_ROOT, REVIEW_DOC)), true, `${REVIEW_DOC} must exist`);
 });
 
-test('active architecture documents describe the merged PA state and reviewed internal runtime-shadow boundary', () => {
+test('live architecture documents converge on current package/polyphonic authority boundaries', () => {
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
     for (const required of [
       'PA-8',
-      'PA-9',
-      'PA-10.5',
-      'PA-11.4A',
-      'PA-12',
-      'GUITARSET-OBSERVED-VOICING-MODEL.v2',
       'CanonicalTabResult 1.0.0',
       'CanonicalTabResult 2.0.0',
-      'fret20QualityAuthority=false',
+    ]) {
+      assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
+    }
+  }
+
+  for (const relativePath of CURRENT_STAGE_STATUS_DOCS) {
+    const text = read(relativePath);
+    for (const required of ['PA-9', 'PA-10.5', 'PA-11.4A', 'PA-12']) {
+      assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
+    }
+  }
+});
+
+test('live architecture documents preserve the current sustain, PA-8 and same-voice safety boundary', () => {
+  for (const relativePath of [
+    'AI_CONTEXT.md',
+    'docs/ARCHITECTURE.md',
+    'docs/current-status.md',
+    'docs/package-status.md',
+    'docs/polyphonic-guitar-arrangement-foundation.md',
+  ]) {
+    const text = read(relativePath);
+    assert.match(text, /20(?:,|_)000/, `${relativePath} must state the 20,000 PA-8 ceiling`);
+    assert.match(text, /100(?:,|_)000/, `${relativePath} must state the 100,000 PA-8 ceiling`);
+    assert.ok(
+      text.includes('OVERLAPPING_NOTES_WITHIN_ONE_VOICE'),
+      `${relativePath} must mention OVERLAPPING_NOTES_WITHIN_ONE_VOICE`,
+    );
+  }
+
+  for (const relativePath of [
+    'AI_CONTEXT.md',
+    'docs/ARCHITECTURE.md',
+    'docs/polyphonic-guitar-arrangement-foundation.md',
+  ]) {
+    assert.ok(read(relativePath).includes('ORPHAN_TIE_STOP'), `${relativePath} must preserve orphan-stop fail-closed behavior`);
+  }
+});
+
+test('architecture module references resolve to implemented source files', () => {
+  const architecture = read('docs/ARCHITECTURE.md');
+  for (const relativePath of [
+    'src/parser/parsedMusicXmlDocument.js',
+    'src/core/processingRuntime.js',
+    'src/app/runtimeGuitarNotationNormalizer.js',
+    'src/parser/polyphonicTripletDisplayNormalizer.js',
+    'src/app/exactTabStaffMirrorNormalizer.js',
+    'src/parser/polyphonicGraceOrnamentExtractor.js',
+    'src/music/polyphonicSourceModel.js',
+    'src/music/sustainTieGraph.js',
+    'src/music/activeSonorityModel.js',
+    'src/music/leftHandShapeModel.js',
+    'src/music/sustainedLeftHandPhysicalStateModel.js',
+    'src/music/sustainedCanonicalFinalSelector.js',
+    'src/tab/canonicalTabResultV2.js',
+    'src/writers/canonicalTabMusicXmlWriterV2.js',
+    'src/core/internalPolyphonicConversionPipelineV2.js',
+  ]) {
+    assert.equal(fs.existsSync(path.join(REPO_ROOT, relativePath)), true, `${relativePath} must exist`);
+    assert.ok(architecture.includes(relativePath), `docs/ARCHITECTURE.md must mention ${relativePath}`);
+  }
+});
+
+test('runtime-shadow implementation remains internal, default-off and non-authoritative', () => {
+  for (const relativePath of RUNTIME_SHADOW_DOCS) {
+    const text = read(relativePath);
+    for (const required of [
+      'GUITARSET-OBSERVED-VOICING-MODEL.v2',
       'GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE',
       'ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1',
+      'fret20QualityAuthority=false',
       'evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json',
     ]) {
       assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
@@ -66,9 +137,30 @@ test('active architecture documents describe the merged PA state and reviewed in
       assert.ok(lowerText.includes(required), `${relativePath} must mention ${required}`);
     }
   }
+
+  for (const relativePath of [
+    'src/music/deterministicPa7CandidateSnapshotHandoff.js',
+    'src/music/leftHandShapeModel.js',
+    'src/music/physicalPlayabilityValidatorV2.js',
+    'src/learning/guitarsetVoicingModelV2Shadow.js',
+    'src/learning/guitarsetVoicingModelV2RuntimeShadow.js',
+  ]) {
+    assert.equal(fs.existsSync(path.join(REPO_ROOT, relativePath)), true, `${relativePath} must exist`);
+  }
+
+  for (const exportName of [
+    'createGuitarSetVoicingModelV2ShadowReport',
+    'createBlindBaselineGuitarSetV2RuntimeShadowObservation',
+    'observeGuitarSetVoicingModelV2RuntimeShadow',
+    'createGuitarVoicingCandidateModel',
+    'createLeftHandShapeModel',
+    'createPhysicalPlayabilityValidationV2',
+  ]) {
+    assert.equal(Object.hasOwn(packageApi, exportName), false, `${exportName} must remain internal`);
+  }
 });
 
-test('live architecture documents do not retain the superseded runtime-closed review state', () => {
+test('live architecture documents do not retain superseded current-state claims', () => {
   const forbidden = [
     'runtime connection: false',
     'runtime shadow connection | 🔒 closed',
@@ -78,8 +170,8 @@ test('live architecture documents do not retain the superseded runtime-closed re
     'future pa-12 internal e2e',
     'pa-12 internal polyphonic e2e: 🔒 not activated',
     '`canonicaltabresult 2.0.0` runtime/validator | 🔒 not implemented',
+    'production polyphonic final selector | 🔒 not implemented',
     'the documentation-converged exact head must pass the full protected matrix again before merge',
-    'final merge still requires the same mandatory checks',
     'exact-head protected ci must pass again after documentation convergence',
   ];
 
@@ -118,29 +210,6 @@ test('documented package boundary matches executable package metadata and public
     for (const required of ['0.1.0', 'private: true', 'SEE LICENSE IN LICENSE', 'Node.js >=18']) {
       assert.ok(text.includes(required), `${relativePath} must document ${required}`);
     }
-  }
-});
-
-test('runtime-shadow implementation remains internal and outside package-root authority', () => {
-  for (const relativePath of [
-    'src/music/deterministicPa7CandidateSnapshotHandoff.js',
-    'src/music/leftHandShapeModel.js',
-    'src/music/physicalPlayabilityValidatorV2.js',
-    'src/learning/guitarsetVoicingModelV2Shadow.js',
-    'src/learning/guitarsetVoicingModelV2RuntimeShadow.js',
-  ]) {
-    assert.equal(fs.existsSync(path.join(REPO_ROOT, relativePath)), true, `${relativePath} must exist`);
-  }
-
-  for (const exportName of [
-    'createGuitarSetVoicingModelV2ShadowReport',
-    'createBlindBaselineGuitarSetV2RuntimeShadowObservation',
-    'observeGuitarSetVoicingModelV2RuntimeShadow',
-    'createGuitarVoicingCandidateModel',
-    'createLeftHandShapeModel',
-    'createPhysicalPlayabilityValidationV2',
-  ]) {
-    assert.equal(Object.hasOwn(packageApi, exportName), false, `${exportName} must remain internal`);
   }
 });
 
