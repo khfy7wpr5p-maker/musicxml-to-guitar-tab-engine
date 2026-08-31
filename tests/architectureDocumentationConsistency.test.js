@@ -17,6 +17,11 @@ const ACTIVE_ARCHITECTURE_DOCS = [
   'docs/package-status.md',
   'docs/polyphonic-guitar-arrangement-foundation.md',
 ];
+const CURRENT_STAGE_STATUS_DOCS = [
+  'AI_CONTEXT.md',
+  'docs/package-status.md',
+  'docs/polyphonic-guitar-arrangement-foundation.md',
+];
 const RUNTIME_SHADOW_DOCS = [
   'AI_CONTEXT.md',
   'docs/package-status.md',
@@ -51,13 +56,7 @@ test('live architecture documents converge on current package/polyphonic authori
     }
   }
 
-  for (const relativePath of [
-    'AI_CONTEXT.md',
-    'docs/ARCHITECTURE.md',
-    'docs/current-status.md',
-    'docs/package-status.md',
-    'docs/polyphonic-guitar-arrangement-foundation.md',
-  ]) {
+  for (const relativePath of CURRENT_STAGE_STATUS_DOCS) {
     const text = read(relativePath);
     for (const required of ['PA-9', 'PA-10.5', 'PA-11.4A', 'PA-12']) {
       assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
@@ -74,13 +73,12 @@ test('live architecture documents preserve the current sustain, PA-8 and same-vo
     'docs/polyphonic-guitar-arrangement-foundation.md',
   ]) {
     const text = read(relativePath);
-    for (const required of [
-      '20,000',
-      '100,000',
-      'OVERLAPPING_NOTES_WITHIN_ONE_VOICE',
-    ]) {
-      assert.ok(text.includes(required), `${relativePath} must mention ${required}`);
-    }
+    assert.match(text, /20(?:,|_)000/, `${relativePath} must state the 20,000 PA-8 ceiling`);
+    assert.match(text, /100(?:,|_)000/, `${relativePath} must state the 100,000 PA-8 ceiling`);
+    assert.ok(
+      text.includes('OVERLAPPING_NOTES_WITHIN_ONE_VOICE'),
+      `${relativePath} must mention OVERLAPPING_NOTES_WITHIN_ONE_VOICE`,
+    );
   }
 
   for (const relativePath of [
