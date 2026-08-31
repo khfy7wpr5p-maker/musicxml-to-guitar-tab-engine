@@ -37,6 +37,15 @@ function noteEvents(result) {
   );
 }
 
+function staffDetails({ lowStringPitch = 'E2', capoFret = 0 } = {}) {
+  const tuning = [
+    [lowStringPitch[0], Number(lowStringPitch.slice(1))], ['A', 2], ['D', 3], ['G', 3], ['B', 3], ['E', 4],
+  ];
+  return `<staff-details><staff-lines>6</staff-lines>${tuning.map(([step, octave], index) => (
+    `<staff-tuning line="${index + 1}"><tuning-step>${step}</tuning-step><tuning-octave>${octave}</tuning-octave></staff-tuning>`
+  )).join('')}<capo>${capoFret}</capo></staff-details>`;
+}
+
 test('secure Workbench upload maps written standard notation to standard-guitar sounding register without changing public conversion defaults', () => {
   const bytes = fixture('parser-single-voice.musicxml');
   const direct = convertMusicXmlToCanonicalTab(bytes);
@@ -250,6 +259,35 @@ test('explicit multi-staff source is routed to POLY_V2 before any successful MON
   const result = processMusicXmlUpload({ fileName: 'explicit-multistaff.musicxml', bytes });
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.notEqual(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+});
+
+test('explicit source capo is blocked instead of being silently solved as standard guitar', () => {
+  const mono = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails({ capoFret: 2 })}</attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
+  const poly = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails({ capoFret: 2 })}</attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note><backup><duration>1</duration></backup><note><pitch><step>B</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
+
+  for (const [fileName, bytes, route, expectedCapo] of [
+    ['capo-mono.musicxml', mono, MUSICXML_UPLOAD_ROUTE.MONO_V1, 2],
+    ['drop-d-capo-poly.musicxml', poly, MUSICXML_UPLOAD_ROUTE.POLY_V2, 2],
+  ]) {
+    const result = processMusicXmlUpload({ fileName, bytes });
+    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+    assert.equal(result.route, route);
+    assert.equal(result.preflight.issues[0].category, 'capability');
+    assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_GUITAR_CONFIGURATION_PROFILE');
+    assert.equal(result.preflight.issues[0].details.authority, 'EXPLICIT_MUSICXML_SOURCE');
+    assert.equal(result.preflight.issues[0].details.capoFret, expectedCapo);
+    assert.equal(result.canonicalTabResult, null);
+  }
+});
+
+test('a complete explicit Standard/capo-0 source configuration preserves the existing upload route', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails()}</attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
+  const result = processMusicXmlUpload({ fileName: 'standard-config.musicxml', bytes });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
 });
 
 test('engine notation plus TAB output is collapsed before restricted polyphonic projection', () => {
