@@ -46,6 +46,46 @@ function assertExactPreservedProjection(projection) {
   }
 }
 
+function assertNoIndependentSourceVoiceOverlap(source, runtime) {
+  for (let measureIndex = 0; measureIndex < source.measures.length; measureIndex += 1) {
+    const measure = source.measures[measureIndex];
+    const cursorByVoiceStaff = new Map();
+    for (let eventIndex = 0; eventIndex < measure.events.length; eventIndex += 1) {
+      if (runtime) {
+        runtime.checkpoint('sustained-canonical-final-selection:source-event', {
+          measureIndex,
+          eventIndex,
+        });
+      }
+      const event = measure.events[eventIndex];
+      const key = `${event.staff}:${event.voice}`;
+      const cursor = cursorByVoiceStaff.get(key) || 0;
+
+      // A source <chord/> member is an additional pitch in the preceding
+      // attack group, not an independently advancing voice event.  The
+      // validated source model has already proved its exact same-onset,
+      // same-voice/staff predecessor relationship.
+      if (event.source.chordWithPrevious) continue;
+
+      if (event.onsetDivisions < cursor) {
+        throw unsupported(
+          'Sustained selection cannot represent overlapping independent notes in one voice.',
+          'OVERLAPPING_NOTES_WITHIN_ONE_VOICE',
+          {
+            measureId: measure.measureId,
+            sourceEventId: event.sourceEventId,
+            staff: event.staff,
+            voice: event.voice,
+            onsetDivisions: event.onsetDivisions,
+            cursor,
+          },
+        );
+      }
+      cursorByVoiceStaff.set(key, event.onsetDivisions + event.durationDivisions);
+    }
+  }
+}
+
 function createSustainedCanonicalFinalSelection(
   sourceModel,
   arrangementDecisions,
@@ -58,27 +98,10 @@ function createSustainedCanonicalFinalSelection(
     runtime,
   );
   assertExactPreservedProjection(projection);
+  assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);
 
   const grouping = createSimultaneousEventModel(sourceModel, runtime);
   const path = createSustainedPolyphonicPathSelection(sourceModel, runtime);
-  for (const point of path.selectedPointStates) {
-    const activeVoiceStaff = new Set();
-    for (const position of point.positions) {
-      const key = `${position.staff}:${position.voice}`;
-      if (activeVoiceStaff.has(key)) {
-        throw unsupported(
-          'Sustained selection cannot represent overlapping independent notes in one voice.',
-          'OVERLAPPING_NOTES_WITHIN_ONE_VOICE',
-          {
-            sonorityPointId: point.sonorityPointId,
-            staff: position.staff,
-            voice: position.voice,
-          },
-        );
-      }
-      activeVoiceStaff.add(key);
-    }
-  }
   const logicalBySourceEventId = new Map();
   for (const logical of path.logicalNoteSelections) {
     for (const sourceEventId of logical.sourceEventIds) {
