@@ -243,6 +243,15 @@ test('automatic dispatcher sends multi-voice MusicXML through PA-12 v2 without s
   assert.match(result.musicXml, /<score-partwise\b/);
 });
 
+test('explicit multi-staff source is routed to POLY_V2 before any successful MONO result can be returned', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>2</staves></attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
+
+  const result = processMusicXmlUpload({ fileName: 'explicit-multistaff.musicxml', bytes });
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.notEqual(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+});
+
 test('engine notation plus TAB output is collapsed before restricted polyphonic projection', () => {
   const first = processMusicXmlUpload({
     fileName: 'poly.xml',
