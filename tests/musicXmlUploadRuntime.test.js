@@ -397,7 +397,39 @@ test('upload boundary fails closed on unsafe XML while retaining exact file iden
   assert.equal(result.input.sha256, sha256(bytes));
 });
 
-test('polyphonic route refuses automatic octave displacement and reports the source measure/event', () => {
+test('polyphonic route raises an exact one-octave low-register source note into standard-guitar range', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
+<part id="P1"><measure number="7">
+<attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>A</step><octave>1</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>8</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
+<forward><duration>4</duration></forward>
+</measure></part></score-partwise>`);
+
+  const first = processMusicXmlUpload({ fileName: 'low-register.xml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'low-register.xml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(first, second);
+  assert.equal(first.input.sha256, sha256(bytes));
+
+  const displaced = first.canonicalTabResult.noteDispositions[0];
+  assert.equal(displaced.disposition, 'KEEP');
+  assert.equal(displaced.octaveShiftSemitones, 12);
+  assert.equal(displaced.targetPitch.written, 'A2');
+  assert.equal(displaced.targetPitch.midi, 45);
+  assert.equal(displaced.ruleId, 'OCTAVE_NEAREST_IN_REGISTER');
+  assert.equal(first.canonicalTabResult.arrangementDecisions[0].decisionType, 'OCTAVE_DISPLACED');
+  assert.equal(first.canonicalTabResult.measures[0].events[0].pitch.written, 'A1');
+  assert.match(first.musicXml, /<pitch><step>A<\/step><octave>2<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>/);
+});
+
+test('polyphonic route still refuses high-register source notes and reports the source measure/event', () => {
   const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
@@ -417,6 +449,25 @@ test('polyphonic route refuses automatic octave displacement and reports the sou
   assert.equal(result.preflight.issues[0].location.measure, '7');
   assert.equal(result.preflight.issues[0].location.measureIndex, 0);
   assert.equal(result.preflight.issues[0].details.writtenPitch, 'C7');
+});
+
+test('polyphonic route refuses low notes that need more than one octave of displacement', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
+<part id="P1"><measure number="3">
+<attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>C</step><octave>1</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>1</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
+</measure></part></score-partwise>`);
+
+  const result = processMusicXmlUpload({ fileName: 'too-low.xml', bytes });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_SOURCE_PITCH');
+  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C1');
+  assert.equal(result.preflight.issues[0].details.permittedOctaveShiftSemitones, 12);
 });
 
 test('upload request shape is fail-closed and the application runtime remains outside package-root authority', () => {

@@ -40,7 +40,7 @@ PA-12 does not invent arrangement decisions. It does not authorize:
 - automatic teacher-policy inference;
 - candidate deletion/reordering by model scores;
 - source pitch/onset/duration/voice/staff/tie/chord rewrite;
-- automatic octave shift to make a source playable;
+- automatic octave shift beyond the separately contracted exact `+12` lower-register upload arrangement policy;
 - implicit voice split;
 - ambiguous sustain continuation;
 - solver ranking override.
