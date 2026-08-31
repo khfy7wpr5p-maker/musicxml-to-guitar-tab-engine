@@ -37,7 +37,7 @@ The current PA-2 semantic profile is still intentionally narrow; real-world Guit
 
 ## Result contract
 
-`MusicXmlUploadRuntimeResult 1.0.0` reports:
+`MusicXmlUploadRuntimeResult 1.0.0` currently reports:
 
 - `status`: `PASS` or `BLOCKED`
 - `route`: `MONO_V1`, `POLY_V2`, or `UNRESOLVED`
@@ -47,6 +47,12 @@ The current PA-2 semantic profile is still intentionally narrow; real-world Guit
 - representation-normalization facts
 - canonical result on success
 - renderer MusicXML on success
+
+Stage 01 separately establishes the application score-state contract in
+[`reviewable-score-state-contract.md`](reviewable-score-state-contract.md). It adds
+`REVIEW_REQUIRED` as a state independent of route, without retroactively relabeling
+current upload failures. A later OMR evidence producer is required before upload
+results may emit that state.
 
 ## Non-authorities
 
