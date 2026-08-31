@@ -7,6 +7,7 @@ const GUITAR_TECHNIQUE_PROVENANCE_VERSION = '1.0.0';
 const COLLECTION_VERSION = '1.0.0';
 const SAFE_METADATA_ONLY = 'SAFE_METADATA_ONLY';
 const KINDS = new Set(['HAMMER_ON', 'SLIDE', 'HARMONIC', 'MUTE', 'POSITION']);
+const DETERMINISTIC_PAIRING_KINDS = new Set(['HAMMER_ON', 'SLIDE']);
 const STATES = new Set(['START', 'STOP', 'SINGLE']);
 const FORBIDDEN_AUTHORITY_FIELDS = new Set([
   'pitch', 'octave', 'onset', 'duration', 'voice', 'staff', 'tie', 'grace',
@@ -78,7 +79,7 @@ function validatePairing(input, kind, state) {
   if (!hasAnyPairing) {
     return Object.freeze({ pairingId: null, pairingBasis: null, sourcePairingToken: null });
   }
-  if (kind !== 'HAMMER_ON') {
+  if (!DETERMINISTIC_PAIRING_KINDS.has(kind)) {
     fail(
       'Deterministic pairing is not cleared for this technique kind.',
       'GUITAR_TECHNIQUE_PAIRING_KIND_NOT_CLEARED',
@@ -198,11 +199,11 @@ function parseSlide(node, records) {
   if (!/^\d+$/.test(attrs.number || '') || Number(attrs.number) < 1 || Number(attrs.number) > 16) fail(`${path} requires bounded number 1..16.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (!['start', 'stop'].includes(attrs.type)) fail(`${path} requires type=start|stop.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
   if (node.children.length !== 0 || node.text.trim().length !== 0) fail(`${path} must be an empty marker.`, 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path });
-  record(records, {
+  const recordIndex = record(records, {
     kind: 'SLIDE', subtype: 'musicxml-slide', state: attrs.type === 'start' ? 'START' : 'STOP',
     sourcePath: path, sourceAttributes: attrs, sourceText: '', normalizedSemantics: 'SLIDE',
   });
-  return attrs;
+  return Object.freeze({ attrs, recordIndex });
 }
 
 function emptyMarker(node, path) {
@@ -303,14 +304,14 @@ function validatePairEvents(pairEvents) {
   }
 }
 
-function sourceIdentityToken(location, markerIndex) {
+function sourceIdentityToken(location, markerIndex, markerPrefix = 'h') {
   const token = [
     `p${location.partIndex}`,
     `m${location.measureIndex}`,
     `n${location.noteIndex}`,
     `o${location.notationsIndex}`,
     `t${location.technicalIndex}`,
-    `h${markerIndex}`,
+    `${markerPrefix}${markerIndex}`,
   ].join('.');
   if (token.length > 64) {
     fail(
@@ -335,10 +336,10 @@ function rebindRecordWithPairing(recordValue, pairing) {
   });
 }
 
-function applyDeterministicHammerPairing(records, pairEvents) {
+function applyDeterministicTechniquePairing(records, pairEvents, kind) {
   const groups = new Map();
   for (const event of pairEvents) {
-    if (event.kind !== 'HAMMER_ON') continue;
+    if (event.kind !== kind) continue;
     const key = pairEventKey(event);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(event);
@@ -372,7 +373,7 @@ function applyDeterministicHammerPairing(records, pairEvents) {
         const stop = segment[1];
         const sourcePairingToken = `${start.sourceToken}>${stop.sourceToken}`;
         const pairingDigest = crypto.createHash('sha256').update(sourcePairingToken).digest('hex').slice(0, 24);
-        const pairingId = `HAMMER_ON:n${start.number}:${pairingDigest}`;
+        const pairingId = `${kind}:n${start.number}:${pairingDigest}`;
         const pairing = {
           pairingId,
           pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
@@ -469,8 +470,19 @@ function parseNote(node, records, pairEvents, partIndex, measureIndex, noteIndex
         const key = `${attrs.number || ''}:${attrs.type || ''}`;
         if (slideSeen.has(key)) fail('note/notations/slide contains duplicate event markers.', 'UNSUPPORTED_GUITAR_TECHNIQUE_SHAPE', { path: 'note/notations/slide' });
         slideSeen.add(key);
-        const parsedAttrs = parseSlide(child, records);
-        pushPairEvent(pairEvents, pairingContext(), 'SLIDE', parsedAttrs);
+        const parsedSlide = parseSlide(child, records);
+        pushPairEvent(
+          pairEvents,
+          pairingContext(),
+          'SLIDE',
+          parsedSlide.attrs,
+          parsedSlide.recordIndex,
+          sourceIdentityToken(
+            Object.freeze({ partIndex, measureIndex, noteIndex, notationsIndex, technicalIndex }),
+            0,
+            's',
+          ),
+        );
       }
     });
   });
@@ -491,7 +503,8 @@ function extractGuitarTechniqueProvenance(parsedDocument) {
     });
   });
   validatePairEvents(pairEvents);
-  applyDeterministicHammerPairing(records, pairEvents);
+  applyDeterministicTechniquePairing(records, pairEvents, 'HAMMER_ON');
+  applyDeterministicTechniquePairing(records, pairEvents, 'SLIDE');
   return Object.freeze({
     documentType: 'GuitarTechniqueProvenanceCollection',
     contractVersion: COLLECTION_VERSION,
