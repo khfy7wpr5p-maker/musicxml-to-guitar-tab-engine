@@ -364,6 +364,30 @@ function safeGuitarProDynamicsDirection(node) {
   );
 }
 
+// Display-only rehearsal labels are safe only in this exact, bounded shape.
+// Playback, timing, staff, voice, layout, and extension data remain unsupported.
+function safeDisplayRehearsalDirection(node) {
+  if (node.attributes.length !== 0 || node.children.length !== 1) return false;
+  const directionType = node.children[0];
+  if (
+    directionType.uri !== node.uri
+    || directionType.name !== 'direction-type'
+    || directionType.attributes.length !== 0
+    || directionType.children.length !== 1
+  ) return false;
+
+  const rehearsal = directionType.children[0];
+  const text = rehearsal.text.trim();
+  return (
+    rehearsal.uri === directionType.uri
+    && rehearsal.name === 'rehearsal'
+    && rehearsal.attributes.length === 0
+    && rehearsal.children.length === 0
+    && text.length > 0
+    && text.length <= 256
+  );
+}
+
 function safeSimpleBarline(node) {
   if (!hasOnlyUnqualifiedAttributes(node, new Set(['location']))) return false;
   const location = getAttribute(node, 'location');
@@ -760,6 +784,10 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         }
         if (safeGuitarProDynamicsDirection(child)) {
           ignoredFeatures.add('measure:direction:dynamics');
+          continue;
+        }
+        if (safeDisplayRehearsalDirection(child)) {
+          ignoredFeatures.add('measure:direction:rehearsal');
           continue;
         }
         throw unsupported('direction');
