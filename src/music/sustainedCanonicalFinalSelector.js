@@ -60,12 +60,17 @@ function assertNoIndependentSourceVoiceOverlap(source, runtime) {
       const event = measure.events[eventIndex];
       const key = `${event.staff}:${event.voice}`;
       const cursor = cursorByVoiceStaff.get(key) || 0;
+      const eventEnd = event.onsetDivisions + event.durationDivisions;
 
       // A source <chord/> member is an additional pitch in the preceding
-      // attack group, not an independently advancing voice event.  The
+      // attack group, not an independently advancing voice event. The
       // validated source model has already proved its exact same-onset,
-      // same-voice/staff predecessor relationship.
-      if (event.source.chordWithPrevious) continue;
+      // same-voice/staff predecessor relationship. It still contributes to
+      // the attack group's occupied duration, so keep the maximum member end.
+      if (event.source.chordWithPrevious) {
+        cursorByVoiceStaff.set(key, Math.max(cursor, eventEnd));
+        continue;
+      }
 
       if (event.onsetDivisions < cursor) {
         throw unsupported(
@@ -81,7 +86,7 @@ function assertNoIndependentSourceVoiceOverlap(source, runtime) {
           },
         );
       }
-      cursorByVoiceStaff.set(key, event.onsetDivisions + event.durationDivisions);
+      cursorByVoiceStaff.set(key, eventEnd);
     }
   }
 }
