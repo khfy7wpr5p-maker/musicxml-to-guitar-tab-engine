@@ -1,5 +1,8 @@
 # Guitar Pro safe ingestion + direction compatibility — real-corpus result
 
+> **HISTORY / SUPERSEDED CURRENT STATUS**  
+> This document is an exact historical audit of engine revision `f125e895365953aaef816527cefb0edba64bb1cb` on 2026-08-30. Its blocker table and `0 / 9 POLY_V2 PASS` result are **not** the current production status. Later generic compatibility/sustain work through PR #261 cleared the tracked Air path to deterministic POLY_V2 PASS without filename/SHA dispatch. Preserve this file as evidence only; use [`current-status.md`](current-status.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md) for live behavior.
+
 **Date:** 2026-08-30
 **Engine revision under test:** `f125e895365953aaef816527cefb0edba64bb1cb` (feature branch)
 **Production entrypoint:** `processMusicXmlUpload()`
@@ -12,12 +15,12 @@ Nine uploaded XML files were used only from the local/external corpus and were n
 
 For each file, lexical inspection found exactly one DOCTYPE, no internal subset, no entity declaration, no parameter entity, no external general entity declaration, and no non-predefined entity reference. The source score body is not edited: the safety normalizer removes only the matched declaration before parsing. No DTD, entity, network URL, or local path is resolved.
 
-## Implemented bounded changes
+## Implemented bounded changes at this historical revision
 
-- **FIX-A — safe ingestion:** accepts only the exact MusicXML 2.0 `score-partwise` PUBLIC/SYSTEM identity above, then removes that declaration. Existing 3.1/4.0.3 handling remains. Internal subsets, entities, duplicate/malformed declarations, root mismatch, unknown versions/identifiers, `file://`, alternate hosts and deceptive suffixes remain `UNSAFE_XML_DECLARATION`.
-- **FIX-B — direction compatibility:** accepts only the observed Guitar Pro display metronome form (`directive="yes"`; `parentheses="no"`; bounded numeric `default-y`; exact beat-unit/per-minute and matching sound tempo) and standalone `p`/`mf`/`f` dynamics. Both are retained as explicit ignored-feature provenance. Offset, octave-shift, navigation sound, unbounded dynamics and invalid layout stay fail-closed.
+- **FIX-A — safe ingestion:** accepted only the exact MusicXML 2.0 `score-partwise` PUBLIC/SYSTEM identity above, then removed that declaration. Existing 3.1/4.0.3 handling remained. Internal subsets, entities, duplicate/malformed declarations, root mismatch, unknown versions/identifiers, `file://`, alternate hosts and deceptive suffixes remained `UNSAFE_XML_DECLARATION`.
+- **FIX-B — direction compatibility:** accepted only the observed Guitar Pro display metronome form (`directive="yes"`; `parentheses="no"`; bounded numeric `default-y`; exact beat-unit/per-minute and matching sound tempo) and standalone `p`/`mf`/`f` dynamics. Both were retained as explicit ignored-feature provenance.
 
-## Production funnel (original files; no diagnostic copy)
+## Historical production funnel
 
 | Stage | Files remaining |
 |---|---:|
@@ -42,54 +45,17 @@ For each file, lexical inspection found exactly one DOCTYPE, no internal subset,
 | [Beck]Face.xml | POLY_V2 | note-child:play | no | no | ACCIDENTAL_BLOCKED |
 | [CLANNAD]メグメル(幻想).xml | POLY_V2 | note-child:play | no | no | ACCIDENTAL_BLOCKED |
 
-All 9 original inputs were run twice and were deterministic: same status, route, reason and result digest. No MONO_V1 result was counted as a POLY success.
+All nine original inputs were run twice and were deterministic at this revision. No MONO_V1 result was counted as a POLY success.
 
-## Before / after this change
+## Historical conclusion
 
-| Metric | Before | After |
-|---|---:|---:|
-| XML safety accepted | 0 | 9 |
-| POLY_V2 route reached | 0 | 8 |
-| Strict projector reached | 0 | 1 |
-| Sustained solver reached | 0 | 0 |
-| POLY_V2 PASS | 0 | 0 |
-| BLOCKED | 9 | 9 |
-| accidental BLOCKED | 4 (direction) | 2 |
+This audit proved the ingestion/direction compatibility changes at the named revision and exposed the next blockers existing **at that time**. Later work must not be evaluated against this table as though it were live state.
 
-The four former direction-blocked files now pass direction normalization and expose their next concrete blockers: F1 below range (one), a harmonic technical semantic (one), and `<play><mute>straight</mute></play>` provenance (two). No solver behavior was changed or inferred.
+The enduring evidence rules remain valid:
 
-## Remaining real BLOCKED
-
-| Primary root cause | Files | Classification |
-|---|---:|---|
-| Capo/custom tuning in `staff-details` | 4 | LEGITIMATE_BLOCKED |
-| XML 100,000-element resource boundary | 1 | LEGITIMATE_BLOCKED |
-| Explicit F1 / MIDI 29 outside standard guitar range | 1 | LEGITIMATE_BLOCKED |
-| Harmonic `notation/technical` semantic | 1 | LEGITIMATE_BLOCKED |
-| `play/mute=straight` provenance representation | 2 | ACCIDENTAL_BLOCKED |
-
-## ✅ Tamamlandı
-
-- Feature branch implementation and production-entrypoint real-corpus rerun.
-- Exact bounded DTD compatibility with external DTD/entity resolution disabled.
-- Bounded, timing-neutral Guitar Pro direction normalization plus hostile direction regression tests.
-- Original corpus determinism verified 9/9.
-
-## ⚠️ Kalan gerçek BLOCKED
-
-All nine remain BLOCKED, but for explicit post-ingestion reasons above. The scope intentionally leaves capo/custom tuning, the XML resource limit, technical harmonic semantics, source-pitch range policy and solver behavior unchanged.
-
-## ❌ Bilinçli olarak yapılmayanlar
-
-- Capo/custom-tuning implementation; XML resource-limit relaxation; solver rewrite.
-- External DTD/entity resolution, entity expansion, network/file access, or semantic guessing.
-
-REAL GUITAR PRO RESULT: 0 / 9 POLY_V2 PASS
-
-REACH SOLVER: 0 / 9
-
-LEGITIMATE BLOCKED: 7 / 9
-
-ACCIDENTAL BLOCKED: 2 / 9
-
-SECURITY: EXTERNAL DTD/ENTITY RESOLUTION DISABLED
+- corpus source files are external regression evidence;
+- source bytes must remain immutable;
+- repeat runs must be deterministic;
+- a newly exposed blocker must be classified rather than guessed around;
+- production code must not branch on corpus filename or SHA;
+- external DTD/entity resolution remains disabled.
