@@ -8,7 +8,7 @@ const {
   validatePolyphonicSourceModel,
 } = require('./polyphonicSourceModel');
 
-const SUSTAIN_TIE_GRAPH_VERSION = '1.1.0';
+const SUSTAIN_TIE_GRAPH_VERSION = '1.2.0';
 const SUSTAIN_TIE_GRAPH_DOCUMENT_TYPE = 'SustainTieGraph';
 const SUSTAIN_TIE_GRAPH_AUTHORITY = 'SUSTAIN_TIE_FACTS_ONLY';
 const MAX_SUSTAIN_TIE_SEGMENTS = DEFAULT_PROCESSING_LIMITS.maxEvents;
@@ -66,8 +66,8 @@ function createSegment(measure, event, segmentIndex) {
   });
 }
 
-function canReopenClosedTieChain(builder, measure, event) {
-  if (!builder || !event.tieStop || !event.tieStart) return false;
+function canContinueClosedTieChain(builder, measure, event) {
+  if (!builder || !event.tieStop) return false;
   const previousSegment = builder.segments[builder.segments.length - 1];
   return previousSegment.tieStop
     && !previousSegment.tieStart
@@ -134,7 +134,7 @@ function createSustainTieGraph(sourceModel, runtime = null) {
       if (event.tieStop) {
         if (!builder) {
           const closedBuilder = closedByKey.get(key) || null;
-          if (!canReopenClosedTieChain(closedBuilder, measure, event)) {
+          if (!canContinueClosedTieChain(closedBuilder, measure, event)) {
             throw invalid('Tie stop has no matching open sustain chain.', 'ORPHAN_TIE_STOP', {
               sourceEventId: event.sourceEventId,
               ...eventLocation(measure, event),

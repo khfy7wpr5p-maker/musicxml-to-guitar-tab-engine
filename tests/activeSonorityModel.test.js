@@ -30,8 +30,19 @@ function note(step, {
   duration = 4,
   voice = '1',
   octave = 4,
+  start = false,
+  stop = false,
 } = {}) {
-  return `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration><voice>${voice}</voice><staff>1</staff></note>`;
+  const ties = [
+    ...(stop ? ['<tie type="stop"/>'] : []),
+    ...(start ? ['<tie type="start"/>'] : []),
+  ].join('');
+  const tied = [
+    ...(stop ? ['<tied type="stop"/>'] : []),
+    ...(start ? ['<tied type="start"/>'] : []),
+  ].join('');
+  const notations = tied ? `<notations>${tied}</notations>` : '';
+  return `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration>${ties}<voice>${voice}</voice><staff>1</staff>${notations}</note>`;
 }
 
 function singleMeasureScore(body) {
@@ -74,11 +85,11 @@ function simplify(point) {
 test('PS-3 exposes a versioned internal active-sonority-facts-only contract without package-root authority', () => {
   const model = sonority(singleMeasureScore(note('C', { duration: 16 })));
 
-  assert.equal(ACTIVE_SONORITY_MODEL_VERSION, '1.0.0');
+  assert.equal(ACTIVE_SONORITY_MODEL_VERSION, '1.1.0');
   assert.equal(ACTIVE_SONORITY_MODEL_DOCUMENT_TYPE, 'ActiveSonorityModel');
   assert.equal(ACTIVE_SONORITY_MODEL_AUTHORITY, 'ACTIVE_SONORITY_FACTS_ONLY');
   assert.equal(model.documentType, 'ActiveSonorityModel');
-  assert.equal(model.contractVersion, '1.0.0');
+  assert.equal(model.contractVersion, '1.1.0');
   assert.equal(model.authority, 'ACTIVE_SONORITY_FACTS_ONLY');
   assert.equal(model.temporal.documentType, 'PolyphonicTemporalEventModel');
   assert.equal(model.sustain.documentType, 'SustainTieGraph');
@@ -152,6 +163,26 @@ test('PS-3 keeps a cross-measure tied note active as HOLD instead of re-attackin
   assert.deepEqual(measure2End.releaseNotes.map((fact) => fact.logicalNoteId), [
     chainId,
     'P1:measure:1:note:1',
+  ]);
+});
+
+test('PS-3 keeps an exact closed-stop continuation chain active until its final segment releases', () => {
+  const model = sonority(singleMeasureScore([
+    note('C', { duration: 4, start: true }),
+    note('C', { duration: 2, stop: true }),
+    note('C', { duration: 1, stop: true }),
+    note('C', { duration: 1, stop: true, start: true }),
+    note('C', { duration: 8, stop: true }),
+  ].join('')));
+  const chainId = 'P1:sustain-chain:0';
+
+  assert.deepEqual(model.measures[0].sonorityPoints.map(simplify), [
+    { time: 0, attacks: [chainId], holds: [], releases: [], active: [chainId] },
+    { time: 4, attacks: [], holds: [chainId], releases: [], active: [chainId] },
+    { time: 6, attacks: [], holds: [chainId], releases: [], active: [chainId] },
+    { time: 7, attacks: [], holds: [chainId], releases: [], active: [chainId] },
+    { time: 8, attacks: [], holds: [chainId], releases: [], active: [chainId] },
+    { time: 16, attacks: [], holds: [], releases: [chainId], active: [] },
   ]);
 });
 

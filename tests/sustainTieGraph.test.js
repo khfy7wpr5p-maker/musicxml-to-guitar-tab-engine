@@ -83,11 +83,11 @@ function graph(xml, runtime = null) {
 test('PS-2 exposes a versioned internal sustain/tie-facts-only contract without package-root authority', () => {
   const model = graph(fixture('ui07-poly-unison-tie.musicxml'));
 
-  assert.equal(SUSTAIN_TIE_GRAPH_VERSION, '1.1.0');
+  assert.equal(SUSTAIN_TIE_GRAPH_VERSION, '1.2.0');
   assert.equal(SUSTAIN_TIE_GRAPH_DOCUMENT_TYPE, 'SustainTieGraph');
   assert.equal(SUSTAIN_TIE_GRAPH_AUTHORITY, 'SUSTAIN_TIE_FACTS_ONLY');
   assert.equal(model.documentType, 'SustainTieGraph');
-  assert.equal(model.contractVersion, '1.1.0');
+  assert.equal(model.contractVersion, '1.2.0');
   assert.equal(model.authority, 'SUSTAIN_TIE_FACTS_ONLY');
   assert.equal(publicApi.createSustainTieGraph, undefined);
 });
@@ -152,17 +152,18 @@ test('PS-2 preserves a stop+start middle segment as one three-measure sustain ch
   );
 });
 
-test('PS-2 reconnects only an exactly contiguous closed-stop bridge with stop+start evidence', () => {
+test('PS-2 reconnects only an exactly contiguous closed-stop continuation sequence', () => {
   const xml = score(measure('1', [
     note('C', { duration: 4, start: true }),
     note('C', { duration: 2, stop: true }),
-    note('C', { duration: 2, stop: true, start: true }),
+    note('C', { duration: 1, stop: true }),
+    note('C', { duration: 1, stop: true, start: true }),
     note('C', { duration: 8, stop: true }),
   ].join(''), { attributes: true }));
   const model = graph(xml);
 
   assert.equal(model.sustainChainCount, 1);
-  assert.equal(model.chains[0].segmentCount, 4);
+  assert.equal(model.chains[0].segmentCount, 5);
   assert.deepEqual(
     model.chains[0].segments.map((segment) => ({
       start: segment.tieStart,
@@ -172,17 +173,19 @@ test('PS-2 reconnects only an exactly contiguous closed-stop bridge with stop+st
     [
       { start: true, stop: false, onset: 0 },
       { start: false, stop: true, onset: 4 },
-      { start: true, stop: true, onset: 6 },
+      { start: false, stop: true, onset: 6 },
+      { start: true, stop: true, onset: 7 },
       { start: false, stop: true, onset: 8 },
     ],
   );
 });
 
-test('PS-2 keeps a bare stop orphaned after a closed chain', () => {
+test('PS-2 keeps a non-contiguous bare stop orphaned after a closed chain', () => {
   const xml = score(measure('1', [
     note('C', { duration: 4, start: true }),
     note('C', { duration: 2, stop: true }),
-    note('C', { duration: 10, stop: true }),
+    note('C', { duration: 1, rest: true }),
+    note('C', { duration: 9, stop: true }),
   ].join(''), { attributes: true }));
 
   assert.throws(
