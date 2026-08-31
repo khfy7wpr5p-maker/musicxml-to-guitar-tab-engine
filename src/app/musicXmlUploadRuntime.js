@@ -5,6 +5,13 @@ const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
 const { createGuitarConfiguration } = require('../guitar/tuning');
 const {
+  extractMusicXmlGuitarConfigurationProvenance,
+} = require('../parser/musicXmlGuitarConfigurationProvenance');
+const {
+  resolveGuitarConfigurationAuthority,
+  sameConfiguration,
+} = require('../guitar/guitarConfigurationAuthority');
+const {
   STANDARD_GUITAR_WORKBENCH_TARGET,
 } = require('../guitar/standardGuitarRegister');
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
@@ -329,6 +336,52 @@ function noRepresentationNormalization() {
   });
 }
 
+function hasExplicitCapoDeclaration(parsedDocument) {
+  const pending = [parsedDocument.root];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node.name === 'capo') return true;
+    for (const child of node.children) pending.push(child);
+  }
+  return false;
+}
+
+function assertSupportedSourceGuitarConfiguration(parsedDocument) {
+  // Existing Guitar Pro-compatible input can include partial or presentation
+  // `staff-tuning` facts which are deliberately provenance-only today. A capo
+  // changes every physical fret calculation, so it is the bounded source
+  // declaration that cannot safely be ignored by the fixed-profile runtime.
+  if (!hasExplicitCapoDeclaration(parsedDocument)) {
+    return Object.freeze({
+      authority: 'STANDARD_DEFAULT',
+      sourceStatus: 'CAPO_ABSENT',
+    });
+  }
+  const sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
+  const resolved = resolveGuitarConfigurationAuthority({ sourceProvenance });
+
+  // Canonical V2 and the upload writers currently serialize only the fixed
+  // standard-guitar profile. Do not silently reinterpret an explicit capo
+  // under that profile; support is enabled only when the complete physical
+  // pipeline and public contract consume the same facts.
+  if (!sameConfiguration(resolved.configuration, STANDARD_GUITAR)) {
+    throw new MusicXmlUploadRuntimeError(
+      'The upload declares a capo profile not yet supported by the production conversion path.',
+      'UNSUPPORTED_GUITAR_CONFIGURATION_PROFILE',
+      {
+        authority: resolved.authority,
+        capoFret: resolved.configuration.capoFret,
+        tuning: resolved.configuration.tuning.map(({ number, pitch, midi }) => ({ number, pitch, midi })),
+      },
+    );
+  }
+
+  return Object.freeze({
+    authority: resolved.authority,
+    sourceStatus: sourceProvenance.status,
+  });
+}
+
 function graceWriterTransitions(model) {
   return Object.freeze(model.groups.map((group) => Object.freeze({
     graceGroupId: group.graceGroupId,
@@ -635,6 +688,18 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
 
   let monophonic;
   const routeRequirement = routeRequirementFromParsedMusicXml(harmonyExtraction.parsedDocument);
+  try {
+    assertSupportedSourceGuitarConfiguration(harmonyExtraction.parsedDocument);
+  } catch (error) {
+    return blockedResult(
+      identity,
+      routeRequirement === MUSICXML_ROUTE_REQUIREMENT.POLY_V2
+        || harmonyExtraction.references.length > 0
+        ? MUSICXML_UPLOAD_ROUTE.POLY_V2
+        : MUSICXML_UPLOAD_ROUTE.MONO_V1,
+      issueFromError(error),
+    );
+  }
   if (
     routeRequirement === MUSICXML_ROUTE_REQUIREMENT.POLY_V2
     || harmonyExtraction.references.length > 0
