@@ -59,7 +59,7 @@ test('extracts only verified Guitar Pro / MusicXML technique shapes as SAFE_META
   assert.equal(pairedHammer[0].sourcePairingToken, pairedHammer[1].sourcePairingToken);
   assert.ok(
     result.records
-      .filter((entry) => entry.kind !== 'HAMMER_ON')
+      .filter((entry) => entry.kind !== 'HAMMER_ON' && entry.kind !== 'SLIDE')
       .every((entry) => entry.pairingId === null && entry.pairingBasis === null && entry.sourcePairingToken === null),
   );
 
@@ -146,11 +146,12 @@ test('reused hammer number may pair only when source order proves two non-overla
   assert.equal(hammers[0].pairingId, hammers[1].pairingId);
   assert.equal(hammers[2].pairingId, hammers[3].pairingId);
   assert.notEqual(hammers[0].pairingId, hammers[2].pairingId);
-  assert.ok(
-    result.records
-      .filter((entry) => entry.kind === 'SLIDE')
-      .every((entry) => entry.pairingId === null && entry.pairingBasis === null && entry.sourcePairingToken === null),
-  );
+  const slides = result.records.filter((entry) => entry.kind === 'SLIDE');
+  assert.equal(slides.length, 4);
+  assert.ok(slides.every((entry) => entry.pairingBasis === 'DETERMINISTIC_SOURCE_IDENTITY'));
+  assert.equal(slides[0].pairingId, slides[1].pairingId);
+  assert.equal(slides[2].pairingId, slides[3].pairingId);
+  assert.notEqual(slides[0].pairingId, slides[2].pairingId);
 });
 
 test('overlapping reused-number hammer chain remains unpaired because number and nesting do not prove identity', () => {
@@ -212,10 +213,18 @@ test('provenance contract rejects musical facts, physical authority and unbounde
     sourcePairingToken: 'p0.m0.n0.o0.t0.h0>p0.m0.n1.o0.t0.h0',
   });
   assert.equal(paired.pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
+  const pairedSlide = createGuitarTechniqueProvenance({
+    ...base,
+    pairingId: 'SLIDE:n1:0123456789abcdef01234567',
+    pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
+    sourcePairingToken: 'p0>p1',
+  });
+  assert.equal(pairedSlide.pairingBasis, 'DETERMINISTIC_SOURCE_IDENTITY');
   assert.throws(
     () => createGuitarTechniqueProvenance({
       ...base,
-      pairingId: 'SLIDE:n1:0123456789abcdef01234567',
+      kind: 'MUTE',
+      pairingId: 'MUTE:n1:0123456789abcdef01234567',
       pairingBasis: 'DETERMINISTIC_SOURCE_IDENTITY',
       sourcePairingToken: 'p0>p1',
     }),
