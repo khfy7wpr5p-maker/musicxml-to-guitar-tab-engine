@@ -17,6 +17,8 @@ The application score-state contract is also independent from route: `PASS`,
 `REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while
 `MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See
 [`reviewable-score-state-contract.md`](reviewable-score-state-contract.md).
+The early routing rules are defined in
+[`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
 
 ## 2. Production pipeline
 
