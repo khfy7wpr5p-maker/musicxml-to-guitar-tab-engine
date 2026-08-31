@@ -92,3 +92,5 @@ Historical audit documents and sealed evidence remain in the repository for trac
 - Node.js >=18
 - runtime dependencies include `saxes@6.0.0` and `@coderline/alphatab@1.8.4`
 - license: `SEE LICENSE IN LICENSE`
+
+Commercial use requires a separate signed agreement; see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
