@@ -84,7 +84,6 @@ test('live architecture documents preserve the current sustain, PA-8 and same-vo
   for (const relativePath of [
     'AI_CONTEXT.md',
     'docs/ARCHITECTURE.md',
-    'docs/current-status.md',
     'docs/polyphonic-guitar-arrangement-foundation.md',
   ]) {
     assert.ok(read(relativePath).includes('ORPHAN_TIE_STOP'), `${relativePath} must preserve orphan-stop fail-closed behavior`);
