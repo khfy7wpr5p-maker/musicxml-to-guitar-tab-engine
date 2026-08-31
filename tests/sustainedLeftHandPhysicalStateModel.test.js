@@ -52,6 +52,22 @@ function score(body) {
 </score-partwise>`;
 }
 
+function repeatedWholeNoteScore(measureCount) {
+  const measures = [];
+  for (let index = 0; index < measureCount; index += 1) {
+    measures.push(`<measure number="${index + 1}">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      ${note('C', { duration: 16 })}
+      ${note('F', { chord: true, duration: 16 })}
+    </measure>`);
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>PS-4C PA-8 grouping</part-name></score-part></part-list>
+  <part id="P1">${measures.join('')}</part>
+</score-partwise>`;
+}
+
 function sourceModel(xml) {
   const runtime = createMusicXmlProcessingRuntime();
   return projectParsedMusicXmlToPolyphonicSourceModel(
@@ -158,6 +174,20 @@ test('PS-4C can retain a shared-policy barre candidate without inventing new fin
 
   assert.ok(barreState);
   assert.equal(barreState.physicalValidation.status, PLAYABILITY_STATUS.PLAYABLE_WITHIN_POLICY);
+});
+
+test('PS-4C scopes shared PA-8 ceilings to each independently enumerated sonority point', () => {
+  const model = physical(repeatedWholeNoteScore(121));
+
+  assert.equal(model.pointCount, 242);
+  assert.ok(model.evaluatedShapeCount > 20_000);
+  assert.equal(
+    model.measures.every((measure) => measure.points.every((point) => (
+      point.status === SUSTAINED_PHYSICAL_POINT_STATUS.PHYSICAL_CANDIDATES_AVAILABLE
+        || point.status === SUSTAINED_PHYSICAL_POINT_STATUS.EMPTY_SONORITY
+    ))),
+    true,
+  );
 });
 
 test('PS-4C preserves tied logical-note provenance in physical finger assignments', () => {

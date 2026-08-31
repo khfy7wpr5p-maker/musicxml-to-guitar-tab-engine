@@ -65,6 +65,7 @@ The model:
 - uses deterministic candidate identifiers/order
 - has a fixed per-source-group 20,000 shape-candidate ceiling
 - has a fixed per-source-group 100,000 complete finger-assignment-attempt ceiling
+- applies that same fixed window independently to each PS-4A sonority point when the shared enumerator is used by PS-4C
 - reuses the existing optional `ProcessingRuntime` deadline/cancellation boundary
 - returns deeply immutable output
 

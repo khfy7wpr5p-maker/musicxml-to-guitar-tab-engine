@@ -166,6 +166,13 @@ function createSustainedLeftHandPhysicalStateModel(sourceModel, runtime = null, 
     for (let pointIndex = 0; pointIndex < measure.points.length; pointIndex += 1) {
       checkpoint(runtime, 'sustained-left-hand-physical:point', { measureIndex, pointIndex });
       const point = measure.points[pointIndex];
+      // PA-8 limits apply to the independently enumerated source group.  In
+      // the sustained path that group is one PS-4A sonority point, which may
+      // contain several position states.  Keep aggregate counters for model
+      // reporting, but reset the enforced group window before enumerating the
+      // point so earlier sonorities cannot consume this point's fixed budget.
+      shapeCounters.groupShapeCandidates = 0;
+      shapeCounters.groupAssignmentAttempts = 0;
       let status;
       let reason = null;
       let physicalCandidates = [];

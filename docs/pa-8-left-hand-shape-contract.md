@@ -141,7 +141,7 @@ PA-8 fails closed when:
 - complete finger-assignment attempts in one source group would exceed 100,000;
 - processing deadline or cancellation is reached.
 
-The ceilings bound each independently processed source group even when attempted finger vectors are rejected. Aggregate work remains bounded by the authentic PA-7 candidate snapshot and the existing ProcessingRuntime deadline/cancellation boundary; it is not a second source of candidate ordering or selection authority.
+The ceilings bound each independently processed source group even when attempted finger vectors are rejected. In the PA-7 model a source group is a PA-7 group; at the PS-4C shared-enumerator seam it is exactly one PS-4A sonority point, across that point's ordered position states. A prior source group cannot consume a later group's fixed budget. Aggregate work remains bounded by the authentic upstream candidate snapshot and the existing ProcessingRuntime deadline/cancellation boundary; it is not a second source of candidate ordering or selection authority.
 
 ## Required evidence
 
