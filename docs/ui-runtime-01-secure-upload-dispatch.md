@@ -21,9 +21,9 @@ Existing XML safety remains authoritative: fatal UTF-8 decoding, entity rejectio
 1. Run the existing deterministic monophonic v1 path with the shared `ProcessingRuntime`.
 2. If v1 succeeds, emit `MONO_V1` with the exact existing `CanonicalTabResult 1.0.0` and its TAB MusicXML writer output.
 3. If v1 is blocked only by a capability boundary, attempt the existing PA-12 polyphonic projection/conversion path.
-4. Polyphonic application routing uses an exact-pitch-preserving arrangement policy: source musical notes are `PRESERVED`; automatic octave displacement is forbidden.
-5. Notes outside the fixed standard-guitar 0..20-fret register fail closed with source measure/event evidence rather than being silently transposed.
-6. The application boundary asserts after v2 conversion that every non-representation source note remains `KEEP`, has zero octave shift, and retains the source MIDI pitch.
+4. Polyphonic application routing uses the explicit lower-register arrangement policy in `poly-upload-low-register-octave-displacement-contract.md`: only a source below E2 that reaches the fixed standard-guitar register with exactly `+12` semitones may be `OCTAVE_DISPLACED`.
+5. High notes and notes that still fall below E2 after exactly one octave fail closed with source measure/event evidence.
+6. The application boundary asserts after v2 conversion that every non-representation source note is either preserved exactly or has the authorized exact `+12` lower-register target MIDI; all other musical changes fail closed.
 
 ## Two-staff notation/TAB mirror rule
 
@@ -70,7 +70,7 @@ Required before merge:
 - generated notation + TAB MusicXML round-trips through pre-projection exact-mirror normalization;
 - near mirrors, partial staff resets and unsupported TAB techniques fail closed without note loss;
 - unsafe XML and unsupported extensions fail closed;
-- out-of-range polyphonic source pitch reports measure/event evidence and is not displaced;
+- high-register and more-than-one-octave-low polyphonic source pitch report measure/event evidence and are not displaced;
 - hostile upload object shapes fail closed without invoking accessors;
 - package-root exports remain unchanged;
 - complete Node.js 18/20/22 regression suite passes;

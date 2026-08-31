@@ -77,7 +77,7 @@ The engine does **not** silently invent or rewrite:
 - tie facts;
 - chord relationship;
 - source pitch transformation;
-- automatic octave shift;
+- automatic octave shift, except the separately contracted internal POLY_V2 exact `+12` lower-register arrangement decision;
 - implicit voice split;
 - ambiguous sustain continuation;
 - solver ranking override.

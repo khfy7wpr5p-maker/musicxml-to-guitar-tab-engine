@@ -108,7 +108,7 @@ A newly exposed blocker must be classified on its semantics. Production code mus
 
 ## Safety boundary
 
-The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, automatic octave shift, implicit voice split, ambiguous sustain continuation, or solver ranking.
+The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, implicit voice split, ambiguous sustain continuation, or solver ranking. The internal POLY_V2 upload route alone may record an explicit `OCTAVE_DISPLACED` decision of exactly `+12` semitones when a source note below E2 thereby lands within the fixed standard-guitar register.
 
 Renderer output is presentation only. Writers serialize canonical truth. Compatibility normalizers remove or reinterpret only proven representation-level differences. Candidate order, physical policy, ranking/cost, and tie-breaks are not compatibility levers.
 

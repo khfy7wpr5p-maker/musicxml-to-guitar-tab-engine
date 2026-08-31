@@ -61,7 +61,7 @@ A valid same-voice chord is **not** the same thing as independent overlapping no
 ## Non-negotiable safety rules
 
 1. Source MusicXML bytes and parsed source musical facts are immutable.
-2. The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, octave shift, voice split, ambiguous sustain continuation, or solver ranking.
+2. The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, voice split, ambiguous sustain continuation, or solver ranking. The internal POLY_V2 route has one explicit, provenance-recorded exception: a note below E2 may be raised by exactly one octave only when that target is inside the fixed standard-guitar register.
 3. Compatibility rules are filename- and SHA-independent, bounded, deterministic, and fail-closed.
 4. Candidate enumeration order is not preference ranking. Compatibility fixes may not alter physical rules, ranking/cost, or tie-break behavior.
 5. Missing semantic evidence fails closed; ambiguity is a valid result state.

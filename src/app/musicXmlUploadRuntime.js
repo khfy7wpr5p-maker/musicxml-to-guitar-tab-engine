@@ -346,7 +346,9 @@ function graceWriterTransitions(model) {
   })));
 }
 
-function buildExactPitchPreservingDecisions(sourceModel, normalization) {
+const LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES = 12;
+
+function buildStandardGuitarArrangementDecisions(sourceModel, normalization) {
   const omitted = new Set(normalization.omittedRepresentationNoteIds);
   const decisions = [];
 
@@ -354,13 +356,22 @@ function buildExactPitchPreservingDecisions(sourceModel, normalization) {
     for (const event of measure.events) {
       if (event.type !== 'note') continue;
 
-      if (!omitted.has(event.sourceEventId)) {
+      const isRepresentationNote = omitted.has(event.sourceEventId);
+      const sourceMidi = event.pitch.midi;
+      const lowRegisterTargetMidi = sourceMidi + LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES;
+      const canRaiseOneOctaveIntoRegister = (
+        sourceMidi < STANDARD_GUITAR_MINIMUM_MIDI
+        && lowRegisterTargetMidi >= STANDARD_GUITAR_MINIMUM_MIDI
+        && lowRegisterTargetMidi <= STANDARD_GUITAR_MAXIMUM_MIDI
+      );
+
+      if (!isRepresentationNote) {
         if (
-          event.pitch.midi < STANDARD_GUITAR_MINIMUM_MIDI
-          || event.pitch.midi > STANDARD_GUITAR_MAXIMUM_MIDI
+          sourceMidi > STANDARD_GUITAR_MAXIMUM_MIDI
+          || (sourceMidi < STANDARD_GUITAR_MINIMUM_MIDI && !canRaiseOneOctaveIntoRegister)
         ) {
           throw new MusicXmlUploadRuntimeError(
-            'Source note is outside the supported standard-guitar range; automatic octave displacement is disabled.',
+            'Source note is outside the standard-guitar range and cannot be raised by exactly one octave.',
             'UNPLAYABLE_SOURCE_PITCH',
             {
               sourceEventId: event.sourceEventId,
@@ -368,16 +379,19 @@ function buildExactPitchPreservingDecisions(sourceModel, normalization) {
               measureIndex: measure.index,
               sourceOrder: event.sourceOrder,
               writtenPitch: event.pitch.written,
-              midi: event.pitch.midi,
+              midi: sourceMidi,
               minimumMidi: STANDARD_GUITAR_MINIMUM_MIDI,
               maximumMidi: STANDARD_GUITAR_MAXIMUM_MIDI,
+              permittedOctaveShiftSemitones: LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES,
             },
           );
         }
       }
 
       decisions.push(Object.freeze({
-        decisionType: omitted.has(event.sourceEventId) ? 'OMITTED' : 'PRESERVED',
+        decisionType: isRepresentationNote
+          ? 'OMITTED'
+          : (canRaiseOneOctaveIntoRegister ? 'OCTAVE_DISPLACED' : 'PRESERVED'),
         sourceEventIds: Object.freeze([event.sourceEventId]),
         sourceGroupId: null,
       }));
@@ -387,7 +401,7 @@ function buildExactPitchPreservingDecisions(sourceModel, normalization) {
   return Object.freeze(decisions);
 }
 
-function assertNoSilentMusicalChange(sourceModel, canonicalTabResult, normalization) {
+function assertAuthorizedStandardGuitarArrangement(sourceModel, canonicalTabResult, normalization) {
   const omittedRepresentationIds = new Set(normalization.omittedRepresentationNoteIds);
   const sourceNotes = sourceModel.measures.flatMap(
     (measure) => measure.events.filter((event) => event.type === 'note'),
@@ -429,14 +443,23 @@ function assertNoSilentMusicalChange(sourceModel, canonicalTabResult, normalizat
       continue;
     }
 
+    const expectedOctaveShiftSemitones = event.pitch.midi < STANDARD_GUITAR_MINIMUM_MIDI
+      ? LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES
+      : 0;
+    const expectedTargetMidi = event.pitch.midi + expectedOctaveShiftSemitones;
+    const expectedRuleId = expectedOctaveShiftSemitones === 0
+      ? 'PRESERVE_IN_REGISTER'
+      : 'OCTAVE_NEAREST_IN_REGISTER';
+
     if (
       disposition.disposition !== 'KEEP'
-      || disposition.octaveShiftSemitones !== 0
+      || disposition.octaveShiftSemitones !== expectedOctaveShiftSemitones
       || !disposition.targetPitch
-      || disposition.targetPitch.midi !== event.pitch.midi
+      || disposition.targetPitch.midi !== expectedTargetMidi
+      || disposition.ruleId !== expectedRuleId
     ) {
       throw new MusicXmlUploadRuntimeError(
-        'Polyphonic conversion attempted to omit or transpose a musical source note.',
+        'Polyphonic conversion produced an arrangement outside the approved standard-guitar policy.',
         'UNEXPECTED_MUSICAL_CHANGE',
         {
           sourceEventId: event.sourceEventId,
@@ -702,7 +725,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     normalization = projectedMirror
       ? projectedMirror.normalization
       : noRepresentationNormalization();
-    const decisions = buildExactPitchPreservingDecisions(sourceModel, normalization);
+    const decisions = buildStandardGuitarArrangementDecisions(sourceModel, normalization);
     const harmonyReferences = graceProjection
       ? rebaseHarmonyReferencesAfterGraceExtraction(
         harmonyExtraction.references,
@@ -740,7 +763,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         writerOptions,
       );
     }
-    assertNoSilentMusicalChange(sourceModel, conversion.canonicalTabResult, normalization);
+    assertAuthorizedStandardGuitarArrangement(sourceModel, conversion.canonicalTabResult, normalization);
     processing.checkpoint('app-upload:poly-complete');
 
     const compatibilityIssues = graceProjection
