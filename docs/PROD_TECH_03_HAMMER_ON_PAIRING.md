@@ -9,7 +9,8 @@ It does not add physical legato behavior, destination-pitch inference, fingering
 candidate/ranking changes, or source musical-fact mutation.
 
 `pull-off` remains fail-closed because LAB-TECH-03 has no retrieved Guitar Pro 7.6.0 producer
-evidence clearing its exact source form. `slide` pairing remains reserved for PROD-TECH-04.
+evidence clearing its exact source form. `slide` pairing is documented separately in
+[`PROD_TECH_04_SLIDE_PAIRING.md`](PROD_TECH_04_SLIDE_PAIRING.md).
 
 ## Research evidence
 
