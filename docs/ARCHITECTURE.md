@@ -13,6 +13,11 @@ The repository has two deliberately different exposure boundaries:
 
 A renderer is never semantic authority. Writers consume already-selected canonical truth and may not recalculate fingering or solver decisions.
 
+The application score-state contract is also independent from route: `PASS`,
+`REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while
+`MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See
+[`reviewable-score-state-contract.md`](reviewable-score-state-contract.md).
+
 ## 2. Production pipeline
 
 ```text
