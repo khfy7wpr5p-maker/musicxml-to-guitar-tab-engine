@@ -1,178 +1,190 @@
-# MusicXML to Guitar TAB Engine — Architecture
+# Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-24 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
 
-Architecture convergence base: `50859edb322e65a3c8d3db74564fef871f10623f` (merged PR #145). Runtime-shadow connection review implementation: PR #146. PA-12 internal end-to-end implementation: PR #150.
+This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
-## 1. Authority model
+## 1. Authority boundaries
 
-The system separates the protected public deterministic path from internal polyphonic, teacher-evaluation and learned/shadow paths. `CanonicalTabResult 1.0.0` remains the only public TAB authority. No internal helper becomes authoritative merely because it is merged.
+The repository has two deliberately different exposure boundaries:
 
-Package: version `0.1.0`, `private: true`, `SEE LICENSE IN LICENSE`, Node.js >=18.
+- **package root:** the narrow public monophonic API exposed by `src/index.js`, with `CanonicalTabResult 1.0.0` as package-root TAB authority;
+- **application/internal polyphonic runtime:** the bounded POLY_V2 path that can reach `CanonicalTabResult 2.0.0`, sustained selection, and the v2 MusicXML writer without making those PA/PS functions package-root exports.
 
-## 2. Public deterministic engine
+A renderer is never semantic authority. Writers consume already-selected canonical truth and may not recalculate fingering or solver decisions.
 
-```text
-MusicXML
- ↓
-XML normalization/safety + ProcessingBudget/deadline/cancellation
- ↓
-ParsedMusicXmlDocument 1.0.0
- ↓
-supported monophonic semantic projection
- ↓
-CanonicalMusicDocument
- ↓
-physical string/fret candidates
- ↓
-deterministic fingering cost + DP optimizer
- ↓
-CanonicalTabResult 1.0.0
- ↓
-shared canonical validator
- ↓
-JSON | ASCII TAB | TAB MusicXML
-```
-
-Parser authority, candidate authority, optimizer authority, canonical-result authority and writer authority remain separate. Writers serialize selected positions and never re-optimize.
-
-## 3. Internal polyphonic architecture
+## 2. Production pipeline
 
 ```text
-Polyphonic MusicXML
- ↓
-XML Safety + ProcessingBudget
- ↓
-ParsedMusicXmlDocument 1.0.0
- ↓
-PA-1 PolyphonicSourceModel 1.0.0
- ↓
-PA-2 bounded polyphonic projector
- ↓
-PA-3 SimultaneousEventModel 1.0.0
- ↓
-PA-4 GuitarArrangementPlan 1.0.0
- ↓
-PA-5 DeterministicVoiceAnalysis 1.0.0
- ↓
-PA-6 DeterministicReductionPlan 1.0.0
- ↓
-PA-7 GuitarVoicingCandidateModel 1.0.0 (0..20 fret)
- ↓
-authentic immutable single-generation PA-7 handoff
- ├─→ PA-8 LeftHandShapeModel 1.0.0
- │    ↓
- │   PA-9 PhysicalPlayabilityValidation 2.0.0
- │    ↓
- │   deterministic evaluation selection
- │
- └─→ detached deeply frozen PA-7 read-copy
-      ↓
-     GuitarSet v2 runtime-shadow score/evidence only
-
-PA-10 canonical-v2 design/compatibility contracts through PA-10.5
-PA-11 independent teacher-evaluation infrastructure through PA-11.4A
-internal deterministic final polyphonic selector
-internal CanonicalTabResult 2.0.0 runtime/writer
-PA-12 internal E2E
-future PA-13 public polyphonic API
+MusicXML Input
+    ↓
+XML Safety / Parser
+    ↓
+Representation Compatibility Normalizers
+    ↓
+Polyphonic Source Model
+    ↓
+Temporal / Tie / Sustain Graph
+    ↓
+Simultaneous / Active Sonority Model
+    ↓
+Guitar Position Candidates
+    ↓
+PA-8 Left-Hand Physical Enumeration
+    ↓
+Sustained Path Solver
+    ↓
+Canonical Final Selection
+    ↓
+Canonical TAB Result
+    ↓
+MusicXML / TAB Writer
 ```
 
-PA-1 through PA-9 are merged internal foundations. PA-10.0 through PA-10.5 are contract/design evidence. PA-11 is evaluation infrastructure through PA-11.4A. The deterministic final selector and PA-12 path are internal, explicit-decision, non-ML and fail-closed. Production/public arrangement authority remains unimplemented.
+Representative implementation boundaries:
 
-## 4. PA responsibilities
+- parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
+- representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
+- source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;
+- tie/sustain: `src/music/sustainTieGraph.js`, `src/music/activeSonorityModel.js`;
+- sustained physical state: `src/music/sustainedGuitarPositionStateModel.js`, `src/music/sustainedLeftHandPhysicalStateModel.js`;
+- sustained selection: `src/music/sustainedCanonicalFinalSelector.js`;
+- canonical bridge/result: `src/tab/canonicalTabResultV2.js`;
+- writer: `src/writers/canonicalTabMusicXmlWriterV2.js`.
 
-- **PA-1/2:** preserve/project bounded source truth; no guitar selection.
-- **PA-3:** group exact simultaneous source events; no arrangement authority.
-- **PA-4:** represent explicit arrangement decisions/provenance; does not choose a policy.
-- **PA-5:** deterministic onset-local register roles; not semantic melody/bass truth.
-- **PA-6:** deterministic execution of the approved subset; deferred decisions remain fail-closed.
-- **PA-7:** enumerate exact-target-MIDI, distinct-string standard-guitar candidates in fret domain 0..20; enumeration order is not ranking.
-- **PA-7 handoff:** produce PA-7 exactly once and preserve authentic immutable identity/order/position facts for downstream consumers.
-- **PA-8:** structural finger/barre candidates; no universal ergonomic or final-selection truth.
-- **PA-9:** conservative static playability verdicts; policy-specific, not universal comfort/anatomy/tempo truth.
-- **PA-10.5:** exact-version fail-closed dispatch contract only.
-- **PA-11:** teacher-reviewed evaluation/replay/scoring; no production selection.
-- **PA-11.4A:** evaluation-only revoicing tone candidate atoms; no complete production voicing selection.
-- **Deterministic final selector:** selects only from physically validated candidates under explicit PA-4 decisions and fails closed on unsupported sustained overlap.
-- **PA-12:** integrates bounded raw MusicXML through internal `CanonicalTabResult 2.0.0` and its MusicXML writer under one shared runtime budget; it is not package-root exported.
+`src/core/internalPolyphonicConversionPipelineV2.js` is the bounded raw-MusicXML → source model → canonical-v2 → writer integration seam. It reuses one `ProcessingRuntime` across the pipeline.
 
-## 5. Runtime shadow architecture
+## 3. Cross-cutting invariants
 
-Stage: `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1`.
+Every stage is constrained by the following invariants:
 
-Runtime shadow connection: internal default-off.
+- immutable source bytes and immutable source musical facts;
+- deterministic output for identical input/options;
+- bounded work and fixed resource ceilings;
+- fail-closed unsupported or ambiguous semantics;
+- no semantic guessing;
+- processing deadline and cancellation checkpoints;
+- deep immutability of authoritative model snapshots;
+- package-root API boundary remains explicit;
+- candidate enumeration order is not preference ranking;
+- compatibility changes may not silently alter physical policy, solver cost/ranking, or tie-breaks.
 
-The only reviewed engine-side seam is `src/learning/guitarsetVoicingModelV2RuntimeShadow.js`. It may explicitly invoke the sealed v2 parity adapter; ordinary runtime source files may not import or activate that bridge, and package-root exports remain unchanged.
+The engine does **not** silently invent or rewrite:
 
-Execution invariants:
+- pitch or octave;
+- onset or duration;
+- voice or staff;
+- tie facts;
+- chord relationship;
+- source pitch transformation;
+- automatic octave shift;
+- implicit voice split;
+- ambiguous sustain continuation;
+- solver ranking override.
 
-1. deterministic PA-7 candidates are generated exactly once;
-2. PA-8/PA-9 deterministic selection consumes the authentic handoff;
-3. the shadow branch receives only a detached deeply frozen read-copy of PA-7 candidate identity/order/position facts;
-4. shadow scoring may rank only for diagnostic evidence;
-5. no shadow ranking is fed to deterministic selection;
-6. model/artifact/scoring failures are isolated and cannot replace the deterministic result.
+If semantic evidence is insufficient, the path fails closed. Ambiguity is a valid result state rather than permission to guess.
 
-Authority boundary:
+## 4. Representation compatibility layer
 
-- live/user input: false
-- learned candidate generation/mutation/filter/deletion: false
-- authoritative optimizer/canonical/TAB effect: false
-- checkpoint mutation: false
-- refit/retraining: false
-- `fret20QualityAuthority=false`
-- production: false
-- public exposure: false
+Compatibility normalization is a constrained representation layer, not a corpus-specific exception mechanism.
 
-The retained development artifact and underlying parity adapter retain their own historical `runtime_connection_authorized=false` and `shadow_execution_authorized=false` provenance. Engine-side permission is represented by the separately reviewed bridge and does not alter the retained model contract.
+Every production compatibility rule must be:
 
-## 6. Canonical v1/v2 boundary
+- independent of filename;
+- independent of source SHA;
+- driven by exact MusicXML shape/semantics;
+- bounded;
+- deterministic;
+- fail-closed outside the proven shape;
+- source-immutable.
 
-The public runtime implements/publishes only `CanonicalTabResult 1.0.0` for supported monophonic conversion. Internal code now implements the exact `CanonicalTabResult 2.0.0` producer/validator and MusicXML writer used by PA-12. There is still no public v1/v2 dispatcher, migration engine or package-root polyphonic API.
+Current exact compatibility includes:
 
-## 7. Teacher evaluation architecture
+1. **Guitar Pro grace compatibility.** The grace extractor accepts the reviewed exact slashed grace profile. Nominal type is preserved as metadata; it does not create numeric performance timing.
+2. **Exact `32nd` grace nominal type.** `src/parser/polyphonicGraceOrnamentExtractor.js` admits only exact attribute-free `eighth` or `32nd` nominal types. Unsupported/malformed values remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
+3. **Bracketed triplet display.** `src/parser/polyphonicTripletDisplayNormalizer.js` admits the exact Guitar Pro `placement="below" number="1" bracket="yes" type="start|stop"` display profile only when the same note already has validated 3:2 time-modification provenance. Display normalization never changes timing ratio.
+4. **Exact TAB mirror collapse.** `src/app/exactTabStaffMirrorNormalizer.js` first proves that staff 2 is TAB from the original MusicXML, then compares normalized staff-1/staff-2 musical facts. Collapse occurs only on exact semantic equality; representation-only TAB technical metadata is not promoted to source musical truth.
+5. **Closed sustain representation compatibility.** PS-2 can reconnect only the exact contiguous same-identity closed-stop form documented below.
 
-Teacher benchmark evidence is independent evaluation truth, not training data and not production authority. The genuine blind baseline remains 2/4 teacher-approved matches. Shadow scoring does not alter teacher-gold evidence or deterministic baseline output.
+**Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
-## 8. GuitarSet scientific boundary
+## 5. Sustain / tie architecture
 
-`GUITARSET-OBSERVED-VOICING-MODEL.v2` uses candidate domain 0..20. Observed positive-gold remains 0..19, so `fret20QualityAuthority=false`.
+### PS-2 — Sustain Tie Graph
 
-Controlled offline evidence remains immutable as `GUITARSET_V2_CONTROLLED_OFFLINE_SHADOW_EVIDENCE_COMPLETE`:
+`src/music/sustainTieGraph.js`, contract version `1.2.0`, derives facts-only chains from the source model. Identity is exact `(staff, voice, MIDI pitch, written pitch)`. Ordinary source tie facts are preserved.
 
-`evidence/offline-shadow/exact-main/acdb66e2bb2ad809ab45fc7c2183d84280d61ad7/controlled-offline-shadow-evidence.v2.json`
+For the bounded Guitar Pro closed-stop representation, a new `tieStop` may continue the last closed chain only when:
 
-Historical evidence records 4/4 candidate-bearing coverage, 153/153 candidate preservation, one zero-candidate NO_SCORE group, 1/4 baseline agreement, three disagreements, 48 fret-20 candidates, zero shadow errors and 10/10 determinism.
+- the previous segment ended with `tieStop` and not `tieStart`;
+- current and previous identities match exactly;
+- the segments are temporally contiguous under the ordinary same/cross-measure rule.
 
-## 9. Public compatibility boundary
+The graph does not synthesize `tieStart`, pitch, voice, staff, or timing. A true unmatched stop remains fail-closed as `INVALID_SUSTAIN_TIE_GRAPH` with reason `ORPHAN_TIE_STOP`. Non-contiguous continuation, ambiguous starts, and unterminated chains also remain fail-closed.
 
-Public monophonic validation remains fail-closed for chords/simultaneity, backup/forward, multiple voices/staves, multipart scores, grace notes, tuplets, unsupported rhythms and compressed `.mxl`. Internal PA or shadow support must never be exposed by weakening those checks.
+### PS-3 — Logical sustain continuity
 
-PR #146 passed the protected Node.js 18/20/22, alphaTab MusicXML import/SVG, browser renderer/cursor, synth diagnostic and MuseScore CLI-availability matrix before merge. Every later change must pass the applicable protected matrix on its own exact head; PR #165 adds UI-07 static and real-Chromium identity/command-projection gates.
+Downstream continuity follows the sealed PS-2 chain order, not a guessed raw-flag interpretation. Every non-final chain segment keeps the same logical note active until its successor; the final segment releases it.
 
-## 10. Rendering/product boundary
+### PS-4A — Active sonority
 
-Renderers are downstream presentation adapters with no fingering authority. The Guitar TAB Workbench is an implemented browser/controller layer over bounded application hosts:
+Active-sonority state carries attacks, holds, and releases to later sonority points. A sustained note therefore occupies later time points without being re-attacked.
 
-`immutable source bytes + exact SHA + bounded command chain → MONO_V1 or POLY_V2 runtime host → full canonical/TAB regeneration → alphaTab reload`
+### PS-4C / PA-8 — Sustained left-hand physical enumeration
 
-The browser may hold read-only renderer/source identity evidence, but the host projects requests to the versioned runtime schema and the authoritative runtime revalidates source identity, group topology and playability. Same-pitch POLY_V2 selection is accepted only through matching renderer voice, canonical source track, per-voice onset, chord MIDI multiset and duplicate ordinal evidence. Retained POLY_V2 ties remain fail-closed with `RETAINED_TIE_NOT_SUPPORTED`.
+PS-4C reuses the PA-8 static left-hand enumerator and PA-9 physical validation over each PS-4A sonority point. The fixed PA-8 numerical ceilings are unchanged:
 
-GitHub Pages is a static, read-only preview produced from a fixed CI fixture and has no upload/edit endpoint. MuseScore semantic round-trip, production PDF, hosted persistence, release operations and public polyphonic API authority remain separate gates.
+- `MAX_LEFT_HAND_SHAPE_CANDIDATES = 20_000`;
+- `MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS = 100_000`.
 
-## 11. Non-negotiable safety rules
+The authoritative constants are in `src/music/leftHandShapeModel.js`; the sustained reuse and scope reset are in `src/music/sustainedLeftHandPhysicalStateModel.js`.
 
-1. Original MusicXML is immutable source truth.
-2. XML/resource/deadline/cancellation hostile-input limits remain fail-closed.
-3. Parsing never chooses guitar positions.
-4. Physical validity precedes learned scoring.
-5. Deterministic public optimization remains reproducible and authoritative for the current public path.
-6. PA-7 enumeration is not preference/final selection.
-7. Teacher approval cannot bypass physical validity and is not training consent.
-8. Fixed evaluation benchmarks remain separate from training.
-9. Learned models cannot create/delete/filter/truncate/mutate PA-7 candidates.
-10. Runtime shadow scoring cannot feed deterministic selection without a separate authority gate.
-11. Historical sealed evidence is immutable evidence, not a mutable status file.
-12. Internal canonical-v2 implementation does not imply package-root/public v2 authority.
-13. Live/user-input shadow activation, learned selection authority, public polyphony and production are separate consequential gates.
+The enforcement window is **not whole-score aggregate**. In the ordinary PA-8 path it is one independently processed PA-7 source group. In the sustained path it is exactly one PS-4A sonority point across that point's ordered position states. Aggregate counters may be retained for reporting, but an earlier group cannot consume a later group's fixed enforcement budget.
+
+The ceilings are not raised to make corpus data pass. Candidate order, physical rules, solver ranking/cost, and tie-break behavior remain unchanged.
+
+### PA-12 — Sustained canonical final selection
+
+`src/tab/canonicalTabResultV2.js` first attempts the ordinary deterministic polyphonic selector. Only the specifically recognized retained-sustain/tie unsupported reasons route to `src/music/sustainedCanonicalFinalSelector.js`.
+
+The sustained selector requires exact preserved projection and does not authorize octave shifts, pitch rewrites, voice splitting, or ranking override.
+
+## 6. Same-voice chord versus invalid overlap
+
+**VALID SAME-VOICE CHORD ≠ INDEPENDENT OVERLAPPING NOTES WITHIN ONE VOICE**
+
+An exact MusicXML `<chord/>` member in the same validated staff/voice lane belongs to the preceding attack group. It is not a second independent advancing voice event.
+
+The source-lane occupancy cursor is nevertheless extended to the **maximum end time of every chord member**. Therefore:
+
+- equal-duration chord members remain one attack group;
+- an unequal-duration member may keep the lane occupied beyond the anchor note;
+- a later independent non-chord note beginning before that maximum end is rejected as `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` with reason `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`;
+- no implicit voice split is invented to make the overlap fit.
+
+This distinction is implemented in `src/music/sustainedCanonicalFinalSelector.js` and covered by the PA-12/sustained chord regressions.
+
+## 7. Real corpus / production gate
+
+Real Guitar Pro corpus material is an evidence and regression layer. It does not create corpus-specific runtime branches.
+
+A production corpus gate is expected to verify:
+
+- exact source SHA identity for the intended evidence file;
+- source bytes unchanged before/after runtime calls;
+- deterministic public result;
+- deterministic canonical result when produced;
+- deterministic MusicXML output when produced;
+- no hidden semantic mutation;
+- expected fail-closed behavior for unsupported notation;
+- required CI green.
+
+A corpus run may expose the next blocker after a compatibility fix. That observation is evidence for a generic contract review; it is not permission to branch on that filename or SHA.
+
+Current exact Air evidence established POLY_V2 PASS, deterministic canonical/MusicXML fingerprints, and source-byte immutability before the latest chord-occupancy hardening. The latest hardening is a no-op for the exact Air chord set because the source audit found no unequal-duration chord member; protected checks remained green.
+
+## 8. Historical documents
+
+Versioned PA/PS closure files, feature-stage documents, and corpus audits are retained as historical evidence. A document that reports an older branch SHA or older first blocker must be read as an observation at that revision, not as current status. Stale corpus-status documents are explicitly marked `HISTORY / SUPERSEDED` where their headline state can otherwise be mistaken for the live system.
+
+For current state use [`current-status.md`](current-status.md).
