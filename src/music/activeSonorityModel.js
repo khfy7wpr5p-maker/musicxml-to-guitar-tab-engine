@@ -17,7 +17,7 @@ const {
   createSustainTieGraph,
 } = require('./sustainTieGraph');
 
-const ACTIVE_SONORITY_MODEL_VERSION = '1.0.0';
+const ACTIVE_SONORITY_MODEL_VERSION = '1.1.0';
 const ACTIVE_SONORITY_MODEL_DOCUMENT_TYPE = 'ActiveSonorityModel';
 const ACTIVE_SONORITY_MODEL_AUTHORITY = 'ACTIVE_SONORITY_FACTS_ONLY';
 
@@ -78,6 +78,13 @@ function buildIndexes(source, tieGraph) {
 function logicalIdentity(sourceEventId, indexes) {
   const membership = indexes.membershipBySourceEventId.get(sourceEventId);
   return membership ? membership.chain.sustainChainId : sourceEventId;
+}
+
+function hasFollowingSustainSegment(membership) {
+  return Boolean(
+    membership
+    && membership.segment.segmentIndex < membership.chain.segmentCount - 1,
+  );
 }
 
 function assertMembershipMatchesEvent(sourceEventId, indexes) {
@@ -172,7 +179,7 @@ function processPoint(point, active, indexes, location) {
       });
     }
 
-    if (membership && membership.segment.tieStart) {
+    if (hasFollowingSustainSegment(membership)) {
       continue;
     }
 
