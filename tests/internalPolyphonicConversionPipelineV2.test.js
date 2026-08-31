@@ -145,6 +145,43 @@ test('PA-12 internal execution does not drift public monophonic conversion or pa
   assert.equal(Object.hasOwn(publicApi, 'serializeCanonicalTabResultV2ToMusicXml'), false);
 });
 
+test('PA-12 accepts an exact same-voice chord through sustained tie selection', () => {
+  const input = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Sustained chord</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><tie type="start"/><staff>1</staff></note>
+      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><tie type="start"/><staff>1</staff></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><tie type="stop"/><staff>1</staff></note>
+      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><tie type="stop"/><staff>1</staff></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  const decisions = [
+    'P1:measure:0:note:0',
+    'P1:measure:0:note:1',
+    'P1:measure:1:note:0',
+    'P1:measure:1:note:1',
+  ].map((sourceEventId) => ({
+    decisionType: 'PRESERVED',
+    sourceEventIds: [sourceEventId],
+    sourceGroupId: null,
+  }));
+
+  const first = convertMusicXmlToInternalPolyphonicTabV2(input, decisions);
+  const second = convertMusicXmlToInternalPolyphonicTabV2(input, decisions);
+
+  assert.deepEqual(second, first);
+  assert.equal(first.canonicalTabResult.noteDispositions.length, 4);
+  assert.match(first.musicXml, /<chord\/>/);
+  assert.match(first.musicXml, /<tie type="start"\/>/);
+  assert.match(first.musicXml, /<tie type="stop"\/>/);
+});
+
 test('PA-12 fails closed on invalid overlapping independent notes within one voice', () => {
   const input = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">

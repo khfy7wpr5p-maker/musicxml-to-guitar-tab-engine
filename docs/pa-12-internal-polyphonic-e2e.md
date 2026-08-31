@@ -42,6 +42,8 @@ Therefore this gate does not authorize:
 
 The current deterministic final selector remains fail-closed for retained ties and retained-note overlap into a later retained attack when complete sustained-hand occupancy is not modeled. PA-12 preserves that boundary rather than approximating it.
 
+The sustained fallback accepts exact same-voice `<chord/>` members: they are one validated attack group, not independent overlapping voice events. A later non-chord event that begins before its source voice/staff cursor reaches its prior end remains fail-closed; PA-12 does not invent a voice split.
+
 ## Output boundary
 
 Successful PA-12 conversion returns an internal immutable envelope containing:
