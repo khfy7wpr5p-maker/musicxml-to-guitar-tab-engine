@@ -112,6 +112,7 @@ Current exact compatibility includes:
 3. **Bracketed triplet display.** `src/parser/polyphonicTripletDisplayNormalizer.js` admits the exact Guitar Pro `placement="below" number="1" bracket="yes" type="start|stop"` display profile only when the same note already has validated 3:2 time-modification provenance. Display normalization never changes timing ratio.
 4. **Exact TAB mirror collapse.** `src/app/exactTabStaffMirrorNormalizer.js` first proves that staff 2 is TAB from the original MusicXML, then compares normalized staff-1/staff-2 musical facts. Collapse occurs only on exact semantic equality; representation-only TAB technical metadata is not promoted to source musical truth.
 5. **Closed sustain representation compatibility.** PS-2 can reconnect only the exact contiguous same-identity closed-stop form documented below.
+6. **Deterministic technique provenance pairing.** Verified hammer-on and slide START/STOP pairs may receive source-tree-identity metadata only. They do not create physical technique authority; ambiguous reused-number chains remain unpaired. See [`PROD_TECH_03_HAMMER_ON_PAIRING.md`](PROD_TECH_03_HAMMER_ON_PAIRING.md) and [`PROD_TECH_04_SLIDE_PAIRING.md`](PROD_TECH_04_SLIDE_PAIRING.md).
 
 **Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
