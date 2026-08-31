@@ -26,7 +26,7 @@ test('duplicate straight-mute play nodes remain fail-closed', () => {
   );
 });
 
-test('duplicate identical slide event markers remain fail-closed while a balanced chain stays unpaired metadata', () => {
+test('duplicate identical slide event markers remain fail-closed while sequential balanced pairs receive provenance identity', () => {
   assert.throws(
     () => extractGuitarTechniqueProvenance(parsed('<notations><slide number="5" type="start"/><slide number="5" type="start"/></notations>')),
     (error) => error instanceof GuitarTechniqueProvenanceError
@@ -47,7 +47,8 @@ test('duplicate identical slide event markers remain fail-closed while a balance
   ));
   assert.equal(result.recordCount, 4);
   assert.deepEqual(result.records.map((entry) => entry.state), ['START', 'STOP', 'START', 'STOP']);
-  assert.ok(result.records.every((entry) => entry.pairingId === null));
-  assert.ok(result.records.every((entry) => entry.pairingBasis === null));
-  assert.ok(result.records.every((entry) => entry.sourcePairingToken === null));
+  assert.ok(result.records.every((entry) => entry.pairingBasis === 'DETERMINISTIC_SOURCE_IDENTITY'));
+  assert.equal(result.records[0].pairingId, result.records[1].pairingId);
+  assert.equal(result.records[2].pairingId, result.records[3].pairingId);
+  assert.notEqual(result.records[0].pairingId, result.records[2].pairingId);
 });
