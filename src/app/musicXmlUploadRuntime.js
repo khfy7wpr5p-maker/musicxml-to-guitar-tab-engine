@@ -42,6 +42,10 @@ const {
 } = require('./basicMusicXmlHarmonyExtractor');
 const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
 const {
+  MUSICXML_ROUTE_REQUIREMENT,
+  routeRequirementFromParsedMusicXml,
+} = require('./musicXmlRouteClassifier');
+const {
   SCORE_ROUTE,
   SCORE_STATUS,
   SOURCE_REVIEW_AVAILABILITY,
@@ -630,7 +634,11 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let monophonic;
-  if (harmonyExtraction.references.length > 0) {
+  const routeRequirement = routeRequirementFromParsedMusicXml(harmonyExtraction.parsedDocument);
+  if (
+    routeRequirement === MUSICXML_ROUTE_REQUIREMENT.POLY_V2
+    || harmonyExtraction.references.length > 0
+  ) {
     monophonic = {
       preflight: {
         canProcess: false,
