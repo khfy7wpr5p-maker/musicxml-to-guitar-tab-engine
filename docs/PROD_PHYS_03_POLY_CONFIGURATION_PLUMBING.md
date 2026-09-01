@@ -1,6 +1,6 @@
 # PROD-PHYS-03 — POLY Configuration Plumbing
 
-This internal slice threads one caller-supplied `guitarOptions` value through the existing POLY physical-selection chain without changing source acceptance or public runtime behavior.
+This internal slice threads one caller-supplied `guitarOptions` value through the existing POLY physical-selection chain. The later PROD-PHYS-05 runtime slice supplies the validated Standard-tuned source capo through this seam; public package-root behavior remains unchanged.
 
 Covered paths:
 
@@ -12,10 +12,10 @@ The same options are consumed by candidate generation and physical MIDI validati
 
 This slice does **not**:
 
-- accept POLY source capo or alternate tuning in the upload runtime;
+- accept alternate tuning in the upload runtime;
 - change `CanonicalTabResult 2.0.0`;
 - change the V2 MusicXML writer;
 - expose a new package-root API;
 - alter the default standard-guitar result.
 
-Source acceptance remains fail-closed until the V2 result contract and writer serialize the same complete configuration.
+Source capo acceptance became available only after the V2 result contract and writer serialized the same complete capo configuration. Alternate tuning remains fail-closed.
