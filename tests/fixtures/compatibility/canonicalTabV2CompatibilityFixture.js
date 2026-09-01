@@ -56,7 +56,7 @@ function sourceRest(index, onsetDivisions) {
   };
 }
 
-function createCanonicalTabV2CompatibilityFixture() {
+function createCanonicalTabV2CompatibilityFixture(guitarOptions = {}) {
   const events = [
     sourceNote(0, 0, pitch('C', 4, 60)),
     sourceNote(1, 0, pitch('E', 4, 64), true),
@@ -86,7 +86,7 @@ function createCanonicalTabV2CompatibilityFixture() {
     sourceEventIds: [createSourceEventId('P1', 0, index)],
     sourceGroupId: null,
   }));
-  return createCanonicalTabResultV2(source, decisions);
+  return createCanonicalTabResultV2(source, decisions, null, guitarOptions);
 }
 
 module.exports = {
