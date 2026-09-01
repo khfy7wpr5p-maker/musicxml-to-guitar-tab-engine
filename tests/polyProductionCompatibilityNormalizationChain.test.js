@@ -218,6 +218,8 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['rehearsal-with-playback-sound', '<direction><direction-type><rehearsal>Section A</rehearsal></direction-type><sound dacapo="yes"/></direction>'],
     ['rehearsal-with-layout-attribute', '<direction placement="above"><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
     ['rehearsal-with-structured-content', '<direction><direction-type><rehearsal><display-text>Section A</display-text></rehearsal></direction-type></direction>'],
+    ['rehearsal-with-direction-text', '<direction>unexpected<direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
+    ['rehearsal-with-direction-type-text', '<direction><direction-type>unexpected<rehearsal>Section A</rehearsal></direction-type></direction>'],
   ]) {
     const result = processMusicXmlUpload({
       fileName: `unsupported-direction-${name}.musicxml`,
