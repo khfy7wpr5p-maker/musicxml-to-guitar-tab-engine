@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -8,17 +8,12 @@ This is the live architecture contract for the repository. Historical PA/PS clos
 
 The repository has two deliberately different exposure boundaries:
 
-- **package root:** the narrow public monophonic API exposed by `src/index.js`, with `CanonicalTabResult 1.0.0` as package-root TAB authority;
-- **application/internal polyphonic runtime:** the bounded POLY_V2 path that can reach `CanonicalTabResult 2.0.0`, sustained selection, and the v2 MusicXML writer without making those PA/PS functions package-root exports.
+- **package root:** the narrow public monophonic API exposed by `src/index.js`, with `CanonicalTabResult 1.0.0` as package-root TAB authority plus the bounded Standard-tuning capo extension;
+- **application/internal polyphonic runtime:** the bounded POLY_V2 path that can reach configuration-aware conversion, `CanonicalTabResult 2.0.0` / `2.1.0`, sustained selection and the v2 MusicXML writer without making those PA/PS functions package-root exports.
 
 A renderer is never semantic authority. Writers consume already-selected canonical truth and may not recalculate fingering or solver decisions.
 
-The application score-state contract is also independent from route: `PASS`,
-`REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while
-`MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See
-[`reviewable-score-state-contract.md`](reviewable-score-state-contract.md).
-The early routing rules are defined in
-[`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
+The application score-state contract is also independent from route: `PASS`, `REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while `MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See [`reviewable-score-state-contract.md`](reviewable-score-state-contract.md). The early routing rules are defined in [`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
 
 ## 2. Production pipeline
 
@@ -26,6 +21,8 @@ The early routing rules are defined in
 MusicXML Input
     ↓
 XML Safety / Parser
+    ↓
+Source Guitar Configuration Provenance / Authority
     ↓
 Representation Compatibility Normalizers
     ↓
@@ -35,7 +32,7 @@ Temporal / Tie / Sustain Graph
     ↓
 Simultaneous / Active Sonority Model
     ↓
-Guitar Position Candidates
+Guitar Position Candidates using resolved configuration
     ↓
 PA-8 Left-Hand Physical Enumeration
     ↓
@@ -51,6 +48,7 @@ MusicXML / TAB Writer
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
+- guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
 - source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;
 - tie/sustain: `src/music/sustainTieGraph.js`, `src/music/activeSonorityModel.js`;
@@ -59,7 +57,7 @@ Representative implementation boundaries:
 - canonical bridge/result: `src/tab/canonicalTabResultV2.js`;
 - writer: `src/writers/canonicalTabMusicXmlWriterV2.js`.
 
-`src/core/internalPolyphonicConversionPipelineV2.js` is the bounded raw-MusicXML → source model → canonical-v2 → writer integration seam. It reuses one `ProcessingRuntime` across the pipeline.
+`src/core/internalPolyphonicConversionPipelineV2.js` is the bounded raw-MusicXML → source model → canonical-v2 → writer integration seam. It reuses one `ProcessingRuntime` across the pipeline and receives only already-resolved immutable guitar configuration options from an owning caller.
 
 ## 3. Cross-cutting invariants
 
@@ -74,7 +72,7 @@ Every stage is constrained by the following invariants:
 - deep immutability of authoritative model snapshots;
 - package-root API boundary remains explicit;
 - candidate enumeration order is not preference ranking;
-- compatibility changes may not silently alter physical policy, solver cost/ranking, or tie-breaks.
+- compatibility changes may not silently alter guitar configuration, physical policy, solver cost/ranking, or tie-breaks.
 
 The engine does **not** silently invent or rewrite:
 
@@ -83,6 +81,7 @@ The engine does **not** silently invent or rewrite:
 - voice or staff;
 - tie facts;
 - chord relationship;
+- executable source tuning/capo configuration;
 - source pitch transformation;
 - automatic octave shift, except the separately contracted internal POLY_V2 exact `+12` lower-register arrangement decision;
 - implicit voice split;
@@ -91,7 +90,48 @@ The engine does **not** silently invent or rewrite:
 
 If semantic evidence is insufficient, the path fails closed. Ambiguity is a valid result state rather than permission to guess.
 
-## 4. Representation compatibility layer
+## 4. Source guitar configuration authority
+
+`src/parser/musicXmlGuitarConfigurationProvenance.js` extracts explicit MusicXML source guitar configuration evidence. This is configuration provenance, not source TAB fingering authority.
+
+A complete executable tuning declaration requires:
+
+- exactly six `staff-tuning` elements;
+- lines 1..6 present exactly once;
+- validated step, optional alter and octave scalar values;
+- six-string physical ordering within the fixed adjacent-open-string interval bound;
+- at most one capo;
+- successful construction of an immutable guitar configuration.
+
+The application upload runtime may thread this validated configuration through the bounded internal conversion path. Package-root exposure is not expanded by this admission.
+
+### Immutable solve scope
+
+The first executable configuration must be established before immutable solve scope begins. Current provenance extraction records `afterSolveStart` when either:
+
+- the declaration occurs after measure index 0; or
+- a `note`, `backup`, or `forward` has already been encountered earlier in measure 0.
+
+If the first configuration is already after solve start, the score fails closed. Multiple declarations are permitted only when they resolve to one identical configuration fingerprint. A genuine later tuning/capo change fails closed as `UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE`.
+
+A capo-only declaration is allowed only with a previously complete configuration on the same part/staff. It inherits that exact tuning and creates a new configuration using the explicit capo; if this changes the effective configuration after solve start, it is rejected as a genuine configuration change.
+
+### Legacy TAB presentation-only boundary
+
+Some historical producer exports encode `staff-tuning` as TAB presentation provenance. This metadata must not be promoted to executable tuning authority merely because it is present.
+
+`src/app/musicXmlUploadRuntime.js` contains one bounded fallback for exact reviewed parser-error shapes:
+
+- a well-formed partial legacy TAB tuning with no capo; or
+- a well-formed complete tuning whose TAB-line order is the reviewed physically reversed presentation order.
+
+The fallback requires the exact parser error location in measure 0, matching TAB staff/clef, the exact admitted legacy shape, no earlier `note`/`backup`/`forward`, exactly one compatible presentation block in the entire document, and no conflicting executable configuration/capo authority.
+
+When admitted, authority is `STANDARD_DEFAULT` and `sourceStatus` is `TAB_PRESENTATION_PROVENANCE_ONLY`. The legacy block remains non-executable presentation evidence.
+
+A lone legacy declaration after solve start remains fail-closed. PR #303 added this exact scope guard after the P1 review on PR #299. See [`stage-03-source-guitar-configuration-closeout.md`](stage-03-source-guitar-configuration-closeout.md).
+
+## 5. Representation compatibility layer
 
 Compatibility normalization is a constrained representation layer, not a corpus-specific exception mechanism.
 
@@ -107,16 +147,17 @@ Every production compatibility rule must be:
 
 Current exact compatibility includes:
 
-1. **Guitar Pro grace compatibility.** The grace extractor accepts the reviewed exact slashed grace profile. Nominal type is preserved as metadata; it does not create numeric performance timing.
-2. **Exact `32nd` grace nominal type.** `src/parser/polyphonicGraceOrnamentExtractor.js` admits only exact attribute-free `eighth` or `32nd` nominal types. Unsupported/malformed values remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
-3. **Bracketed triplet display.** `src/parser/polyphonicTripletDisplayNormalizer.js` admits the exact Guitar Pro `placement="below" number="1" bracket="yes" type="start|stop"` display profile only when the same note already has validated 3:2 time-modification provenance. Display normalization never changes timing ratio.
-4. **Exact TAB mirror collapse.** `src/app/exactTabStaffMirrorNormalizer.js` first proves that staff 2 is TAB from the original MusicXML, then compares normalized staff-1/staff-2 musical facts. Collapse occurs only on exact semantic equality; representation-only TAB technical metadata is not promoted to source musical truth.
-5. **Closed sustain representation compatibility.** PS-2 can reconnect only the exact contiguous same-identity closed-stop form documented below.
-6. **Deterministic technique provenance pairing.** Verified hammer-on and slide START/STOP pairs may receive source-tree-identity metadata only. They do not create physical technique authority; ambiguous reused-number chains remain unpaired. See [`PROD_TECH_03_HAMMER_ON_PAIRING.md`](PROD_TECH_03_HAMMER_ON_PAIRING.md) and [`PROD_TECH_04_SLIDE_PAIRING.md`](PROD_TECH_04_SLIDE_PAIRING.md).
+1. **Legacy TAB presentation tuning compatibility.** Only the bounded non-executable pre-solve shapes described above may fall back to Standard. Valid explicit custom tuning/capo evidence is never downgraded through this compatibility path.
+2. **Guitar Pro grace compatibility.** The grace extractor accepts the reviewed exact slashed grace profile. Nominal type is preserved as metadata; it does not create numeric performance timing.
+3. **Exact `32nd` grace nominal type.** `src/parser/polyphonicGraceOrnamentExtractor.js` admits only exact attribute-free `eighth` or `32nd` nominal types. Unsupported/malformed values remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
+4. **Bracketed triplet display.** `src/parser/polyphonicTripletDisplayNormalizer.js` admits the exact Guitar Pro `placement="below" number="1" bracket="yes" type="start|stop"` display profile only when the same note already has validated 3:2 time-modification provenance. Display normalization never changes timing ratio.
+5. **Exact TAB mirror collapse.** `src/app/exactTabStaffMirrorNormalizer.js` first proves that staff 2 is TAB from the original MusicXML, then compares normalized staff-1/staff-2 musical facts. Collapse occurs only on exact semantic equality; representation-only TAB technical metadata is not promoted to source musical truth.
+6. **Closed sustain representation compatibility.** PS-2 can reconnect only the exact contiguous same-identity closed-stop form documented below.
+7. **Deterministic technique provenance pairing.** Verified hammer-on and slide START/STOP pairs may receive source-tree-identity metadata only. They do not create physical technique authority; ambiguous reused-number chains remain unpaired. See [`PROD_TECH_03_HAMMER_ON_PAIRING.md`](PROD_TECH_03_HAMMER_ON_PAIRING.md) and [`PROD_TECH_04_SLIDE_PAIRING.md`](PROD_TECH_04_SLIDE_PAIRING.md).
 
 **Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
-## 5. Sustain / tie architecture
+## 6. Sustain / tie architecture
 
 ### PS-2 — Sustain Tie Graph
 
@@ -128,7 +169,7 @@ For the bounded Guitar Pro closed-stop representation, a new `tieStop` may conti
 - current and previous identities match exactly;
 - the segments are temporally contiguous under the ordinary same/cross-measure rule.
 
-The graph does not synthesize `tieStart`, pitch, voice, staff, or timing. A true unmatched stop remains fail-closed as `INVALID_SUSTAIN_TIE_GRAPH` with reason `ORPHAN_TIE_STOP`. Non-contiguous continuation, ambiguous starts, and unterminated chains also remain fail-closed.
+The graph does not synthesize `tieStart`, pitch, voice, staff or timing. A true unmatched stop remains fail-closed as `INVALID_SUSTAIN_TIE_GRAPH` with reason `ORPHAN_TIE_STOP`. Non-contiguous continuation, ambiguous starts and unterminated chains also remain fail-closed.
 
 ### PS-3 — Logical sustain continuity
 
@@ -136,7 +177,7 @@ Downstream continuity follows the sealed PS-2 chain order, not a guessed raw-fla
 
 ### PS-4A — Active sonority
 
-Active-sonority state carries attacks, holds, and releases to later sonority points. A sustained note therefore occupies later time points without being re-attacked.
+Active-sonority state carries attacks, holds and releases to later sonority points. A sustained note therefore occupies later time points without being re-attacked.
 
 ### PS-4C / PA-8 — Sustained left-hand physical enumeration
 
@@ -145,19 +186,17 @@ PS-4C reuses the PA-8 static left-hand enumerator and PA-9 physical validation o
 - `MAX_LEFT_HAND_SHAPE_CANDIDATES = 20_000`;
 - `MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS = 100_000`.
 
-The authoritative constants are in `src/music/leftHandShapeModel.js`; the sustained reuse and scope reset are in `src/music/sustainedLeftHandPhysicalStateModel.js`.
-
 The enforcement window is **not whole-score aggregate**. In the ordinary PA-8 path it is one independently processed PA-7 source group. In the sustained path it is exactly one PS-4A sonority point across that point's ordered position states. Aggregate counters may be retained for reporting, but an earlier group cannot consume a later group's fixed enforcement budget.
 
-The ceilings are not raised to make corpus data pass. Candidate order, physical rules, solver ranking/cost, and tie-break behavior remain unchanged.
+The ceilings are not raised to make corpus data pass. Candidate order, physical rules, solver ranking/cost and tie-break behavior remain unchanged.
 
 ### PA-12 — Sustained canonical final selection
 
 `src/tab/canonicalTabResultV2.js` first attempts the ordinary deterministic polyphonic selector. Only the specifically recognized retained-sustain/tie unsupported reasons route to `src/music/sustainedCanonicalFinalSelector.js`.
 
-The sustained selector requires exact preserved projection and does not authorize octave shifts, pitch rewrites, voice splitting, or ranking override.
+The sustained selector requires exact preserved projection and does not authorize arbitrary octave shifts, pitch rewrites, voice splitting or ranking override. Configuration-derived arrangement register/fretboard facts are supplied through the owning bounded pipeline rather than reconstructed from presentation metadata.
 
-## 6. Same-voice chord versus invalid overlap
+## 7. Same-voice chord versus invalid overlap
 
 **VALID SAME-VOICE CHORD ≠ INDEPENDENT OVERLAPPING NOTES WITHIN ONE VOICE**
 
@@ -170,11 +209,9 @@ The source-lane occupancy cursor is nevertheless extended to the **maximum end t
 - a later independent non-chord note beginning before that maximum end is rejected as `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` with reason `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`;
 - no implicit voice split is invented to make the overlap fit.
 
-This distinction is implemented in `src/music/sustainedCanonicalFinalSelector.js` and covered by the PA-12/sustained chord regressions.
+## 8. Real corpus / production gate
 
-## 7. Real corpus / production gate
-
-Real Guitar Pro corpus material is an evidence and regression layer. It does not create corpus-specific runtime branches.
+Real producer corpus material is an evidence and regression layer. It does not create corpus-specific runtime branches.
 
 A production corpus gate is expected to verify:
 
@@ -187,12 +224,12 @@ A production corpus gate is expected to verify:
 - expected fail-closed behavior for unsupported notation;
 - required CI green.
 
-A corpus run may expose the next blocker after a compatibility fix. That observation is evidence for a generic contract review; it is not permission to branch on that filename or SHA.
+The repository currently has more than one evidence set. `verification/guitar-tech-real-corpus-manifest.json` pins the historical Guitar Pro corpus. Stage 03 additionally used a separate exact nine-file SHA-selected AnimeTAB audit pinned to source commit `18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a`. That audit verified 9/9 identity, determinism and source immutability and `PRESERVED_CLASSIFICATIONS=9/9` from pre-fix main to the audited candidate. These evidence sets must not be silently substituted for one another.
 
-Current exact Air evidence established POLY_V2 PASS, deterministic canonical/MusicXML fingerprints, and source-byte immutability before the latest chord-occupancy hardening. The latest hardening is a no-op for the exact Air chord set because the source audit found no unequal-duration chord member; protected checks remained green.
+A corpus run may expose the next blocker after a compatibility fix. That observation is evidence for a generic contract review; it is not permission to branch on that filename or SHA or to weaken solver/physical/resource rules opportunistically.
 
-## 8. Historical documents
+## 9. Historical documents
 
-Versioned PA/PS closure files, feature-stage documents, and corpus audits are retained as historical evidence. A document that reports an older branch SHA or older first blocker must be read as an observation at that revision, not as current status. Stale corpus-status documents are explicitly marked `HISTORY / SUPERSEDED` where their headline state can otherwise be mistaken for the live system.
+Versioned PA/PS closure files, feature-stage documents and corpus audits are retained as historical evidence. A document that reports an older branch SHA or older first blocker must be read as an observation at that revision, not as current status. Stale corpus-status documents are historical evidence unless explicitly refreshed.
 
-For current state use [`current-status.md`](current-status.md).
+For current state use [`current-status.md`](current-status.md) and [`stage-03-source-guitar-configuration-closeout.md`](stage-03-source-guitar-configuration-closeout.md).
