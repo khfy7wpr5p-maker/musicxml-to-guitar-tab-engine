@@ -1,0 +1,1 @@
+Verification-only control for the fail-closed legacy TAB fallback narrowing. Never merge this branch into production.
