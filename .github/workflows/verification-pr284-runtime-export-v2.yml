@@ -1,0 +1,44 @@
+name: Verification PR284 Runtime Export V2
+
+on:
+  pull_request:
+    branches: [stage-03/sustained-target-pitch-projection]
+
+permissions:
+  contents: read
+
+jobs:
+  export-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Verify exact candidate identity
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.base.sha }}"
+          test "$(git rev-parse HEAD)" = "02c714ed327e32f82257f67bde5490db12cf0c5c"
+          git rev-parse HEAD > VERIFICATION_HEAD_SHA.txt
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Package exact candidate checkout
+        run: tar --exclude=.git -czf /tmp/pr284-runtime-v2.tgz .
+
+      - name: Upload runtime checkout
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr284-runtime-v2
+          path: /tmp/pr284-runtime-v2.tgz
+          if-no-files-found: error
+          retention-days: 1
