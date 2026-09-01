@@ -1,6 +1,6 @@
 # MusicXML Compatibility Contract
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 This document defines the production compatibility-normalization boundary. It is not a list of corpus-specific exceptions.
 
@@ -27,6 +27,7 @@ Compatibility normalizers are representation adapters. They do not own or change
 - source pitch/octave;
 - onset/duration;
 - voice/staff;
+- executable tuning/capo authority unless that authority is independently validated from the source configuration contract;
 - tie semantics beyond exact facts/approved representation continuity;
 - chord membership;
 - arrangement decisions;
@@ -37,7 +38,36 @@ Compatibility normalizers are representation adapters. They do not own or change
 
 A renderer is not semantic authority. A writer serializes canonical truth and may not correct or rerun selection.
 
+## Source guitar configuration is not a compatibility guess
+
+`src/parser/musicXmlGuitarConfigurationProvenance.js` is the authoritative source-configuration admission layer for the application runtime. Fully validated explicit six-string tuning/capo evidence is executable configuration provenance, not compatibility metadata.
+
+A genuine configuration change after immutable solve scope begins remains fail-closed. Compatibility code must not downgrade a valid or conflicting custom tuning/capo declaration to Standard merely to make a score process.
+
+See [`stage-03-source-guitar-configuration-closeout.md`](stage-03-source-guitar-configuration-closeout.md).
+
 ## Current exact compatibility profiles
+
+### Legacy TAB presentation-only tuning
+
+Historical producer exports may include TAB `staff-tuning` that is presentation provenance rather than executable physical string authority. The upload runtime preserves one narrow compatibility fallback for two exact parser-error shapes:
+
+- a structurally well-formed partial legacy TAB tuning with no capo; or
+- a structurally well-formed complete legacy TAB tuning in the reviewed physically reversed TAB-line presentation order.
+
+The fallback is allowed only when:
+
+1. the thrown error is `INVALID_GUITAR_CONFIGURATION_PROVENANCE` with the exact admitted legacy error message;
+2. the error provides a valid exact part, measure, attributes and `staff-details` location;
+3. the declaration is in measure index 0;
+4. the exact staff has a TAB clef and the exact admitted legacy shape;
+5. no earlier sibling in measure 0 is a `note`, `backup` or `forward`;
+6. the document contains exactly one compatible presentation block;
+7. no executable capo/configuration conflict is present.
+
+On success, this metadata remains non-executable and the runtime returns `authority: STANDARD_DEFAULT` with `sourceStatus: TAB_PRESENTATION_PROVENANCE_ONLY`.
+
+A lone legacy declaration after solve start remains fail-closed. This exact boundary was added by PR #303 after the post-merge P1 review on PR #299.
 
 ### Guitar Pro grace representation
 
@@ -48,7 +78,7 @@ The exact nominal type whitelist is:
 - `eighth`;
 - `32nd`.
 
-The type element must be the exact bounded attribute-free leaf representation. Other values, duplicate/attributed/nested forms, grace rests, unsupported grace chords, or unsupported semantics remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
+The type element must be the exact bounded attribute-free leaf representation. Other values, duplicate/attributed/nested forms, grace rests, unsupported grace chords or unsupported semantics remain `UNSUPPORTED_POLYPHONIC_GRACE_ORNAMENT`.
 
 The already-reviewed exact normal grace notehead is display metadata only and does not alter pitch/timing/voice/staff or physical selection.
 
@@ -65,7 +95,7 @@ bracket="yes"
 type="start" | "stop"
 ```
 
-The marker must be backed by validated 3:2 timing provenance on the same note and matched in the same staff/voice lane. This does not rescale duration. Conflicting identity/style/placement, genuine overlap, unmatched markers, malformed markup, and unsupported tuplets remain fail-closed.
+The marker must be backed by validated 3:2 timing provenance on the same note and matched in the same staff/voice lane. This does not rescale duration. Conflicting identity/style/placement, genuine overlap, unmatched markers, malformed markup and unsupported tuplets remain fail-closed.
 
 ### Exact notation/TAB staff mirror collapse
 
@@ -74,7 +104,7 @@ The marker must be backed by validated 3:2 timing provenance on the same note an
 1. the original parsed MusicXML declares two staves and staff 2 has an exact TAB clef;
 2. the bounded staff timing boundary/cursor form is valid;
 3. staff 1 and staff 2 project to exact normalized musical event equality in every measure;
-4. compared facts include event type, onset, duration, pitch, tie flags, and `<chord/>` membership;
+4. compared facts include event type, onset, duration, pitch, tie flags and `<chord/>` membership;
 5. grace mirror groups and anchor identity match under the dedicated grace compatibility contract;
 6. staff-2 TAB technical string/fret representation is not promoted into source musical semantics.
 
@@ -102,14 +132,21 @@ Compatibility processing may construct normalized immutable derived representati
 
 ## Determinism and resource safety
 
-Compatibility work shares the repository processing-runtime boundary and remains subject to fixed limits, deadline/cancellation, bounded collections, and deterministic ordering. A compatibility fix may not solve a blocker by:
+Compatibility work shares the repository processing-runtime boundary and remains subject to fixed limits, deadline/cancellation, bounded collections and deterministic ordering. A compatibility fix may not solve a blocker by:
 
 - raising a fixed ceiling without a separate resource-contract review;
 - reordering candidates;
 - changing physical playability rules;
 - changing solver ranking/cost/tie-break;
+- treating a real tuning/capo change as display-only metadata;
 - using corpus-specific dispatch.
+
+## Stage 03 verification evidence
+
+The source-configuration closeout was verified with focused regressions, full repository tests, protected Node 18/20/22 Tests, MusicXML Compatibility and Runtime Staging E2E.
+
+A separate exact nine-file SHA-selected Stage 03 corpus audit verified 9/9 source identities, deterministic repeated processing and source-byte immutability, with `PRESERVED_CLASSIFICATIONS=9/9` from the pre-fix production main to the audited candidate. That Stage 03 evidence set is separate from the historical corpus pinned by `verification/guitar-tech-real-corpus-manifest.json`.
 
 ## Renderer evidence
 
-The protected compatibility matrix continues to exercise Node.js 18/20/22 and alphaTab import/render/browser-cursor paths. These checks are evidence that serialized output is consumable; they do not grant alphaTab, MuseScore, or another renderer authority to change engine semantics. Synth/player, MuseScore semantic round-trip, PDF, hosted persistence, and product-release readiness remain separate gates unless explicitly verified elsewhere.
+The protected compatibility matrix continues to exercise Node.js 18/20/22 and alphaTab import/render/browser-cursor paths. These checks are evidence that serialized output is consumable; they do not grant alphaTab, MuseScore or another renderer authority to change engine semantics. Synth/player, MuseScore semantic round-trip, PDF, hosted persistence and product-release readiness remain separate gates unless explicitly verified elsewhere.
