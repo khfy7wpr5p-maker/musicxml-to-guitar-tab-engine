@@ -3,6 +3,7 @@
 const { isDeepStrictEqual } = require('node:util');
 const {
   CANONICAL_TAB_RESULT_VERSION,
+  CANONICAL_TAB_RESULT_V1_1_VERSION,
 } = require('./canonicalTabContractMetadata');
 const {
   ROOT,
@@ -257,19 +258,22 @@ function warningIndex(value, expected) {
   }
 }
 
-function validateCanonicalTabResult(value) {
+function validateCanonicalTabResultForSchema(value, {
+  schemaVersion,
+  supportsCapo,
+}) {
   validateJsonGraph(value, ROOT);
   object(value, ROOT);
   if (value.documentType !== 'CanonicalTabResult') {
     invalid(`${ROOT}.documentType`, 'DOCUMENT_TYPE_MISMATCH');
   }
-  if (value.schemaVersion !== CANONICAL_TAB_RESULT_VERSION) {
+  if (value.schemaVersion !== schemaVersion) {
     raise(
       'UNSUPPORTED_CANONICAL_TAB_SCHEMA',
       `${ROOT}.schemaVersion`,
       'UNSUPPORTED_SCHEMA_VERSION',
       'The CanonicalTabResult schema version is not supported.',
-      { expected: CANONICAL_TAB_RESULT_VERSION, actual: value.schemaVersion },
+      { expected: schemaVersion, actual: value.schemaVersion },
     );
   }
 
@@ -277,7 +281,7 @@ function validateCanonicalTabResult(value) {
   engine(value.engine);
   source(value.source);
   equal(value.requiresTeacherReview, true, `${ROOT}.requiresTeacherReview`, 'TEACHER_REVIEW_REQUIRED');
-  const guitarConfig = guitar(value.guitar);
+  const guitarConfig = guitar(value.guitar, { supportsCapo });
   const profileValue = profile(value.fingeringProfile, guitarConfig);
   number(value.totalFingeringCost, `${ROOT}.totalFingeringCost`);
   integer(value.measureCount, `${ROOT}.measureCount`, 1);
@@ -342,7 +346,22 @@ function validateCanonicalTabResult(value) {
   return value;
 }
 
+function validateCanonicalTabResult(value) {
+  return validateCanonicalTabResultForSchema(value, {
+    schemaVersion: CANONICAL_TAB_RESULT_VERSION,
+    supportsCapo: false,
+  });
+}
+
+function validateCanonicalTabResultV1_1(value) {
+  return validateCanonicalTabResultForSchema(value, {
+    schemaVersion: CANONICAL_TAB_RESULT_V1_1_VERSION,
+    supportsCapo: true,
+  });
+}
+
 module.exports = {
   CanonicalTabContractError,
   validateCanonicalTabResult,
+  validateCanonicalTabResultV1_1,
 };
