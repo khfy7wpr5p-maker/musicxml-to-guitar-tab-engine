@@ -1,0 +1,175 @@
+name: Verification Stage03 Main Candidate Corpus Diff
+
+on:
+  pull_request:
+    branches: [stage-03/legacy-tab-after-scope-guard]
+
+permissions:
+  contents: read
+
+jobs:
+  compare-main-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Checkout exact production main baseline
+        uses: actions/checkout@v4
+        with:
+          repository: khfy7wpr5p-maker/musicxml-to-guitar-tab-engine
+          ref: ac4a0310d6ce55d9d5395b7158eb35a66285dffa
+          path: baseline
+          persist-credentials: false
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: khfy7wpr5p-maker/musicxml-to-guitar-tab-engine
+          ref: 8e2bf4114ed092b8877a2139c2695b956471e866
+          path: candidate
+          persist-credentials: false
+
+      - name: Verify exact identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C baseline rev-parse HEAD)" = "ac4a0310d6ce55d9d5395b7158eb35a66285dffa"
+          test "$(git -C candidate rev-parse HEAD)" = "8e2bf4114ed092b8877a2139c2695b956471e866"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Checkout pinned AnimeTAB source
+        uses: actions/checkout@v4
+        with:
+          repository: amamiya-yuuko/AnimeTAB
+          ref: 18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a
+          path: anime
+          persist-credentials: false
+
+      - name: Materialize exact nine sources by SHA
+        shell: bash
+        run: |
+          node <<'NODE'
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./candidate/verification/guitar-tech-real-corpus-manifest.json');
+          const root = path.resolve('anime', 'AnimeTAB', 'Entire songs');
+          const out = '/tmp/stage03-corpus';
+          fs.mkdirSync(out, { recursive: true });
+          const wanted = new Map(manifest.files.map((entry) => [entry.sha256, entry]));
+          const found = new Map();
+          for (const item of fs.readdirSync(root, { withFileTypes: true })) {
+            if (!item.isFile() || !/\.(?:xml|musicxml)$/i.test(item.name)) continue;
+            const full = path.join(root, item.name);
+            const bytes = fs.readFileSync(full);
+            const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+            if (wanted.has(hash)) found.set(hash, bytes);
+          }
+          for (const entry of manifest.files) {
+            const bytes = found.get(entry.sha256);
+            if (!bytes) throw new Error(`Missing SHA ${entry.sha256}`);
+            fs.writeFileSync(path.join(out, entry.fileName), bytes);
+          }
+          if (found.size !== 9) throw new Error(`Expected 9 exact SHA matches, got ${found.size}`);
+          NODE
+
+      - name: Capture main baseline classifications
+        working-directory: baseline
+        shell: bash
+        run: |
+          node <<'NODE' > /tmp/main.json
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const { processMusicXmlUpload } = require('./src/app/musicXmlUploadRuntime');
+          function summarize(entry) {
+            const bytes = fs.readFileSync(path.join('/tmp/stage03-corpus', entry.fileName));
+            const original = Buffer.from(bytes);
+            const first = processMusicXmlUpload({ fileName: entry.fileName, bytes });
+            const second = processMusicXmlUpload({ fileName: entry.fileName, bytes });
+            if (JSON.stringify(first) !== JSON.stringify(second)) throw new Error(`non-deterministic ${entry.fileName}`);
+            if (!bytes.equals(original)) throw new Error(`mutated ${entry.fileName}`);
+            const issues = first?.preflight?.issues || [];
+            const error = issues.find((issue) => issue?.severity === 'error') || null;
+            return {
+              fileName: entry.fileName,
+              sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+              status: first?.status || null,
+              route: first?.route || null,
+              error: error ? {
+                code: error.code || null,
+                feature: error.details?.feature || null,
+                physicalReason: error.details?.physicalReason || null,
+                techniquePath: error.details?.techniqueErrorDetails?.path || null,
+                measureIndex: error.details?.measureIndex ?? error.location?.measureIndex ?? null,
+                timeDivisions: error.details?.timeDivisions ?? null,
+                limit: error.details?.limit ?? null,
+                observed: error.details?.observed ?? null,
+              } : null,
+              canonicalTab: first?.canonicalTabResult ? true : false,
+            };
+          }
+          console.log(JSON.stringify(manifest.files.map(summarize), null, 2));
+          NODE
+
+      - name: Capture candidate classifications
+        working-directory: candidate
+        shell: bash
+        run: |
+          node <<'NODE' > /tmp/candidate.json
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const { processMusicXmlUpload } = require('./src/app/musicXmlUploadRuntime');
+          function summarize(entry) {
+            const bytes = fs.readFileSync(path.join('/tmp/stage03-corpus', entry.fileName));
+            const original = Buffer.from(bytes);
+            const first = processMusicXmlUpload({ fileName: entry.fileName, bytes });
+            const second = processMusicXmlUpload({ fileName: entry.fileName, bytes });
+            if (JSON.stringify(first) !== JSON.stringify(second)) throw new Error(`non-deterministic ${entry.fileName}`);
+            if (!bytes.equals(original)) throw new Error(`mutated ${entry.fileName}`);
+            const issues = first?.preflight?.issues || [];
+            const error = issues.find((issue) => issue?.severity === 'error') || null;
+            return {
+              fileName: entry.fileName,
+              sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+              status: first?.status || null,
+              route: first?.route || null,
+              error: error ? {
+                code: error.code || null,
+                feature: error.details?.feature || null,
+                physicalReason: error.details?.physicalReason || null,
+                techniquePath: error.details?.techniqueErrorDetails?.path || null,
+                measureIndex: error.details?.measureIndex ?? error.location?.measureIndex ?? null,
+                timeDivisions: error.details?.timeDivisions ?? null,
+                limit: error.details?.limit ?? null,
+                observed: error.details?.observed ?? null,
+              } : null,
+              canonicalTab: first?.canonicalTabResult ? true : false,
+            };
+          }
+          console.log(JSON.stringify(manifest.files.map(summarize), null, 2));
+          NODE
+
+      - name: Require 9 of 9 classifications preserved
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'MAIN_BASELINE_BEGIN'; cat /tmp/main.json; echo 'MAIN_BASELINE_END'
+          echo 'CANDIDATE_BEGIN'; cat /tmp/candidate.json; echo 'CANDIDATE_END'
+          cmp /tmp/main.json /tmp/candidate.json
+          node -e "const x=require('/tmp/candidate.json'); if(x.length!==9) process.exit(1); console.log('PRESERVED_CLASSIFICATIONS=9/9')"
