@@ -75,6 +75,7 @@ const SAFE_STAFF_DETAILS_CHILDREN = new Set([
   'staff-lines',
   'staff-size',
   'staff-tuning',
+  'capo',
 ]);
 const SAFE_STAFF_DETAILS_ATTRIBUTES = new Set([
   'number',
@@ -554,6 +555,9 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       ignoredFeatures.add('attributes:staff-details');
       if (directChildren(child, 'staff-tuning').length > 0) {
         ignoredFeatures.add('attributes:staff-tuning-provenance');
+      }
+      if (directChildren(child, 'capo').length > 0) {
+        ignoredFeatures.add('attributes:capo-provenance');
       }
       continue;
     }
