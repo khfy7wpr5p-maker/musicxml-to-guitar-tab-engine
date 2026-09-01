@@ -226,3 +226,51 @@ test('E1 bridge projection is deterministic, deeply immutable and remains intern
   assert.equal(publicApi.createSustainedCanonicalSelectionBridgeProjection, undefined);
   assert.equal(publicApi.SUSTAINED_CANONICAL_SELECTION_BRIDGE_VERSION, undefined);
 });
+
+test('sustained final selector solves retained tied octave displacement at the PA-6 target pitch', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Low tied target</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      <note><pitch><step>G</step><octave>1</octave></pitch><duration>16</duration><tie type="start"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>G</step><octave>1</octave></pitch><duration>16</duration><tie type="stop"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  const source = sourceModel(xml);
+  const decisions = [
+    singleDecision('OCTAVE_DISPLACED', 0, 0),
+    singleDecision('OCTAVE_DISPLACED', 1, 0),
+  ];
+  const projection = createSustainedCanonicalSelectionBridgeProjection(source, decisions);
+  assert.deepEqual(projection.instructions.map(({ sourceMidi, targetMidi, octaveShiftSemitones }) => ({ sourceMidi, targetMidi, octaveShiftSemitones })), [
+    { sourceMidi: 31, targetMidi: 43, octaveShiftSemitones: 12 },
+    { sourceMidi: 31, targetMidi: 43, octaveShiftSemitones: 12 },
+  ]);
+
+  const selection = createSustainedCanonicalFinalSelection(source, decisions);
+  assert.deepEqual(selection.noteSelections.map(({ string, fret }) => ({ string, fret })), [
+    { string: 6, fret: 3 },
+    { string: 6, fret: 3 },
+  ]);
+
+  const canonical = createCanonicalTabResultV2(source, decisions);
+  assert.deepEqual(canonical.noteDispositions.map(({ targetPitch, selectedPosition }) => ({ targetPitch, selectedPosition })), [
+    { targetPitch: { step: 'G', alter: 0, octave: 2, midi: 43, written: 'G2' }, selectedPosition: { string: 6, fret: 3 } },
+    { targetPitch: { step: 'G', alter: 0, octave: 2, midi: 43, written: 'G2' }, selectedPosition: { string: 6, fret: 3 } },
+  ]);
+});
+
+test('sustained target projection remains fail-closed when any source note is omitted', () => {
+  const source = sourceModel(score(note('C')));
+  assert.throws(
+    () => createSustainedCanonicalFinalSelection(source, [singleDecision('OMITTED')]),
+    (error) => error
+      && error.code === 'UNSUPPORTED_SUSTAINED_TARGET_SOURCE_PROJECTION'
+      && error.details.reason === 'OMITTED_SOURCE_NOTE_NOT_SUPPORTED',
+  );
+});
