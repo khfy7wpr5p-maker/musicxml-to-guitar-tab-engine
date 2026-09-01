@@ -124,6 +124,25 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Diagnose Drop-D POLY result
+        run: |
+          node <<'NODE'
+          'use strict';
+          const { processMusicXmlUpload } = require('./src/app/musicXmlUploadRuntime');
+          const staff = '<staff-details><staff-lines>6</staff-lines>'
+            + '<staff-tuning line="1"><tuning-step>D</tuning-step><tuning-octave>2</tuning-octave></staff-tuning>'
+            + '<staff-tuning line="2"><tuning-step>A</tuning-step><tuning-octave>2</tuning-octave></staff-tuning>'
+            + '<staff-tuning line="3"><tuning-step>D</tuning-step><tuning-octave>3</tuning-octave></staff-tuning>'
+            + '<staff-tuning line="4"><tuning-step>G</tuning-step><tuning-octave>3</tuning-octave></staff-tuning>'
+            + '<staff-tuning line="5"><tuning-step>B</tuning-step><tuning-octave>3</tuning-octave></staff-tuning>'
+            + '<staff-tuning line="6"><tuning-step>E</tuning-step><tuning-octave>4</tuning-octave></staff-tuning>'
+            + '</staff-details>';
+          const xml = `<?xml version="1.0" encoding="UTF-8"?>
+          <score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staff}</attributes><note><pitch><step>D</step><octave>2</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note><backup><duration>1</duration></backup><note><pitch><step>A</step><octave>2</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`;
+          const result = processMusicXmlUpload({ fileName: 'drop-d-poly.musicxml', bytes: Buffer.from(xml) });
+          console.log(JSON.stringify({ status: result.status, route: result.route, issues: result.preflight?.issues || [], guitar: result.canonicalTabResult?.guitar || null, dispositions: result.canonicalTabResult?.noteDispositions || null }, null, 2));
+          NODE
+
       - name: Run custom-tuning admission contract
         run: node --test tests/customTuningUploadRuntime.test.js tests/guitarConfigurationProvenance.test.js tests/guitarArrangementRegister.test.js tests/musicXmlUploadRuntime.test.js
 
