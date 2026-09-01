@@ -5,6 +5,7 @@ const { validateCanonicalTabResult } = require('./canonicalTabResultContract');
 const { validateCanonicalTabResultV1_1 } = require('./canonicalTabResultContract');
 const {
   CANONICAL_TAB_RESULT_V2_VERSION,
+  CANONICAL_TAB_RESULT_V2_CAPO_VERSION,
   validateCanonicalTabResultV2,
 } = require('./canonicalTabResultV2Contract');
 const {
@@ -69,7 +70,10 @@ function dispatchCanonicalTabResult(value) {
   if (schemaVersion === CANONICAL_TAB_RESULT_V1_1_VERSION) {
     return validateCanonicalTabResultV1_1(value);
   }
-  if (schemaVersion === CANONICAL_TAB_RESULT_V2_VERSION) {
+  if (
+    schemaVersion === CANONICAL_TAB_RESULT_V2_VERSION
+    || schemaVersion === CANONICAL_TAB_RESULT_V2_CAPO_VERSION
+  ) {
     return validateCanonicalTabResultV2(value);
   }
   dispatchFailure('UNSUPPORTED_CANONICAL_VERSION', 'UNREGISTERED_EXACT_VERSION', {
