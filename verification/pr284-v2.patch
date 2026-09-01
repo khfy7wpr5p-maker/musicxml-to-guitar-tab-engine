@@ -1,0 +1,378 @@
+--- a/src/music/sustainedGuitarPositionStateModel.js
++++ b/src/music/sustainedGuitarPositionStateModel.js
+@@ -103,7 +103,39 @@
+   });
+ }
+ 
+-function buildPositionLayers(point, runtime, location, configuration) {
++function resolveTargetMidi(targetMidiBySourceEventId, fact) {
++  if (targetMidiBySourceEventId === null || targetMidiBySourceEventId === undefined) {
++    return fact.pitch.midi;
++  }
++  if (
++    typeof targetMidiBySourceEventId !== 'object'
++    || Array.isArray(targetMidiBySourceEventId)
++    || Object.getPrototypeOf(targetMidiBySourceEventId) !== null
++    || !Object.isFrozen(targetMidiBySourceEventId)
++  ) {
++    throw invalid('PS-4A target MIDI index must be a frozen null-prototype object.', {
++      field: 'targetMidiBySourceEventId',
++    });
++  }
++  const descriptor = Object.getOwnPropertyDescriptor(
++    targetMidiBySourceEventId,
++    fact.sourceEventId,
++  );
++  if (
++    !descriptor
++    || !Object.hasOwn(descriptor, 'value')
++    || descriptor.enumerable !== true
++    || !Number.isSafeInteger(descriptor.value)
++    || Object.is(descriptor.value, -0)
++  ) {
++    throw invalid('PS-4A target MIDI index lost exact source-event target provenance.', {
++      sourceEventId: fact.sourceEventId,
++    });
++  }
++  return descriptor.value;
++}
++
++function buildPositionLayers(point, runtime, location, configuration, targetMidiBySourceEventId) {
+   const layers = new Array(point.activeNotes.length);
+   for (let noteIndex = 0; noteIndex < point.activeNotes.length; noteIndex += 1) {
+     checkpoint(runtime, 'sustained-guitar-position-state:note', {
+@@ -111,7 +143,7 @@
+       noteIndex,
+     });
+     const fact = point.activeNotes[noteIndex];
+-    const targetMidi = fact.pitch.midi;
++    const targetMidi = resolveTargetMidi(targetMidiBySourceEventId, fact);
+     const positions = getPositionCandidates(targetMidi, configuration);
+     const normalized = new Array(positions.length);
+     for (let positionIndex = 0; positionIndex < positions.length; positionIndex += 1) {
+@@ -145,7 +177,14 @@
+   )).join(';');
+ }
+ 
+-function enumerateStates(point, runtime, location, aggregateCounter, configuration) {
++function enumerateStates(
++  point,
++  runtime,
++  location,
++  aggregateCounter,
++  configuration,
++  targetMidiBySourceEventId,
++) {
+   if (point.activeNotes.length === 0) {
+     return Object.freeze({
+       status: SUSTAINED_POSITION_POINT_STATUS.EMPTY_SONORITY,
+@@ -161,7 +200,13 @@
+     });
+   }
+ 
+-  const layers = buildPositionLayers(point, runtime, location, configuration);
++  const layers = buildPositionLayers(
++    point,
++    runtime,
++    location,
++    configuration,
++    targetMidiBySourceEventId,
++  );
+   if (layers.some((layer) => layer.length === 0)) {
+     return Object.freeze({
+       status: SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT,
+@@ -243,7 +288,12 @@
+   });
+ }
+ 
+-function createSustainedGuitarPositionStateModel(sourceModel, runtime = null, guitarOptions = {}) {
++function createSustainedGuitarPositionStateModel(
++  sourceModel,
++  runtime = null,
++  guitarOptions = {},
++  targetMidiBySourceEventId = null,
++) {
+   checkpoint(runtime, 'sustained-guitar-position-state:start');
+   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+   const configuration = createGuitarConfiguration(guitarOptions);
+@@ -266,6 +316,7 @@
+         { measureIndex, pointIndex, sonorityPointId: sonorityPoint.sonorityPointId },
+         aggregateCounter,
+         configuration,
++        targetMidiBySourceEventId,
+       );
+       if (enumerated.status === SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT) {
+         unplayablePointCount += 1;
+--- a/src/music/sustainedLeftHandPhysicalStateModel.js
++++ b/src/music/sustainedLeftHandPhysicalStateModel.js
+@@ -146,10 +146,20 @@
+   });
+ }
+ 
+-function createSustainedLeftHandPhysicalStateModel(sourceModel, runtime = null, guitarOptions = {}) {
++function createSustainedLeftHandPhysicalStateModel(
++  sourceModel,
++  runtime = null,
++  guitarOptions = {},
++  targetMidiBySourceEventId = null,
++) {
+   checkpoint(runtime, 'sustained-left-hand-physical:start');
+   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+-  const positionModel = createSustainedGuitarPositionStateModel(source, runtime, guitarOptions);
++  const positionModel = createSustainedGuitarPositionStateModel(
++    source,
++    runtime,
++    guitarOptions,
++    targetMidiBySourceEventId,
++  );
+   const shapeCounters = { shapeCandidates: 0, assignmentAttempts: 0 };
+   const measures = [];
+   let pointCount = 0;
+--- a/src/music/sustainedGuitarTransitionModel.js
++++ b/src/music/sustainedGuitarTransitionModel.js
+@@ -286,10 +286,20 @@
+   });
+ }
+ 
+-function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guitarOptions = {}) {
++function createSustainedGuitarTransitionModel(
++  sourceModel,
++  runtime = null,
++  guitarOptions = {},
++  targetMidiBySourceEventId = null,
++) {
+   checkpoint(runtime, 'sustained-guitar-transition:start');
+   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+-  const positions = createSustainedGuitarPositionStateModel(source, runtime, guitarOptions);
++  const positions = createSustainedGuitarPositionStateModel(
++    source,
++    runtime,
++    guitarOptions,
++    targetMidiBySourceEventId,
++  );
+   const points = flattenPoints(positions);
+   const transitions = [];
+   const aggregateCounter = { count: 0 };
+--- a/src/music/sustainedPolyphonicPathSolver.js
++++ b/src/music/sustainedPolyphonicPathSolver.js
+@@ -645,11 +645,26 @@
+   });
+ }
+ 
+-function createSustainedPolyphonicPathSelection(sourceModel, runtime = null, guitarOptions = {}) {
++function createSustainedPolyphonicPathSelection(
++  sourceModel,
++  runtime = null,
++  guitarOptions = {},
++  targetMidiBySourceEventId = null,
++) {
+   checkpoint(runtime, 'sustained-polyphonic-path:start');
+   const source = validatePolyphonicSourceModel(sourceModel, runtime);
+-  const physical = createSustainedLeftHandPhysicalStateModel(source, runtime, guitarOptions);
+-  const transitions = createSustainedGuitarTransitionModel(source, runtime, guitarOptions);
++  const physical = createSustainedLeftHandPhysicalStateModel(
++    source,
++    runtime,
++    guitarOptions,
++    targetMidiBySourceEventId,
++  );
++  const transitions = createSustainedGuitarTransitionModel(
++    source,
++    runtime,
++    guitarOptions,
++    targetMidiBySourceEventId,
++  );
+   validateModelHeaders(source, physical, transitions);
+   const points = flattenPhysicalPoints(physical);
+ 
+--- a/src/music/sustainedCanonicalFinalSelector.js
++++ b/src/music/sustainedCanonicalFinalSelector.js
+@@ -8,9 +8,6 @@
+ const {
+   createSustainedPolyphonicPathSelection,
+ } = require('./sustainedPolyphonicPathSolver');
+-const {
+-  createSustainedTargetSourceProjection,
+-} = require('./sustainedTargetSourceProjection');
+ 
+ class SustainedCanonicalFinalSelectionError extends EngineError {
+   constructor(message, details = {}) {
+@@ -27,6 +24,86 @@
+   return new SustainedCanonicalFinalSelectionError(message, { reason, ...details });
+ }
+ 
++
++function createTargetMidiBySourceEventId(sourceModel, projection) {
++  const sourceMidiById = new Map();
++  for (const measure of sourceModel.measures) {
++    for (const event of measure.events) {
++      if (event.type === 'note') sourceMidiById.set(event.sourceEventId, event.pitch.midi);
++    }
++  }
++
++  const targetMidiBySourceEventId = Object.create(null);
++  for (const instruction of projection.instructions) {
++    const sourceMidi = sourceMidiById.get(instruction.sourceEventId);
++    if (!Number.isSafeInteger(sourceMidi)) {
++      throw unsupported(
++        'Sustained target MIDI projection lost exact source-note provenance.',
++        'MISSING_TARGET_SOURCE_NOTE',
++        { sourceEventId: instruction.sourceEventId },
++      );
++    }
++    if (Object.hasOwn(targetMidiBySourceEventId, instruction.sourceEventId)) {
++      throw unsupported(
++        'Sustained target MIDI projection contains duplicate source-event instructions.',
++        'DUPLICATE_TARGET_INSTRUCTION',
++        { sourceEventId: instruction.sourceEventId },
++      );
++    }
++    if (instruction.disposition !== 'KEEP') {
++      throw unsupported(
++        'Sustained target-pitch selection requires every source note to be retained.',
++        'OMITTED_SOURCE_NOTE_NOT_SUPPORTED',
++        {
++          sourceEventId: instruction.sourceEventId,
++          disposition: instruction.disposition,
++        },
++      );
++    }
++    const shift = instruction.octaveShiftSemitones;
++    if (
++      !Number.isSafeInteger(instruction.sourceMidi)
++      || !Number.isSafeInteger(instruction.targetMidi)
++      || !Number.isSafeInteger(shift)
++      || Object.is(instruction.sourceMidi, -0)
++      || Object.is(instruction.targetMidi, -0)
++      || Object.is(shift, -0)
++      || instruction.sourceMidi !== sourceMidi
++      || instruction.targetMidi !== instruction.sourceMidi + shift
++      || shift % 12 !== 0
++    ) {
++      throw unsupported(
++        'Sustained target-pitch selection requires an exact whole-octave PA-6 target.',
++        'INVALID_TARGET_PITCH_PROJECTION',
++        {
++          sourceEventId: instruction.sourceEventId,
++          sourceMidi: instruction.sourceMidi,
++          targetMidi: instruction.targetMidi,
++          octaveShiftSemitones: shift,
++          observedSourceMidi: sourceMidi,
++        },
++      );
++    }
++    Object.defineProperty(targetMidiBySourceEventId, instruction.sourceEventId, {
++      value: instruction.targetMidi,
++      enumerable: true,
++      writable: false,
++      configurable: false,
++    });
++  }
++
++  for (const sourceEventId of sourceMidiById.keys()) {
++    if (!Object.hasOwn(targetMidiBySourceEventId, sourceEventId)) {
++      throw unsupported(
++        'Sustained target MIDI projection is missing a source-note instruction.',
++        'MISSING_TARGET_INSTRUCTION',
++        { sourceEventId },
++      );
++    }
++  }
++  return Object.freeze(targetMidiBySourceEventId);
++}
++
+ function assertNoIndependentSourceVoiceOverlap(source, runtime) {
+   for (let measureIndex = 0; measureIndex < source.measures.length; measureIndex += 1) {
+     const measure = source.measures[measureIndex];
+@@ -84,16 +161,16 @@
+     arrangementDecisions,
+     runtime,
+   );
+-  const targetProjection = createSustainedTargetSourceProjection(
++  const targetMidiBySourceEventId = createTargetMidiBySourceEventId(sourceModel, projection);
++  assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);
++
++  const grouping = createSimultaneousEventModel(sourceModel, runtime);
++  const path = createSustainedPolyphonicPathSelection(
+     sourceModel,
+-    projection,
+     runtime,
++    guitarOptions,
++    targetMidiBySourceEventId,
+   );
+-  const targetSourceModel = targetProjection.projectedSourceModel;
+-  assertNoIndependentSourceVoiceOverlap(targetSourceModel, runtime);
+-
+-  const grouping = createSimultaneousEventModel(targetSourceModel, runtime);
+-  const path = createSustainedPolyphonicPathSelection(targetSourceModel, runtime, guitarOptions);
+   const logicalBySourceEventId = new Map();
+   for (const logical of path.logicalNoteSelections) {
+     for (const sourceEventId of logical.sourceEventIds) {
+--- a/tests/sustainedCanonicalSelectionBridgeV1.test.js
++++ b/tests/sustainedCanonicalSelectionBridgeV1.test.js
+@@ -18,6 +18,10 @@
+   createSustainedCanonicalFinalSelection,
+ } = require('../src/music/sustainedCanonicalFinalSelector');
+ const {
++  SUSTAINED_POSITION_POINT_STATUS,
++  createSustainedGuitarPositionStateModel,
++} = require('../src/music/sustainedGuitarPositionStateModel');
++const {
+   createCanonicalTabResultV2,
+ } = require('../src/tab/canonicalTabResultV2');
+ 
+@@ -270,7 +274,53 @@
+   assert.throws(
+     () => createSustainedCanonicalFinalSelection(source, [singleDecision('OMITTED')]),
+     (error) => error
+-      && error.code === 'UNSUPPORTED_SUSTAINED_TARGET_SOURCE_PROJECTION'
++      && error.code === 'UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION'
+       && error.details.reason === 'OMITTED_SOURCE_NOTE_NOT_SUPPORTED',
+   );
+ });
++
++
++test('target MIDI injection preserves distinct source tie identities when octave targets collide', () => {
++  const xml = `<?xml version="1.0" encoding="UTF-8"?>
++<score-partwise version="4.0">
++  <part-list><score-part id="P1"><part-name>Target unison ties</part-name></score-part></part-list>
++  <part id="P1">
++    <measure number="1">
++      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
++      <note><pitch><step>B</step><octave>1</octave></pitch><duration>16</duration><tie type="start"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
++      <backup><duration>16</duration></backup>
++      <note><pitch><step>B</step><octave>2</octave></pitch><duration>16</duration><tie type="start"/><voice>2</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
++    </measure>
++    <measure number="2">
++      <note><pitch><step>B</step><octave>1</octave></pitch><duration>16</duration><tie type="stop"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
++      <backup><duration>16</duration></backup>
++      <note><pitch><step>B</step><octave>2</octave></pitch><duration>16</duration><tie type="stop"/><voice>2</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
++    </measure>
++  </part>
++</score-partwise>`;
++  const source = sourceModel(xml);
++  const targets = Object.create(null);
++  for (const measure of source.measures) {
++    for (const event of measure.events) {
++      if (event.type === 'note') {
++        Object.defineProperty(targets, event.sourceEventId, {
++          value: 47,
++          enumerable: true,
++          writable: false,
++          configurable: false,
++        });
++      }
++    }
++  }
++  Object.freeze(targets);
++
++  const model = createSustainedGuitarPositionStateModel(source, null, {}, targets);
++  assert.equal(model.measures[0].points[0].status, SUSTAINED_POSITION_POINT_STATUS.CANDIDATES_AVAILABLE);
++  assert.equal(model.measures[1].points[0].status, SUSTAINED_POSITION_POINT_STATUS.CANDIDATES_AVAILABLE);
++  assert.ok(model.measures[0].points[0].candidates.length > 0);
++  assert.ok(model.measures[1].points[0].candidates.length > 0);
++  assert.ok(model.measures[0].points[0].candidates.every((candidate) => (
++    candidate.positions.length === 2
++    && candidate.positions.every((position) => position.targetMidi === 47)
++  )));
++});
