@@ -286,10 +286,20 @@ function createTransition(previousPoint, currentPoint, runtime, transitionIndex,
   });
 }
 
-function createSustainedGuitarTransitionModel(sourceModel, runtime = null, guitarOptions = {}) {
+function createSustainedGuitarTransitionModel(
+  sourceModel,
+  runtime = null,
+  guitarOptions = {},
+  targetMidiBySourceEventId = null,
+) {
   checkpoint(runtime, 'sustained-guitar-transition:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
-  const positions = createSustainedGuitarPositionStateModel(source, runtime, guitarOptions);
+  const positions = createSustainedGuitarPositionStateModel(
+    source,
+    runtime,
+    guitarOptions,
+    targetMidiBySourceEventId,
+  );
   const points = flattenPoints(positions);
   const transitions = [];
   const aggregateCounter = { count: 0 };

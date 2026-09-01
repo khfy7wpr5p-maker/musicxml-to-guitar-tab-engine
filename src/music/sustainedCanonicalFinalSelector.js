@@ -8,9 +8,6 @@ const {
 const {
   createSustainedPolyphonicPathSelection,
 } = require('./sustainedPolyphonicPathSolver');
-const {
-  createSustainedTargetSourceProjection,
-} = require('./sustainedTargetSourceProjection');
 
 class SustainedCanonicalFinalSelectionError extends EngineError {
   constructor(message, details = {}) {
@@ -25,6 +22,86 @@ class SustainedCanonicalFinalSelectionError extends EngineError {
 
 function unsupported(message, reason, details = {}) {
   return new SustainedCanonicalFinalSelectionError(message, { reason, ...details });
+}
+
+
+function createTargetMidiBySourceEventId(sourceModel, projection) {
+  const sourceMidiById = new Map();
+  for (const measure of sourceModel.measures) {
+    for (const event of measure.events) {
+      if (event.type === 'note') sourceMidiById.set(event.sourceEventId, event.pitch.midi);
+    }
+  }
+
+  const targetMidiBySourceEventId = Object.create(null);
+  for (const instruction of projection.instructions) {
+    const sourceMidi = sourceMidiById.get(instruction.sourceEventId);
+    if (!Number.isSafeInteger(sourceMidi)) {
+      throw unsupported(
+        'Sustained target MIDI projection lost exact source-note provenance.',
+        'MISSING_TARGET_SOURCE_NOTE',
+        { sourceEventId: instruction.sourceEventId },
+      );
+    }
+    if (Object.hasOwn(targetMidiBySourceEventId, instruction.sourceEventId)) {
+      throw unsupported(
+        'Sustained target MIDI projection contains duplicate source-event instructions.',
+        'DUPLICATE_TARGET_INSTRUCTION',
+        { sourceEventId: instruction.sourceEventId },
+      );
+    }
+    if (instruction.disposition !== 'KEEP') {
+      throw unsupported(
+        'Sustained target-pitch selection requires every source note to be retained.',
+        'OMITTED_SOURCE_NOTE_NOT_SUPPORTED',
+        {
+          sourceEventId: instruction.sourceEventId,
+          disposition: instruction.disposition,
+        },
+      );
+    }
+    const shift = instruction.octaveShiftSemitones;
+    if (
+      !Number.isSafeInteger(instruction.sourceMidi)
+      || !Number.isSafeInteger(instruction.targetMidi)
+      || !Number.isSafeInteger(shift)
+      || Object.is(instruction.sourceMidi, -0)
+      || Object.is(instruction.targetMidi, -0)
+      || Object.is(shift, -0)
+      || instruction.sourceMidi !== sourceMidi
+      || instruction.targetMidi !== instruction.sourceMidi + shift
+      || shift % 12 !== 0
+    ) {
+      throw unsupported(
+        'Sustained target-pitch selection requires an exact whole-octave PA-6 target.',
+        'INVALID_TARGET_PITCH_PROJECTION',
+        {
+          sourceEventId: instruction.sourceEventId,
+          sourceMidi: instruction.sourceMidi,
+          targetMidi: instruction.targetMidi,
+          octaveShiftSemitones: shift,
+          observedSourceMidi: sourceMidi,
+        },
+      );
+    }
+    Object.defineProperty(targetMidiBySourceEventId, instruction.sourceEventId, {
+      value: instruction.targetMidi,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
+  }
+
+  for (const sourceEventId of sourceMidiById.keys()) {
+    if (!Object.hasOwn(targetMidiBySourceEventId, sourceEventId)) {
+      throw unsupported(
+        'Sustained target MIDI projection is missing a source-note instruction.',
+        'MISSING_TARGET_INSTRUCTION',
+        { sourceEventId },
+      );
+    }
+  }
+  return Object.freeze(targetMidiBySourceEventId);
 }
 
 function assertNoIndependentSourceVoiceOverlap(source, runtime) {
@@ -84,16 +161,16 @@ function createSustainedCanonicalFinalSelection(
     arrangementDecisions,
     runtime,
   );
-  const targetProjection = createSustainedTargetSourceProjection(
-    sourceModel,
-    projection,
-    runtime,
-  );
-  const targetSourceModel = targetProjection.projectedSourceModel;
-  assertNoIndependentSourceVoiceOverlap(targetSourceModel, runtime);
+  const targetMidiBySourceEventId = createTargetMidiBySourceEventId(sourceModel, projection);
+  assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);
 
-  const grouping = createSimultaneousEventModel(targetSourceModel, runtime);
-  const path = createSustainedPolyphonicPathSelection(targetSourceModel, runtime, guitarOptions);
+  const grouping = createSimultaneousEventModel(sourceModel, runtime);
+  const path = createSustainedPolyphonicPathSelection(
+    sourceModel,
+    runtime,
+    guitarOptions,
+    targetMidiBySourceEventId,
+  );
   const logicalBySourceEventId = new Map();
   for (const logical of path.logicalNoteSelections) {
     for (const sourceEventId of logical.sourceEventIds) {

@@ -103,7 +103,39 @@ function noteDisposition(point, logicalNoteId) {
   });
 }
 
-function buildPositionLayers(point, runtime, location, configuration) {
+function resolveTargetMidi(targetMidiBySourceEventId, fact) {
+  if (targetMidiBySourceEventId === null || targetMidiBySourceEventId === undefined) {
+    return fact.pitch.midi;
+  }
+  if (
+    typeof targetMidiBySourceEventId !== 'object'
+    || Array.isArray(targetMidiBySourceEventId)
+    || Object.getPrototypeOf(targetMidiBySourceEventId) !== null
+    || !Object.isFrozen(targetMidiBySourceEventId)
+  ) {
+    throw invalid('PS-4A target MIDI index must be a frozen null-prototype object.', {
+      field: 'targetMidiBySourceEventId',
+    });
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(
+    targetMidiBySourceEventId,
+    fact.sourceEventId,
+  );
+  if (
+    !descriptor
+    || !Object.hasOwn(descriptor, 'value')
+    || descriptor.enumerable !== true
+    || !Number.isSafeInteger(descriptor.value)
+    || Object.is(descriptor.value, -0)
+  ) {
+    throw invalid('PS-4A target MIDI index lost exact source-event target provenance.', {
+      sourceEventId: fact.sourceEventId,
+    });
+  }
+  return descriptor.value;
+}
+
+function buildPositionLayers(point, runtime, location, configuration, targetMidiBySourceEventId) {
   const layers = new Array(point.activeNotes.length);
   for (let noteIndex = 0; noteIndex < point.activeNotes.length; noteIndex += 1) {
     checkpoint(runtime, 'sustained-guitar-position-state:note', {
@@ -111,7 +143,7 @@ function buildPositionLayers(point, runtime, location, configuration) {
       noteIndex,
     });
     const fact = point.activeNotes[noteIndex];
-    const targetMidi = fact.pitch.midi;
+    const targetMidi = resolveTargetMidi(targetMidiBySourceEventId, fact);
     const positions = getPositionCandidates(targetMidi, configuration);
     const normalized = new Array(positions.length);
     for (let positionIndex = 0; positionIndex < positions.length; positionIndex += 1) {
@@ -145,7 +177,14 @@ function stateSignature(positions) {
   )).join(';');
 }
 
-function enumerateStates(point, runtime, location, aggregateCounter, configuration) {
+function enumerateStates(
+  point,
+  runtime,
+  location,
+  aggregateCounter,
+  configuration,
+  targetMidiBySourceEventId,
+) {
   if (point.activeNotes.length === 0) {
     return Object.freeze({
       status: SUSTAINED_POSITION_POINT_STATUS.EMPTY_SONORITY,
@@ -161,7 +200,13 @@ function enumerateStates(point, runtime, location, aggregateCounter, configurati
     });
   }
 
-  const layers = buildPositionLayers(point, runtime, location, configuration);
+  const layers = buildPositionLayers(
+    point,
+    runtime,
+    location,
+    configuration,
+    targetMidiBySourceEventId,
+  );
   if (layers.some((layer) => layer.length === 0)) {
     return Object.freeze({
       status: SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT,
@@ -243,7 +288,12 @@ function enumerateStates(point, runtime, location, aggregateCounter, configurati
   });
 }
 
-function createSustainedGuitarPositionStateModel(sourceModel, runtime = null, guitarOptions = {}) {
+function createSustainedGuitarPositionStateModel(
+  sourceModel,
+  runtime = null,
+  guitarOptions = {},
+  targetMidiBySourceEventId = null,
+) {
   checkpoint(runtime, 'sustained-guitar-position-state:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const configuration = createGuitarConfiguration(guitarOptions);
@@ -266,6 +316,7 @@ function createSustainedGuitarPositionStateModel(sourceModel, runtime = null, gu
         { measureIndex, pointIndex, sonorityPointId: sonorityPoint.sonorityPointId },
         aggregateCounter,
         configuration,
+        targetMidiBySourceEventId,
       );
       if (enumerated.status === SUSTAINED_POSITION_POINT_STATUS.UNPLAYABLE_EXACT) {
         unplayablePointCount += 1;

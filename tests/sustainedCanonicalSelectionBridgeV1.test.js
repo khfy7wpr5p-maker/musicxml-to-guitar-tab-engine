@@ -18,6 +18,10 @@ const {
   createSustainedCanonicalFinalSelection,
 } = require('../src/music/sustainedCanonicalFinalSelector');
 const {
+  SUSTAINED_POSITION_POINT_STATUS,
+  createSustainedGuitarPositionStateModel,
+} = require('../src/music/sustainedGuitarPositionStateModel');
+const {
   createCanonicalTabResultV2,
 } = require('../src/tab/canonicalTabResultV2');
 
@@ -270,7 +274,53 @@ test('sustained target projection remains fail-closed when any source note is om
   assert.throws(
     () => createSustainedCanonicalFinalSelection(source, [singleDecision('OMITTED')]),
     (error) => error
-      && error.code === 'UNSUPPORTED_SUSTAINED_TARGET_SOURCE_PROJECTION'
+      && error.code === 'UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION'
       && error.details.reason === 'OMITTED_SOURCE_NOTE_NOT_SUPPORTED',
   );
+});
+
+
+test('target MIDI injection preserves distinct source tie identities when octave targets collide', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Target unison ties</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      <note><pitch><step>B</step><octave>1</octave></pitch><duration>16</duration><tie type="start"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
+      <backup><duration>16</duration></backup>
+      <note><pitch><step>B</step><octave>2</octave></pitch><duration>16</duration><tie type="start"/><voice>2</voice><type>whole</type><staff>1</staff><notations><tied type="start"/></notations></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>B</step><octave>1</octave></pitch><duration>16</duration><tie type="stop"/><voice>1</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
+      <backup><duration>16</duration></backup>
+      <note><pitch><step>B</step><octave>2</octave></pitch><duration>16</duration><tie type="stop"/><voice>2</voice><type>whole</type><staff>1</staff><notations><tied type="stop"/></notations></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  const source = sourceModel(xml);
+  const targets = Object.create(null);
+  for (const measure of source.measures) {
+    for (const event of measure.events) {
+      if (event.type === 'note') {
+        Object.defineProperty(targets, event.sourceEventId, {
+          value: 47,
+          enumerable: true,
+          writable: false,
+          configurable: false,
+        });
+      }
+    }
+  }
+  Object.freeze(targets);
+
+  const model = createSustainedGuitarPositionStateModel(source, null, {}, targets);
+  assert.equal(model.measures[0].points[0].status, SUSTAINED_POSITION_POINT_STATUS.CANDIDATES_AVAILABLE);
+  assert.equal(model.measures[1].points[0].status, SUSTAINED_POSITION_POINT_STATUS.CANDIDATES_AVAILABLE);
+  assert.ok(model.measures[0].points[0].candidates.length > 0);
+  assert.ok(model.measures[1].points[0].candidates.length > 0);
+  assert.ok(model.measures[0].points[0].candidates.every((candidate) => (
+    candidate.positions.length === 2
+    && candidate.positions.every((position) => position.targetMidi === 47)
+  )));
 });
