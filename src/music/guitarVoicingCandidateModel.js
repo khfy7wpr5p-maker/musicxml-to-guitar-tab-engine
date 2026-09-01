@@ -231,7 +231,7 @@ function createGuitarVoicingCandidateModel(
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const configuration = createGuitarConfiguration(guitarOptions);
   const grouping = createSimultaneousEventModel(source, runtime);
-  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
+  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime, guitarOptions);
   const instructionsBySourceEventId = buildInstructionIndex(reduction, runtime);
 
   const groups = [];

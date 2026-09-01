@@ -160,6 +160,7 @@ function createSustainedCanonicalFinalSelection(
     sourceModel,
     arrangementDecisions,
     runtime,
+    guitarOptions,
   );
   const targetMidiBySourceEventId = createTargetMidiBySourceEventId(sourceModel, projection);
   assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);

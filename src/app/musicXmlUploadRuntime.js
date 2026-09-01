@@ -3,13 +3,11 @@
 const crypto = require('node:crypto');
 const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
-const { createGuitarConfiguration } = require('../guitar/tuning');
 const {
   extractMusicXmlGuitarConfigurationProvenance,
 } = require('../parser/musicXmlGuitarConfigurationProvenance');
 const {
   resolveGuitarConfigurationAuthority,
-  sameConfiguration,
 } = require('../guitar/guitarConfigurationAuthority');
 const {
   STANDARD_GUITAR_WORKBENCH_TARGET,
@@ -81,8 +79,6 @@ const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
   TYPED_ARRAY_PROTOTYPE,
   'byteLength',
 ).get;
-
-const STANDARD_GUITAR = createGuitarConfiguration();
 
 class MusicXmlUploadRuntimeError extends EngineError {
   constructor(message, code = 'INVALID_UPLOAD_REQUEST', details = {}) {
@@ -327,52 +323,62 @@ function noRepresentationNormalization() {
   });
 }
 
-function hasExplicitCapoDeclaration(parsedDocument) {
+function directMusicXmlChildren(node, name) {
+  return node.children.filter((child) => child.name === name && child.uri === node.uri);
+}
+
+function musicXmlAttribute(node, name) {
+  const matches = node.attributes.filter((item) => item.name === name && item.uri.length === 0);
+  return matches.length === 1 ? matches[0].value : null;
+}
+
+function hasTabClefForStaff(attributes, staffNumber) {
+  return directMusicXmlChildren(attributes, 'clef').some((clef) => (
+    (musicXmlAttribute(clef, 'number') || '1') === staffNumber
+    && directMusicXmlChildren(clef, 'sign').some((sign) => sign.text.trim() === 'TAB')
+  ));
+}
+
+function hasLegacyTabPresentationOnlyTuning(parsedDocument) {
   const pending = [parsedDocument.root];
   while (pending.length > 0) {
     const node = pending.pop();
-    if (node.name === 'capo') return true;
+    if (node.name === 'attributes') {
+      for (const staffDetails of directMusicXmlChildren(node, 'staff-details')) {
+        const hasTuning = directMusicXmlChildren(staffDetails, 'staff-tuning').length > 0;
+        const hasCapo = directMusicXmlChildren(staffDetails, 'capo').length > 0;
+        const staffNumber = musicXmlAttribute(staffDetails, 'number') || '1';
+        if (hasTuning && !hasCapo && hasTabClefForStaff(node, staffNumber)) return true;
+      }
+    }
     for (const child of node.children) pending.push(child);
   }
   return false;
 }
 
 function assertSupportedSourceGuitarConfiguration(parsedDocument) {
-  // Existing Guitar Pro-compatible input can include partial or presentation
-  // `staff-tuning` facts which are deliberately provenance-only today. A capo
-  // changes every physical fret calculation, so it is the bounded source
-  // declaration that cannot safely be ignored by the fixed-profile runtime.
-  if (!hasExplicitCapoDeclaration(parsedDocument)) {
-    return Object.freeze({
-      authority: 'STANDARD_DEFAULT',
-      sourceStatus: 'CAPO_ABSENT',
-    });
+  let sourceProvenance;
+  try {
+    sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
+  } catch (error) {
+    // Existing producer exports can carry incomplete or display-oriented TAB
+    // staff-tuning facts. Without a capo they are not executable tuning
+    // authority; preserve their established provenance-only interpretation.
+    if (hasLegacyTabPresentationOnlyTuning(parsedDocument)) {
+      return Object.freeze({
+        authority: 'STANDARD_DEFAULT',
+        sourceStatus: 'TAB_PRESENTATION_PROVENANCE_ONLY',
+      });
+    }
+    throw error;
   }
-  const sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
   const resolved = resolveGuitarConfigurationAuthority({ sourceProvenance });
 
-  // An explicit capo is supported by the bounded MONO V1.1 and POLY V2.1
-  // production paths. Any source tuning change remains outside the serialized
-  // contract and is therefore rejected rather than silently reinterpreted.
-  const sameTuning = sameConfiguration(
-    createGuitarConfiguration({
-      tuning: resolved.configuration.tuning,
-      minimumFret: resolved.configuration.minimumFret,
-      maximumFret: resolved.configuration.maximumFret,
-      capoFret: 0,
-    }),
-    STANDARD_GUITAR,
-  );
-  if (!sameTuning) {
-    throw new MusicXmlUploadRuntimeError(
-      'The upload declares a tuning or fretboard profile not supported by the production conversion path.',
-      'UNSUPPORTED_GUITAR_CONFIGURATION_PROFILE',
-      {
-        authority: resolved.authority,
-        capoFret: resolved.configuration.capoFret,
-        tuning: resolved.configuration.tuning.map(({ number, pitch, midi }) => ({ number, pitch, midi })),
-      },
-    );
+  if (sourceProvenance.status === 'ABSENT') {
+    return Object.freeze({
+      authority: resolved.authority,
+      sourceStatus: sourceProvenance.status,
+    });
   }
 
   return Object.freeze({
@@ -433,7 +439,7 @@ function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptio
           || (sourceMidi < arrangementRegister.minimumMidi && !canRaiseOneOctaveIntoRegister)
         ) {
           throw new MusicXmlUploadRuntimeError(
-            'Source note is outside the standard-guitar range and cannot be raised by exactly one octave.',
+            'Source note is outside the configured guitar arrangement register and cannot be raised by exactly one octave.',
             'UNPLAYABLE_SOURCE_PITCH',
             {
               sourceEventId: event.sourceEventId,
