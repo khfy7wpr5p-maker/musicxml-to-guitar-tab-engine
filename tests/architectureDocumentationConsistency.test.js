@@ -34,10 +34,10 @@ function read(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
-test('active architecture documents use the 2026-08-31 live snapshot', () => {
+test('active architecture documents use the 2026-09-01 live snapshot', () => {
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
-    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-08-31/, `${relativePath} snapshot marker`);
+    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-09-01/, `${relativePath} snapshot marker`);
     assert.equal(text.includes('ARCHITECTURE-SNAPSHOT: 2026-08-24'), false, `${relativePath} stale snapshot marker`);
     assert.equal(text.includes(SUPERSEDED_CONVERGENCE_BASE), false, `${relativePath} stale convergence base`);
     assert.equal(text.includes('Architecture convergence base:'), false, `${relativePath} stale convergence claim`);
