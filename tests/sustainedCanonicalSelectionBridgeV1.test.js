@@ -17,6 +17,9 @@ const {
 const {
   createSustainedCanonicalFinalSelection,
 } = require('../src/music/sustainedCanonicalFinalSelector');
+const {
+  createCanonicalTabResultV2,
+} = require('../src/tab/canonicalTabResultV2');
 
 function score(body) {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -184,6 +187,26 @@ test('sustained final selector threads one capo configuration across a retained 
   );
   assert.deepEqual(
     capo.noteSelections.map(({ string, fret }) => ({ string, fret })),
+    [{ string: 3, fret: 3 }, { string: 3, fret: 3 }],
+  );
+});
+
+test('canonical 2.1 producer preserves capo through the sustained tie fallback', () => {
+  const source = sourceModel(tiedScore());
+  const result = createCanonicalTabResultV2(
+    source,
+    [
+      singleDecision('PRESERVED', 0, 0),
+      singleDecision('PRESERVED', 1, 0),
+    ],
+    null,
+    { capoFret: 2 },
+  );
+
+  assert.equal(result.schemaVersion, '2.1.0');
+  assert.equal(result.guitar.capoFret, 2);
+  assert.deepEqual(
+    result.noteDispositions.map(({ selectedPosition }) => selectedPosition),
     [{ string: 3, fret: 3 }, { string: 3, fret: 3 }],
   );
 });
