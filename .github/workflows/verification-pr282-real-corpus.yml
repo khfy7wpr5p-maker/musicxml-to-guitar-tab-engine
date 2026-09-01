@@ -1,0 +1,132 @@
+name: Verification PR282 Real Corpus
+
+on:
+  pull_request:
+    branches: [stage-03/grace-display-accidental]
+
+permissions:
+  contents: read
+
+jobs:
+  real-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact verification head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Record candidate identity
+        run: |
+          git rev-parse HEAD > /tmp/VERIFICATION_HEAD_SHA.txt
+          printf '%s\n' "${{ github.event.pull_request.base.sha }}" > /tmp/CANDIDATE_BASE_SHA.txt
+          test "$(cat /tmp/CANDIDATE_BASE_SHA.txt)" = "fb62a9068c7cbb4ef6685b1698600eda5ff07886"
+
+      - name: Checkout pinned AnimeTAB source
+        uses: actions/checkout@v4
+        with:
+          repository: amamiya-yuuko/AnimeTAB
+          ref: 18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a
+          path: external-anime-tab
+          persist-credentials: false
+
+      - name: Materialize exact corpus by manifest SHA
+        run: |
+          node <<'NODE'
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const root = path.resolve('external-anime-tab', 'AnimeTAB', 'Entire songs');
+          const out = '/tmp/guitar-tech-corpus';
+          fs.mkdirSync(out, { recursive: true });
+          const wanted = new Map(manifest.files.map((entry) => [entry.sha256, entry]));
+          const found = new Map();
+          for (const item of fs.readdirSync(root, { withFileTypes: true })) {
+            if (!item.isFile() || !/\.(?:xml|musicxml)$/i.test(item.name)) continue;
+            const full = path.join(root, item.name);
+            const bytes = fs.readFileSync(full);
+            const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+            if (wanted.has(hash)) found.set(hash, { full, bytes });
+          }
+          const mapping = [];
+          for (const entry of manifest.files) {
+            const match = found.get(entry.sha256);
+            if (!match) throw new Error(`Missing exact SHA ${entry.sha256}`);
+            fs.writeFileSync(path.join(out, entry.fileName), match.bytes);
+            mapping.push({ fileName: entry.fileName, sha256: entry.sha256, sourcePath: path.relative(process.cwd(), match.full) });
+          }
+          if (mapping.length !== 9) throw new Error('Expected 9 exact sources.');
+          fs.writeFileSync('/tmp/corpus-source-mapping.json', `${JSON.stringify(mapping, null, 2)}\n`);
+          NODE
+
+      - name: Run candidate corpus gate twice
+        shell: bash
+        run: |
+          set +e
+          node scripts/guitar-tech-real-corpus-gate.js /tmp/guitar-tech-corpus /tmp/report-a.json --engine-commit=fb62a9068c7cbb4ef6685b1698600eda5ff07886 > /tmp/report-a.stdout.json
+          A=$?
+          node scripts/guitar-tech-real-corpus-gate.js /tmp/guitar-tech-corpus /tmp/report-b.json --engine-commit=fb62a9068c7cbb4ef6685b1698600eda5ff07886 > /tmp/report-b.stdout.json
+          B=$?
+          set -e
+          printf '%s\n' "$A" > /tmp/GATE_A_EXIT_CODE.txt
+          printf '%s\n' "$B" > /tmp/GATE_B_EXIT_CODE.txt
+          cmp /tmp/report-a.json /tmp/report-b.json
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('/tmp/report-a.json', 'utf8'));
+          if (!['PASS_NO_UNREVIEWED_DRIFT', 'HOLD_BLOCKER_DIFF_REVIEW_REQUIRED'].includes(report.status)) throw new Error(`Unsafe gate status: ${report.status}`);
+          const s = report.summary || {};
+          for (const key of ['requiredFiles', 'identityVerifiedFiles', 'deterministicFiles', 'sourceImmutableFiles']) {
+            if (s[key] !== 9) throw new Error(`${key} expected 9, got ${s[key]}`);
+          }
+          NODE
+
+      - name: Capture candidate blocker details
+        run: |
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const { processMusicXmlUpload } = require('./src/app/musicXmlUploadRuntime');
+          const records = manifest.files.map((entry) => {
+            const result = processMusicXmlUpload({ fileName: entry.fileName, bytes: fs.readFileSync(path.join('/tmp/guitar-tech-corpus', entry.fileName)) });
+            const blocker = (result?.preflight?.issues || []).find((issue) => issue?.severity === 'error') || null;
+            return {
+              fileName: entry.fileName,
+              status: result?.status || null,
+              route: result?.route || null,
+              blocker: blocker ? { code: blocker.code || null, category: blocker.category || null, message: blocker.message || null, details: blocker.details || null } : null,
+            };
+          });
+          fs.writeFileSync('/tmp/candidate-blocker-details.json', `${JSON.stringify({ engineCommit: 'fb62a9068c7cbb4ef6685b1698600eda5ff07886', records }, null, 2)}\n`);
+          NODE
+
+      - name: Upload audit evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr282-real-corpus-audit
+          path: |
+            /tmp/VERIFICATION_HEAD_SHA.txt
+            /tmp/CANDIDATE_BASE_SHA.txt
+            /tmp/corpus-source-mapping.json
+            /tmp/report-a.json
+            /tmp/report-b.json
+            /tmp/candidate-blocker-details.json
+            /tmp/GATE_A_EXIT_CODE.txt
+            /tmp/GATE_B_EXIT_CODE.txt
+          if-no-files-found: error
+          retention-days: 1
