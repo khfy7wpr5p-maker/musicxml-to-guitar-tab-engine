@@ -2,6 +2,7 @@
 
 const { EngineError } = require('../errors/engineError');
 const { validateCanonicalTabResult } = require('./canonicalTabResultContract');
+const { validateCanonicalTabResultV1_1 } = require('./canonicalTabResultContract');
 const {
   CANONICAL_TAB_RESULT_V2_VERSION,
   validateCanonicalTabResultV2,
@@ -11,6 +12,7 @@ const {
 } = require('./canonicalTabResultV2ValidationSupport');
 const {
   CANONICAL_TAB_RESULT_VERSION,
+  CANONICAL_TAB_RESULT_V1_1_VERSION,
 } = require('./canonicalTabContractMetadata');
 
 class CanonicalTabResultDispatchError extends EngineError {
@@ -63,6 +65,9 @@ function dispatchCanonicalTabResult(value) {
 
   if (schemaVersion === CANONICAL_TAB_RESULT_VERSION) {
     return validateCanonicalTabResult(value);
+  }
+  if (schemaVersion === CANONICAL_TAB_RESULT_V1_1_VERSION) {
+    return validateCanonicalTabResultV1_1(value);
   }
   if (schemaVersion === CANONICAL_TAB_RESULT_V2_VERSION) {
     return validateCanonicalTabResultV2(value);
