@@ -4,13 +4,18 @@ const { EngineError } = require('../errors/engineError');
 const { parsePitchName, pitchToMidi, PitchError } = require('../music/pitch');
 const {
   CANONICAL_TAB_RESULT_VERSION,
+  CANONICAL_TAB_RESULT_V1_1_VERSION,
 } = require('../contracts/canonicalTabContractMetadata');
 const {
   CanonicalTabContractError,
   validateCanonicalTabResult,
+  validateCanonicalTabResultV1_1,
 } = require('../contracts/canonicalTabResultContract');
 
-const SUPPORTED_CANONICAL_TAB_RESULT_VERSION = CANONICAL_TAB_RESULT_VERSION;
+const SUPPORTED_CANONICAL_TAB_RESULT_VERSION = Object.freeze([
+  CANONICAL_TAB_RESULT_VERSION,
+  CANONICAL_TAB_RESULT_V1_1_VERSION,
+]);
 const MUSICXML_VERSION = '4.0';
 const BEAM_VALUES = Object.freeze({
   begin: 'begin',
@@ -157,6 +162,18 @@ function validateSharedContract(canonicalTabResult) {
   try {
     validateCanonicalTabResult(canonicalTabResult);
   } catch (error) {
+    if (
+      error instanceof CanonicalTabContractError
+      && error.code === 'UNSUPPORTED_CANONICAL_TAB_SCHEMA'
+      && error.details.actual === CANONICAL_TAB_RESULT_V1_1_VERSION
+    ) {
+      try {
+        validateCanonicalTabResultV1_1(canonicalTabResult);
+        return;
+      } catch (v1_1Error) {
+        throw adaptContractError(v1_1Error);
+      }
+    }
     throw adaptContractError(error);
   }
 }
@@ -371,7 +388,7 @@ function writeStaffTuning(builder, tuningByString) {
   }
 }
 
-function writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure = null) {
+function writeAttributes(builder, measure, measureIndex, tuningByString, capoFret, previousMeasure = null) {
   builder.open('attributes');
   builder.element('divisions', String(measure.divisions));
 
@@ -401,6 +418,9 @@ function writeAttributes(builder, measure, measureIndex, tuningByString, previou
     builder.element('staff-type', 'alternate');
     builder.element('staff-lines', '6');
     writeStaffTuning(builder, tuningByString);
+    if (capoFret > 0) {
+      builder.element('capo', String(capoFret));
+    }
     builder.close('staff-details');
 
     builder.open('transpose', ' number="1"');
@@ -456,7 +476,14 @@ function serializeCanonicalTabResultToMusicXml(canonicalTabResult, options = {})
       ? null
       : canonicalTabResult.measures[measureIndex - 1];
 
-    writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure);
+    writeAttributes(
+      builder,
+      measure,
+      measureIndex,
+      tuningByString,
+      canonicalTabResult.guitar.capoFret || 0,
+      previousMeasure,
+    );
 
     for (const event of measure.events) {
       writeEvent(builder, event, 1, 1);
