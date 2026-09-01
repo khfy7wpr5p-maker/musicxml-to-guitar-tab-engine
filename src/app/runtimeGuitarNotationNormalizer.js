@@ -368,13 +368,18 @@ function safeGuitarProDynamicsDirection(node) {
 // Display-only rehearsal labels are safe only in this exact, bounded shape.
 // Playback, timing, staff, voice, layout, and extension data remain unsupported.
 function safeDisplayRehearsalDirection(node) {
-  if (node.attributes.length !== 0 || node.children.length !== 1) return false;
+  if (
+    node.attributes.length !== 0
+    || node.children.length !== 1
+    || node.text.trim().length !== 0
+  ) return false;
   const directionType = node.children[0];
   if (
     directionType.uri !== node.uri
     || directionType.name !== 'direction-type'
     || directionType.attributes.length !== 0
     || directionType.children.length !== 1
+    || directionType.text.trim().length !== 0
   ) return false;
 
   const rehearsal = directionType.children[0];
