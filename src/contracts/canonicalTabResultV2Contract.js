@@ -5,6 +5,7 @@ const {
   GUITAR_CONFIGURATION_VERSION,
   GUITAR_STRING_COUNT,
   DEFAULT_FRET_RANGE,
+  GUITAR_FRET_SEMANTICS,
   createGuitarConfiguration,
 } = require('../guitar/tuning');
 const {
@@ -64,16 +65,29 @@ const {
 } = require('./canonicalTabResultV2SelectionValidator');
 
 const CANONICAL_TAB_RESULT_V2_VERSION = '2.0.0';
+const CANONICAL_TAB_RESULT_V2_CAPO_VERSION = '2.1.0';
 const CANONICAL_TAB_RESULT_DOCUMENT_TYPE = 'CanonicalTabResult';
 const REVIEW_STATES = new Set(['NOT_REVIEWED', 'APPROVED', 'REJECTED']);
 
-function validateGuitar(value) {
+function validateGuitar(value, schemaVersion) {
   const path = 'canonicalTabResult.guitar';
-  exact(value, ['contractVersion', 'tuning', 'minimumFret', 'maximumFret'], path);
+  const hasCapoContract = schemaVersion === CANONICAL_TAB_RESULT_V2_CAPO_VERSION;
+  exact(value, hasCapoContract
+    ? ['contractVersion', 'tuning', 'minimumFret', 'maximumFret', 'capoFret', 'fretSemantics']
+    : ['contractVersion', 'tuning', 'minimumFret', 'maximumFret'], path);
   equal(value.contractVersion, GUITAR_CONFIGURATION_VERSION, `${path}.contractVersion`, 'GUITAR_CONTRACT_VERSION');
   equal(value.minimumFret, DEFAULT_FRET_RANGE.minimumFret, `${path}.minimumFret`, 'GUITAR_FRET_RANGE');
   equal(value.maximumFret, DEFAULT_FRET_RANGE.maximumFret, `${path}.maximumFret`, 'GUITAR_FRET_RANGE');
   const tuning = array(value.tuning, `${path}.tuning`);
+  if (hasCapoContract) {
+    integer(value.capoFret, `${path}.capoFret`, 1, DEFAULT_FRET_RANGE.maximumFret);
+    equal(
+      value.fretSemantics,
+      GUITAR_FRET_SEMANTICS,
+      `${path}.fretSemantics`,
+      'GUITAR_FRET_SEMANTICS',
+    );
+  }
   equal(tuning.length, GUITAR_STRING_COUNT, `${path}.tuning`, 'GUITAR_STRING_COUNT');
   tuning.forEach((entry, index) => {
     const entryPath = `${path}.tuning[${index}]`;
@@ -88,6 +102,7 @@ function validateGuitar(value) {
       tuning: tuning.map((entry) => ({ ...entry })),
       minimumFret: value.minimumFret,
       maximumFret: value.maximumFret,
+      capoFret: hasCapoContract ? value.capoFret : 0,
     });
   } catch {
     fail(path, 'INVALID_GUITAR_CONFIGURATION');
@@ -97,6 +112,7 @@ function validateGuitar(value) {
     equal(entry.pitch, tuning[index].pitch, `${path}.tuning[${index}].pitch`, 'TUNING_MISMATCH');
     equal(entry.midi, tuning[index].midi, `${path}.tuning[${index}].midi`, 'TUNING_MISMATCH');
   });
+  return normalized;
 }
 
 function validatePolicyProvenance(value) {
@@ -144,7 +160,12 @@ function validateCanonicalTabResultV2(value) {
     'noteDispositions', 'selectedShapes',
   ], 'canonicalTabResult');
   equal(value.documentType, CANONICAL_TAB_RESULT_DOCUMENT_TYPE, 'canonicalTabResult.documentType', 'DOCUMENT_TYPE_MISMATCH');
-  equal(value.schemaVersion, CANONICAL_TAB_RESULT_V2_VERSION, 'canonicalTabResult.schemaVersion', 'SCHEMA_VERSION_MISMATCH');
+  if (
+    value.schemaVersion !== CANONICAL_TAB_RESULT_V2_VERSION
+    && value.schemaVersion !== CANONICAL_TAB_RESULT_V2_CAPO_VERSION
+  ) {
+    fail('canonicalTabResult.schemaVersion', 'SCHEMA_VERSION_MISMATCH');
+  }
 
   exact(value.engine, ['name', 'version'], 'canonicalTabResult.engine');
   equal(value.engine.name, ENGINE_NAME, 'canonicalTabResult.engine.name', 'ENGINE_NAME_MISMATCH');
@@ -162,18 +183,19 @@ function validateCanonicalTabResultV2(value) {
     fail('canonicalTabResult.review.teacherReviewStatus', 'REVIEW_STATE');
   }
 
-  validateGuitar(value.guitar);
+  const guitar = validateGuitar(value.guitar, value.schemaVersion);
   validatePolicyProvenance(value.policyProvenance);
   const source = validateMeasures(value);
   const groups = validateSimultaneousGroups(value);
   const decisions = validateArrangementDecisions(value, source, groups);
-  const dispositions = validateDispositions(value, source, decisions, groups);
+  const dispositions = validateDispositions(value, source, decisions, groups, guitar);
   validateSelectedShapes(value, groups, dispositions);
   return value;
 }
 
 module.exports = {
   CANONICAL_TAB_RESULT_V2_VERSION,
+  CANONICAL_TAB_RESULT_V2_CAPO_VERSION,
   CANONICAL_TAB_RESULT_DOCUMENT_TYPE,
   CanonicalTabResultV2ContractError,
   validateCanonicalTabResultV2,
