@@ -360,13 +360,21 @@ function assertSupportedSourceGuitarConfiguration(parsedDocument) {
   const sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
   const resolved = resolveGuitarConfigurationAuthority({ sourceProvenance });
 
-  // Canonical V2 and the upload writers currently serialize only the fixed
-  // standard-guitar profile. Do not silently reinterpret an explicit capo
-  // under that profile; support is enabled only when the complete physical
-  // pipeline and public contract consume the same facts.
-  if (!sameConfiguration(resolved.configuration, STANDARD_GUITAR)) {
+  // This slice supports an explicit nonzero capo on the MONO V1.1 path only.
+  // Any source tuning change remains outside the serialized contract and is
+  // therefore rejected rather than silently reinterpreted.
+  const sameTuning = sameConfiguration(
+    createGuitarConfiguration({
+      tuning: resolved.configuration.tuning,
+      minimumFret: resolved.configuration.minimumFret,
+      maximumFret: resolved.configuration.maximumFret,
+      capoFret: 0,
+    }),
+    STANDARD_GUITAR,
+  );
+  if (!sameTuning) {
     throw new MusicXmlUploadRuntimeError(
-      'The upload declares a capo profile not yet supported by the production conversion path.',
+      'The upload declares a tuning or fretboard profile not supported by the production conversion path.',
       'UNSUPPORTED_GUITAR_CONFIGURATION_PROFILE',
       {
         authority: resolved.authority,
@@ -379,6 +387,7 @@ function assertSupportedSourceGuitarConfiguration(parsedDocument) {
   return Object.freeze({
     authority: resolved.authority,
     sourceStatus: sourceProvenance.status,
+    guitar: resolved.configuration,
   });
 }
 
@@ -687,9 +696,12 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   let monophonic;
+  let sourceGuitarConfiguration;
   const routeRequirement = routeRequirementFromParsedMusicXml(harmonyExtraction.parsedDocument);
   try {
-    assertSupportedSourceGuitarConfiguration(harmonyExtraction.parsedDocument);
+    sourceGuitarConfiguration = assertSupportedSourceGuitarConfiguration(
+      harmonyExtraction.parsedDocument,
+    );
   } catch (error) {
     return blockedResult(
       identity,
@@ -715,7 +727,18 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     try {
       monophonic = convertMusicXmlToCanonicalTab(
         normalizedUpload.bytes,
-        { parser: {}, guitar: STANDARD_GUITAR_WORKBENCH_TARGET },
+        {
+          parser: {},
+          guitar: sourceGuitarConfiguration.guitar
+            ? {
+              ...STANDARD_GUITAR_WORKBENCH_TARGET,
+              tuning: sourceGuitarConfiguration.guitar.tuning,
+              minimumFret: sourceGuitarConfiguration.guitar.minimumFret,
+              maximumFret: sourceGuitarConfiguration.guitar.maximumFret,
+              capoFret: sourceGuitarConfiguration.guitar.capoFret,
+            }
+            : STANDARD_GUITAR_WORKBENCH_TARGET,
+        },
         processing,
       );
     } catch (error) {
