@@ -13,8 +13,9 @@ This file is the live convergence view. Historical closure/audit documents retai
 | `CanonicalTabResult 1.0.0` package-root authority | ✅ ACTIVE |
 | MONO source capo extension: `CanonicalTabResult 1.1.0` | ✅ ACTIVE — explicit nonzero capo only; POLY remains blocked |
 | POLY physical configuration plumbing | ✅ INTERNAL — PA-7/PA-8/PA-9 and both final selectors; source acceptance remains blocked |
+| Internal POLY capo canonical extension: `CanonicalTabResult 2.1.0` | ✅ INTERNAL — relative positions + MusicXML `<capo>`; source acceptance remains blocked |
 | Internal/application POLY_V2 path | ✅ IMPLEMENTED / BOUNDED / NON-PACKAGE-ROOT |
-| `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL/APPLICATION |
+| `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL/APPLICATION — exact standard behavior preserved |
 | Guitar Pro grace compatibility | ✅ ACTIVE |
 | Exact grace nominal type `32nd` | ✅ ACTIVE |
 | Exact Guitar Pro bracketed triplet display compatibility | ✅ ACTIVE |
@@ -42,7 +43,7 @@ MusicXML
   → PA-8 / PA-9 physical candidates
   → sustained path solver when required
   → deterministic canonical final selection
-  → CanonicalTabResult 2.0.0
+  → CanonicalTabResult 2.0.0 (standard) / 2.1.0 (explicit internal capo)
   → internal/application MusicXML writer
 ```
 
