@@ -12,6 +12,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Package-root deterministic monophonic API | ✅ PUBLIC / VERIFIED |
 | `CanonicalTabResult 1.0.0` package-root authority | ✅ ACTIVE |
 | MONO source capo extension: `CanonicalTabResult 1.1.0` | ✅ ACTIVE — explicit nonzero capo only; POLY remains blocked |
+| POLY physical configuration plumbing | ✅ INTERNAL — PA-7/PA-8/PA-9 and both final selectors; source acceptance remains blocked |
 | Internal/application POLY_V2 path | ✅ IMPLEMENTED / BOUNDED / NON-PACKAGE-ROOT |
 | `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL/APPLICATION |
 | Guitar Pro grace compatibility | ✅ ACTIVE |
