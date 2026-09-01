@@ -13,12 +13,11 @@ Every retained `selectedPosition` is generated and validated with:
 
 The internal V2 MusicXML writer accepts both exact versions. For `2.1.0`, it emits the same `<capo>` value after the six `staff-tuning` entries in TAB staff `staff-details`. Missing, zero, malformed or semantically inconsistent 2.1 facts fail closed. Existing 2.0 artifacts cannot add the new fields.
 
-This slice covers normal chord selection and the sustained/tie fallback. It remains internal and does not:
+This slice covers normal chord selection and the sustained/tie fallback. The later PROD-PHYS-05 runtime slice uses this contract for valid Standard-tuned source capo declarations. It remains internal and does not:
 
-- accept a source MusicXML capo on the POLY upload route;
 - change the public package-root API;
 - reinterpret alternate tuning authority;
 - modify `CanonicalTabResult 1.0.0` or MONO `1.1.0`;
 - expose PA/PS internals.
 
-Source-level POLY capo acceptance requires a later bounded runtime slice that passes already-resolved source authority into this producer and preserves the existing fail-closed tuning-profile rules.
+Source-level POLY capo acceptance passes already-resolved source authority into this producer and preserves the fail-closed tuning-profile rules. Alternate tuning and nonstandard fretboard profiles remain unsupported.
