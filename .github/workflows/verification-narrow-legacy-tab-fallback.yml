@@ -33,6 +33,16 @@ jobs:
         working-directory: target
         run: python ../verification-control/verification/apply-narrow-legacy-tab-fallback.py
 
+      - name: Normalize patched EOF
+        working-directory: target
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/customTuningUploadRuntime.test.js')
+          path.write_text(path.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          PY
+
       - name: Verify whitelisted diff
         working-directory: target
         shell: bash
