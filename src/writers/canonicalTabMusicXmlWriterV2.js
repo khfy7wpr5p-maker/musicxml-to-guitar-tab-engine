@@ -500,7 +500,7 @@ function validateResult(value) {
     validateCanonicalTabResultV2(value);
   } catch (error) {
     if (error instanceof CanonicalTabResultV2ContractError) {
-      throw invalid('canonicalTabResult violates CanonicalTabResult 2.0.0.', {
+      throw invalid('canonicalTabResult violates a supported CanonicalTabResult 2.x contract.', {
         contractCode: error.code,
         ...(error.details || {}),
       });
@@ -704,7 +704,15 @@ function writeStaffTuning(builder, tuningByString) {
   }
 }
 
-function writeAttributes(builder, measure, measureIndex, tuningByString, previousMeasure, keySignature) {
+function writeAttributes(
+  builder,
+  measure,
+  measureIndex,
+  tuningByString,
+  previousMeasure,
+  keySignature,
+  capoFret,
+) {
   builder.open('attributes');
   builder.element('divisions', String(measure.divisions));
   if (keySignature) {
@@ -735,6 +743,7 @@ function writeAttributes(builder, measure, measureIndex, tuningByString, previou
     builder.element('staff-type', 'alternate');
     builder.element('staff-lines', '6');
     writeStaffTuning(builder, tuningByString);
+    if (capoFret > 0) builder.element('capo', String(capoFret));
     builder.close('staff-details');
     builder.open('transpose', ' number="1"');
     builder.element('diatonic', '0');
@@ -1035,6 +1044,7 @@ function serializeCanonicalTabResultV2ToMusicXml(canonicalTabResult, options = {
       tuningByString,
       measureIndex === 0 ? null : canonicalTabResult.measures[measureIndex - 1],
       keySignatures.get(measureIndex) || null,
+      canonicalTabResult.guitar.capoFret || 0,
     );
     writeHarmonyTrack(builder, chordLabelsByMeasure.get(measureIndex) || [], measure);
 
