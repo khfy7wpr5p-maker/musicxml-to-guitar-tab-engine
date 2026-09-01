@@ -14,6 +14,7 @@ jobs:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Setup Node.js 22
@@ -27,9 +28,15 @@ jobs:
 
       - name: Record source identity
         run: |
-          printf '%s\n' "$GITHUB_SHA" > VERIFICATION_GITHUB_SHA.txt
+          git rev-parse HEAD > VERIFICATION_CHECKOUT_SHA.txt
+          printf '%s\n' "${{ github.event.pull_request.head.sha }}" > VERIFICATION_PR_HEAD_SHA.txt
+          printf '%s\n' "${{ github.event.pull_request.base.sha }}" > VERIFICATION_PR_BASE_SHA.txt
+          printf '%s\n' "$GITHUB_SHA" > VERIFICATION_EVENT_SHA.txt
           node --version > VERIFICATION_NODE_VERSION.txt
           npm --version > VERIFICATION_NPM_VERSION.txt
+
+      - name: Verify exact head identity
+        run: test "$(cat VERIFICATION_CHECKOUT_SHA.txt)" = "$(cat VERIFICATION_PR_HEAD_SHA.txt)"
 
       - name: Package exact checkout and dependencies
         run: tar --exclude=.git -czf /tmp/musicxml-runtime-checkout.tgz .
