@@ -1,6 +1,6 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 This is the live package-boundary view. Historical PR numbers, commit SHAs, corpus first-blocker reports, and sealed evidence remain revision-specific records and do not override current source/tests.
 
@@ -12,13 +12,16 @@ This is the live package-boundary view. Historical PR numbers, commit SHAs, corp
 - license: `SEE LICENSE IN LICENSE`
 - Node.js >=18
 - runtime dependencies include `saxes@6.0.0` and `@coderline/alphatab@1.8.4`
-- public canonical result: `CanonicalTabResult 1.0.0`
+- ordinary public canonical result: `CanonicalTabResult 1.0.0`
+- bounded Standard-tuning capo extension: `CanonicalTabResult 1.1.0`
 
 GitHub repository visibility and package publication are distinct. A public repository does not change `private: true` and does not publish a package.
 
 ## Public package-root API
 
-`src/index.js` continues to expose exactly the approved public error, preflight, fretboard, deterministic monophonic conversion, and JSON/ASCII/TAB MusicXML writer APIs. No PA/PS stage, teacher benchmark, revoicing module, GuitarSet model, shadow adapter, runtime-shadow bridge, `CanonicalTabResult 2.0.0` producer, or internal POLY_V2 conversion pipeline is package-root exported.
+`src/index.js` continues to expose exactly the approved public error, preflight, fretboard, deterministic monophonic conversion, and JSON/ASCII/TAB MusicXML writer APIs. No PA/PS stage, teacher benchmark, revoicing module, GuitarSet model, shadow adapter, runtime-shadow bridge, `CanonicalTabResult 2.0.0` / `2.1.0` producer, or internal POLY_V2 conversion pipeline is package-root exported.
+
+The application/internal path may use validated source guitar configuration without widening the package-root API.
 
 ## Capability matrix
 
@@ -31,6 +34,7 @@ GitHub repository visibility and package publication are distinct. A public repo
 | Physical guitar candidates | ✅ VERIFIED |
 | Deterministic cost + DP optimizer | ✅ VERIFIED |
 | CanonicalTabResult 1.0.0 | ✅ PUBLIC |
+| Standard-tuning source capo extension / CanonicalTabResult 1.1.0 | ✅ BOUNDED PUBLIC COMPATIBILITY |
 | JSON / ASCII / TAB MusicXML writers | ✅ PUBLIC |
 | PA-1 through PA-7 source/reduction/voicing foundations | ✅ INTERNAL |
 | Deterministic single-generation PA-7 handoff | ✅ INTERNAL |
@@ -40,8 +44,13 @@ GitHub repository visibility and package publication are distinct. A public repo
 | PA-10.4 CanonicalTabResult 2.0 design | ✅ MERGED CONTRACT |
 | PA-10.5 exact version-dispatch contract | ✅ MERGED CONTRACT |
 | Runtime CanonicalTabResult 2.0.0 producer/validator | ✅ INTERNAL/APPLICATION |
-| CanonicalTabResult 2.0.0 MusicXML writer | ✅ INTERNAL/APPLICATION |
+| Configuration-aware CanonicalTabResult 2.1.0 | ✅ INTERNAL/APPLICATION |
+| CanonicalTabResult 2.0.0 / 2.1.0 MusicXML writer path | ✅ INTERNAL/APPLICATION |
 | Deterministic final polyphonic selector | ✅ INTERNAL / NON-ML / FAIL-CLOSED |
+| Explicit complete six-string MusicXML tuning provenance | ✅ APPLICATION / BOUNDED |
+| Explicit MusicXML capo provenance | ✅ APPLICATION / BOUNDED |
+| Genuine tuning/capo change after solve start | 🔒 FAIL-CLOSED |
+| Exact legacy TAB presentation-only tuning fallback | ✅ ACTIVE / STRICTLY BOUNDED |
 | PS-2 SustainTieGraph 1.2.0 | ✅ INTERNAL/APPLICATION |
 | PS-3 logical sustain continuity | ✅ INTERNAL/APPLICATION |
 | PS-4A active sonority | ✅ INTERNAL/APPLICATION |
@@ -69,6 +78,18 @@ GitHub repository visibility and package publication are distinct. A public repo
 | MuseScore semantic round-trip | 🔒 NOT VERIFIED |
 | Production PDF | 🔒 NOT IMPLEMENTED |
 
+## Stage 03 source guitar configuration boundary
+
+At the application upload boundary, `src/parser/musicXmlGuitarConfigurationProvenance.js` may admit explicit executable source guitar configuration only from bounded validated evidence. A complete tuning requires exactly six unique tuning lines, valid scalar pitch facts, physically consistent six-string ordering, at most one capo, and successful immutable configuration construction.
+
+The first executable configuration must be established before immutable solve scope begins. A declaration after measure index 0, or after a `note`, `backup`, or `forward` already occurred earlier in measure 0, is after solve start. Genuine later tuning/capo changes remain fail-closed as `UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE`.
+
+A capo-only declaration may inherit only a prior complete configuration on the same part/staff. Valid custom tuning/capo evidence is executable configuration authority and must not be silently downgraded to legacy presentation compatibility.
+
+Historical producer TAB tuning presentation is handled by one exact compatibility fallback only when the reviewed partial or physically reversed complete legacy shape occurs at the exact parser-error location in measure 0, on the matching TAB staff/clef, before any earlier `note`/`backup`/`forward`, with exactly one compatible presentation block and no conflicting executable capo/configuration evidence. When admitted, it remains `TAB_PRESENTATION_PROVENANCE_ONLY` and uses `STANDARD_DEFAULT`. A lone legacy declaration after solve start remains fail-closed.
+
+See `docs/stage-03-source-guitar-configuration-closeout.md`.
+
 ## PA-8 resource contract
 
 The fixed constants in `src/music/leftHandShapeModel.js` remain:
@@ -80,9 +101,11 @@ They are enforced per independently processed source group. In sustained PS-4C p
 
 ## Compatibility / fail-closed package boundary
 
-Compatibility normalizers are internal/application representation adapters. They are filename-independent, SHA-independent, bounded, deterministic, fail-closed, and source-immutable. They do not grant package-root authority and do not invent pitch, octave, onset, duration, voice, staff, tie, chord relationships, source pitch transformation, automatic octave shifts, implicit voice splits, ambiguous sustain continuation, or solver ranking overrides.
+Compatibility normalizers are internal/application representation adapters. They are filename-independent, SHA-independent, bounded, deterministic, fail-closed, and source-immutable. They do not grant package-root authority and do not invent pitch, octave, onset, duration, voice, staff, tie, chord relationships, executable source guitar configuration, source pitch transformation, automatic octave shifts, implicit voice splits, ambiguous sustain continuation, or solver ranking overrides.
 
 Exact same-voice MusicXML `<chord/>` members form one attack group; occupancy extends to the maximum member end. A later independent non-chord event beginning before that end remains fail-closed as `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` / `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`.
+
+A true unmatched tie stop remains fail-closed as `INVALID_SUSTAIN_TIE_GRAPH` / `ORPHAN_TIE_STOP`.
 
 ## GuitarSet v2 package boundary
 
@@ -113,16 +136,18 @@ The same-origin staging host is an internal application host and is not exported
 
 POLY_V2 browser tie/source evidence remains UI metadata. Direct clients cannot widen the authoritative runtime schema by adding browser-only semantic fields.
 
-The staging host does not publish the npm package, grant public `CanonicalTabResult 2.0.0` authority, or authorize production hosting.
+The staging host does not publish the npm package, grant public `CanonicalTabResult 2.0.0` / `2.1.0` authority, or authorize production hosting.
 
 ## Verification baseline
 
-Protected CI continues to require Node.js 18/20/22 and alphaTab import/render/browser-cursor checks. Runtime staging has its own E2E workflow. A documentation-only change must still satisfy repository documentation-consistency tests and the required protected checks on the exact PR head.
+Protected CI continues to require Node.js 18/20/22 and alphaTab import/render/browser-cursor checks. Runtime staging has its own E2E workflow. Documentation changes must satisfy repository documentation-consistency tests and the required protected checks on the exact PR head.
 
-Real Guitar Pro corpus is regression/evidence material only. Current gates should verify exact intended source identity, byte immutability, deterministic public/canonical/MusicXML fingerprints when produced, no hidden semantic mutation, expected fail-closed behavior, and green required CI.
+The Stage 03 exact nine-file AnimeTAB audit is additional evidence and does not replace `verification/guitar-tech-real-corpus-manifest.json`, which pins a different historical Guitar Pro corpus. The Stage 03 audit verified exact source identity, deterministic reruns, source immutability, and `PRESERVED_CLASSIFICATIONS=9/9` between pre-fix production main and the audited candidate.
+
+Real producer corpus is regression/evidence material only. Gates should verify exact intended source identity, byte immutability, deterministic public/canonical/MusicXML fingerprints when produced, no hidden semantic mutation, expected fail-closed behavior, and green required CI.
 
 **Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
 ## Release boundary
 
-No npm/public package release, public polyphonic package API, runtime learned-selection authority, live/user-input shadow activation, production PDF, or production playback claim is made. Internal/application POLY_V2 support and sustained selection do not by themselves create public package-root authority.
+No npm/public package release, public polyphonic package API, runtime learned-selection authority, live/user-input shadow activation, production PDF, or production playback claim is made. Internal/application POLY_V2 support, source guitar configuration admission, and sustained selection do not by themselves create public package-root authority.
