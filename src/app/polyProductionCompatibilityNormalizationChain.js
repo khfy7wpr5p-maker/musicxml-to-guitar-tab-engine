@@ -13,6 +13,9 @@ const {
 const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
+const {
+  normalizeGraceDisplayAccidental,
+} = require('./graceDisplayAccidentalNormalizer');
 
 const POLY_PRODUCTION_COMPATIBILITY_NORMALIZATION_CHAIN_VERSION = '1.0.0';
 
@@ -58,10 +61,13 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const representationDocument = runtimeNormalization
     ? runtimeNormalization.parsedDocument
     : techniqueNormalization.parsedDocument;
+  const graceAccidentalNormalization = normalizeGraceDisplayAccidental(
+    representationDocument,
+  );
   // This extractor is the existing composite semantic chain: presentation and
   // directions -> notation context -> staccato -> exact 3:2 triplets -> grace.
   const semanticNormalization = extractPolyphonicGraceOrnaments(
-    representationDocument,
+    graceAccidentalNormalization.parsedDocument,
     runtime,
   );
   const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(
@@ -89,6 +95,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
       : []),
     ...techniqueNormalization.ignoredFeatures,
     ...(runtimeNormalization?.ignoredFeatures || []),
+    ...graceAccidentalNormalization.ignoredFeatures,
   ])].sort());
   const pitchOctaveShift = runtimeNormalization?.pitchOctaveShift || 0;
   const runtimeNotationContext = runtimeNormalization?.notationContext
