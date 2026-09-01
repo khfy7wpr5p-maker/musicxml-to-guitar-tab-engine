@@ -27,7 +27,7 @@ jobs:
 
       - name: Verify exact target head
         working-directory: target
-        run: test "$(git rev-parse HEAD)" = "9caf377a20cc6e8439347627fb4b821652c3f779"
+        run: test "$(git rev-parse HEAD)" = "15a14d9573689c80cf79f3731c2da16751a48cca"
 
       - name: Apply bounded patch
         working-directory: target
