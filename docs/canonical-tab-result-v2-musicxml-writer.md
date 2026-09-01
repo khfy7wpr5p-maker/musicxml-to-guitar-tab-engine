@@ -1,9 +1,9 @@
-# CanonicalTabResult 2.0.0 Internal MusicXML Writer
+# CanonicalTabResult 2.x Internal MusicXML Writer
 
 ## Status
 
 - Internal-only writer.
-- Canonical input: exact validated `CanonicalTabResult 2.0.0`.
+- Canonical input: exact validated `CanonicalTabResult 2.0.0` or internal capo extension `2.1.0`.
 - Output: MusicXML 4.0 score-partwise with standard notation staff + TAB staff.
 - Public package-root exposure: none.
 - Arrangement/fingering selection authority: none.
@@ -13,7 +13,7 @@
 
 The writer consumes already-selected canonical truth. It never reruns PA-4 through PA-9, the deterministic final selector, or GuitarSet scoring. It cannot replace, reorder, filter or reselect notes, string/fret positions, fingers or shapes.
 
-Before writing, the exact v2 validator runs. Invalid or hostile canonical values fail closed.
+Before writing, the exact v2 validator runs. Invalid or hostile canonical values fail closed. Version `2.1.0` additionally requires nonzero `capoFret` and `fretSemantics: RELATIVE_FROM_CAPO`; the writer emits that value in TAB `staff-details` and does not infer it from positions.
 
 ## Rendering model
 
