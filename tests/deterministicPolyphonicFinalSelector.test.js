@@ -143,6 +143,34 @@ test('final selector chooses one immutable physically validated shape for a reta
   assert.deepEqual(replay, result);
 });
 
+test('final selector consumes the same capo configuration as its PA-7 handoff', () => {
+  const events = [
+    note({ index: 0, onset: 0, duration: 4, pitchValue: pitch('C', 4, 60) }),
+    note({
+      index: 1,
+      onset: 0,
+      duration: 4,
+      pitchValue: pitch('E', 4, 64),
+      chordWithPrevious: true,
+    }),
+  ];
+  const result = createDeterministicPolyphonicFinalSelection(
+    source(events),
+    preserveDecisions(events),
+    null,
+    { capoFret: 2 },
+  );
+
+  assert.deepEqual(
+    result.noteSelections.map(({ targetMidi, string, fret }) => ({ targetMidi, string, fret })),
+    [
+      { targetMidi: 60, string: 3, fret: 3 },
+      { targetMidi: 64, string: 2, fret: 3 },
+    ],
+  );
+  assert.equal(result.selectedShapes[0].physicalValidation.status, 'PLAYABLE_WITHIN_POLICY');
+});
+
 test('final selector optimizes a deterministic transition path across singleton attacks', () => {
   const events = [
     note({ index: 0, onset: 0, duration: 4, pitchValue: pitch('C', 4, 60) }),
