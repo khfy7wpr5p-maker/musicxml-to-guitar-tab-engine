@@ -4,6 +4,7 @@ const { EngineError } = require('../errors/engineError');
 const {
   CanonicalTabContractError,
   validateCanonicalTabResult,
+  validateCanonicalTabResultV1_1,
 } = require('../contracts/canonicalTabResultContract');
 
 const STRING_COUNT = 6;
@@ -94,6 +95,17 @@ function validateForAsciiWriter(canonicalTabResult) {
   try {
     return validateCanonicalTabResult(canonicalTabResult);
   } catch (error) {
+    if (
+      error instanceof CanonicalTabContractError
+      && error.code === 'UNSUPPORTED_CANONICAL_TAB_SCHEMA'
+      && error.details.actual === '1.1.0'
+    ) {
+      try {
+        return validateCanonicalTabResultV1_1(canonicalTabResult);
+      } catch (v1_1Error) {
+        throw adaptContractError(v1_1Error);
+      }
+    }
     throw adaptContractError(error);
   }
 }
