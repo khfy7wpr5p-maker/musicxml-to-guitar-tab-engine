@@ -1,0 +1,86 @@
+name: Verification PR284 Apply V2
+
+on:
+  pull_request:
+    branches: [stage-03/sustained-target-pitch-projection]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-tested-v2:
+    if: ${{ github.event.pull_request.number == 286 }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Checkout exact target feature branch
+        uses: actions/checkout@v4
+        with:
+          repository: khfy7wpr5p-maker/musicxml-to-guitar-tab-engine
+          ref: stage-03/sustained-target-pitch-projection
+          path: target
+          persist-credentials: true
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+
+      - name: Apply source-tie-preserving patch under exact SHA guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.base.sha }}" = "02c714ed327e32f82257f67bde5490db12cf0c5c"
+          cd target
+          test "$(git rev-parse HEAD)" = "02c714ed327e32f82257f67bde5490db12cf0c5c"
+          git apply --check ../control/verification/pr284-v2.patch
+          git apply ../control/verification/pr284-v2.patch
+          rm src/music/sustainedTargetSourceProjection.js
+          printf '%s\n' \
+            src/music/sustainedCanonicalFinalSelector.js \
+            src/music/sustainedGuitarPositionStateModel.js \
+            src/music/sustainedGuitarTransitionModel.js \
+            src/music/sustainedLeftHandPhysicalStateModel.js \
+            src/music/sustainedPolyphonicPathSolver.js \
+            src/music/sustainedTargetSourceProjection.js \
+            tests/sustainedCanonicalSelectionBridgeV1.test.js \
+            | sort > /tmp/expected-files.txt
+          git diff --name-only | sort > /tmp/actual-files.txt
+          diff -u /tmp/expected-files.txt /tmp/actual-files.txt
+
+      - name: Install locked dependencies
+        working-directory: target
+        run: npm ci --ignore-scripts
+
+      - name: Run focused sustained regressions
+        working-directory: target
+        run: node --test tests/sustainedCanonicalSelectionBridgeV1.test.js tests/sustainedGuitarPositionStateModel.test.js tests/sustainedGuitarTransitionModel.test.js tests/sustainedLeftHandPhysicalStateModel.test.js tests/sustainedPolyphonicPathSolver.test.js
+
+      - name: Run full regression suite
+        working-directory: target
+        run: node --test
+
+      - name: Commit and push verified feature-branch revision
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "khfy7wpr5p-maker"
+          git config user.email "onderozudogru@gmail.com"
+          git add src/music/sustainedCanonicalFinalSelector.js \
+            src/music/sustainedGuitarPositionStateModel.js \
+            src/music/sustainedGuitarTransitionModel.js \
+            src/music/sustainedLeftHandPhysicalStateModel.js \
+            src/music/sustainedPolyphonicPathSolver.js \
+            src/music/sustainedTargetSourceProjection.js \
+            tests/sustainedCanonicalSelectionBridgeV1.test.js
+          git commit -m "Stage 03: preserve source tie identity for sustained target MIDI"
+          git push origin HEAD:stage-03/sustained-target-pitch-projection
