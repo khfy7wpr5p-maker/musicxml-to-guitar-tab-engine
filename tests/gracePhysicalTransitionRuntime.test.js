@@ -63,6 +63,13 @@ function graceNoteBodies(xml) {
   return [...xml.matchAll(/<note><grace slash="yes"\/>[\s\S]*?<\/note>/g)].map((match) => match[0]);
 }
 
+function standardCapoStaffDetails(capoFret) {
+  const tuning = [['E', 2], ['A', 2], ['D', 3], ['G', 3], ['B', 3], ['E', 4]];
+  return `<staff-details><staff-lines>6</staff-lines>${tuning.map(([step, octave], index) => (
+    `<staff-tuning line="${index + 1}"><tuning-step>${step}</tuning-step><tuning-octave>${octave}</tuning-octave></staff-tuning>`
+  )).join('')}<capo>${capoFret}</capo></staff-details>`;
+}
+
 test('PS-6B6B resolves the pinned BWV 565 F4→G4→F4 grace chain without inventing timing', async () => {
   const result = processMusicXmlUpload({
     fileName: 'bach-bwv565-grace-physical-transition.musicxml',
@@ -102,6 +109,24 @@ test('PS-6B6B resolves the pinned BWV 565 F4→G4→F4 grace chain without inven
   );
 
   assert.equal(require('../src').createGracePhysicalTransitionModel, undefined);
+});
+
+test('PS-6B6B retains exact grace physical transitions for a source-declared POLY capo', () => {
+  const source = fixture().toString('utf8').replace(
+    '<staves>1</staves>',
+    `<staves>1</staves>${standardCapoStaffDetails(2)}`,
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'bach-bwv565-grace-capo.musicxml',
+    bytes: Buffer.from(source),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.canonicalTabResult.schemaVersion, '2.1.0');
+  assert.equal(result.canonicalTabResult.guitar.capoFret, 2);
+  assert.match(result.musicXml, /<capo>2<\/capo>/);
+  assert.equal(graceNoteBodies(result.musicXml).length, 4);
 });
 
 test('production accepts exact grace notehead=normal as display-only metadata', () => {
