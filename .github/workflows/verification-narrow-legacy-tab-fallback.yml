@@ -1,0 +1,74 @@
+name: Verification Narrow Legacy TAB Fallback
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: verification-control
+          fetch-depth: 0
+
+      - name: Checkout exact target feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage-03/narrow-legacy-tab-fallback
+          path: target
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify exact target head
+        working-directory: target
+        run: test "$(git rev-parse HEAD)" = "8033e26b82fde4f896e48dff3d86c1c48f72db8e"
+
+      - name: Apply bounded fail-closed patch
+        working-directory: target
+        run: python ../verification-control/verification/apply-narrow-legacy-tab-fallback.py
+
+      - name: Verify whitelisted diff
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' src/app/musicXmlUploadRuntime.js tests/customTuningUploadRuntime.test.js | sort)"
+          test "$changed" = "$expected"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: target
+        run: npm ci
+
+      - name: Run fail-closed focused regressions
+        working-directory: target
+        run: node --test tests/customTuningUploadRuntime.test.js tests/runtimeRealWorldGuitarPoly.test.js tests/guitarConfigurationProvenance.test.js tests/guitarConfigurationCapoRestatement.test.js
+
+      - name: Run full regression suite
+        working-directory: target
+        run: node --test
+
+      - name: Commit and push verified fix
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/musicXmlUploadRuntime.js tests/customTuningUploadRuntime.test.js
+          git commit -m "Stage 03: narrow legacy TAB provenance fallback"
+          git push origin HEAD:stage-03/narrow-legacy-tab-fallback
