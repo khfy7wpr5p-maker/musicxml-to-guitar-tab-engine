@@ -14,6 +14,9 @@ const {
 const {
   STANDARD_GUITAR_WORKBENCH_TARGET,
 } = require('../guitar/standardGuitarRegister');
+const {
+  createGuitarArrangementRegister,
+} = require('../guitar/guitarArrangementRegister');
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
 const { convertMusicXmlToCanonicalTab } = require('../core/conversionPipeline');
 const {
@@ -80,18 +83,6 @@ const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
 ).get;
 
 const STANDARD_GUITAR = createGuitarConfiguration();
-let STANDARD_GUITAR_MINIMUM_MIDI = Number.POSITIVE_INFINITY;
-let STANDARD_GUITAR_MAXIMUM_MIDI = Number.NEGATIVE_INFINITY;
-for (const string of STANDARD_GUITAR.tuning) {
-  STANDARD_GUITAR_MINIMUM_MIDI = Math.min(
-    STANDARD_GUITAR_MINIMUM_MIDI,
-    string.midi + STANDARD_GUITAR.minimumFret,
-  );
-  STANDARD_GUITAR_MAXIMUM_MIDI = Math.max(
-    STANDARD_GUITAR_MAXIMUM_MIDI,
-    string.midi + STANDARD_GUITAR.maximumFret,
-  );
-}
 
 class MusicXmlUploadRuntimeError extends EngineError {
   constructor(message, code = 'INVALID_UPLOAD_REQUEST', details = {}) {
@@ -418,7 +409,8 @@ function graceWriterTransitions(model) {
 
 const LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES = 12;
 
-function buildStandardGuitarArrangementDecisions(sourceModel, normalization) {
+function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptions = {}) {
+  const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
   const omitted = new Set(normalization.omittedRepresentationNoteIds);
   const decisions = [];
 
@@ -430,15 +422,15 @@ function buildStandardGuitarArrangementDecisions(sourceModel, normalization) {
       const sourceMidi = event.pitch.midi;
       const lowRegisterTargetMidi = sourceMidi + LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES;
       const canRaiseOneOctaveIntoRegister = (
-        sourceMidi < STANDARD_GUITAR_MINIMUM_MIDI
-        && lowRegisterTargetMidi >= STANDARD_GUITAR_MINIMUM_MIDI
-        && lowRegisterTargetMidi <= STANDARD_GUITAR_MAXIMUM_MIDI
+        sourceMidi < arrangementRegister.minimumMidi
+        && lowRegisterTargetMidi >= arrangementRegister.minimumMidi
+        && lowRegisterTargetMidi <= arrangementRegister.maximumMidi
       );
 
       if (!isRepresentationNote) {
         if (
-          sourceMidi > STANDARD_GUITAR_MAXIMUM_MIDI
-          || (sourceMidi < STANDARD_GUITAR_MINIMUM_MIDI && !canRaiseOneOctaveIntoRegister)
+          sourceMidi > arrangementRegister.maximumMidi
+          || (sourceMidi < arrangementRegister.minimumMidi && !canRaiseOneOctaveIntoRegister)
         ) {
           throw new MusicXmlUploadRuntimeError(
             'Source note is outside the standard-guitar range and cannot be raised by exactly one octave.',
@@ -450,8 +442,8 @@ function buildStandardGuitarArrangementDecisions(sourceModel, normalization) {
               sourceOrder: event.sourceOrder,
               writtenPitch: event.pitch.written,
               midi: sourceMidi,
-              minimumMidi: STANDARD_GUITAR_MINIMUM_MIDI,
-              maximumMidi: STANDARD_GUITAR_MAXIMUM_MIDI,
+              minimumMidi: arrangementRegister.minimumMidi,
+              maximumMidi: arrangementRegister.maximumMidi,
               permittedOctaveShiftSemitones: LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES,
             },
           );
@@ -471,7 +463,13 @@ function buildStandardGuitarArrangementDecisions(sourceModel, normalization) {
   return Object.freeze(decisions);
 }
 
-function assertAuthorizedStandardGuitarArrangement(sourceModel, canonicalTabResult, normalization) {
+function assertAuthorizedGuitarArrangement(
+  sourceModel,
+  canonicalTabResult,
+  normalization,
+  guitarOptions = {},
+) {
+  const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
   const omittedRepresentationIds = new Set(normalization.omittedRepresentationNoteIds);
   const sourceNotes = sourceModel.measures.flatMap(
     (measure) => measure.events.filter((event) => event.type === 'note'),
@@ -513,7 +511,7 @@ function assertAuthorizedStandardGuitarArrangement(sourceModel, canonicalTabResu
       continue;
     }
 
-    const expectedOctaveShiftSemitones = event.pitch.midi < STANDARD_GUITAR_MINIMUM_MIDI
+    const expectedOctaveShiftSemitones = event.pitch.midi < arrangementRegister.minimumMidi
       ? LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES
       : 0;
     const expectedTargetMidi = event.pitch.midi + expectedOctaveShiftSemitones;
@@ -839,7 +837,11 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     normalization = projectedMirror
       ? projectedMirror.normalization
       : noRepresentationNormalization();
-    const decisions = buildStandardGuitarArrangementDecisions(sourceModel, normalization);
+    const decisions = buildGuitarArrangementDecisions(
+    sourceModel,
+    normalization,
+    sourceGuitarConfiguration.guitar || {},
+  );
     const harmonyReferences = graceProjection
       ? rebaseHarmonyReferencesAfterGraceExtraction(
         harmonyExtraction.references,
@@ -887,7 +889,12 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         guitarOptions,
       );
     }
-    assertAuthorizedStandardGuitarArrangement(sourceModel, conversion.canonicalTabResult, normalization);
+    assertAuthorizedGuitarArrangement(
+    sourceModel,
+    conversion.canonicalTabResult,
+    normalization,
+    guitarOptions,
+  );
     processing.checkpoint('app-upload:poly-complete');
 
     const compatibilityIssues = graceProjection
