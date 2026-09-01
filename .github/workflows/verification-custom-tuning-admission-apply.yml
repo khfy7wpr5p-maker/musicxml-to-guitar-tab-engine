@@ -1,0 +1,141 @@
+name: Verification Custom Tuning Admission Apply
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-tested-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Checkout exact target feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage-03/source-custom-tuning-admission
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify exact target head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "c4b339e117dbd64da43c6c69a1ddd4f175c5bed3"
+
+      - name: Apply bounded source-configuration admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/app/musicXmlUploadRuntime.js')
+          text = path.read_text()
+
+          text, count = re.subn(
+              r"const \{ createGuitarConfiguration \} = require\('\.\./guitar/tuning'\);\n",
+              '',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('createGuitarConfiguration import mismatch')
+
+          old_authority = """const {
+            resolveGuitarConfigurationAuthority,
+            sameConfiguration,
+          } = require('../guitar/guitarConfigurationAuthority');
+          """
+          new_authority = """const {
+            resolveGuitarConfigurationAuthority,
+          } = require('../guitar/guitarConfigurationAuthority');
+          """
+          if text.count(old_authority) != 1:
+              raise SystemExit('authority import mismatch')
+          text = text.replace(old_authority, new_authority, 1)
+
+          text, count = re.subn(
+              r"\nconst STANDARD_GUITAR = createGuitarConfiguration\(\);\n",
+              '\n',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('STANDARD_GUITAR constant mismatch')
+
+          pattern = re.compile(
+              r"function hasExplicitCapoDeclaration\(parsedDocument\) \{.*?\n\}\n\n"
+              r"function assertSupportedSourceGuitarConfiguration\(parsedDocument\) \{.*?\n\}\n\n"
+              r"function graceWriterTransitions",
+              re.S,
+          )
+          replacement = """function assertSupportedSourceGuitarConfiguration(parsedDocument) {
+            const sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
+            const resolved = resolveGuitarConfigurationAuthority({ sourceProvenance });
+
+            if (sourceProvenance.status === 'ABSENT') {
+              return Object.freeze({
+                authority: resolved.authority,
+                sourceStatus: sourceProvenance.status,
+              });
+            }
+
+            return Object.freeze({
+              authority: resolved.authority,
+              sourceStatus: sourceProvenance.status,
+              guitar: resolved.configuration,
+            });
+          }
+
+          function graceWriterTransitions"""
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('source configuration guard block mismatch')
+
+          text = text.replace(
+              'Source note is outside the standard-guitar range and cannot be raised by exactly one octave.',
+              'Source note is outside the configured guitar arrangement register and cannot be raised by exactly one octave.',
+          )
+          path.write_text(text)
+          PY
+
+      - name: Verify whitelisted feature diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          test "$changed" = "src/app/musicXmlUploadRuntime.js"
+          git diff --check
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run custom-tuning admission contract
+        run: node --test tests/customTuningUploadRuntime.test.js tests/guitarConfigurationProvenance.test.js tests/guitarArrangementRegister.test.js tests/musicXmlUploadRuntime.test.js
+
+      - name: Run full regression suite
+        run: node --test
+
+      - name: Commit and push verified feature revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/musicXmlUploadRuntime.js
+          git commit -m "Stage 03: admit validated source custom tuning"
+          git push origin HEAD:stage-03/source-custom-tuning-admission
