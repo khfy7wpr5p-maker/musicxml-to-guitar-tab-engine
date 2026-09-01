@@ -143,6 +143,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   sourceModel,
   arrangementDecisions,
   runtime = null,
+  guitarOptions = {},
 ) {
   checkpoint(runtime, 'deterministic-pa7-snapshot-handoff:start');
 
@@ -150,6 +151,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
     sourceModel,
     arrangementDecisions,
     runtime,
+    guitarOptions,
   );
   const leftHandShapeSnapshot = createLeftHandShapeModelFromVoicingCandidateSnapshot(
     voicingCandidateSnapshot,
@@ -160,6 +162,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   const physicalPlayabilitySnapshot = validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(
     leftHandShapeSnapshot,
     runtime,
+    guitarOptions,
   );
   assertPa8ToPa9Identity(leftHandShapeSnapshot, physicalPlayabilitySnapshot);
 
