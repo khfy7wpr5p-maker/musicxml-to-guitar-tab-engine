@@ -109,11 +109,11 @@ function assertGraceGroups(value) {
   return eventCount;
 }
 
-function exactGracePositionCandidates(note, reservedStrings, location) {
-  const candidates = getPositionCandidates(note.pitch.midi)
+function exactGracePositionCandidates(note, reservedStrings, location, guitarOptions = {}) {
+  const candidates = getPositionCandidates(note.pitch.midi, guitarOptions)
     .filter((position) => !reservedStrings.has(position.string))
     .map((position) => {
-      if (positionToMidi(position) !== note.pitch.midi) {
+      if (positionToMidi(position, guitarOptions) !== note.pitch.midi) {
         throw invalid('Fretboard candidate failed exact grace-pitch round trip.', {
           ...location,
           graceEventId: note.graceEventId,
@@ -168,7 +168,7 @@ function pathSignature(positions) {
   return positions.map((position) => `${position.string}:${position.fret}`).join(';');
 }
 
-function chooseGracePath(group, reservedStrings, anchorPosition, runtime) {
+function chooseGracePath(group, reservedStrings, anchorPosition, runtime, guitarOptions = {}) {
   const layers = group.notes.map((note, noteIndex) => {
     checkpoint(runtime, 'grace-physical-transition:grace-event', {
       graceGroupId: group.graceGroupId,
@@ -178,7 +178,7 @@ function chooseGracePath(group, reservedStrings, anchorPosition, runtime) {
       graceGroupId: group.graceGroupId,
       measureIndex: group.measureIndex,
       noteIndex,
-    });
+    }, guitarOptions);
     if (candidates.length === 0) {
       throw unplayable('Grace pitch has no exact guitar position outside held-string occupancy.', {
         graceGroupId: group.graceGroupId,
@@ -235,6 +235,7 @@ function createGracePhysicalTransitionModel(
   canonicalTabResult,
   graceOrnamentGroups,
   runtime = null,
+  guitarOptions = {},
 ) {
   checkpoint(runtime, 'grace-physical-transition:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
@@ -253,7 +254,7 @@ function createGracePhysicalTransitionModel(
     });
   }
 
-  const path = createSustainedPolyphonicPathSelection(source, runtime);
+  const path = createSustainedPolyphonicPathSelection(source, runtime, guitarOptions);
   const notesById = sourceNoteIndex(source);
   const dispositions = dispositionIndex(canonicalTabResult);
   const groups = [];
@@ -282,7 +283,7 @@ function createGracePhysicalTransitionModel(
       || !anchorDisposition.targetPitch
       || anchorDisposition.targetPitch.midi !== anchorEvent.pitch.midi
       || !anchorDisposition.selectedPosition
-      || positionToMidi(anchorDisposition.selectedPosition) !== anchorEvent.pitch.midi
+      || positionToMidi(anchorDisposition.selectedPosition, guitarOptions) !== anchorEvent.pitch.midi
     ) {
       throw unplayable('Grace anchor is not available as an exact retained guitar position.', {
         graceGroupId: group.graceGroupId,
@@ -320,7 +321,7 @@ function createGracePhysicalTransitionModel(
       string: anchorDisposition.selectedPosition.string,
       fret: anchorDisposition.selectedPosition.fret,
     });
-    const selected = chooseGracePath(group, reservedStrings, anchorPosition, runtime);
+    const selected = chooseGracePath(group, reservedStrings, anchorPosition, runtime, guitarOptions);
     const notes = group.notes.map((note, noteIndex) => Object.freeze({
       graceEventId: note.graceEventId,
       orderIndex: note.orderIndex,
