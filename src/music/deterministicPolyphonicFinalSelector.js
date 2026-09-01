@@ -601,13 +601,23 @@ function buildFinalFacts(units, path) {
   });
 }
 
-function createDeterministicPolyphonicFinalSelection(sourceModel, arrangementDecisions, runtime = null) {
+function createDeterministicPolyphonicFinalSelection(
+  sourceModel,
+  arrangementDecisions,
+  runtime = null,
+  guitarOptions = {},
+) {
   checkpoint(runtime, 'deterministic-final-selection:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const grouping = createSimultaneousEventModel(source, runtime);
   createGuitarArrangementPlan(source, arrangementDecisions, runtime);
   const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
-  const handoff = createDeterministicPa7CandidateSnapshotHandoff(source, arrangementDecisions, runtime);
+  const handoff = createDeterministicPa7CandidateSnapshotHandoff(
+    source,
+    arrangementDecisions,
+    runtime,
+    guitarOptions,
+  );
   if (handoff.candidateGenerationCount !== 1) {
     throw invalid('Final selection requires exactly one authentic PA-7 candidate generation.');
   }
