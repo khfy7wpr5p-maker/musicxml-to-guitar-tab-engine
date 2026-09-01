@@ -107,4 +107,4 @@ ${note('F', 4)}
   assert.deepEqual(bytes, original);
 });
 '''
-test_path.write_text(tests + addition + '\n', encoding='utf-8')
+test_path.write_text(tests + addition.rstrip() + '\n', encoding='utf-8')
