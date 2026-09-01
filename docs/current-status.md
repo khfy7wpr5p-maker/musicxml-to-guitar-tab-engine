@@ -20,6 +20,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Exact grace nominal type `32nd` | ✅ ACTIVE |
 | Exact Guitar Pro bracketed triplet display compatibility | ✅ ACTIVE |
 | Exact normalized TAB staff mirror collapse | ✅ ACTIVE |
+| Exact display-only rehearsal direction compatibility | ✅ ACTIVE |
 | Sustain / tie compatibility | ✅ MATERIALLY STRENGTHENED |
 | PA-8 false aggregate exhaustion | ✅ CORRECTED WITHOUT RAISING FIXED CEILINGS |
 | Same-voice chord false-positive overlap | ✅ CORRECTED |
@@ -57,6 +58,7 @@ Production code currently contains generic, bounded contracts for:
 - exact attribute-free grace nominal types `eighth` and `32nd`;
 - exact bracketed-below Guitar Pro 3:2 triplet display metadata backed by validated time-modification semantics;
 - exact two-staff notation/TAB mirror collapse after original staff-2 TAB evidence and normalized semantic equality are proven;
+- exact display-only `<direction><direction-type><rehearsal>…</rehearsal></direction-type></direction>` provenance when the enclosing elements contain no timing, playback, staff/voice, layout, extension, attribute, or stray-text semantics;
 - exact contiguous closed sustain-stop continuation under PS-2 v1.2.0.
 
 These rules are MusicXML-shape/semantic contracts. They do not dispatch on filename or SHA.
@@ -82,7 +84,7 @@ In the sustained PS-4C path, `src/music/sustainedLeftHandPhysicalStateModel.js` 
 
 ## Latest real-corpus evidence
 
-The compatibility hardening sequence through merged PRs #248, #252, #254–#259 and #261 progressively removed representation/sustain false blockers without relaxing semantic safety.
+The compatibility hardening sequence through merged PRs #248, #252, #254–#259, #261, and later Stage 03 bounded compatibility/physical slices progressively removed representation/sustain false blockers without relaxing semantic safety.
 
 The exact Air corpus evidence associated with PR #259 established:
 
@@ -91,7 +93,9 @@ The exact Air corpus evidence associated with PR #259 established:
 - deterministic canonical output;
 - deterministic MusicXML output.
 
-PR #261 then audited the exact Air source and found 842 `<chord/>` members and zero unequal-duration chord members, making the max-member-occupancy hardening a no-op for that corpus while its protected checks remained green. The current repository has no open PR or issue at the start of this documentation refresh.
+PR #261 then audited the exact Air source and found 842 `<chord/>` members and zero unequal-duration chord members, making the max-member-occupancy hardening a no-op for that corpus while its protected checks remained green.
+
+PR #276 subsequently merged the exact display-only rehearsal-direction compatibility contract on current main after Tests, MusicXML Compatibility, Runtime Staging E2E, and Vercel were green. Its scope is representation-only: it removes only the proven display-only rehearsal node from the internal normalized copy, records `measure:direction:rehearsal` provenance, and keeps timing/playback/staff/voice/layout/structured or stray-text variants fail-closed. This merge does not by itself claim a new whole-corpus PASS result.
 
 This is sufficient to say that the previously tracked Air compatibility blocker is no longer a current blocker. It is **not** a claim that every Guitar Pro score is supported. Wider real-corpus hardening remains active work and unsupported notation must continue to fail closed.
 
