@@ -356,6 +356,21 @@ function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
   checkpoint(runtime, 'fingering:candidates:complete', {
     noteCount: notes.length,
   });
+  const projectedGuitarConfiguration = clonePlainData(guitarConfiguration);
+  Object.defineProperties(projectedGuitarConfiguration, {
+    capoFret: {
+      value: guitarConfiguration.capoFret,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+    fretSemantics: {
+      value: guitarConfiguration.fretSemantics,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+  });
   return deepFreeze({
     documentType: 'CanonicalFingeringCandidates',
     contractVersion: CANONICAL_FINGERING_CANDIDATES_VERSION,
@@ -363,7 +378,7 @@ function buildCandidateLayers(canonicalDocument, options = {}, runtime = null) {
     sourceContractVersion: canonicalDocument.contractVersion,
     partId: canonicalDocument.partId,
     noteCount: notes.length,
-    guitarConfiguration: clonePlainData(guitarConfiguration),
+    guitarConfiguration: projectedGuitarConfiguration,
     notes,
     candidateLayers,
   });
