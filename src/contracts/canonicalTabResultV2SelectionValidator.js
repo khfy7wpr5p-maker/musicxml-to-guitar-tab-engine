@@ -24,7 +24,7 @@ function validateTargetPitchRelation(targetPitch, sourcePitch, shift, path) {
   equal(targetPitch.octave, sourcePitch.octave + (shift / 12), `${path}.octave`, 'TARGET_OCTAVE_SHIFT_MISMATCH');
 }
 
-function validateDispositions(result, source, decisions, groups) {
+function validateDispositions(result, source, decisions, groups, guitarConfiguration) {
   const dispositions = array(result.noteDispositions, 'canonicalTabResult.noteDispositions');
   equal(dispositions.length, source.notes.length, 'canonicalTabResult.noteDispositions', 'DISPOSITION_COUNT_MISMATCH');
   const bySourceId = new Map();
@@ -79,7 +79,7 @@ function validateDispositions(result, source, decisions, groups) {
       );
       let observedMidi;
       try {
-        observedMidi = positionToMidi(entry.selectedPosition);
+        observedMidi = positionToMidi(entry.selectedPosition, guitarConfiguration);
       } catch {
         fail(`${path}.selectedPosition`, 'INVALID_GUITAR_POSITION');
       }
