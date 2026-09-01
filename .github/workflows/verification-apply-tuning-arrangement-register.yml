@@ -1,0 +1,134 @@
+name: Verification Apply Tuning Arrangement Register
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-tested-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Checkout exact target feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage-03/tuning-aware-arrangement-register
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify exact target head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "8947939252a4951c9ace134988537d4fabc9022b"
+
+      - name: Patch runtime to use tuning-aware arrangement register
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/app/musicXmlUploadRuntime.js')
+          text = path.read_text()
+
+          import_anchor = """const {
+            STANDARD_GUITAR_WORKBENCH_TARGET,
+          } = require('../guitar/standardGuitarRegister');
+          """
+          import_addition = import_anchor + """const {
+            createGuitarArrangementRegister,
+          } = require('../guitar/guitarArrangementRegister');
+          """
+          if text.count(import_anchor) != 1:
+              raise SystemExit('import anchor mismatch')
+          text = text.replace(import_anchor, import_addition, 1)
+
+          pattern = re.compile(
+              r"const STANDARD_GUITAR = createGuitarConfiguration\(\);\n"
+              r"let STANDARD_GUITAR_MINIMUM_MIDI = Number\.POSITIVE_INFINITY;\n"
+              r"let STANDARD_GUITAR_MAXIMUM_MIDI = Number\.NEGATIVE_INFINITY;\n"
+              r"for \(const string of STANDARD_GUITAR\.tuning\) \{.*?\n\}\n\n"
+              r"class MusicXmlUploadRuntimeError",
+              re.S,
+          )
+          replacement = "const STANDARD_GUITAR = createGuitarConfiguration();\n\nclass MusicXmlUploadRuntimeError"
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('standard register block mismatch')
+
+          if text.count('buildStandardGuitarArrangementDecisions') != 2:
+              raise SystemExit('arrangement function occurrence mismatch')
+          text = text.replace('buildStandardGuitarArrangementDecisions', 'buildGuitarArrangementDecisions')
+
+          signature = """function buildGuitarArrangementDecisions(sourceModel, normalization) {
+            const omitted = new Set(normalization.omittedRepresentationNoteIds);
+          """
+          replacement_signature = """function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptions = {}) {
+            const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
+            const omitted = new Set(normalization.omittedRepresentationNoteIds);
+          """
+          if text.count(signature) != 1:
+              raise SystemExit('arrangement signature mismatch')
+          text = text.replace(signature, replacement_signature, 1)
+
+          minimum_count = text.count('STANDARD_GUITAR_MINIMUM_MIDI')
+          maximum_count = text.count('STANDARD_GUITAR_MAXIMUM_MIDI')
+          if minimum_count != 5 or maximum_count != 3:
+              raise SystemExit(f'unexpected register token counts: min={minimum_count}, max={maximum_count}')
+          text = text.replace('STANDARD_GUITAR_MINIMUM_MIDI', 'arrangementRegister.minimumMidi')
+          text = text.replace('STANDARD_GUITAR_MAXIMUM_MIDI', 'arrangementRegister.maximumMidi')
+
+          call = 'const decisions = buildGuitarArrangementDecisions(sourceModel, normalization);'
+          replacement_call = """const decisions = buildGuitarArrangementDecisions(
+              sourceModel,
+              normalization,
+              sourceGuitarConfiguration.guitar || {},
+            );"""
+          if text.count(call) != 1:
+              raise SystemExit('arrangement call mismatch')
+          text = text.replace(call, replacement_call, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify whitelisted feature diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          test "$changed" = "src/app/musicXmlUploadRuntime.js"
+          git diff --check
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run focused arrangement and upload regressions
+        run: node --test tests/guitarArrangementRegister.test.js tests/musicXmlUploadRuntime.test.js
+
+      - name: Run full regression suite
+        run: node --test
+
+      - name: Commit and push verified feature revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/musicXmlUploadRuntime.js
+          git commit -m "Stage 03: use tuning-aware PA-6 arrangement register"
+          git push origin HEAD:stage-03/tuning-aware-arrangement-register
