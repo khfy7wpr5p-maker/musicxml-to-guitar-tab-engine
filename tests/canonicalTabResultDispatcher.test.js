@@ -14,6 +14,9 @@ const { createCanonicalTabResultV2 } = require('../src/tab/canonicalTabResultV2'
 const {
   dispatchCanonicalTabResult,
 } = require('../src/contracts/canonicalTabResultDispatcher');
+const {
+  convertMusicXmlToCanonicalTab,
+} = require('../src/core/conversionPipeline');
 
 function readFixture(name) {
   return fs.readFileSync(path.join(__dirname, 'fixtures', name));
@@ -75,6 +78,16 @@ test('dispatcher routes exact v1 identity only to the existing v1 validator', ()
 test('dispatcher routes exact v2 identity only to the v2 validator', () => {
   const v2 = simpleV2();
   assert.equal(dispatchCanonicalTabResult(v2), v2);
+});
+
+test('dispatcher routes exact MONO capo v1.1 identity only to the capo-aware validator', () => {
+  const result = convertMusicXmlToCanonicalTab(readFixture('parser-single-voice.musicxml'), {
+    guitar: { capoFret: 2 },
+  }).canonicalTabResult;
+
+  assert.equal(result.schemaVersion, '1.1.0');
+  assert.equal(result.guitar.capoFret, 2);
+  assert.equal(dispatchCanonicalTabResult(result), result);
 });
 
 test('dispatcher fails closed on an unregistered exact version without fallback', () => {
