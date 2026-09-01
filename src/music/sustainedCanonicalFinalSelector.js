@@ -95,6 +95,7 @@ function createSustainedCanonicalFinalSelection(
   sourceModel,
   arrangementDecisions,
   runtime = null,
+  guitarOptions = {},
 ) {
   if (runtime) runtime.checkpoint('sustained-canonical-final-selection:start');
   const projection = createSustainedCanonicalSelectionBridgeProjection(
@@ -106,7 +107,7 @@ function createSustainedCanonicalFinalSelection(
   assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);
 
   const grouping = createSimultaneousEventModel(sourceModel, runtime);
-  const path = createSustainedPolyphonicPathSelection(sourceModel, runtime);
+  const path = createSustainedPolyphonicPathSelection(sourceModel, runtime, guitarOptions);
   const logicalBySourceEventId = new Map();
   for (const logical of path.logicalNoteSelections) {
     for (const sourceEventId of logical.sourceEventIds) {
