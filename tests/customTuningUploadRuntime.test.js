@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
 const {
   MUSICXML_UPLOAD_ROUTE,
   MUSICXML_UPLOAD_STATUS,
@@ -13,27 +14,33 @@ const DROP_D_LOW_TO_HIGH = Object.freeze(['D2', 'A2', 'D3', 'G3', 'B3', 'E4']);
 const DADGAD_LOW_TO_HIGH = Object.freeze(['D2', 'A2', 'D3', 'G3', 'A3', 'D4']);
 
 function pitchParts(pitch) {
-  const match = /^([A-G])([#b]{0,2})(\d)$/.exec(pitch);
-  assert.ok(match, `invalid test pitch ${pitch}`);
-  const alter = { bb: -2, b: -1, '': 0, '#': 1, '##': 2 }[match[2]];
+  const match = /^([A-G])([#b]?)(\d)$/.exec(pitch);
+  if (!match) throw new Error(`Unsupported test pitch: ${pitch}`);
+  const alter = match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0;
   return { step: match[1], alter, octave: Number(match[3]) };
 }
 
-function staffDetails(lowToHigh, capoFret = null) {
-  return `<staff-details><staff-lines>6</staff-lines>${lowToHigh.map((pitch, index) => {
+function staffDetails(tuningLowToHigh, capoFret = null) {
+  const tuningXml = tuningLowToHigh.map((pitch, index) => {
     const { step, alter, octave } = pitchParts(pitch);
-    const line = index + 1;
-    return `<staff-tuning line="${line}"><tuning-step>${step}</tuning-step>${alter === 0 ? '' : `<tuning-alter>${alter}</tuning-alter>`}<tuning-octave>${octave}</tuning-octave></staff-tuning>`;
-  }).join('')}${capoFret === null ? '' : `<capo>${capoFret}</capo>`}</staff-details>`;
+    return `<staff-tuning line="${index + 1}"><tuning-step>${step}</tuning-step>${alter === 0 ? '' : `<tuning-alter>${alter}</tuning-alter>`}<tuning-octave>${octave}</tuning-octave></staff-tuning>`;
+  }).join('');
+  const capoXml = capoFret === null ? '' : `<capo>${capoFret}</capo>`;
+  return `<staff-details><staff-lines>6</staff-lines>${tuningXml}${capoXml}</staff-details>`;
 }
 
-function note(step, octave, voice, { alter = 0 } = {}) {
+function note(step, octave, voice = 1, { alter = 0 } = {}) {
   return `<note><pitch><step>${step}</step>${alter === 0 ? '' : `<alter>${alter}</alter>`}<octave>${octave}</octave></pitch><duration>1</duration><voice>${voice}</voice><type>quarter</type><staff>1</staff></note>`;
 }
 
-function score({ staffDetailsXml, body }) {
+function score({ staffDetailsXml = '', body, beats = 1 }) {
   return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetailsXml}</attributes>${body}</measure></part></score-partwise>`);
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>${beats}</beats><beat-type>4</beat-type></time>${staffDetailsXml}</attributes>
+${body}
+</measure></part></score-partwise>`);
 }
 
 function tuningFacts(result) {
@@ -43,7 +50,7 @@ function tuningFacts(result) {
 test('tuning-only Drop D MONO is admitted and round-trips exact source tuning', () => {
   const bytes = score({
     staffDetailsXml: staffDetails(DROP_D_LOW_TO_HIGH),
-    body: note('D', 2, 1),
+    body: note('D', 3),
   });
   const result = processMusicXmlUpload({ fileName: 'drop-d-mono.musicxml', bytes });
 
@@ -112,30 +119,30 @@ test('alternate tuning plus capo uses RELATIVE_FROM_CAPO and round-trips configu
 });
 
 test('explicit Standard tuning without capo preserves the default conversion result', () => {
+  const plain = score({ body: note('E', 4) });
   const explicit = score({
     staffDetailsXml: staffDetails(STANDARD_LOW_TO_HIGH),
-    body: note('E', 4, 1),
+    body: note('E', 4),
   });
-  const implicit = score({
-    staffDetailsXml: '',
-    body: note('E', 4, 1),
-  });
+  const plainResult = processMusicXmlUpload({ fileName: 'plain.musicxml', bytes: plain });
+  const explicitResult = processMusicXmlUpload({ fileName: 'explicit-standard.musicxml', bytes: explicit });
 
-  const explicitResult = processMusicXmlUpload({ fileName: 'standard-explicit.musicxml', bytes: explicit });
-  const implicitResult = processMusicXmlUpload({ fileName: 'standard-default.musicxml', bytes: implicit });
+  assert.equal(plainResult.status, MUSICXML_UPLOAD_STATUS.PASS);
   assert.equal(explicitResult.status, MUSICXML_UPLOAD_STATUS.PASS);
-  assert.equal(implicitResult.status, MUSICXML_UPLOAD_STATUS.PASS);
-  assert.deepEqual(explicitResult.canonicalTabResult, implicitResult.canonicalTabResult);
-  assert.equal(explicitResult.musicXml, implicitResult.musicXml);
+  assert.deepEqual(explicitResult.canonicalTabResult, plainResult.canonicalTabResult);
+  assert.equal(explicitResult.musicXml, plainResult.musicXml);
 });
 
 test('partial tuning without capo becomes explicit fail-closed provenance instead of being guessed', () => {
-  const partial = '<staff-details><staff-lines>6</staff-lines><staff-tuning line="1"><tuning-step>D</tuning-step><tuning-octave>2</tuning-octave></staff-tuning></staff-details>';
-  const bytes = score({ staffDetailsXml: partial, body: note('E', 4, 1) });
+  const bytes = score({
+    staffDetailsXml: '<staff-details><staff-lines>6</staff-lines><staff-tuning line="1"><tuning-step>D</tuning-step><tuning-octave>2</tuning-octave></staff-tuning></staff-details>',
+    body: note('E', 4),
+  });
   const result = processMusicXmlUpload({ fileName: 'partial-tuning.musicxml', bytes });
 
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
   assert.equal(result.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(result.preflight.issues[0].details.tuningCount, 1);
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
 });
