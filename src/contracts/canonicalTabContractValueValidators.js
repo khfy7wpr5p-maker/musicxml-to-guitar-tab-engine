@@ -110,9 +110,15 @@ function source(value) {
   string(value.partId, `${path}.partId`);
 }
 
-function guitar(value) {
+function guitar(value, { supportsCapo = false } = {}) {
   const path = `${ROOT}.guitar`;
-  exactKeys(value, ['tuning', 'minimumFret', 'maximumFret'], path);
+  exactKeys(
+    value,
+    supportsCapo
+      ? ['tuning', 'minimumFret', 'maximumFret', 'capoFret', 'fretSemantics']
+      : ['tuning', 'minimumFret', 'maximumFret'],
+    path,
+  );
   const minimumFret = integer(value.minimumFret, `${path}.minimumFret`, 0);
   const maximumFret = integer(
     value.maximumFret,
@@ -135,7 +141,18 @@ function guitar(value) {
     openMidi.set(stringNumber, midi);
   });
 
-  return { minimumFret, maximumFret, openMidi };
+  const capoFret = supportsCapo
+    ? integer(value.capoFret, `${path}.capoFret`, 1, maximumFret)
+    : 0;
+  if (supportsCapo) {
+    equal(
+      value.fretSemantics,
+      'RELATIVE_FROM_CAPO',
+      `${path}.fretSemantics`,
+      'UNSUPPORTED_FRET_SEMANTICS',
+    );
+  }
+  return { minimumFret, maximumFret, capoFret, openMidi };
 }
 
 function profile(value, guitarConfig) {
@@ -318,7 +335,7 @@ function position(value, guitarConfig, expectedMidi, path) {
     guitarConfig.maximumFret,
   );
   equal(
-    guitarConfig.openMidi.get(stringNumber) + fret,
+    guitarConfig.openMidi.get(stringNumber) + guitarConfig.capoFret + fret,
     expectedMidi,
     path,
     'POSITION_PITCH_MISMATCH',
