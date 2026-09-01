@@ -4,7 +4,8 @@ const { EngineError } = require('../errors/engineError');
 const { pitchNameToMidi } = require('../music/pitch');
 
 // Keep the existing serialized/canonical configuration version stable in PR-1.
-// Capo/fret semantics are additive internal facts; Canonical V2 exposure is staged for PR-7.
+// Capo/fret semantics remain non-enumerable here. Canonical v1.1/v2.1 producers
+// serialize them only under their separately versioned exact contracts.
 const GUITAR_CONFIGURATION_VERSION = '1.0.0';
 const GUITAR_STRING_COUNT = 6;
 const GUITAR_FRET_SEMANTICS = 'RELATIVE_FROM_CAPO';
