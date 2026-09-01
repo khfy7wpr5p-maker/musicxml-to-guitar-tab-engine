@@ -401,8 +401,18 @@ function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime =
   return snapshot;
 }
 
-function createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime = null) {
-  const voicing = createGuitarVoicingCandidateModel(sourceModel, arrangementDecisions, runtime);
+function createLeftHandShapeModel(
+  sourceModel,
+  arrangementDecisions,
+  runtime = null,
+  guitarOptions = {},
+) {
+  const voicing = createGuitarVoicingCandidateModel(
+    sourceModel,
+    arrangementDecisions,
+    runtime,
+    guitarOptions,
+  );
   return createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime);
 }
 
