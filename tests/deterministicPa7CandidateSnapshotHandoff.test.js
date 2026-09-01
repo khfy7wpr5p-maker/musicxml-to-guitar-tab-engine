@@ -179,6 +179,48 @@ test('PA-7 handoff generates candidates once and preserves exact identity/order 
   assert.equal(handoff.candidateCount, handoff.physicalPlayabilitySnapshot.voicingCandidateCount);
 });
 
+test('PA-7 handoff threads one capo configuration through PA-7, PA-8 and PA-9', () => {
+  const source = createSource();
+  const decisions = createDecisions();
+  const baseline = createDeterministicPa7CandidateSnapshotHandoff(source, decisions);
+  const capo = createDeterministicPa7CandidateSnapshotHandoff(
+    source,
+    decisions,
+    null,
+    { capoFret: 2 },
+  );
+
+  assert.notDeepEqual(
+    capo.voicingCandidateSnapshot.groups[0].candidates[0].positions,
+    baseline.voicingCandidateSnapshot.groups[0].candidates[0].positions,
+  );
+  assert.deepEqual(
+    capo.voicingCandidateSnapshot.groups[0].candidates[0].positions,
+    [
+      {
+        sourceEventId: createSourceEventId('P1', 0, 0),
+        targetMidi: 60,
+        string: 3,
+        fret: 3,
+      },
+      {
+        sourceEventId: createSourceEventId('P1', 0, 1),
+        targetMidi: 64,
+        string: 2,
+        fret: 3,
+      },
+    ],
+  );
+  assert.deepEqual(
+    candidateIdsFromPa8(capo.leftHandShapeSnapshot),
+    candidateIdsFromPa7(capo.voicingCandidateSnapshot),
+  );
+  assert.deepEqual(
+    candidateIdsFromPa9(capo.physicalPlayabilitySnapshot),
+    candidateIdsFromPa8(capo.leftHandShapeSnapshot),
+  );
+});
+
 test('snapshot consumers reject mutable and deeply frozen unauthenticated lookalikes fail-closed', () => {
   const source = createSource();
   const decisions = createDecisions();
