@@ -360,9 +360,9 @@ function assertSupportedSourceGuitarConfiguration(parsedDocument) {
   const sourceProvenance = extractMusicXmlGuitarConfigurationProvenance(parsedDocument);
   const resolved = resolveGuitarConfigurationAuthority({ sourceProvenance });
 
-  // This slice supports an explicit nonzero capo on the MONO V1.1 path only.
-  // Any source tuning change remains outside the serialized contract and is
-  // therefore rejected rather than silently reinterpreted.
+  // An explicit capo is supported by the bounded MONO V1.1 and POLY V2.1
+  // production paths. Any source tuning change remains outside the serialized
+  // contract and is therefore rejected rather than silently reinterpreted.
   const sameTuning = sameConfiguration(
     createGuitarConfiguration({
       tuning: resolved.configuration.tuning,
@@ -555,9 +555,20 @@ function publicNormalization(normalization) {
   });
 }
 
-function convertProjectedMirrorToCanonicalTab(sourceModel, decisions, processing, writerOptions = {}) {
+function convertProjectedMirrorToCanonicalTab(
+  sourceModel,
+  decisions,
+  processing,
+  writerOptions = {},
+  guitarOptions = {},
+) {
   processing.checkpoint('app-upload:tab-mirror-canonical:start');
-  const canonicalTabResult = createCanonicalTabResultV2(sourceModel, decisions, processing);
+  const canonicalTabResult = createCanonicalTabResultV2(
+    sourceModel,
+    decisions,
+    processing,
+    guitarOptions,
+  );
   const musicXml = serializeCanonicalTabResultV2ToMusicXml(
     canonicalTabResult,
     writerOptions,
@@ -602,18 +613,21 @@ function convertGraceProjectionToCanonicalTab(
   decisions,
   processing,
   writerOptions = {},
+  guitarOptions = {},
 ) {
   processing.checkpoint('app-upload:grace-canonical:start');
   const canonicalTabResult = createCanonicalTabResultV2(
     graceProjection.mainSourceModel,
     decisions,
     processing,
+    guitarOptions,
   );
   const physicalGrace = createGracePhysicalTransitionModel(
     graceProjection.mainSourceModel,
     canonicalTabResult,
     graceProjection.graceOrnamentGroups,
     processing,
+    guitarOptions,
   );
   const musicXml = serializeCanonicalTabResultV2ToMusicXml(
     canonicalTabResult,
@@ -847,6 +861,14 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         : {}),
       chordLabels,
     };
+    const guitarOptions = sourceGuitarConfiguration.guitar
+      ? {
+        tuning: sourceGuitarConfiguration.guitar.tuning,
+        minimumFret: sourceGuitarConfiguration.guitar.minimumFret,
+        maximumFret: sourceGuitarConfiguration.guitar.maximumFret,
+        capoFret: sourceGuitarConfiguration.guitar.capoFret,
+      }
+      : {};
     let conversion;
     if (graceProjection) {
       conversion = convertGraceProjectionToCanonicalTab(
@@ -854,6 +876,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         decisions,
         processing,
         writerOptions,
+        guitarOptions,
       );
     } else {
       conversion = convertProjectedMirrorToCanonicalTab(
@@ -861,6 +884,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         decisions,
         processing,
         writerOptions,
+        guitarOptions,
       );
     }
     assertAuthorizedStandardGuitarArrangement(sourceModel, conversion.canonicalTabResult, normalization);
