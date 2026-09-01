@@ -4,6 +4,7 @@ const { version: ENGINE_VERSION } = require('../../package.json');
 const { ENGINE_NAME } = require('../contracts/canonicalTabContractMetadata');
 const {
   CANONICAL_TAB_RESULT_V2_VERSION,
+  CANONICAL_TAB_RESULT_V2_CAPO_VERSION,
   CANONICAL_TAB_RESULT_DOCUMENT_TYPE,
   validateCanonicalTabResultV2,
 } = require('../contracts/canonicalTabResultV2Contract');
@@ -113,7 +114,12 @@ function createSelectedShapeFacts(finalSelection) {
   }));
 }
 
-function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime = null) {
+function createCanonicalTabResultV2(
+  sourceModel,
+  arrangementDecisions,
+  runtime = null,
+  guitarOptions = {},
+) {
   if (runtime) runtime.checkpoint('canonical-tab-result-v2:start');
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const grouping = createSimultaneousEventModel(source, runtime);
@@ -125,6 +131,7 @@ function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime =
       source,
       arrangementDecisions,
       runtime,
+      guitarOptions,
     );
   } catch (error) {
     const reason = error && error.details && error.details.reason;
@@ -141,12 +148,15 @@ function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime =
       source,
       arrangementDecisions,
       runtime,
+      guitarOptions,
     );
   }
 
   const result = {
     documentType: CANONICAL_TAB_RESULT_DOCUMENT_TYPE,
-    schemaVersion: CANONICAL_TAB_RESULT_V2_VERSION,
+    schemaVersion: guitarOptions.capoFret > 0
+      ? CANONICAL_TAB_RESULT_V2_CAPO_VERSION
+      : CANONICAL_TAB_RESULT_V2_VERSION,
     engine: {
       name: ENGINE_NAME,
       version: ENGINE_VERSION,
@@ -159,7 +169,7 @@ function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime =
       partId: source.source.partId,
     },
     review: { teacherReviewStatus: 'NOT_REVIEWED' },
-    guitar: createGuitarFacts(),
+    guitar: createGuitarFacts(guitarOptions),
     policyProvenance: createPolicyProvenance(),
     measures: createMeasureFacts(source),
     simultaneousGroups: createGroupFacts(grouping),
@@ -181,6 +191,7 @@ function createCanonicalTabResultV2(sourceModel, arrangementDecisions, runtime =
 
 module.exports = {
   CANONICAL_TAB_RESULT_V2_VERSION,
+  CANONICAL_TAB_RESULT_V2_CAPO_VERSION,
   CANONICAL_TAB_RESULT_DOCUMENT_TYPE,
   createCanonicalTabResultV2,
 };
