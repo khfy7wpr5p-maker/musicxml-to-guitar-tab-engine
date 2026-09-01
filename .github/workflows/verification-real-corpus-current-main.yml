@@ -1,0 +1,149 @@
+name: Verification Real Corpus Current Main
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  real-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact verification head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked engine dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Record engine identity
+        run: |
+          git rev-parse HEAD > /tmp/ENGINE_CHECKOUT_SHA.txt
+          printf '%s\n' "${{ github.event.pull_request.head.sha }}" > /tmp/PR_HEAD_SHA.txt
+          printf '%s\n' "${{ github.event.pull_request.base.sha }}" > /tmp/PR_BASE_SHA.txt
+          test "$(cat /tmp/ENGINE_CHECKOUT_SHA.txt)" = "$(cat /tmp/PR_HEAD_SHA.txt)"
+
+      - name: Checkout pinned AnimeTAB evidence source
+        uses: actions/checkout@v4
+        with:
+          repository: amamiya-yuuko/AnimeTAB
+          ref: 18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a
+          path: external-anime-tab
+          persist-credentials: false
+
+      - name: Materialize exact nine-file corpus by SHA-256
+        run: |
+          node <<'NODE'
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+
+          const sourceRoot = path.resolve('external-anime-tab', 'AnimeTAB', 'Entire songs');
+          const outputRoot = '/tmp/guitar-tech-corpus';
+          fs.rmSync(outputRoot, { recursive: true, force: true });
+          fs.mkdirSync(outputRoot, { recursive: true });
+
+          const byHash = new Map(manifest.files.map((entry) => [entry.sha256, entry]));
+          const matches = new Map();
+
+          function walk(dir) {
+            for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, item.name);
+              if (item.isDirectory()) walk(full);
+              else if (/\.(?:xml|musicxml)$/i.test(item.name)) {
+                const bytes = fs.readFileSync(full);
+                const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+                if (byHash.has(sha256)) {
+                  if (matches.has(sha256)) throw new Error(`Duplicate corpus SHA match: ${sha256}`);
+                  matches.set(sha256, { full, bytes });
+                }
+              }
+            }
+          }
+          walk(sourceRoot);
+
+          const mapping = [];
+          for (const entry of manifest.files) {
+            const match = matches.get(entry.sha256);
+            if (!match) throw new Error(`Missing exact corpus source SHA: ${entry.sha256} (${entry.fileName})`);
+            const target = path.join(outputRoot, entry.fileName);
+            fs.writeFileSync(target, match.bytes);
+            const copied = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+            if (copied !== entry.sha256) throw new Error(`Copied SHA mismatch: ${entry.fileName}`);
+            mapping.push({
+              fileName: entry.fileName,
+              sha256: entry.sha256,
+              sourcePath: path.relative(process.cwd(), match.full),
+              byteLength: match.bytes.length,
+            });
+          }
+          if (mapping.length !== 9) throw new Error(`Expected 9 mappings, got ${mapping.length}`);
+          fs.writeFileSync('/tmp/corpus-source-mapping.json', `${JSON.stringify({
+            pinnedRepository: 'amamiya-yuuko/AnimeTAB',
+            pinnedCommit: '18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a',
+            files: mapping,
+          }, null, 2)}\n`);
+          NODE
+
+      - name: Run exact real-corpus gate twice
+        shell: bash
+        run: |
+          set +e
+          node scripts/guitar-tech-real-corpus-gate.js \
+            /tmp/guitar-tech-corpus \
+            /tmp/guitar-tech-real-corpus-a.json \
+            --engine-commit=2988187af6369198a68b355db48501b2059dfc08 \
+            > /tmp/guitar-tech-real-corpus-a.stdout.json
+          A=$?
+          node scripts/guitar-tech-real-corpus-gate.js \
+            /tmp/guitar-tech-corpus \
+            /tmp/guitar-tech-real-corpus-b.json \
+            --engine-commit=2988187af6369198a68b355db48501b2059dfc08 \
+            > /tmp/guitar-tech-real-corpus-b.stdout.json
+          B=$?
+          set -e
+          printf '%s\n' "$A" > /tmp/GATE_A_EXIT_CODE.txt
+          printf '%s\n' "$B" > /tmp/GATE_B_EXIT_CODE.txt
+          cmp /tmp/guitar-tech-real-corpus-a.json /tmp/guitar-tech-real-corpus-b.json
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('/tmp/guitar-tech-real-corpus-a.json', 'utf8'));
+          const allowed = new Set(['PASS_NO_UNREVIEWED_DRIFT', 'HOLD_BLOCKER_DIFF_REVIEW_REQUIRED']);
+          if (!allowed.has(report.status)) throw new Error(`Unsafe corpus gate status: ${report.status}`);
+          if (report.engineCommit !== '2988187af6369198a68b355db48501b2059dfc08') throw new Error('Wrong engine commit in report.');
+          const s = report.summary || {};
+          for (const key of ['requiredFiles','identityVerifiedFiles','deterministicFiles','sourceImmutableFiles']) {
+            if (s[key] !== 9) throw new Error(`${key} expected 9, got ${s[key]}`);
+          }
+          fs.writeFileSync('/tmp/CORPUS_GATE_STATUS.txt', `${report.status}\n`);
+          NODE
+
+      - name: Upload corpus audit evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-main-real-corpus-audit
+          path: |
+            /tmp/ENGINE_CHECKOUT_SHA.txt
+            /tmp/PR_HEAD_SHA.txt
+            /tmp/PR_BASE_SHA.txt
+            /tmp/corpus-source-mapping.json
+            /tmp/guitar-tech-real-corpus-a.json
+            /tmp/guitar-tech-real-corpus-b.json
+            /tmp/GATE_A_EXIT_CODE.txt
+            /tmp/GATE_B_EXIT_CODE.txt
+            /tmp/CORPUS_GATE_STATUS.txt
+          if-no-files-found: error
+          retention-days: 1
