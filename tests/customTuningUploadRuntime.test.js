@@ -245,3 +245,47 @@ test('mid-score TAB retuning remains fail-closed', () => {
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
 });
+
+test('lone reversed legacy TAB tuning after solve scope remains fail-closed', () => {
+  const legacyTuning = legacyTabStaffDetails(STANDARD_LOW_TO_HIGH.slice().reverse());
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1">
+<measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time></attributes>${note('E', 4)}</measure>
+<measure number="2"><attributes>${legacyTuning}<clef><sign>TAB</sign><line>5</line></clef></attributes>${note('E', 4)}</measure>
+</part></score-partwise>`);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'late-lone-reversed-legacy-tab.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'late-lone-reversed-legacy-tab.musicxml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(first.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(first.canonicalTabResult, null);
+  assert.equal(first.musicXml, null);
+  assert.deepEqual(first, second);
+  assert.deepEqual(bytes, original);
+});
+
+test('lone partial legacy TAB tuning after timing starts remains fail-closed', () => {
+  const partialLegacyTuning = '<staff-details><staff-lines>6</staff-lines><staff-tuning line="1"><tuning-step>E</tuning-step><tuning-octave>4</tuning-octave></staff-tuning></staff-details>';
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>2</beats><beat-type>4</beat-type></time></attributes>
+${note('E', 4)}
+<attributes>${partialLegacyTuning}<clef><sign>TAB</sign><line>5</line></clef></attributes>
+${note('F', 4)}
+</measure></part></score-partwise>`);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'after-timing-partial-legacy-tab.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'after-timing-partial-legacy-tab.musicxml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(first.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(first.canonicalTabResult, null);
+  assert.equal(first.musicXml, null);
+  assert.deepEqual(first, second);
+  assert.deepEqual(bytes, original);
+});

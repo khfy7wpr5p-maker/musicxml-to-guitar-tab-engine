@@ -437,6 +437,48 @@ function isLegacyTabPresentationOnlyTuningError(parsedDocument, error) {
   const expectedTuningShape = error.message === LEGACY_PARTIAL_TAB_TUNING_ERROR
     ? 'PARTIAL'
     : 'REVERSED_COMPLETE';
+  const partIndex = error?.details?.partIndex;
+  const measureIndex = error?.details?.measureIndex;
+  const childIndex = error?.details?.childIndex;
+  const staffDetailsIndex = error?.details?.staffDetailsIndex;
+  const staffNumber = error?.details?.staffNumber;
+  if (
+    !Number.isInteger(partIndex)
+    || !Number.isInteger(measureIndex)
+    || !Number.isInteger(childIndex)
+    || !Number.isInteger(staffDetailsIndex)
+    || typeof staffNumber !== 'string'
+    || measureIndex !== 0
+  ) return false;
+
+  const errorPart = directMusicXmlChildren(parsedDocument.root, 'part')[partIndex];
+  if (!errorPart) return false;
+  const errorMeasure = directMusicXmlChildren(errorPart, 'measure')[measureIndex];
+  if (!errorMeasure) return false;
+  const errorAttributes = errorMeasure.children[childIndex];
+  if (
+    !errorAttributes
+    || errorAttributes.uri !== errorMeasure.uri
+    || errorAttributes.name !== 'attributes'
+  ) return false;
+
+  for (let index = 0; index < childIndex; index += 1) {
+    const prior = errorMeasure.children[index];
+    if (prior.uri === errorMeasure.uri && ['note', 'backup', 'forward'].includes(prior.name)) {
+      return false;
+    }
+  }
+
+  const errorStaffDetails = directMusicXmlChildren(errorAttributes, 'staff-details')[staffDetailsIndex];
+  if (
+    !errorStaffDetails
+    || (musicXmlAttribute(errorStaffDetails, 'number') || '1') !== staffNumber
+    || !hasTabClefForStaff(errorAttributes, staffNumber)
+    || (expectedTuningShape === 'PARTIAL'
+      ? !isWellFormedLegacyPartialTabTuning(errorStaffDetails)
+      : !isWellFormedLegacyReversedTabTuning(errorStaffDetails))
+  ) return false;
+
   if (
     (expectedTuningShape === 'PARTIAL' && (
       !Number.isInteger(error?.details?.tuningCount)
