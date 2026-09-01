@@ -14,6 +14,9 @@ const {
   SUSTAINED_CANONICAL_SELECTION_BRIDGE_TARGET_POLICY,
   createSustainedCanonicalSelectionBridgeProjection,
 } = require('../src/music/sustainedCanonicalSelectionBridgeV1');
+const {
+  createSustainedCanonicalFinalSelection,
+} = require('../src/music/sustainedCanonicalFinalSelector');
 
 function score(body) {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -158,6 +161,30 @@ test('E1 bridge keeps tied reduction facts chain-consistent and fails closed on 
     (error) => error
       && error.code === 'UNSUPPORTED_SUSTAINED_CANONICAL_SELECTION_BRIDGE'
       && error.details.reason === 'INCONSISTENT_TIE_REDUCTION',
+  );
+});
+
+test('sustained final selector threads one capo configuration across a retained tie chain', () => {
+  const source = sourceModel(tiedScore());
+  const decisions = [
+    singleDecision('PRESERVED', 0, 0),
+    singleDecision('PRESERVED', 1, 0),
+  ];
+  const baseline = createSustainedCanonicalFinalSelection(source, decisions);
+  const capo = createSustainedCanonicalFinalSelection(
+    source,
+    decisions,
+    null,
+    { capoFret: 2 },
+  );
+
+  assert.deepEqual(
+    baseline.noteSelections.map(({ string, fret }) => ({ string, fret })),
+    [{ string: 2, fret: 1 }, { string: 2, fret: 1 }],
+  );
+  assert.deepEqual(
+    capo.noteSelections.map(({ string, fret }) => ({ string, fret })),
+    [{ string: 3, fret: 3 }, { string: 3, fret: 3 }],
   );
 });
 
