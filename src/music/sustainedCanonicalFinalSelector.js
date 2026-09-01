@@ -8,6 +8,9 @@ const {
 const {
   createSustainedPolyphonicPathSelection,
 } = require('./sustainedPolyphonicPathSolver');
+const {
+  createSustainedTargetSourceProjection,
+} = require('./sustainedTargetSourceProjection');
 
 class SustainedCanonicalFinalSelectionError extends EngineError {
   constructor(message, details = {}) {
@@ -22,28 +25,6 @@ class SustainedCanonicalFinalSelectionError extends EngineError {
 
 function unsupported(message, reason, details = {}) {
   return new SustainedCanonicalFinalSelectionError(message, { reason, ...details });
-}
-
-function assertExactPreservedProjection(projection) {
-  for (const instruction of projection.instructions) {
-    if (
-      instruction.disposition !== 'KEEP'
-      || instruction.octaveShiftSemitones !== 0
-      || instruction.targetMidi !== instruction.sourceMidi
-    ) {
-      throw unsupported(
-        'Sustained canonical final selection v1 requires exact preserved pitches.',
-        'NON_EXACT_SUSTAINED_REDUCTION_NOT_SUPPORTED',
-        {
-          sourceEventId: instruction.sourceEventId,
-          disposition: instruction.disposition,
-          sourceMidi: instruction.sourceMidi,
-          targetMidi: instruction.targetMidi,
-          octaveShiftSemitones: instruction.octaveShiftSemitones,
-        },
-      );
-    }
-  }
 }
 
 function assertNoIndependentSourceVoiceOverlap(source, runtime) {
@@ -103,11 +84,16 @@ function createSustainedCanonicalFinalSelection(
     arrangementDecisions,
     runtime,
   );
-  assertExactPreservedProjection(projection);
-  assertNoIndependentSourceVoiceOverlap(sourceModel, runtime);
+  const targetProjection = createSustainedTargetSourceProjection(
+    sourceModel,
+    projection,
+    runtime,
+  );
+  const targetSourceModel = targetProjection.projectedSourceModel;
+  assertNoIndependentSourceVoiceOverlap(targetSourceModel, runtime);
 
-  const grouping = createSimultaneousEventModel(sourceModel, runtime);
-  const path = createSustainedPolyphonicPathSelection(sourceModel, runtime, guitarOptions);
+  const grouping = createSimultaneousEventModel(targetSourceModel, runtime);
+  const path = createSustainedPolyphonicPathSelection(targetSourceModel, runtime, guitarOptions);
   const logicalBySourceEventId = new Map();
   for (const logical of path.logicalNoteSelections) {
     for (const sourceEventId of logical.sourceEventIds) {
