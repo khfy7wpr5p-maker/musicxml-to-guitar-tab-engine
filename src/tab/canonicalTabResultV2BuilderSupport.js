@@ -71,9 +71,9 @@ function cloneEvent(event) {
   return base;
 }
 
-function createGuitarFacts() {
-  const guitar = createGuitarConfiguration();
-  return {
+function createGuitarFacts(options = {}) {
+  const guitar = createGuitarConfiguration(options);
+  const facts = {
     contractVersion: GUITAR_CONFIGURATION_VERSION,
     tuning: guitar.tuning.map((entry) => ({
       number: entry.number,
@@ -83,6 +83,11 @@ function createGuitarFacts() {
     minimumFret: guitar.minimumFret,
     maximumFret: guitar.maximumFret,
   };
+  if (guitar.capoFret > 0) {
+    facts.capoFret = guitar.capoFret;
+    facts.fretSemantics = guitar.fretSemantics;
+  }
+  return facts;
 }
 
 function createPolicyProvenance() {
