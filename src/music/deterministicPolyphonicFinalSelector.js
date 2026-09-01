@@ -612,7 +612,7 @@ function createDeterministicPolyphonicFinalSelection(
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const grouping = createSimultaneousEventModel(source, runtime);
   createGuitarArrangementPlan(source, arrangementDecisions, runtime);
-  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
+  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime, guitarOptions);
   const handoff = createDeterministicPa7CandidateSnapshotHandoff(
     source,
     arrangementDecisions,

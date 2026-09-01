@@ -115,6 +115,7 @@ function createSustainedCanonicalSelectionBridgeProjection(
   sourceModel,
   arrangementDecisions,
   runtime = null,
+  guitarOptions = {},
 ) {
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   checkpoint(runtime, 'sustained-canonical-selection-bridge:start');
@@ -122,6 +123,7 @@ function createSustainedCanonicalSelectionBridgeProjection(
     source,
     arrangementDecisions,
     runtime,
+    guitarOptions,
   );
   const tieGraph = createSustainTieGraph(source, runtime);
   const notesById = buildSourceNoteIndex(source, runtime);

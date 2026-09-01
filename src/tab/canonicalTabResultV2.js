@@ -124,7 +124,7 @@ function createCanonicalTabResultV2(
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const grouping = createSimultaneousEventModel(source, runtime);
   const arrangement = createGuitarArrangementPlan(source, arrangementDecisions, runtime);
-  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime);
+  const reduction = createDeterministicReductionPlan(source, arrangementDecisions, runtime, guitarOptions);
   let finalSelection;
   try {
     finalSelection = createDeterministicPolyphonicFinalSelection(

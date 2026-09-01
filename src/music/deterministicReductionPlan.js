@@ -1,7 +1,7 @@
 'use strict';
 
 const { EngineError } = require('../errors/engineError');
-const { createGuitarConfiguration } = require('../guitar/tuning');
+const { createGuitarArrangementRegister } = require('../guitar/guitarArrangementRegister');
 const {
   POLYPHONIC_SOURCE_MODEL_VERSION,
   POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE,
@@ -24,19 +24,6 @@ const DETERMINISTIC_REDUCTION_PLAN_DOCUMENT_TYPE = 'DeterministicReductionPlan';
 const DETERMINISTIC_REDUCTION_POLICY = 'STANDARD_GUITAR_REGISTER_20_FRET_1.0';
 const DETERMINISTIC_REDUCTION_OCTAVE_TIE_BREAK = 'DOWNWARD_TIE_BREAK_1.0';
 
-const STANDARD_CONFIGURATION = createGuitarConfiguration();
-let REGISTER_MINIMUM_MIDI = Number.POSITIVE_INFINITY;
-let REGISTER_MAXIMUM_MIDI = Number.NEGATIVE_INFINITY;
-for (const string of STANDARD_CONFIGURATION.tuning) {
-  REGISTER_MINIMUM_MIDI = Math.min(
-    REGISTER_MINIMUM_MIDI,
-    string.midi + STANDARD_CONFIGURATION.minimumFret,
-  );
-  REGISTER_MAXIMUM_MIDI = Math.max(
-    REGISTER_MAXIMUM_MIDI,
-    string.midi + STANDARD_CONFIGURATION.maximumFret,
-  );
-}
 
 class DeterministicReductionPlanError extends EngineError {
   constructor(message, details = {}) {
@@ -59,8 +46,8 @@ function checkpoint(runtime, phase, details) {
   }
 }
 
-function inRegister(midi) {
-  return midi >= REGISTER_MINIMUM_MIDI && midi <= REGISTER_MAXIMUM_MIDI;
+function inRegister(midi, registerEnvelope) {
+  return midi >= registerEnvelope.minimumMidi && midi <= registerEnvelope.maximumMidi;
 }
 
 function buildSourceNoteIndex(source, runtime) {
@@ -112,11 +99,11 @@ function buildAnalysisIndex(analysis, runtime) {
   return analysisByEventId;
 }
 
-function selectOctaveTarget(sourceMidi, runtime, details) {
+function selectOctaveTarget(sourceMidi, runtime, details, registerEnvelope) {
   let selected = null;
   let selectedDistance = Number.POSITIVE_INFINITY;
 
-  for (let targetMidi = REGISTER_MINIMUM_MIDI; targetMidi <= REGISTER_MAXIMUM_MIDI; targetMidi += 1) {
+  for (let targetMidi = registerEnvelope.minimumMidi; targetMidi <= registerEnvelope.maximumMidi; targetMidi += 1) {
     checkpoint(runtime, 'deterministic-reduction-plan:octave-candidate', {
       ...details,
       targetMidi,
@@ -139,15 +126,15 @@ function selectOctaveTarget(sourceMidi, runtime, details) {
     throw invalid('No non-zero pitch-class-equivalent octave target exists inside the PA-6 register envelope.', {
       ...details,
       sourceMidi,
-      minimumMidi: REGISTER_MINIMUM_MIDI,
-      maximumMidi: REGISTER_MAXIMUM_MIDI,
+      minimumMidi: registerEnvelope.minimumMidi,
+      maximumMidi: registerEnvelope.maximumMidi,
     });
   }
 
   return selected;
 }
 
-function instructionForSingleNote(event, decision, analysisEntry, runtime) {
+function instructionForSingleNote(event, decision, analysisEntry, runtime, registerEnvelope) {
   checkpoint(runtime, 'deterministic-reduction-plan:execute-single', {
     sourceEventId: event.sourceEventId,
     decisionId: decision.decisionId,
@@ -155,8 +142,8 @@ function instructionForSingleNote(event, decision, analysisEntry, runtime) {
   });
 
   if (decision.decisionType === 'PRESERVED') {
-    if (!inRegister(event.pitch.midi)) {
-      throw invalid('PRESERVED source pitch lies outside the fixed PA-6 register envelope.', {
+    if (!inRegister(event.pitch.midi, registerEnvelope)) {
+      throw invalid('PRESERVED source pitch lies outside the configured PA-6 register envelope.', {
         sourceEventId: event.sourceEventId,
         sourceMidi: event.pitch.midi,
       });
@@ -182,12 +169,12 @@ function instructionForSingleNote(event, decision, analysisEntry, runtime) {
     const targetMidi = selectOctaveTarget(event.pitch.midi, runtime, {
       sourceEventId: event.sourceEventId,
       decisionId: decision.decisionId,
-    });
+    }, registerEnvelope);
     const octaveShiftSemitones = targetMidi - event.pitch.midi;
     if (
       octaveShiftSemitones === 0
       || (octaveShiftSemitones % 12) !== 0
-      || !inRegister(targetMidi)
+      || !inRegister(targetMidi, registerEnvelope)
     ) {
       throw invalid('OCTAVE_DISPLACED did not produce a valid non-zero octave shift.', {
         sourceEventId: event.sourceEventId,
@@ -218,7 +205,7 @@ function instructionForSingleNote(event, decision, analysisEntry, runtime) {
   });
 }
 
-function buildChordReductionOutcomes(decision, notesById, analysisByEventId, runtime) {
+function buildChordReductionOutcomes(decision, notesById, analysisByEventId, runtime, registerEnvelope) {
   const entries = [];
   let melodyCount = 0;
   let bassCount = 0;
@@ -285,8 +272,8 @@ function buildChordReductionOutcomes(decision, notesById, analysisByEventId, run
       analysisEntry.role === 'MELODY_CANDIDATE'
       || analysisEntry.role === 'BASS_CANDIDATE'
     ) {
-      if (!inRegister(event.pitch.midi)) {
-        throw invalid('CHORD_REDUCED outer survivor lies outside the fixed PA-6 register envelope.', {
+      if (!inRegister(event.pitch.midi, registerEnvelope)) {
+        throw invalid('CHORD_REDUCED outer survivor lies outside the configured PA-6 register envelope.', {
           decisionId: decision.decisionId,
           sourceEventId: event.sourceEventId,
           sourceMidi: event.pitch.midi,
@@ -311,10 +298,11 @@ function buildChordReductionOutcomes(decision, notesById, analysisByEventId, run
   return outcomes;
 }
 
-function createDeterministicReductionPlan(sourceModel, arrangementDecisions, runtime = null) {
+function createDeterministicReductionPlan(sourceModel, arrangementDecisions, runtime = null, guitarOptions = {}) {
   const source = validatePolyphonicSourceModel(sourceModel, runtime);
   const arrangement = createGuitarArrangementPlan(source, arrangementDecisions, runtime);
   const analysis = createDeterministicVoiceAnalysis(source, runtime);
+  const registerEnvelope = createGuitarArrangementRegister(guitarOptions);
 
   const { orderedNotes, notesById } = buildSourceNoteIndex(source, runtime);
   const decisionsByEventId = buildDecisionIndex(arrangement, runtime);
@@ -342,6 +330,7 @@ function createDeterministicReductionPlan(sourceModel, arrangementDecisions, run
           notesById,
           analysisByEventId,
           runtime,
+          registerEnvelope,
         );
         groupOutcomesByDecisionId.set(decision.decisionId, groupOutcomes);
       }
@@ -355,7 +344,7 @@ function createDeterministicReductionPlan(sourceModel, arrangementDecisions, run
         sourceGroupId: decision.sourceGroupId,
       });
     } else {
-      outcome = instructionForSingleNote(event, decision, analysisEntry, runtime);
+      outcome = instructionForSingleNote(event, decision, analysisEntry, runtime, registerEnvelope);
     }
 
     if (!outcome) {
@@ -402,8 +391,8 @@ function createDeterministicReductionPlan(sourceModel, arrangementDecisions, run
       analysisBasis: DETERMINISTIC_VOICE_ANALYSIS_BASIS,
     }),
     registerEnvelope: Object.freeze({
-      minimumMidi: REGISTER_MINIMUM_MIDI,
-      maximumMidi: REGISTER_MAXIMUM_MIDI,
+      minimumMidi: registerEnvelope.minimumMidi,
+      maximumMidi: registerEnvelope.maximumMidi,
     }),
     instructionCount: instructions.length,
     instructions: Object.freeze(instructions),
