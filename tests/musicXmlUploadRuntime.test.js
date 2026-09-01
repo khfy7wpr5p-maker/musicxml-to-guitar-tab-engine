@@ -261,25 +261,30 @@ test('explicit multi-staff source is routed to POLY_V2 before any successful MON
   assert.notEqual(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
 });
 
-test('explicit source capo is blocked instead of being silently solved as standard guitar', () => {
+test('explicit source capo uses the MONO V1.1 physical contract and keeps POLY blocked', () => {
   const mono = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails({ capoFret: 2 })}</attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
   const poly = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails({ capoFret: 2 })}</attributes><note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note><backup><duration>1</duration></backup><note><pitch><step>B</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note></measure></part></score-partwise>`);
 
-  for (const [fileName, bytes, route, expectedCapo] of [
-    ['capo-mono.musicxml', mono, MUSICXML_UPLOAD_ROUTE.MONO_V1, 2],
-    ['drop-d-capo-poly.musicxml', poly, MUSICXML_UPLOAD_ROUTE.POLY_V2, 2],
-  ]) {
-    const result = processMusicXmlUpload({ fileName, bytes });
-    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
-    assert.equal(result.route, route);
-    assert.equal(result.preflight.issues[0].category, 'capability');
-    assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_GUITAR_CONFIGURATION_PROFILE');
-    assert.equal(result.preflight.issues[0].details.authority, 'EXPLICIT_MUSICXML_SOURCE');
-    assert.equal(result.preflight.issues[0].details.capoFret, expectedCapo);
-    assert.equal(result.canonicalTabResult, null);
-  }
+  const monoResult = processMusicXmlUpload({ fileName: 'capo-mono.musicxml', bytes: mono });
+  assert.equal(monoResult.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(monoResult.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+  assert.equal(monoResult.canonicalTabResult.schemaVersion, '1.1.0');
+  assert.equal(monoResult.canonicalTabResult.guitar.capoFret, 2);
+  assert.equal(monoResult.canonicalTabResult.guitar.fretSemantics, 'RELATIVE_FROM_CAPO');
+  assert.match(monoResult.musicXml, /<capo>2<\/capo>/);
+  assert.equal(monoResult.canonicalTabResult.measures[0].events[0].pitch.midi, 52);
+  assert.deepEqual(monoResult.canonicalTabResult.measures[0].events[0].selectedPosition, {
+    string: 4,
+    fret: 0,
+  });
+
+  const polyResult = processMusicXmlUpload({ fileName: 'drop-d-capo-poly.musicxml', bytes: poly });
+  assert.equal(polyResult.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(polyResult.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(polyResult.preflight.issues[0].category, 'capability');
+  assert.equal(polyResult.canonicalTabResult, null);
 });
 
 test('a complete explicit Standard/capo-0 source configuration preserves the existing upload route', () => {
