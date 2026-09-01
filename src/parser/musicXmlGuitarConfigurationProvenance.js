@@ -98,17 +98,48 @@ function validatePhysicalTuningOrder(tuning, location) {
   }
 }
 
-function parseStaffDetails(node, location) {
+function parseStaffDetails(node, location, inheritedConfiguration = null) {
   const tuningNodes = directChildren(node, 'staff-tuning');
   const capoNodes = directChildren(node, 'capo');
   if (tuningNodes.length === 0 && capoNodes.length === 0) return null;
-  if (capoNodes.length > 1 || tuningNodes.length !== GUITAR_STRING_COUNT) {
-    fail('Explicit MusicXML guitar configuration requires six staff-tuning elements and at most one capo.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', { ...location, tuningCount: tuningNodes.length, capoCount: capoNodes.length });
+  if (capoNodes.length > 1) {
+    fail('Explicit MusicXML guitar configuration allows at most one capo.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', { ...location, tuningCount: tuningNodes.length, capoCount: capoNodes.length });
   }
   const staffLinesNodes = directChildren(node, 'staff-lines');
   if (staffLinesNodes.length > 1) fail('Duplicate staff-lines is ambiguous.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', location);
   if (staffLinesNodes.length === 1 && integerText(staffLinesNodes[0], 'staff-details.staff-lines') !== 6) {
     fail('Explicit guitar configuration requires six staff lines.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE', location);
+  }
+  if (tuningNodes.length === 0) {
+    if (capoNodes.length !== 1 || !inheritedConfiguration) {
+      fail(
+        'Capo-only MusicXML guitar configuration requires a prior complete configuration on the same staff.',
+        'INVALID_GUITAR_CONFIGURATION_PROVENANCE',
+        { ...location, tuningCount: tuningNodes.length, capoCount: capoNodes.length },
+      );
+    }
+    const capoFret = integerText(capoNodes[0], 'staff-details.capo');
+    try {
+      return createGuitarConfiguration({
+        tuning: inheritedConfiguration.tuning,
+        minimumFret: inheritedConfiguration.minimumFret,
+        maximumFret: inheritedConfiguration.maximumFret,
+        capoFret,
+      });
+    } catch (error) {
+      fail(
+        'MusicXML capo-only guitar configuration is internally inconsistent.',
+        'INVALID_GUITAR_CONFIGURATION_PROVENANCE',
+        { ...location, causeCode: error?.code || null },
+      );
+    }
+  }
+  if (tuningNodes.length !== GUITAR_STRING_COUNT) {
+    fail(
+      'Explicit MusicXML guitar tuning requires six staff-tuning elements.',
+      'INVALID_GUITAR_CONFIGURATION_PROVENANCE',
+      { ...location, tuningCount: tuningNodes.length, capoCount: capoNodes.length },
+    );
   }
   const byLine = new Map();
   tuningNodes.forEach((tuningNode, index) => {
@@ -145,6 +176,7 @@ function extractMusicXmlGuitarConfigurationProvenance(parsedDocument) {
     fail('Expected parsed score-partwise MusicXML.', 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
   }
   const records = [];
+  const latestConfigurationByStaff = new Map();
   const parts = directChildren(parsedDocument.root, 'part');
   parts.forEach((part, partIndex) => {
     const measures = directChildren(part, 'measure');
@@ -156,8 +188,14 @@ function extractMusicXmlGuitarConfigurationProvenance(parsedDocument) {
         if (child.name !== 'attributes') return;
         directChildren(child, 'staff-details').forEach((staffDetails, staffDetailsIndex) => {
           const location = { partIndex, partId: attribute(part, 'id') || null, measureIndex, measureNumber: attribute(measure, 'number') || null, childIndex, staffDetailsIndex, staffNumber: attribute(staffDetails, 'number') || '1' };
-          const configuration = parseStaffDetails(staffDetails, location);
+          const staffKey = `${partIndex}:${location.staffNumber}`;
+          const configuration = parseStaffDetails(
+            staffDetails,
+            location,
+            latestConfigurationByStaff.get(staffKey) || null,
+          );
           if (!configuration) return;
+          latestConfigurationByStaff.set(staffKey, configuration);
           records.push(Object.freeze({
             ...location,
             afterSolveStart: measureIndex !== 0 || timingStarted,
