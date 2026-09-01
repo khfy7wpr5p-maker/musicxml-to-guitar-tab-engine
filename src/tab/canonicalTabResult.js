@@ -5,6 +5,7 @@ const { EngineError } = require('../errors/engineError');
 const {
   ENGINE_NAME,
   CANONICAL_TAB_RESULT_VERSION,
+  CANONICAL_TAB_RESULT_V1_1_VERSION,
 } = require('../contracts/canonicalTabContractMetadata');
 const { createFingeringCostProfile } = require('../fingering/costModel');
 const { optimizeFingering } = require('../fingering/fingeringOptimizer');
@@ -313,10 +314,19 @@ function createCanonicalTabResult(canonicalDocument, options = {}, runtime = nul
     });
   }
 
-  const guitarConfiguration = clonePlainData(candidates.guitarConfiguration);
+  const capoFret = candidates.guitarConfiguration.capoFret;
+  const guitarConfiguration = {
+    ...clonePlainData(candidates.guitarConfiguration),
+    ...(capoFret > 0 ? {
+      capoFret,
+      fretSemantics: candidates.guitarConfiguration.fretSemantics,
+    } : {}),
+  };
   const result = {
     documentType: 'CanonicalTabResult',
-    schemaVersion: CANONICAL_TAB_RESULT_VERSION,
+    schemaVersion: capoFret > 0
+      ? CANONICAL_TAB_RESULT_V1_1_VERSION
+      : CANONICAL_TAB_RESULT_VERSION,
     engine: {
       name: ENGINE_NAME,
       version: ENGINE_VERSION,
