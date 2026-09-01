@@ -1,0 +1,76 @@
+name: Verification Capture PR298 Full Suite Failure
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification control
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: verification-control
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout exact old production target
+        uses: actions/checkout@v4
+        with:
+          ref: stage-03/narrow-legacy-tab-fallback
+          path: target
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify exact old target head
+        working-directory: target
+        run: test "$(git rev-parse HEAD)" = "8033e26b82fde4f896e48dff3d86c1c48f72db8e"
+
+      - name: Apply PR298 bounded patch
+        working-directory: target
+        run: python ../verification-control/verification/apply-narrow-legacy-tab-fallback.py
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: target
+        run: npm ci
+
+      - name: Capture full regression TAP output
+        id: full_suite
+        working-directory: target
+        shell: bash
+        run: |
+          set +e
+          node --test > ../verification-control/verification/pr298-full-suite-output.txt 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit captured evidence to verification branch
+        working-directory: verification-control
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verification/pr298-full-suite-output.txt
+          if git diff --cached --quiet; then
+            echo "Captured output unchanged"
+          else
+            git commit -m "VERIFY: capture PR298 full-suite TAP failure"
+            git push origin HEAD:verification/reproduce-pr298-log
+          fi
+
+      - name: Preserve original full-suite conclusion
+        shell: bash
+        run: test "${{ steps.full_suite.outputs.exit_code }}" = "0"
