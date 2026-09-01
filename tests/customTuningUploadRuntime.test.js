@@ -29,6 +29,14 @@ function staffDetails(tuningLowToHigh, capoFret = null) {
   return `<staff-details><staff-lines>6</staff-lines>${tuningXml}${capoXml}</staff-details>`;
 }
 
+function legacyTabStaffDetails(tuningHighToLow) {
+  const tuningXml = tuningHighToLow.map((pitch, index) => {
+    const { step, alter, octave } = pitchParts(pitch);
+    return `<staff-tuning line="${index + 1}"><tuning-step>${step}</tuning-step>${alter === 0 ? '' : `<tuning-alter>${alter}</tuning-alter>`}<tuning-octave>${octave}</tuning-octave></staff-tuning>`;
+  }).join('');
+  return `<staff-details><staff-lines>6</staff-lines>${tuningXml}</staff-details>`;
+}
+
 function note(step, octave, voice = 1, { alter = 0 } = {}) {
   return `<note><pitch><step>${step}</step>${alter === 0 ? '' : `<alter>${alter}</alter>`}<octave>${octave}</octave></pitch><duration>1</duration><voice>${voice}</voice><type>quarter</type><staff>1</staff></note>`;
 }
@@ -143,6 +151,97 @@ test('partial tuning without capo becomes explicit fail-closed provenance instea
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
   assert.equal(result.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
   assert.equal(result.preflight.issues[0].details.tuningCount, 1);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('well-formed reversed legacy TAB tuning is presentation-only provenance', () => {
+  const bytes = score({
+    staffDetailsXml: `${legacyTabStaffDetails(STANDARD_LOW_TO_HIGH.slice().reverse())}<clef><sign>TAB</sign><line>5</line></clef>`,
+    body: note('E', 4),
+  });
+  const result = processMusicXmlUpload({ fileName: 'legacy-reversed-tab-tuning.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+  assert.deepEqual(tuningFacts(result), [
+    { number: 1, pitch: 'E4', midi: 64 },
+    { number: 2, pitch: 'B3', midi: 59 },
+    { number: 3, pitch: 'G3', midi: 55 },
+    { number: 4, pitch: 'D3', midi: 50 },
+    { number: 5, pitch: 'A2', midi: 45 },
+    { number: 6, pitch: 'E2', midi: 40 },
+  ]);
+});
+
+test('physically inconsistent reversed TAB tuning is not downgraded to presentation-only provenance', () => {
+  const bytes = score({
+    staffDetailsXml: `${legacyTabStaffDetails(['E4', 'E4', 'G3', 'D3', 'A2', 'E2'])}<clef><sign>TAB</sign><line>5</line></clef>`,
+    body: note('E', 4),
+  });
+  const result = processMusicXmlUpload({ fileName: 'inconsistent-reversed-tab-tuning.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('repeated reversed legacy TAB tuning is not downgraded after the solve scope begins', () => {
+  const legacyTuning = legacyTabStaffDetails(STANDARD_LOW_TO_HIGH.slice().reverse());
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1">
+<measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${legacyTuning}<clef><sign>TAB</sign><line>5</line></clef></attributes>${note('E', 4)}</measure>
+<measure number="2"><attributes>${legacyTuning}<clef><sign>TAB</sign><line>5</line></clef></attributes>${note('E', 4)}</measure>
+</part></score-partwise>`);
+  const result = processMusicXmlUpload({ fileName: 'repeated-legacy-tab-tuning.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('malformed partial TAB tuning is not downgraded to presentation-only provenance', () => {
+  const bytes = score({
+    staffDetailsXml: '<staff-details><staff-lines>6</staff-lines><staff-tuning line="1"><tuning-step>H</tuning-step><tuning-octave>4</tuning-octave></staff-tuning></staff-details><clef><sign>TAB</sign><line>5</line></clef>',
+    body: note('E', 4),
+  });
+  const result = processMusicXmlUpload({ fileName: 'malformed-tab-partial.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'INVALID_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('conflicting complete TAB tunings remain fail-closed', () => {
+  const bytes = score({
+    staffDetailsXml: `${staffDetails(STANDARD_LOW_TO_HIGH)}${staffDetails(DROP_D_LOW_TO_HIGH)}<clef><sign>TAB</sign><line>5</line></clef>`,
+    body: note('E', 4),
+  });
+  const result = processMusicXmlUpload({ fileName: 'conflicting-tab-tuning.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'AMBIGUOUS_GUITAR_CONFIGURATION_PROVENANCE');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});
+
+test('mid-score TAB retuning remains fail-closed', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1">
+<measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time>${staffDetails(STANDARD_LOW_TO_HIGH)}<clef><sign>TAB</sign><line>5</line></clef></attributes>${note('E', 4)}</measure>
+<measure number="2"><attributes>${staffDetails(DROP_D_LOW_TO_HIGH)}<clef><sign>TAB</sign><line>5</line></clef></attributes>${note('E', 4)}</measure>
+</part></score-partwise>`);
+  const result = processMusicXmlUpload({ fileName: 'mid-score-tab-retuning.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_GUITAR_CONFIGURATION_CHANGE');
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
 });
