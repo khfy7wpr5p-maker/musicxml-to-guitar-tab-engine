@@ -118,6 +118,13 @@ function withObservedGuitarProDirections(xml) {
   );
 }
 
+function withExactDisplayRehearsal(xml) {
+  return xml.replace(
+    '    <note>',
+    '    <direction><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>\n    <note>',
+  );
+}
+
 test('POLY production chain accepts ordinary two-voice input without musical change', () => {
   const result = assertDeterministicPolyPass('ordinary-two-voice', fixture('ps6-counterpoint-2v.musicxml'));
   assert.equal(result.canonicalTabResult.measures.length > 0, true);
@@ -191,6 +198,15 @@ test('POLY production chain accepts the observed Guitar Pro metronome and dynami
   assert.ok(ignored.includes('measure:direction:dynamics'));
 });
 
+test('POLY production chain accepts an exact display-only rehearsal mark as provenance', () => {
+  const result = assertDeterministicPolyPass(
+    'guitar-pro-safe-rehearsal',
+    withExactDisplayRehearsal(runtimeFixture()),
+  );
+  assert.deepEqual(eventSnapshot(result), BASE_RUNTIME_SNAPSHOT);
+  assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('measure:direction:rehearsal'));
+});
+
 test('POLY production chain remains fail-closed for timing-affecting or unbounded directions', () => {
   for (const [name, direction] of [
     ['offset', '<direction><offset>1</offset><direction-type><dynamics><mf/></dynamics></direction-type></direction>'],
@@ -198,6 +214,12 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['navigation-sound', '<direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dacapo="yes"/></direction>'],
     ['unbounded-dynamic', '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>'],
     ['invalid-layout', '<direction directive="yes"><direction-type><metronome parentheses="maybe" default-y="40"><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>'],
+    ['rehearsal-with-timing-offset', '<direction><offset>1</offset><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
+    ['rehearsal-with-playback-sound', '<direction><direction-type><rehearsal>Section A</rehearsal></direction-type><sound dacapo="yes"/></direction>'],
+    ['rehearsal-with-layout-attribute', '<direction placement="above"><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
+    ['rehearsal-with-structured-content', '<direction><direction-type><rehearsal><display-text>Section A</display-text></rehearsal></direction-type></direction>'],
+    ['rehearsal-with-direction-text', '<direction>unexpected<direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
+    ['rehearsal-with-direction-type-text', '<direction><direction-type>unexpected<rehearsal>Section A</rehearsal></direction-type></direction>'],
   ]) {
     const result = processMusicXmlUpload({
       fileName: `unsupported-direction-${name}.musicxml`,
