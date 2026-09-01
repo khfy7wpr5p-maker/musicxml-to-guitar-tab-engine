@@ -10,6 +10,10 @@ const {
   resolveGuitarConfigurationAuthority,
 } = require('../guitar/guitarConfigurationAuthority');
 const {
+  MAX_ADJACENT_OPEN_STRING_INTERVAL,
+} = require('../guitar/tuning');
+const { pitchNameToMidi } = require('../music/pitch');
+const {
   STANDARD_GUITAR_WORKBENCH_TARGET,
 } = require('../guitar/standardGuitarRegister');
 const {
@@ -339,21 +343,135 @@ function hasTabClefForStaff(attributes, staffNumber) {
   ));
 }
 
-function hasLegacyTabPresentationOnlyTuning(parsedDocument) {
+const LEGACY_PARTIAL_TAB_TUNING_ERROR = 'Explicit MusicXML guitar tuning requires six staff-tuning elements.';
+const LEGACY_REVERSED_TAB_TUNING_ERROR = 'MusicXML open-string pitches are physically inconsistent for the bounded six-string profile.';
+
+function parseWellFormedLegacyTabTuning(staffDetails) {
+  const tuningNodes = directMusicXmlChildren(staffDetails, 'staff-tuning');
+  const capoNodes = directMusicXmlChildren(staffDetails, 'capo');
+  const staffLinesNodes = directMusicXmlChildren(staffDetails, 'staff-lines');
+
+  if (
+    tuningNodes.length < 1
+    || tuningNodes.length > 6
+    || capoNodes.length !== 0
+    || staffLinesNodes.length !== 1
+    || staffLinesNodes[0].attributes.length !== 0
+    || staffLinesNodes[0].children.length !== 0
+    || staffLinesNodes[0].text.trim() !== '6'
+  ) {
+    return null;
+  }
+
+  const seenLines = new Set();
+  const tuning = [];
+  for (const tuningNode of tuningNodes) {
+    if (tuningNode.attributes.some((item) => item.uri.length !== 0 || item.name !== 'line')) {
+      return null;
+    }
+    const lineAttributes = tuningNode.attributes.filter(
+      (item) => item.uri.length === 0 && item.name === 'line',
+    );
+    if (lineAttributes.length !== 1 || !/^[1-6]$/.test(lineAttributes[0].value)) return null;
+    if (seenLines.has(lineAttributes[0].value)) return null;
+    seenLines.add(lineAttributes[0].value);
+
+    if (tuningNode.text.trim() !== '' || tuningNode.children.some((child) => child.uri !== tuningNode.uri)) return null;
+    const children = tuningNode.children;
+    if (children.some((child) => !['tuning-step', 'tuning-alter', 'tuning-octave'].includes(child.name))) {
+      return null;
+    }
+    const steps = directMusicXmlChildren(tuningNode, 'tuning-step');
+    const alters = directMusicXmlChildren(tuningNode, 'tuning-alter');
+    const octaves = directMusicXmlChildren(tuningNode, 'tuning-octave');
+    if (steps.length !== 1 || alters.length > 1 || octaves.length !== 1) return null;
+    if (steps[0].attributes.length !== 0 || steps[0].children.length !== 0 || !/^[A-G]$/.test(steps[0].text.trim())) return null;
+    if (octaves[0].attributes.length !== 0 || octaves[0].children.length !== 0 || !/^[0-9]$/.test(octaves[0].text.trim())) return null;
+
+    let alter = 0;
+    if (alters.length === 1) {
+      if (alters[0].attributes.length !== 0 || alters[0].children.length !== 0 || !/^-?\d+$/.test(alters[0].text.trim())) return null;
+      alter = Number.parseInt(alters[0].text.trim(), 10);
+      if (alter < -2 || alter > 2) return null;
+    }
+
+    const accidental = ({ '-2': 'bb', '-1': 'b', 0: '', 1: '#', 2: '##' })[String(alter)];
+    const pitch = `${steps[0].text.trim()}${accidental}${octaves[0].text.trim()}`;
+    let midi;
+    try {
+      midi = pitchNameToMidi(pitch);
+    } catch {
+      return null;
+    }
+    tuning.push({ line: Number(lineAttributes[0].value), midi });
+  }
+
+  return tuning.sort((left, right) => left.line - right.line);
+}
+
+function isWellFormedLegacyPartialTabTuning(staffDetails) {
+  const tuning = parseWellFormedLegacyTabTuning(staffDetails);
+  return tuning !== null && tuning.length < 6;
+}
+
+function isWellFormedLegacyReversedTabTuning(staffDetails) {
+  const tuning = parseWellFormedLegacyTabTuning(staffDetails);
+  if (tuning === null || tuning.length !== 6) return false;
+  return tuning.every((entry, index) => (
+    index === 0
+    || (
+      tuning[index - 1].midi > entry.midi
+      && tuning[index - 1].midi - entry.midi <= MAX_ADJACENT_OPEN_STRING_INTERVAL
+    )
+  ));
+}
+
+function isLegacyTabPresentationOnlyTuningError(parsedDocument, error) {
+  if (
+    error?.code !== 'INVALID_GUITAR_CONFIGURATION_PROVENANCE'
+    || ![LEGACY_PARTIAL_TAB_TUNING_ERROR, LEGACY_REVERSED_TAB_TUNING_ERROR].includes(error?.message)
+  ) {
+    return false;
+  }
+
+  const expectedTuningShape = error.message === LEGACY_PARTIAL_TAB_TUNING_ERROR
+    ? 'PARTIAL'
+    : 'REVERSED_COMPLETE';
+  if (
+    (expectedTuningShape === 'PARTIAL' && (
+      !Number.isInteger(error?.details?.tuningCount)
+      || error.details.tuningCount < 1
+      || error.details.tuningCount >= 6
+      || error?.details?.capoCount !== 0
+    ))
+    || (expectedTuningShape === 'REVERSED_COMPLETE' && error?.details?.interval >= 0)
+  ) return false;
+
+  let presentationBlockCount = 0;
   const pending = [parsedDocument.root];
   while (pending.length > 0) {
     const node = pending.pop();
     if (node.name === 'attributes') {
       for (const staffDetails of directMusicXmlChildren(node, 'staff-details')) {
-        const hasTuning = directMusicXmlChildren(staffDetails, 'staff-tuning').length > 0;
-        const hasCapo = directMusicXmlChildren(staffDetails, 'capo').length > 0;
+        const tuningNodes = directMusicXmlChildren(staffDetails, 'staff-tuning');
+        const capoNodes = directMusicXmlChildren(staffDetails, 'capo');
+        if (tuningNodes.length === 0 && capoNodes.length === 0) continue;
         const staffNumber = musicXmlAttribute(staffDetails, 'number') || '1';
-        if (hasTuning && !hasCapo && hasTabClefForStaff(node, staffNumber)) return true;
+        if (
+          !hasTabClefForStaff(node, staffNumber)
+          || (expectedTuningShape === 'PARTIAL'
+            ? !isWellFormedLegacyPartialTabTuning(staffDetails)
+            : !isWellFormedLegacyReversedTabTuning(staffDetails))
+        ) {
+          return false;
+        }
+        presentationBlockCount += 1;
       }
     }
     for (const child of node.children) pending.push(child);
   }
-  return false;
+
+  return presentationBlockCount === 1;
 }
 
 function assertSupportedSourceGuitarConfiguration(parsedDocument) {
@@ -364,7 +482,7 @@ function assertSupportedSourceGuitarConfiguration(parsedDocument) {
     // Existing producer exports can carry incomplete or display-oriented TAB
     // staff-tuning facts. Without a capo they are not executable tuning
     // authority; preserve their established provenance-only interpretation.
-    if (hasLegacyTabPresentationOnlyTuning(parsedDocument)) {
+    if (isLegacyTabPresentationOnlyTuningError(parsedDocument, error)) {
       return Object.freeze({
         authority: 'STANDARD_DEFAULT',
         sourceStatus: 'TAB_PRESENTATION_PROVENANCE_ONLY',
