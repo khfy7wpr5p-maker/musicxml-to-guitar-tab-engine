@@ -34,7 +34,7 @@ CanonicalTabResult 2.0.0 (internal/application authority)
 MusicXML / TAB writer
 ```
 
-The package-root API remains deliberately narrower: standard MONO output uses `CanonicalTabResult 1.0.0`; an explicit nonzero source capo produces the compatible MONO-only `CanonicalTabResult 1.1.0` extension with `capoFret` and `RELATIVE_FROM_CAPO` semantics. No PA/internal polyphonic function is exported from `src/index.js`.
+The package-root API remains deliberately narrower: standard MONO output uses `CanonicalTabResult 1.0.0`; an explicit nonzero Standard-tuned source capo produces the compatible MONO `CanonicalTabResult 1.1.0` extension. The internal/application POLY route likewise emits `CanonicalTabResult 2.1.0` with `capoFret` and `RELATIVE_FROM_CAPO` semantics. No PA/internal polyphonic function is exported from `src/index.js`; alternate source tunings remain fail-closed.
 
 See:
 
