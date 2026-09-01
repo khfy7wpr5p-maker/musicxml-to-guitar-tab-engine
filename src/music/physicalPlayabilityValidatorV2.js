@@ -358,7 +358,11 @@ function buildShapeVerdict(shape, positions, voicingCandidateId, sourceGroupId, 
   });
 }
 
-function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtime = null) {
+function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(
+  leftHand,
+  runtime = null,
+  guitarOptions = {},
+) {
   checkpoint(runtime, 'physical-playability-v2:start');
   validateLeftHandIdentity(leftHand);
 
@@ -427,6 +431,7 @@ function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtim
           voicing.positions,
           voicing.voicingCandidateId,
           group.sourceGroupId,
+          guitarOptions,
         );
         shapeVerdicts[shapeIndex] = verdict;
         if (verdict.status === PLAYABILITY_STATUS.PLAYABLE_WITHIN_POLICY) {
@@ -492,9 +497,23 @@ function validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtim
   });
 }
 
-function validatePhysicalPlayabilityV2(sourceModel, arrangementDecisions, runtime = null) {
-  const leftHand = createLeftHandShapeModel(sourceModel, arrangementDecisions, runtime);
-  return validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(leftHand, runtime);
+function validatePhysicalPlayabilityV2(
+  sourceModel,
+  arrangementDecisions,
+  runtime = null,
+  guitarOptions = {},
+) {
+  const leftHand = createLeftHandShapeModel(
+    sourceModel,
+    arrangementDecisions,
+    runtime,
+    guitarOptions,
+  );
+  return validatePhysicalPlayabilityV2FromLeftHandShapeSnapshot(
+    leftHand,
+    runtime,
+    guitarOptions,
+  );
 }
 
 module.exports = {
