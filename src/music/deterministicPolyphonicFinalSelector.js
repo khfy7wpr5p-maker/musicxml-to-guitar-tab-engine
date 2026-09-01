@@ -139,8 +139,8 @@ function localCost(positions, verdict) {
   ]);
 }
 
-function candidateFromSingleton(unit, position) {
-  if (positionToMidi(position) !== unit.targetMidi) {
+function candidateFromSingleton(unit, position, guitarOptions) {
+  if (positionToMidi(position, guitarOptions) !== unit.targetMidi) {
     throw invalid('Singleton position failed exact target-MIDI round trip.', {
       sourceEventId: unit.sourceEventId,
       targetMidi: unit.targetMidi,
@@ -416,10 +416,11 @@ function assertNoUnsupportedSustainedOverlap(units, indexes) {
   }
 }
 
-function buildUnitCandidates(unit, handoff) {
+function buildUnitCandidates(unit, handoff, guitarOptions) {
   const candidates = unit.kind === 'GROUP'
     ? candidatesFromGroup(unit, handoff)
-    : getPositionCandidates(unit.targetMidi).map((position) => candidateFromSingleton(unit, position));
+    : getPositionCandidates(unit.targetMidi, guitarOptions)
+      .map((position) => candidateFromSingleton(unit, position, guitarOptions));
 
   if (candidates.length === 0) {
     throw unsupported(
@@ -637,7 +638,7 @@ function createDeterministicPolyphonicFinalSelection(
   let observedPathStates = 0;
   const unitCandidates = units.map((unit, unitIndex) => {
     checkpoint(runtime, 'deterministic-final-selection:unit', { unitIndex });
-    const candidates = buildUnitCandidates(unit, handoff);
+    const candidates = buildUnitCandidates(unit, handoff, guitarOptions);
     observedPathStates = safeAdd(observedPathStates, candidates.length, 'pathStateCount');
     if (observedPathStates > MAX_FINAL_SELECTION_PATH_STATES) {
       throw unsupported(
