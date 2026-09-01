@@ -1,0 +1,120 @@
+name: Verification Custom Tuning Provenance Audit
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact production base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Verify production identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.base.sha }}" = "550867d1c2a301d9832cc6af74e8eabc0e2ceae9"
+          test "$(git rev-parse HEAD)" = "550867d1c2a301d9832cc6af74e8eabc0e2ceae9"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Checkout pinned AnimeTAB source
+        uses: actions/checkout@v4
+        with:
+          repository: amamiya-yuuko/AnimeTAB
+          ref: 18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a
+          path: external-anime-tab
+          persist-credentials: false
+
+      - name: Materialize exact corpus by manifest SHA
+        run: |
+          node <<'NODE'
+          'use strict';
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const root = path.resolve('external-anime-tab', 'AnimeTAB', 'Entire songs');
+          const out = '/tmp/guitar-tech-corpus';
+          fs.mkdirSync(out, { recursive: true });
+          const wanted = new Map(manifest.files.map((entry) => [entry.sha256, entry]));
+          const found = new Map();
+          for (const item of fs.readdirSync(root, { withFileTypes: true })) {
+            if (!item.isFile() || !/\.(?:xml|musicxml)$/i.test(item.name)) continue;
+            const full = path.join(root, item.name);
+            const bytes = fs.readFileSync(full);
+            const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+            if (wanted.has(hash)) found.set(hash, { full, bytes });
+          }
+          for (const entry of manifest.files) {
+            const match = found.get(entry.sha256);
+            if (!match) throw new Error(`Missing exact SHA ${entry.sha256}`);
+            fs.writeFileSync(path.join(out, entry.fileName), match.bytes);
+          }
+          NODE
+
+      - name: Audit unconditional configuration provenance
+        run: |
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = require('./verification/guitar-tech-real-corpus-manifest.json');
+          const { parseParsedMusicXmlDocument } = require('./src/parser/parsedMusicXmlDocument');
+          const { extractMusicXmlGuitarConfigurationProvenance } = require('./src/parser/musicXmlGuitarConfigurationProvenance');
+          const records = manifest.files.map((entry) => {
+            try {
+              const bytes = fs.readFileSync(path.join('/tmp/guitar-tech-corpus', entry.fileName));
+              const parsed = parseParsedMusicXmlDocument(bytes);
+              const provenance = extractMusicXmlGuitarConfigurationProvenance(parsed);
+              return {
+                fileName: entry.fileName,
+                sha256: entry.sha256,
+                outcome: 'OK',
+                status: provenance.status,
+                recordCount: provenance.recordCount,
+                sourceTechnicalPositionEvidenceCount: provenance.sourceTechnicalPositionEvidenceCount,
+                configuration: provenance.configuration ? {
+                  capoFret: provenance.configuration.capoFret,
+                  tuning: provenance.configuration.tuning.map(({ number, pitch, midi }) => ({ number, pitch, midi })),
+                } : null,
+              };
+            } catch (error) {
+              return {
+                fileName: entry.fileName,
+                sha256: entry.sha256,
+                outcome: 'ERROR',
+                code: error?.code || null,
+                message: error instanceof Error ? error.message : String(error),
+                details: error?.details || null,
+              };
+            }
+          });
+          fs.writeFileSync('/tmp/custom-tuning-provenance-audit.json', `${JSON.stringify({
+            engineCommit: '550867d1c2a301d9832cc6af74e8eabc0e2ceae9',
+            records,
+          }, null, 2)}\n`);
+          NODE
+
+      - name: Upload audit evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: custom-tuning-provenance-audit
+          path: /tmp/custom-tuning-provenance-audit.json
+          if-no-files-found: error
+          retention-days: 1
