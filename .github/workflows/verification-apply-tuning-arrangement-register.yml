@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "8947939252a4951c9ace134988537d4fabc9022b"
 
-      - name: Patch runtime to use tuning-aware arrangement register
+      - name: Patch runtime to use one tuning-aware arrangement register
         shell: bash
         run: |
           set -euo pipefail
@@ -66,19 +66,39 @@ jobs:
               raise SystemExit('standard register block mismatch')
 
           if text.count('buildStandardGuitarArrangementDecisions') != 2:
-              raise SystemExit('arrangement function occurrence mismatch')
+              raise SystemExit('arrangement builder occurrence mismatch')
           text = text.replace('buildStandardGuitarArrangementDecisions', 'buildGuitarArrangementDecisions')
 
-          signature = """function buildGuitarArrangementDecisions(sourceModel, normalization) {
+          build_signature = """function buildGuitarArrangementDecisions(sourceModel, normalization) {
             const omitted = new Set(normalization.omittedRepresentationNoteIds);
           """
-          replacement_signature = """function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptions = {}) {
+          build_replacement = """function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptions = {}) {
             const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
             const omitted = new Set(normalization.omittedRepresentationNoteIds);
           """
-          if text.count(signature) != 1:
-              raise SystemExit('arrangement signature mismatch')
-          text = text.replace(signature, replacement_signature, 1)
+          if text.count(build_signature) != 1:
+              raise SystemExit('arrangement builder signature mismatch')
+          text = text.replace(build_signature, build_replacement, 1)
+
+          if text.count('assertAuthorizedStandardGuitarArrangement') != 2:
+              raise SystemExit('arrangement authorization occurrence mismatch')
+          text = text.replace('assertAuthorizedStandardGuitarArrangement', 'assertAuthorizedGuitarArrangement')
+
+          auth_signature = """function assertAuthorizedGuitarArrangement(sourceModel, canonicalTabResult, normalization) {
+            const omittedRepresentationIds = new Set(normalization.omittedRepresentationNoteIds);
+          """
+          auth_replacement = """function assertAuthorizedGuitarArrangement(
+            sourceModel,
+            canonicalTabResult,
+            normalization,
+            guitarOptions = {},
+          ) {
+            const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
+            const omittedRepresentationIds = new Set(normalization.omittedRepresentationNoteIds);
+          """
+          if text.count(auth_signature) != 1:
+              raise SystemExit('arrangement authorization signature mismatch')
+          text = text.replace(auth_signature, auth_replacement, 1)
 
           minimum_count = text.count('STANDARD_GUITAR_MINIMUM_MIDI')
           maximum_count = text.count('STANDARD_GUITAR_MAXIMUM_MIDI')
@@ -87,15 +107,26 @@ jobs:
           text = text.replace('STANDARD_GUITAR_MINIMUM_MIDI', 'arrangementRegister.minimumMidi')
           text = text.replace('STANDARD_GUITAR_MAXIMUM_MIDI', 'arrangementRegister.maximumMidi')
 
-          call = 'const decisions = buildGuitarArrangementDecisions(sourceModel, normalization);'
-          replacement_call = """const decisions = buildGuitarArrangementDecisions(
+          build_call = 'const decisions = buildGuitarArrangementDecisions(sourceModel, normalization);'
+          build_call_replacement = """const decisions = buildGuitarArrangementDecisions(
               sourceModel,
               normalization,
               sourceGuitarConfiguration.guitar || {},
             );"""
-          if text.count(call) != 1:
-              raise SystemExit('arrangement call mismatch')
-          text = text.replace(call, replacement_call, 1)
+          if text.count(build_call) != 1:
+              raise SystemExit('arrangement builder call mismatch')
+          text = text.replace(build_call, build_call_replacement, 1)
+
+          auth_call = 'assertAuthorizedGuitarArrangement(sourceModel, conversion.canonicalTabResult, normalization);'
+          auth_call_replacement = """assertAuthorizedGuitarArrangement(
+              sourceModel,
+              conversion.canonicalTabResult,
+              normalization,
+              guitarOptions,
+            );"""
+          if text.count(auth_call) != 1:
+              raise SystemExit('arrangement authorization call mismatch')
+          text = text.replace(auth_call, auth_call_replacement, 1)
 
           path.write_text(text)
           PY
