@@ -125,6 +125,22 @@ assert.deepEqual(
 assert.equal(allBeats(notation).filter((beat) => beat.isRest && !beat.isEmpty).length, 1);
 assert.equal(allBeats(tablature).filter((beat) => beat.isRest && !beat.isEmpty).length, 1);
 
+const capoResult = createCanonicalTabV2CompatibilityFixture({ capoFret: 2 });
+const capoXml = serializeCanonicalTabResultV2ToMusicXml(capoResult);
+const capoScore = loadScore(capoXml);
+const capoTablature = capoScore.tracks[0].staves[1];
+const capoDispositions = capoResult.noteDispositions.filter((entry) => entry.disposition === 'KEEP');
+assert.equal(capoResult.schemaVersion, '2.1.0');
+assert.match(capoXml, /<capo>2<\/capo>/);
+assert.deepEqual(
+  allNotes(capoTablature).map((note) => note.realValue),
+  capoDispositions.map((entry) => entry.targetPitch.midi),
+);
+assert.deepEqual(
+  allNotes(capoTablature).map((note) => musicXmlPosition(note, capoTablature.tuning.length)),
+  capoDispositions.map((entry) => entry.selectedPosition),
+);
+
 const { renderer, fragments } = await renderScore(score);
 try {
   assert.ok(fragments.reduce((sum, entry) => sum + entry.width, 0) > 0);
@@ -140,4 +156,12 @@ try {
   })}\n`);
 } finally {
   renderer.destroy?.();
+}
+
+const capoRender = await renderScore(capoScore);
+try {
+  assert.ok(capoRender.fragments.reduce((sum, entry) => sum + entry.width, 0) > 0);
+  assert.ok(capoRender.fragments.reduce((sum, entry) => sum + entry.height, 0) > 0);
+} finally {
+  capoRender.renderer.destroy?.();
 }
