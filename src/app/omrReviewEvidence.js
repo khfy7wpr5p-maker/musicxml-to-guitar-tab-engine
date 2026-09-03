@@ -3,7 +3,6 @@
 const { types: { isProxy } } = require('node:util');
 const {
   REVIEW_DISPOSITION,
-  SOURCE_REVIEW_AVAILABILITY,
   buildScoreState,
 } = require('./reviewableScoreState');
 
@@ -76,8 +75,7 @@ function assertPlainDataObject(value, field) {
   return descriptors;
 }
 
-function normalizeText(value, field, { allowNull = false } = {}) {
-  if (allowNull && value === null) return null;
+function normalizeText(value, field) {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_TEXT_LENGTH) {
     throw new TypeError(`${field} must be a non-empty bounded string.`);
   }
@@ -250,7 +248,7 @@ function createOmrEvidenceIssue(payload) {
 function buildOmrReviewScoreState({
   route,
   issuePayloads = [],
-  sourceReviewAvailability = SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+  sourceReviewAvailability,
 }) {
   if (!Array.isArray(issuePayloads)) throw new TypeError('issuePayloads must be an array.');
   const issues = Object.freeze(issuePayloads.map(createOmrEvidenceIssue));
