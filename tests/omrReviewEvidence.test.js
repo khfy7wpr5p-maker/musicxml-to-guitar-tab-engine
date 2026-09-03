@@ -166,7 +166,18 @@ test('reviewable evidence requires a stable measure or event/location reference'
   );
 });
 
-test('payload shape is exact and evidence values reject executable/accessor-style data', () => {
+test('event_id_or_location accepts only null, non-empty string or non-empty plain object', () => {
+  assert.throws(
+    () => createOmrEvidenceIssue(payload({ event_id_or_location: 12 })),
+    /must be null, a non-empty string, or a non-empty plain object/,
+  );
+  assert.throws(
+    () => createOmrEvidenceIssue(payload({ event_id_or_location: {} })),
+    /object must not be empty/,
+  );
+});
+
+test('payload shape is exact and evidence values reject executable/accessor/proxy-style data', () => {
   const withExtra = { ...payload(), candidate_pitch: 'G4' };
   assert.throws(
     () => createOmrEvidenceIssue(withExtra),
@@ -181,6 +192,12 @@ test('payload shape is exact and evidence values reject executable/accessor-styl
   assert.throws(
     () => createOmrEvidenceIssue(payload({ observed_value: observed })),
     /enumerable data property/,
+  );
+
+  const proxiedEvidence = new Proxy([1, 2, 3], {});
+  assert.throws(
+    () => createOmrEvidenceIssue(payload({ observed_value: proxiedEvidence })),
+    /must not contain Proxy evidence/,
   );
 });
 
