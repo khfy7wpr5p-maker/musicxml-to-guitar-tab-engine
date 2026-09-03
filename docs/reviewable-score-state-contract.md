@@ -30,7 +30,7 @@ The runtime state helper is `src/app/reviewableScoreState.js`.
 3. A reviewable error must be in `content`, `semantic`, or `quality`, must carry the explicit disposition, and requires `sourceReviewAvailability: 'SAFE_TO_OPEN'`.
 4. A hard block always wins when it appears alongside reviewable errors.
 
-This allow-list is deliberately narrow. Stage 04 will add evidence-backed OMR issue producers; it may not make unclassified parser, safety, capability, or structural failures reviewable by default.
+This allow-list is deliberately narrow. Stage 04 adds the evidence-backed OMR producer in `src/app/omrReviewEvidence.js`; it does not make unclassified parser, safety, capability, playability, physical or structural failures reviewable by default. See [`stage-04-omr-review-evidence-contract.md`](stage-04-omr-review-evidence-contract.md).
 
 ## Editor-facing issue location
 
@@ -49,4 +49,4 @@ Locations are evidence for navigation and highlighting only. They do not grant b
 
 ## Compatibility boundary
 
-The existing upload runtime continues to return only its existing `PASS`/`BLOCKED` results until Stage 04 supplies a concrete, safe OMR evidence producer. Stage 01 introduces the reusable state contract and its tests without relabeling present failures. This preserves current PASS behavior and keeps unknown failures fail-closed.
+Stage 04 now supplies a concrete, safe OMR evidence producer that can build this score-state contract from trusted OMR provenance. The existing upload runtime still returns only its existing `PASS`/`BLOCKED` results because `processMusicXmlUpload()` does not itself receive or authenticate OMR evidence. Unknown failures therefore remain fail-closed, while an OMR-aware host/backend has an explicit bounded path to produce `REVIEW_REQUIRED` without guessing missing music.
