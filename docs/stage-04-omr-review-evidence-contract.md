@@ -59,6 +59,8 @@ The following codes are explicitly reviewable when they use a Stage 01 reviewabl
 
 For these issues, the producer adds the trusted backend disposition `REVIEW_REQUIRED`. Stage 01 then returns `REVIEW_REQUIRED` only when the immutable source is safely available to open.
 
+`sourceReviewAvailability` is mandatory input to the Stage 04 state builder. There is no implicit `SAFE_TO_OPEN` default; the caller must explicitly prove or declare the Stage 01 source-review availability state.
+
 A reviewable issue without a stable measure or event/location reference is rejected instead of being silently generalized to the whole score.
 
 ## Hard-block OMR codes
@@ -108,6 +110,7 @@ A missing or uncertain value remains missing/uncertain evidence until a later te
 OMR / imported MusicXML evidence
   → trusted Stage 04 evidence producer
   → bounded allow-list + payload validation
+  → explicit source-review availability gate
   → Stage 01 buildScoreState()
   → PASS | REVIEW_REQUIRED | BLOCKED
 ```
