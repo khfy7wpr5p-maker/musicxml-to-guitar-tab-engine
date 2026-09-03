@@ -9,7 +9,7 @@ A `REVIEW_REQUIRED` score must be understandable and correctable by a teacher wi
 - an open score workspace for reviewable input;
 - visible issue list and synchronized current score target/highlight;
 - pitch and duration correction controls;
-- capability-gated voice, tie and chord correction controls;
+- capability-gated voice, staff, tie and chord correction controls;
 - note/rest add and delete actions;
 - undo/redo;
 - save revision;
@@ -96,7 +96,9 @@ Fresh-read editor reference for this stage:
 
 The current Editor Core continues to provide substantial safe correction/history primitives, but a fresh code search did not find a reviewed canonical `VOICE_REASSIGNMENT` or canonical `STAFF_REASSIGNMENT` primitive. Recent Voice work materializes proven synthetic measure coverage; it does not by itself prove arbitrary imported-score voice reassignment.
 
-Therefore Stage 07 renders those controls from capability state rather than pretending the primitives exist. A trusted adapter can enable them only after a later fresh review proves the corresponding canonical operation.
+Therefore Stage 07 renders voice/staff controls from capability state rather than pretending the primitives exist. A trusted adapter can enable them only after a later fresh review proves the corresponding canonical operation.
+
+Note addition carries the pitch and duration explicitly selected in the UI; rest addition carries the selected duration. The host still validates and converts these requested values through the Stage 06 capability-gated adapter. Delete/tie/chord actions rely only on a current canonical selection and must fail closed if the trusted host cannot derive one unambiguous explicit patch from that state.
 
 ## Browser host contract
 
@@ -117,7 +119,7 @@ revalidate()
 
 `continueToTab()` is optional until Stage 08 is connected; the UI will fail explicitly if a caller attempts continuation without that host capability.
 
-`command()` receives a UI intent only. The host must resolve the current canonical selection/current value and delegate to the corresponding Stage 06 capability-gated operation. The browser UI never supplies canonical target identity or Stage 05 `before` evidence.
+`command()` receives a UI intent only. The host must resolve the current canonical selection/current value and delegate to the corresponding Stage 06 capability-gated operation. The browser UI never supplies canonical target identity or Stage 05 `before` evidence. Requested values are still untrusted UI input and must be validated by the host/editor adapter.
 
 ## Hard BLOCKED behavior
 
