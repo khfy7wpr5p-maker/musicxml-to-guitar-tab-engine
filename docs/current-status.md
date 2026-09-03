@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -12,11 +12,14 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Package-root deterministic monophonic API | ✅ PUBLIC / VERIFIED |
 | `CanonicalTabResult 1.0.0` package-root authority | ✅ ACTIVE |
 | MONO source capo extension: `CanonicalTabResult 1.1.0` | ✅ ACTIVE — explicit nonzero Standard-tuned source capo |
-| POLY physical configuration plumbing | ✅ INTERNAL — PA-7/PA-8/PA-9 and both final selectors consume the resolved source capo |
-| Internal POLY capo canonical extension: `CanonicalTabResult 2.1.0` | ✅ INTERNAL/APPLICATION — relative positions + MusicXML `<capo>` for explicit internal capo |
-| Capo-only later `staff-details` restatement | ✅ ACTIVE / BOUNDED — only prior complete same-part/same-staff six-string tuning may be reused |
 | Internal/application POLY_V2 path | ✅ IMPLEMENTED / BOUNDED / NON-PACKAGE-ROOT |
-| `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL/APPLICATION — exact standard behavior preserved |
+| `CanonicalTabResult 2.0.0` runtime/validator/writer | ✅ INTERNAL/APPLICATION |
+| Internal POLY capo/configuration extension: `CanonicalTabResult 2.1.0` | ✅ INTERNAL/APPLICATION |
+| Explicit complete MusicXML six-string tuning provenance | ✅ ACTIVE / BOUNDED — application upload boundary |
+| Explicit MusicXML capo provenance | ✅ ACTIVE / BOUNDED — configuration validated before solve scope |
+| Capo-only later `staff-details` restatement | ✅ ACTIVE / BOUNDED — prior complete same-part/same-staff configuration required |
+| Genuine tuning/capo change after solve start | 🔒 FAIL-CLOSED |
+| Legacy TAB presentation-only tuning fallback | ✅ ACTIVE / STRICTLY BOUNDED — Standard fallback only before solve start |
 | Guitar Pro grace compatibility | ✅ ACTIVE |
 | Exact grace nominal type `32nd` | ✅ ACTIVE |
 | Exact grace accidental display compatibility | ✅ ACTIVE / BOUNDED |
@@ -24,13 +27,14 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Exact normalized TAB staff mirror collapse | ✅ ACTIVE |
 | Exact display-only rehearsal direction compatibility | ✅ ACTIVE |
 | Sustain / tie compatibility | ✅ MATERIALLY STRENGTHENED |
-| PA-6 target MIDI in sustained physical selection | ✅ ACTIVE / INTERNAL — source pitch and tie identity remain unchanged |
+| PA-6 target MIDI in sustained physical selection | ✅ ACTIVE / INTERNAL |
 | PA-8 false aggregate exhaustion | ✅ CORRECTED WITHOUT RAISING FIXED CEILINGS |
 | Same-voice chord false-positive overlap | ✅ CORRECTED |
 | Unequal-duration same-voice chord occupancy | ✅ MAX-MEMBER END PRESERVED |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
+| Broader repairable-OMR → `REVIEW_REQUIRED` / partial-result policy | ⚠️ LATER STAGE — not implemented by Stage 03 |
 | Public PA-13 polyphonic package API | 🔒 NOT IMPLEMENTED |
 
 Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
@@ -40,47 +44,72 @@ Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
 ```text
 MusicXML
   → XML safety + bounded parser
+  → source guitar configuration provenance / authority
   → representation compatibility normalizers
   → PolyphonicSourceModel
   → tie/sustain + active sonority
-  → guitar positions
+  → guitar positions using resolved configuration
   → PA-8 / PA-9 physical candidates
   → sustained path solver when required
   → deterministic canonical final selection
-  → CanonicalTabResult 2.0.0 (standard) / 2.1.0 (explicit internal capo)
+  → CanonicalTabResult 2.0.0 / 2.1.0
   → internal/application MusicXML writer
 ```
 
 The package root remains narrower and does not export PA/PS internals or the POLY_V2 conversion pipeline.
 
+## Stage 03 source guitar configuration boundary
+
+`src/parser/musicXmlGuitarConfigurationProvenance.js` now admits executable source configuration only from bounded, validated MusicXML evidence. A complete tuning requires exactly six lines, valid scalar pitch facts, physically consistent six-string ordering and a representable immutable guitar configuration. At most one capo is accepted per declaration.
+
+The first executable configuration must be established before immutable solve scope begins. In the current provenance contract, solve scope is considered started when the first configuration appears after measure index 0 or after a `note`, `backup`, or `forward` already occurred earlier in measure 0.
+
+Later identical declarations are restatements, not new authority. A capo-only restatement may inherit only a prior complete configuration from the same part/staff. A genuine later tuning/capo change fails closed as an unsupported configuration change.
+
+### Legacy TAB presentation-only fallback
+
+Historical producer exports may carry `staff-tuning` that is presentation provenance rather than executable physical string authority. The application runtime preserves only a narrow compatibility case:
+
+- exact partial legacy TAB tuning with no capo; or
+- exact complete physically reversed legacy TAB presentation order;
+- exact parser-error location in measure 0;
+- exact matching TAB staff/clef and admitted shape;
+- no preceding `note`, `backup`, or `forward`;
+- exactly one compatible presentation block in the document;
+- no conflicting executable configuration/capo authority.
+
+When this proof succeeds, the block is classified `TAB_PRESENTATION_PROVENANCE_ONLY` and the runtime uses `STANDARD_DEFAULT`. The legacy metadata is not converted into source tuning authority.
+
+PR #303 closed the post-merge P1 from PR #299 by rejecting a lone legacy declaration that first appears after solve start. See [`stage-03-source-guitar-configuration-closeout.md`](stage-03-source-guitar-configuration-closeout.md).
+
 ## Compatibility now active
 
-Production code currently contains generic, bounded contracts for:
+Production code contains generic, bounded contracts for:
 
+- validated explicit source tuning/capo configuration at the application boundary;
+- exact pre-solve legacy TAB presentation-only tuning compatibility described above;
 - exact reviewed Guitar Pro grace representation;
 - exact attribute-free grace nominal types `eighth` and `32nd`;
-- exact plain grace accidental display metadata only when one attribute-free leaf exactly matches the authoritative pitch/alter spelling;
-- exact bracketed-below Guitar Pro 3:2 triplet display metadata backed by validated time-modification semantics;
+- exact matching grace accidental display metadata;
+- exact bracketed-below Guitar Pro 3:2 triplet display metadata backed by validated timing semantics;
 - exact two-staff notation/TAB mirror collapse after original staff-2 TAB evidence and normalized semantic equality are proven;
-- exact display-only `<direction><direction-type><rehearsal>…</rehearsal></direction-type></direction>` provenance when the enclosing elements contain no timing, playback, staff/voice, layout, extension, attribute, or stray-text semantics;
+- exact display-only rehearsal direction provenance;
 - exact contiguous closed sustain-stop continuation under PS-2 v1.2.0;
-- a later capo-only `staff-details` restatement may reuse only a previously complete validated six-string tuning from the same part/staff. First-use capo-only, cross-staff borrowing, partial tuning, real capo changes, and unsupported tuning profiles remain fail-closed.
+- bounded capo-only restatement using only prior complete same-staff configuration.
 
 These rules are MusicXML-shape/semantic contracts. They do not dispatch on filename or SHA.
 
 ## Sustain / tie / same-voice state
 
-PS-2 `SustainTieGraph` v1.2.0 preserves exact source tie facts and can reconnect only the bounded contiguous closed-stop representation. True orphan stops, identity mismatch, non-contiguous continuation, ambiguous starts, and unterminated chains remain fail-closed.
+PS-2 `SustainTieGraph` v1.2.0 preserves exact source tie facts and can reconnect only the bounded contiguous closed-stop representation. True orphan stops, identity mismatch, non-contiguous continuation, ambiguous starts and unterminated chains remain fail-closed.
 
-PS-3 carries logical sustain continuity through sealed chain order. PS-4A carries active notes into later sonority points. PS-4C reuses PA-8/PA-9 physical enumeration per sonority point, and PA-12 can use sustained canonical final selection for the specifically recognized retained-sustain/tie cases.
+PS-3 carries logical sustain continuity through sealed chain order. PS-4A carries active notes into later sonority points. PS-4C reuses PA-8/PA-9 physical enumeration per sonority point, and PA-12 can use sustained canonical final selection for specifically recognized retained-sustain/tie cases.
 
-For retained PA-6 octave-displacement decisions, the original `PolyphonicSourceModel`, source pitch, timing, voice/staff, and tie graph remain authoritative and unchanged. The sustained selector builds a validated frozen `sourceEventId -> targetMidi` index and threads it through PS-5 → PS-4C/PS-4B → PS-4A. Only PS-4A fretboard candidate enumeration consumes the target MIDI. Candidate enumeration policy, physical validation, path cost vector, ranking, tie-break, resource ceilings, reduction policy, writer authority, and public API are unchanged.
-
-This source-tie-preserving design replaced and rejected an intermediate target-pitch source-model projection that could collapse distinct source tie identities into a target-pitch unison and create a false `AMBIGUOUS_TIE_START`. That unsafe intermediate design was never merged.
+For retained PA-6 octave-displacement decisions, the original `PolyphonicSourceModel`, source pitch, timing, voice/staff and tie graph remain authoritative and unchanged. Only the bounded target-MIDI physical-selection seam consumes the arrangement target.
 
 **VALID SAME-VOICE CHORD ≠ INDEPENDENT OVERLAPPING NOTES WITHIN ONE VOICE.**
 
-Exact same-voice `<chord/>` members are one attack group. Occupancy extends to the longest member end. A later independent non-chord event that starts before that end remains fail-closed with `UNSUPPORTED_SUSTAINED_CANONICAL_FINAL_SELECTION` / `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`; the engine does not invent a voice split.
+Exact same-voice `<chord/>` members are one attack group. Occupancy extends to the longest member end. A later independent non-chord event that starts before that end remains fail-closed with `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`; the engine does not invent a voice split.
 
 ## PA-8 resource limits
 
@@ -89,31 +118,29 @@ Authoritative constants in `src/music/leftHandShapeModel.js` remain:
 - 20,000 left-hand shape candidates per independently processed source group;
 - 100,000 complete finger-assignment attempts per independently processed source group.
 
-In the sustained PS-4C path, `src/music/sustainedLeftHandPhysicalStateModel.js` resets the enforcement window once per PS-4A sonority point. This corrects false whole-score/earlier-point aggregate exhaustion while preserving the numerical ceilings, candidate traversal order, physical rules, solver ranking/cost, and tie-break behavior.
+In the sustained PS-4C path, the enforcement window resets once per PS-4A sonority point. This corrects false whole-score/earlier-point aggregate exhaustion while preserving numerical ceilings, candidate traversal order, physical rules, solver ranking/cost and tie-break behavior.
 
-## Latest real-corpus evidence
+## Real-corpus evidence
 
-The compatibility hardening sequence through merged PRs #248, #252, #254–#259, #261, and later Stage 03 bounded compatibility/physical slices progressively removed representation/sustain false blockers without relaxing semantic safety.
+### Historical Guitar Pro manifest corpus
 
-PR #276 merged the exact display-only rehearsal-direction compatibility contract. PR #280 then admitted only the proven capo-only later `staff-details` restatement shape, removing four false guitar-configuration provenance blockers while leaving alternate-tuning policy unchanged. PR #282 admitted exact matching grace accidental display metadata without allowing mismatched, duplicate, editorial/cautionary, nested, or malformed forms.
+`verification/guitar-tech-real-corpus-manifest.json` remains a separate nine-file historical Guitar Pro evidence corpus. Its identity must not be silently replaced by newer Stage 03 verification material. Historical audit/state files remain evidence for the exact revisions they measured.
 
-PR #284 merged the source-tie-preserving PA-6 target-MIDI sustained physical-selection contract. Its audited candidate tree and the production squash-merge tree are identical (`c241746c6ab949db0fdec9cb7006fd7ac1b60ae0`). Required Tests, MusicXML Compatibility, and Runtime Staging E2E were green, and unresolved review threads were zero.
+### Stage 03 exact nine-file audit
 
-Fresh exact nine-file Guitar Pro evidence for the PR #284 tree established:
+Stage 03 additionally audited nine exact SHA-selected files from `amamiya-yuuko/AnimeTAB` pinned at source commit `18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a`.
 
-- 9/9 exact manifest SHA identities;
-- 9/9 deterministic processing;
+For the audited candidate tree:
+
+- 9/9 source SHA identities verified;
+- 9/9 deterministic repeated processing;
 - 9/9 source-byte immutability;
-- duplicate gate reports byte-identical;
-- `[Air]鸟之诗.xml` remains POLY_V2 PASS;
-- `[Air]回想录.xml`, `[Air]夢語り.xml`, and `[Beck]Face.xml` now reach the genuine sustained physical boundary `UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION / NO_DISTINCT_STRING_ASSIGNMENT`;
-- `[Beck]Face.xml` no longer produces the rejected target-projection `AMBIGUOUS_TIE_START`, proving source tie identities remain intact through target-MIDI physical selection;
-- `[Air]银色.xml` and `[Angel Beats!]Brave Song.xml` remain fail-closed on unsupported alternate tuning profiles;
-- `[Air]てんとう虫(瓢虫).xml` remains fail-closed on semantic repeat/ending barline representation;
-- `[Angel Beats!]一番の宝物.xml` remains fail-closed at the fixed XML element safety limit;
-- `[CLANNAD]メグメル(幻想).xml` remains fail-closed on unsupported artificial-harmonic technical semantics.
+- duplicate audit reports byte-identical;
+- direct pre-fix production main versus candidate comparison: `PRESERVED_CLASSIFICATIONS=9/9`.
 
-The current corpus therefore exposes one PASS and eight classified fail-closed boundaries. These are not permission to optimize for corpus pass count: they are evidence that the previously tracked false representation/target-pitch blockers have been removed and that the next widening requires a separately reviewed generic contract or new producer-realistic evidence.
+The audited candidate `8e2bf4114ed092b8877a2139c2695b956471e866` and production squash merge `62b14efc1e9a56d35fa3bccc34400213c5e68f23` have the same tree SHA `03e0de47aa4ca444bb412e832b7bb231a9a8dd9b`. Therefore the production Stage 03 behavior is the exact audited tree.
+
+The Stage 03 audit still exposes many `BLOCKED` outcomes. That is a current product limitation, not an ingestion failure and not a reason to weaken tuning/capo, physical or resource safety opportunistically. The planned broader direction is to move repairable/local OMR uncertainty toward `REVIEW_REQUIRED` or partial usable output under a separately reviewed contract.
 
 ## Real-corpus gate contract
 
@@ -131,15 +158,16 @@ A newly exposed blocker must be classified on its semantics. Production code mus
 
 ## Safety boundary
 
-The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, implicit voice split, ambiguous sustain continuation, or solver ranking. The internal POLY_V2 upload route alone may record an explicit `OCTAVE_DISPLACED` decision of exactly `+12` semitones when a source note below E2 thereby lands within the fixed standard-guitar register.
+The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source guitar configuration, source pitch transformation, implicit voice split, ambiguous sustain continuation or solver ranking.
 
-Physical `NO_DISTINCT_STRING_ASSIGNMENT` must not be bypassed by changing solver ranking/cost/tie-break or inventing string assignments. Unsupported alternate tuning profiles must not be enabled by compatibility inference. Semantic repeat/ending barlines must not be stripped as display-only metadata. Fixed XML safety ceilings must not be raised as a compatibility workaround. Artificial-harmonic semantics must not be guessed from notation shape alone.
+Physical impossibility must not be bypassed by changing solver ranking/cost/tie-break or inventing string assignments. Genuine tuning/capo changes must not be downgraded to presentation compatibility. Fixed resource ceilings must not be raised as a corpus workaround. Unsupported musical semantics must not be guessed from notation shape alone.
 
-Renderer output is presentation only. Writers serialize canonical truth. Compatibility normalizers remove or reinterpret only proven representation-level differences. Candidate order, physical policy, ranking/cost, and tie-breaks are not compatibility levers.
+Renderer output is presentation only. Writers serialize canonical truth. Compatibility normalizers remove or reinterpret only proven representation-level differences. Candidate order, physical policy, ranking/cost and tie-breaks are not compatibility levers.
 
 ## Open architecture gates
 
-1. Wider producer-realistic real-corpus coverage and hardening, with the current eight classified fail-closed boundaries preserved until generic evidence supports a bounded contract.
-2. Any broader public/package-root polyphonic API remains separately gated.
-3. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
-4. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback, and release/product gates remain separate from deterministic core semantics.
+1. Broader repairable/local OMR issue handling: distinguish `REVIEW_REQUIRED` / partial usable output from genuine hard blockers without weakening source truth.
+2. Wider producer-realistic real-corpus coverage and hardening.
+3. Any broader public/package-root polyphonic API remains separately gated.
+4. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
+5. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.

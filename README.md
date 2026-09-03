@@ -1,6 +1,6 @@
 # MusicXML to Guitar TAB Engine
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-08-31 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 A security-first, deterministic MusicXML → playable six-string guitar TAB engine. The repository contains a narrow package-root monophonic API plus separately gated application/internal polyphonic runtime paths. Source MusicXML is immutable source truth; compatibility code may normalize only proven representation differences and may not invent musical semantics.
 
@@ -12,6 +12,8 @@ The production application path is intentionally layered:
 MusicXML input
   ↓
 XML safety / bounded parser
+  ↓
+source guitar configuration provenance + authority
   ↓
 representation compatibility normalizers
   ↓
@@ -29,18 +31,21 @@ sustained path solver
   ↓
 canonical final selection
   ↓
-CanonicalTabResult 2.0.0 (internal/application authority)
+CanonicalTabResult 2.0.0 / 2.1.0 (internal/application authority)
   ↓
 MusicXML / TAB writer
 ```
 
-The package-root API remains deliberately narrower: standard MONO output uses `CanonicalTabResult 1.0.0`; an explicit nonzero Standard-tuned source capo produces the compatible MONO `CanonicalTabResult 1.1.0` extension. The internal/application POLY route likewise emits `CanonicalTabResult 2.1.0` with `capoFret` and `RELATIVE_FROM_CAPO` semantics. No PA/internal polyphonic function is exported from `src/index.js`; alternate source tunings remain fail-closed.
+The package-root API remains deliberately narrower: standard MONO output uses `CanonicalTabResult 1.0.0`; an explicit nonzero Standard-tuned source capo produces the compatible MONO `CanonicalTabResult 1.1.0` extension. The internal/application POLY route emits `CanonicalTabResult 2.0.0` for Standard configuration and `CanonicalTabResult 2.1.0` with capo/configuration-aware semantics where admitted. No PA/internal polyphonic function is exported from `src/index.js`.
+
+At the application upload boundary, fully validated explicit six-string source tuning/capo evidence can now become the bounded guitar configuration used by the internal conversion path. This does not broaden the package-root API. Genuine mid-score tuning/capo changes remain fail-closed.
 
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;
 - [`docs/current-status.md`](docs/current-status.md) — current production status;
 - [`docs/musicxml-compatibility.md`](docs/musicxml-compatibility.md) — generic MusicXML compatibility contract;
+- [`docs/stage-03-source-guitar-configuration-closeout.md`](docs/stage-03-source-guitar-configuration-closeout.md) — Stage 03 tuning/capo and legacy TAB closeout;
 - [`docs/ps-sustain-tie-graph-contract.md`](docs/ps-sustain-tie-graph-contract.md) — PS-2 sustain/tie facts;
 - [`docs/pa-8-left-hand-shape-contract.md`](docs/pa-8-left-hand-shape-contract.md) — PA-8 physical enumeration and fixed resource limits;
 - [`docs/pa-12-internal-polyphonic-e2e.md`](docs/pa-12-internal-polyphonic-e2e.md) — internal canonical-v2 end-to-end boundary.
@@ -49,6 +54,8 @@ See:
 
 Current merged production behavior includes bounded support for:
 
+- fully validated explicit six-string source guitar configuration at the application boundary, including admitted capo evidence;
+- exact legacy TAB presentation-only tuning fallback only when structurally proven before solve start, with no executable capo/configuration conflict;
 - exact Guitar Pro grace representation already admitted by the runtime profile;
 - exact attribute-free grace nominal types `eighth` and `32nd`;
 - exact Guitar Pro bracketed 3:2 triplet display metadata when backed by validated timing semantics;
@@ -58,15 +65,18 @@ Current merged production behavior includes bounded support for:
 
 A valid same-voice chord is **not** the same thing as independent overlapping notes in one voice. Chord occupancy extends to the maximum end of its members. A later independent non-chord attack that begins before that end remains fail-closed as `OVERLAPPING_NOTES_WITHIN_ONE_VOICE`.
 
+Legacy TAB tuning presentation is not executable tuning authority. The fallback requires the exact parser-error location in measure 0, the matching TAB staff/clef and admitted legacy shape, no earlier `note`/`backup`/`forward`, exactly one compatible presentation block in the document, and no conflicting executable configuration. A lone legacy declaration after solve start remains fail-closed.
+
 ## Non-negotiable safety rules
 
 1. Source MusicXML bytes and parsed source musical facts are immutable.
-2. The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, voice split, ambiguous sustain continuation, or solver ranking. The internal POLY_V2 route has one explicit, provenance-recorded exception: a note below E2 may be raised by exactly one octave only when that target is inside the fixed standard-guitar register.
+2. The engine does not silently infer or rewrite pitch, octave, onset, duration, voice, staff, tie, chord relationship, source pitch transformation, voice split, ambiguous sustain continuation, guitar configuration, or solver ranking. The internal POLY_V2 route has one explicit, provenance-recorded exception: a note below the configured arrangement minimum may be raised by exactly one octave only when that target is inside the configured guitar register.
 3. Compatibility rules are filename- and SHA-independent, bounded, deterministic, and fail-closed.
 4. Candidate enumeration order is not preference ranking. Compatibility fixes may not alter physical rules, ranking/cost, or tie-break behavior.
 5. Missing semantic evidence fails closed; ambiguity is a valid result state.
 6. Processing limits, deadline/cancellation checks, deep immutability, and package-root API boundaries remain mandatory.
 7. Writers consume canonical truth and never rerun selection. Renderers are presentation consumers, not semantic authorities.
+8. Genuine tuning/capo changes after immutable solve scope begins are not compatibility-normalized away.
 
 ## PA-8 resource boundary
 
@@ -79,7 +89,9 @@ They are enforced per independently processed source group. In the sustained PS-
 
 ## Real-corpus evidence
 
-Real Guitar Pro files are evidence/regression inputs, not production dispatch keys. The gate verifies source identity and byte immutability, deterministic public/canonical/MusicXML output, expected fail-closed behavior, and CI state.
+Real producer MusicXML files are evidence/regression inputs, not production dispatch keys. Corpus gates verify source identity and byte immutability, deterministic public/canonical/MusicXML output, expected fail-closed behavior, and CI state.
+
+Stage 03 also ran a separate exact nine-file SHA-selected AnimeTAB audit against the source repository pinned at commit `18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a`. It verified 9/9 identities, deterministic reruns, source immutability, and `PRESERVED_CLASSIFICATIONS=9/9` between the pre-fix production main and the audited candidate. The production squash merge has the same repository tree as that audited candidate. This additional audit does not replace the different historical Guitar Pro corpus pinned by `verification/guitar-tech-real-corpus-manifest.json`.
 
 **Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
