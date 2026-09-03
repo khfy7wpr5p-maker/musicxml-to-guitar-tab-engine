@@ -68,11 +68,13 @@
     const pitchOctave = root.querySelector('[data-role="pitch-octave"]');
     const durationValue = root.querySelector('[data-role="duration-value"]');
     const voiceValue = root.querySelector('[data-role="voice-value"]');
+    const staffValue = root.querySelector('[data-role="staff-value"]');
 
     assert(
       statusBadge && documentStatus && blockedPanel && blockedReason && scoreHost
       && selectionStatus && issueList && issueCount && selectedTarget && capabilityNote
-      && revisionStatus && pitchStep && pitchAlter && pitchOctave && durationValue && voiceValue,
+      && revisionStatus && pitchStep && pitchAlter && pitchOctave && durationValue && voiceValue
+      && staffValue,
       'Review editor markup is incomplete.',
     );
 
@@ -190,6 +192,14 @@
       }));
     }
 
+    function requestedPitch() {
+      return {
+        step: pitchStep.value,
+        alter: Number(pitchAlter.value),
+        octave: Number(pitchOctave.value),
+      };
+    }
+
     scoreHost.addEventListener('pointerdown', onScorePoint);
 
     for (const button of root.querySelectorAll('[data-command]')) {
@@ -197,15 +207,20 @@
         const command = button.dataset.command;
         let value = button.dataset.value || null;
         if (command === 'PITCH_UPDATE') {
-          value = {
-            step: pitchStep.value,
-            alter: Number(pitchAlter.value),
-            octave: Number(pitchOctave.value),
-          };
+          value = requestedPitch();
         } else if (command === 'DURATION_UPDATE') {
           value = durationValue.value;
         } else if (command === 'VOICE_REASSIGNMENT') {
           value = Number(voiceValue.value);
+        } else if (command === 'STAFF_REASSIGNMENT') {
+          value = Number(staffValue.value);
+        } else if (command === 'NOTE_ADD') {
+          value = {
+            pitch: requestedPitch(),
+            duration: durationValue.value,
+          };
+        } else if (command === 'REST_ADD') {
+          value = { duration: durationValue.value };
         }
         invoke(command, () => host.command({ command, value }));
       });
