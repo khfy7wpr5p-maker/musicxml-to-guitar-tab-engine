@@ -45,10 +45,11 @@ test('Stage 07 shell exposes the required review, correction and revision surfac
   }
 });
 
-test('Stage 07 browser shell delegates semantic authority to its host', () => {
+test('Stage 07 browser shell delegates semantic authority and score highlighting to its host', () => {
   for (const method of [
     'snapshot',
     'mountScore',
+    'syncScoreSelection',
     'selectIssue',
     'selectScorePoint',
     'command',
@@ -60,6 +61,7 @@ test('Stage 07 browser shell delegates semantic authority to its host', () => {
     assert.ok(js.includes(`'${method}'`), `review editor host contract must require ${method}()`);
   }
   assert.match(js, /host\.selectScorePoint\(\{\s*clientX: event\.clientX,\s*clientY: event\.clientY/);
+  assert.match(js, /host\.syncScoreSelection\(\{\s*selectedTarget:/);
   assert.match(js, /host\.command\(\{ command, value \}\)/);
   assert.equal(js.includes('hitTestNote('), false, 'UI must not convert renderer hit evidence into edit identity itself');
   assert.equal(js.includes('innerHTML'), false, 'review evidence must not be injected with innerHTML');
@@ -69,6 +71,7 @@ test('hard BLOCKED presentation is explicit and cannot silently expose editing',
   assert.match(js, /model\.documentStatus !== REVIEW_REQUIRED/);
   assert.match(js, /blockedPanel\.hidden = model\.documentStatus !== BLOCKED/);
   assert.match(js, /button\.disabled = !control\?\.enabled/);
+  assert.match(js, /reviewable \? \(model\.score\.selectedTarget \?\? null\) : null/);
 });
 
 test('Stage 07 shell is mobile-aware and keeps controls touch-sized', () => {
