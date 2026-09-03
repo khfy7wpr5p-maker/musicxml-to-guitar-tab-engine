@@ -74,6 +74,11 @@ test('note/rest addition intents carry explicit requested values instead of aski
   assert.match(js, /command === 'REST_ADD'[\s\S]*value = \{ duration: durationValue\.value \}/);
 });
 
+test('score mounting may be asynchronous and completes before the first review refresh', () => {
+  assert.match(js, /Promise\.resolve\(host\.mountScore\(scoreHost/);
+  assert.match(js, /return refresh\(\);/);
+});
+
 test('hard BLOCKED presentation is explicit and cannot silently expose editing', () => {
   assert.match(js, /model\.documentStatus !== REVIEW_REQUIRED/);
   assert.match(js, /blockedPanel\.hidden = model\.documentStatus !== BLOCKED/);
