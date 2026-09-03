@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f7f9">
+  <title>Score Review Editor</title>
+  <link rel="stylesheet" href="./review-editor.css">
+</head>
+<body>
+  <main class="review-editor" data-review-score-editor data-status="EMPTY">
+    <header class="review-editor__bar">
+      <div>
+        <h1>Score Review</h1>
+        <p data-role="document-status">No score loaded</p>
+      </div>
+      <span class="review-editor__badge" data-role="status-badge">EMPTY</span>
+    </header>
+
+    <section class="review-editor__blocked" data-role="blocked-panel" hidden aria-live="polite">
+      <strong>Cannot edit safely</strong>
+      <p data-role="blocked-reason"></p>
+    </section>
+
+    <div class="review-editor__layout">
+      <section class="review-editor__score-panel" aria-label="Reviewable score">
+        <div class="review-editor__section-heading">
+          <h2>Score</h2>
+          <span data-role="selection-status">Select an issue or note</span>
+        </div>
+        <div class="review-editor__score" data-role="score-host" tabindex="0"></div>
+      </section>
+
+      <aside class="review-editor__side" aria-label="Review controls">
+        <section class="review-editor__card">
+          <div class="review-editor__section-heading">
+            <h2>Issues</h2>
+            <span data-role="issue-count">0</span>
+          </div>
+          <ol class="review-editor__issues" data-role="issue-list"></ol>
+        </section>
+
+        <section class="review-editor__card" aria-label="Correction controls">
+          <div class="review-editor__section-heading">
+            <h2>Correction</h2>
+            <span data-role="selected-target">No target</span>
+          </div>
+
+          <fieldset class="review-editor__group" data-control="pitch" disabled>
+            <legend>Pitch</legend>
+            <label>Step
+              <select data-role="pitch-step">
+                <option>C</option><option>D</option><option>E</option><option>F</option>
+                <option>G</option><option>A</option><option>B</option>
+              </select>
+            </label>
+            <label>Accidental
+              <select data-role="pitch-alter">
+                <option value="-2">bb</option><option value="-1">b</option>
+                <option value="0">natural</option><option value="1">#</option><option value="2">##</option>
+              </select>
+            </label>
+            <label>Octave <input data-role="pitch-octave" type="number" min="-1" max="9" step="1" value="4"></label>
+            <button type="button" data-command="PITCH_UPDATE">Apply pitch</button>
+          </fieldset>
+
+          <fieldset class="review-editor__group" data-control="duration" disabled>
+            <legend>Duration</legend>
+            <select data-role="duration-value">
+              <option value="whole">Whole</option>
+              <option value="half">Half</option>
+              <option value="quarter" selected>Quarter</option>
+              <option value="eighth">Eighth</option>
+              <option value="16th">16th</option>
+              <option value="32nd">32nd</option>
+            </select>
+            <button type="button" data-command="DURATION_UPDATE">Apply duration</button>
+          </fieldset>
+
+          <fieldset class="review-editor__group" data-control="voice" disabled>
+            <legend>Voice</legend>
+            <select data-role="voice-value">
+              <option value="1">Voice 1</option><option value="2">Voice 2</option>
+              <option value="3">Voice 3</option><option value="4">Voice 4</option>
+            </select>
+            <button type="button" data-command="VOICE_REASSIGNMENT">Apply voice</button>
+          </fieldset>
+
+          <div class="review-editor__compact-actions">
+            <button type="button" data-control-button="tie" data-command="TIE_CORRECTION" data-value="TOGGLE" disabled>Tie</button>
+            <button type="button" data-control-button="chord" data-command="CHORD_GROUPING_CORRECTION" data-value="TOGGLE" disabled>Chord</button>
+            <button type="button" data-control-button="noteAdd" data-command="NOTE_ADD" disabled>Add note</button>
+            <button type="button" data-control-button="noteDelete" data-command="NOTE_DELETE" disabled>Delete note</button>
+            <button type="button" data-control-button="restAdd" data-command="REST_ADD" disabled>Add rest</button>
+            <button type="button" data-control-button="restDelete" data-command="REST_DELETE" disabled>Delete rest</button>
+          </div>
+          <p class="review-editor__availability" data-role="capability-note"></p>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="review-editor__actions" aria-label="Revision actions">
+      <button type="button" data-action="undo" disabled>Undo</button>
+      <button type="button" data-action="redo" disabled>Redo</button>
+      <button type="button" data-action="save" disabled>Save revision</button>
+      <button type="button" data-action="revalidate" disabled>Revalidate</button>
+      <button type="button" data-action="continue" disabled>Continue to TAB</button>
+      <span data-role="revision-status" aria-live="polite"></span>
+    </footer>
+  </main>
+
+  <script src="./review-editor.js"></script>
+</body>
+</html>
