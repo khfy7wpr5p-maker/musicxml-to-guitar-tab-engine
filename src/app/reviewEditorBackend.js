@@ -586,7 +586,13 @@ function saveReviewEditorRevision(session, metadata) {
   try {
     savedRevision = createTeacherCorrectedRevision(session.review_revision, {
       ...transition,
-      patches: session.pending_patches,
+      patches: session.pending_patches.map((patch) => ({
+        patch_id: patch.patch_id,
+        edit_class: patch.edit_class,
+        target_event: patch.target_event,
+        before: patch.before,
+        after: patch.after,
+      })),
     });
   } catch (error) {
     fail('Stage 05 rejected the teacher-corrected revision.', 'SAVE_REVISION_FAILED', {
