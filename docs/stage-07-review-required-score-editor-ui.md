@@ -7,7 +7,7 @@ Status: internal/application UI contract and browser shell. Stage 08 production 
 A `REVIEW_REQUIRED` score must be understandable and correctable by a teacher without locking the whole file. The Stage 07 surface therefore provides:
 
 - an open score workspace for reviewable input;
-- visible issue list and synchronized current score target;
+- visible issue list and synchronized current score target/highlight;
 - pitch and duration correction controls;
 - capability-gated voice, tie and chord correction controls;
 - note/rest add and delete actions;
@@ -77,11 +77,15 @@ pointer/touch point
   → Editor Core / trusted host resolves canonical semantic identity
   → Stage 06 selectReviewEditorEvent()
   → Stage 07 refreshes selected target
+  → host.syncScoreSelection()
+  → current renderer highlight only
 ```
 
 A renderer `ScoreNoteRef`, DOM/SVG element, coordinate or nearest-note guess is never passed directly as a Stage 05/06 edit target.
 
 `host.mountScore()` is the application integration boundary for Rendering Layer. `host.selectScorePoint()` must perform the exact renderer-hit → current canonical identity resolution before updating the Stage 06 session.
+
+`host.syncScoreSelection()` performs the reverse presentation-only mapping after each UI refresh: the current Stage 06 canonical target/issue is mapped through the current render manifest to a renderer highlight. It must clear highlight state for `BLOCKED`/non-review presentation and must fail closed on stale, unknown or ambiguous mapping. It cannot mutate the canonical score or semantic selection.
 
 ## Editor capability boundary
 
@@ -101,6 +105,7 @@ Therefore Stage 07 renders those controls from capability state rather than pret
 ```text
 snapshot()
 mountScore(scoreElement, callbacks)
+syncScoreSelection({ selectedTarget, selectedIssueId })
 selectIssue(issueId)
 selectScorePoint({ clientX, clientY })
 command({ command, value })
@@ -122,6 +127,7 @@ For `BLOCKED` input:
 - all edit and revision actions are disabled;
 - the hard-block reason is visible;
 - issue details may be shown read-only;
+- score highlight state is cleared through the host presentation boundary;
 - no attempt is made to downgrade safety/parse/resource/structural failures to review state.
 
 ## Mobile behavior
