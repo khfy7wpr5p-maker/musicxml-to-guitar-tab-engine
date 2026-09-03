@@ -51,7 +51,7 @@ A teacher patch contains:
 
 ```text
 patch_id
-aedit_class       (named `edit_class` in the runtime object)
+edit_class
 target_event
 before
 after
