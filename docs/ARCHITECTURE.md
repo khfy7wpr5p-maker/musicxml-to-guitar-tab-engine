@@ -52,7 +52,7 @@ Representative implementation boundaries:
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
 - source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;
 - tie/sustain: `src/music/sustainTieGraph.js`, `src/music/activeSonorityModel.js`;
-- sustained physical state: `src/music/sustainedGuitarPositionStateModel.js`, `src/music/sustainedLeftHandPhysicalStateModel.js`;
+- sustained physical state: `src/music/leftHandShapeModel.js`, `src/music/sustainedGuitarPositionStateModel.js`, `src/music/sustainedLeftHandPhysicalStateModel.js`;
 - sustained selection: `src/music/sustainedCanonicalFinalSelector.js`;
 - canonical bridge/result: `src/tab/canonicalTabResultV2.js`;
 - writer: `src/writers/canonicalTabMusicXmlWriterV2.js`.
