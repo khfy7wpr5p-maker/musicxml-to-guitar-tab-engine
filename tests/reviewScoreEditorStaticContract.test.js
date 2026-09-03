@@ -22,6 +22,7 @@ test('Stage 07 shell exposes the required review, correction and revision surfac
     'pitch-octave',
     'duration-value',
     'voice-value',
+    'staff-value',
   ]) {
     assert.match(html, new RegExp(`data-role="${role}"`));
   }
@@ -30,6 +31,7 @@ test('Stage 07 shell exposes the required review, correction and revision surfac
     'PITCH_UPDATE',
     'DURATION_UPDATE',
     'VOICE_REASSIGNMENT',
+    'STAFF_REASSIGNMENT',
     'TIE_CORRECTION',
     'CHORD_GROUPING_CORRECTION',
     'NOTE_ADD',
@@ -65,6 +67,11 @@ test('Stage 07 browser shell delegates semantic authority and score highlighting
   assert.match(js, /host\.command\(\{ command, value \}\)/);
   assert.equal(js.includes('hitTestNote('), false, 'UI must not convert renderer hit evidence into edit identity itself');
   assert.equal(js.includes('innerHTML'), false, 'review evidence must not be injected with innerHTML');
+});
+
+test('note/rest addition intents carry explicit requested values instead of asking the host to guess', () => {
+  assert.match(js, /command === 'NOTE_ADD'[\s\S]*pitch: requestedPitch\(\),[\s\S]*duration: durationValue\.value/);
+  assert.match(js, /command === 'REST_ADD'[\s\S]*value = \{ duration: durationValue\.value \}/);
 });
 
 test('hard BLOCKED presentation is explicit and cannot silently expose editing', () => {
