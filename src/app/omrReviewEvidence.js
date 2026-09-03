@@ -99,6 +99,10 @@ function normalizeEvidenceValue(value, field, state = { nodes: 0 }, depth = 0) {
   if (state.nodes > MAX_EVIDENCE_NODES) throw new TypeError(`${field} exceeds the evidence node limit.`);
   if (depth > MAX_EVIDENCE_DEPTH) throw new TypeError(`${field} exceeds the evidence depth limit.`);
 
+  if (value && typeof value === 'object' && isProxy(value)) {
+    throw new TypeError(`${field} must not contain Proxy evidence.`);
+  }
+
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     if (value.length > MAX_TEXT_LENGTH) throw new TypeError(`${field} contains an oversized string.`);
@@ -111,9 +115,33 @@ function normalizeEvidenceValue(value, field, state = { nodes: 0 }, depth = 0) {
 
   if (Array.isArray(value)) {
     if (value.length > MAX_ARRAY_ITEMS) throw new TypeError(`${field} exceeds the array item limit.`);
-    return Object.freeze(value.map((item, index) => (
-      normalizeEvidenceValue(item, `${field}[${index}]`, state, depth + 1)
-    )));
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const ownKeys = Reflect.ownKeys(value);
+    if (ownKeys.some((key) => typeof key !== 'string')) {
+      throw new TypeError(`${field} arrays must not contain symbol keys.`);
+    }
+    const elementKeys = ownKeys.filter((key) => key !== 'length');
+    if (
+      elementKeys.length !== value.length
+      || elementKeys.some((key, index) => key !== String(index))
+    ) {
+      throw new TypeError(`${field} arrays must be dense and contain no custom properties.`);
+    }
+
+    const normalized = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+        throw new TypeError(`${field}[${index}] must be an enumerable data property.`);
+      }
+      normalized.push(normalizeEvidenceValue(
+        descriptor.value,
+        `${field}[${index}]`,
+        state,
+        depth + 1,
+      ));
+    }
+    return Object.freeze(normalized);
   }
 
   if (isPlainObject(value)) {
@@ -144,6 +172,18 @@ function normalizeSourceProvenance(value) {
   throw new TypeError('source_provenance must be a non-empty string or plain object.');
 }
 
+function normalizeEventIdOrLocation(value) {
+  if (value === null) return null;
+  if (typeof value === 'string') return normalizeText(value, 'event_id_or_location');
+  if (isPlainObject(value)) {
+    if (Object.keys(value).length === 0) {
+      throw new TypeError('event_id_or_location object must not be empty.');
+    }
+    return normalizeEvidenceValue(value, 'event_id_or_location');
+  }
+  throw new TypeError('event_id_or_location must be null, a non-empty string, or a non-empty plain object.');
+}
+
 function normalizePayload(payload) {
   const descriptors = assertPlainDataObject(payload, 'payload');
   const keys = Object.keys(descriptors).sort();
@@ -160,10 +200,7 @@ function normalizePayload(payload) {
     measure: normalizeLocationScalar(descriptors.measure.value, 'measure'),
     staff: normalizeLocationScalar(descriptors.staff.value, 'staff'),
     voice: normalizeLocationScalar(descriptors.voice.value, 'voice'),
-    event_id_or_location: normalizeEvidenceValue(
-      descriptors.event_id_or_location.value,
-      'event_id_or_location',
-    ),
+    event_id_or_location: normalizeEventIdOrLocation(descriptors.event_id_or_location.value),
     observed_value: normalizeEvidenceValue(descriptors.observed_value.value, 'observed_value'),
     confidence_or_evidence_if_available: normalizeEvidenceValue(
       descriptors.confidence_or_evidence_if_available.value,
