@@ -40,6 +40,7 @@
     for (const method of [
       'snapshot',
       'mountScore',
+      'syncScoreSelection',
       'selectIssue',
       'selectScorePoint',
       'command',
@@ -164,11 +165,20 @@
       syncControls(model);
     }
 
+    async function syncScorePresentation(model) {
+      const reviewable = model.documentStatus === REVIEW_REQUIRED && model.score?.canOpen === true;
+      await host.syncScoreSelection({
+        selectedTarget: reviewable ? (model.score.selectedTarget ?? null) : null,
+        selectedIssueId: reviewable ? (model.score.selectedIssueId ?? null) : null,
+      });
+    }
+
     async function refresh() {
       const snapshot = await host.snapshot();
       const model = uiModel(snapshot);
       assert(model && ['REVIEW_REQUIRED', 'BLOCKED', 'PASS'].includes(model.documentStatus), 'Host returned an invalid Stage 07 UI model.');
       render(model);
+      await syncScorePresentation(model);
       return model;
     }
 
