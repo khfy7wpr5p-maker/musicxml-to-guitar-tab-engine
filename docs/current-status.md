@@ -31,13 +31,37 @@ This file is the live convergence view. Historical closure/audit documents retai
 | PA-8 false aggregate exhaustion | ✅ CORRECTED WITHOUT RAISING FIXED CEILINGS |
 | Same-voice chord false-positive overlap | ✅ CORRECTED |
 | Unequal-duration same-voice chord occupancy | ✅ MAX-MEMBER END PRESERVED |
+| Stage 04 OMR review evidence → `REVIEW_REQUIRED` | ✅ INTERNAL / ALLOW-LISTED / FAIL-CLOSED |
+| Stage 05 teacher correction revision ledger | ✅ INTERNAL / IMMUTABLE-SOURCE / REVERSIBLE |
+| Stage 06 review editor backend contract | ✅ INTERNAL / CAPABILITY-GATED / NON-UI |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
-| Broader repairable-OMR → `REVIEW_REQUIRED` / partial-result policy | ⚠️ LATER STAGE — not implemented by Stage 03 |
+| Partial usable-result policy beyond review-state evidence | ⚠️ LATER GATE |
+| Stage 07 review editor UI | 🔒 NOT IMPLEMENTED |
 | Public PA-13 polyphonic package API | 🔒 NOT IMPLEMENTED |
 
 Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
+
+## Stage 04–06 review and correction boundary
+
+Stage 04 adds a concrete internal OMR evidence producer on top of the Stage 01 score-state model. Only explicitly allow-listed, evidence-backed OMR uncertainty may become `REVIEW_REQUIRED`; unknown, parser/safety/structural or otherwise unclassified failures remain fail-closed. `sourceReviewAvailability` must be explicitly safe, stable review location evidence is required, and missing musical values remain missing instead of being guessed.
+
+Stage 05 keeps the original source identity immutable and records teacher correction as a separate revision chain:
+
+```text
+ORIGINAL_SOURCE
+  → REVIEW_REVISION
+  → TEACHER_CORRECTED_REVISION
+  → REVALIDATED_REVISION
+  → APPROVED_CANONICAL_SCORE
+```
+
+Teacher patches carry explicit `before` / `after`, target identity, provenance and a derived inverse patch. The ledger can represent the master correction classes, but representability does not imply that an editor currently has a safe executable primitive for every class.
+
+Stage 06 adds the internal review-editor backend contract. It loads only Stage 04/05 reviewable state, exposes stable issue/event selection, delegates musical mutation and undo/redo to a trusted capability-declaring editor adapter, saves the currently applied Stage 05 patch ledger, and records trusted revalidation evidence. No capability is implicit. Canonical voice reassignment and canonical staff reassignment remain unavailable when the selected adapter does not expose reviewed primitives; cross-staff display placement is not canonical staff reassignment.
+
+The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 06 does not silently turn those pitch-only paths into a general teacher editor. Stage 07 must connect presentation/interaction to the new review backend separately.
 
 ## Current production/application path
 
@@ -56,7 +80,7 @@ MusicXML
   → internal/application MusicXML writer
 ```
 
-The package root remains narrower and does not export PA/PS internals or the POLY_V2 conversion pipeline.
+The package root remains narrower and does not export PA/PS internals, the POLY_V2 conversion pipeline, or the Stage 04–06 review/correction contracts.
 
 ## Stage 03 source guitar configuration boundary
 
@@ -140,7 +164,7 @@ For the audited candidate tree:
 
 The audited candidate `8e2bf4114ed092b8877a2139c2695b956471e866` and production squash merge `62b14efc1e9a56d35fa3bccc34400213c5e68f23` have the same tree SHA `03e0de47aa4ca444bb412e832b7bb231a9a8dd9b`. Therefore the production Stage 03 behavior is the exact audited tree.
 
-The Stage 03 audit still exposes many `BLOCKED` outcomes. That is a current product limitation, not an ingestion failure and not a reason to weaken tuning/capo, physical or resource safety opportunistically. The planned broader direction is to move repairable/local OMR uncertainty toward `REVIEW_REQUIRED` or partial usable output under a separately reviewed contract.
+The Stage 03 audit still exposes many `BLOCKED` outcomes. That is a current product limitation, not an ingestion failure and not a reason to weaken tuning/capo, physical or resource safety opportunistically. Stage 04 now supplies the generic evidence contract for repairable/local OMR uncertainty to become `REVIEW_REQUIRED`, while partial usable output for broader non-OMR blockers remains separately gated.
 
 ## Real-corpus gate contract
 
@@ -166,8 +190,10 @@ Renderer output is presentation only. Writers serialize canonical truth. Compati
 
 ## Open architecture gates
 
-1. Broader repairable/local OMR issue handling: distinguish `REVIEW_REQUIRED` / partial usable output from genuine hard blockers without weakening source truth.
-2. Wider producer-realistic real-corpus coverage and hardening.
-3. Any broader public/package-root polyphonic API remains separately gated.
-4. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
-5. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
+1. Stage 07 review editor UI and renderer/host interaction integration on top of the Stage 06 backend contract.
+2. Stage 08 corrected-revision revalidation → POLY_V2 → physical feasibility → TAB/product continuation.
+3. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
+4. Wider producer-realistic real-corpus coverage and hardening.
+5. Any broader public/package-root polyphonic API remains separately gated.
+6. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
+7. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
