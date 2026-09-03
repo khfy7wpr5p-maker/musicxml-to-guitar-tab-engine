@@ -34,16 +34,16 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 04 OMR review evidence → `REVIEW_REQUIRED` | ✅ INTERNAL / ALLOW-LISTED / FAIL-CLOSED |
 | Stage 05 teacher correction revision ledger | ✅ INTERNAL / IMMUTABLE-SOURCE / REVERSIBLE |
 | Stage 06 review editor backend contract | ✅ INTERNAL / CAPABILITY-GATED / NON-UI |
+| Stage 07 review editor UI | ⚠️ INTERNAL UI MODEL/SHELL IMPLEMENTED — production host/device integration pending |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
 | Partial usable-result policy beyond review-state evidence | ⚠️ LATER GATE |
-| Stage 07 review editor UI | 🔒 NOT IMPLEMENTED |
 | Public PA-13 polyphonic package API | 🔒 NOT IMPLEMENTED |
 
 Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
 
-## Stage 04–06 review and correction boundary
+## Stage 04–07 review and correction boundary
 
 Stage 04 adds a concrete internal OMR evidence producer on top of the Stage 01 score-state model. Only explicitly allow-listed, evidence-backed OMR uncertainty may become `REVIEW_REQUIRED`; unknown, parser/safety/structural or otherwise unclassified failures remain fail-closed. `sourceReviewAvailability` must be explicitly safe, stable review location evidence is required, and missing musical values remain missing instead of being guessed.
 
@@ -61,7 +61,9 @@ Teacher patches carry explicit `before` / `after`, target identity, provenance a
 
 Stage 06 adds the internal review-editor backend contract. It loads only Stage 04/05 reviewable state, exposes stable issue/event selection, delegates musical mutation and undo/redo to a trusted capability-declaring editor adapter, saves the currently applied Stage 05 patch ledger, and records trusted revalidation evidence. No capability is implicit. Canonical voice reassignment and canonical staff reassignment remain unavailable when the selected adapter does not expose reviewed primitives; cross-staff display placement is not canonical staff reassignment.
 
-The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 06 does not silently turn those pitch-only paths into a general teacher editor. Stage 07 must connect presentation/interaction to the new review backend separately.
+Stage 07 adds an internal presentation model and responsive browser shell on top of Stage 06. `REVIEW_REQUIRED` can be presented without whole-file edit lock, issues and current canonical target are synchronized through a host-owned presentation boundary, edit controls are capability-gated, undo/redo/save/revalidate state is derived from Stage 06, and hard `BLOCKED` reasons remain explicit. The browser UI does not own renderer hit identity, canonical target resolution, `before` evidence or MusicXML mutation. A production host must still bind ST Score Rendering Layer exact current-render hit/highlight evidence to the canonical resolver and a trusted editor adapter, and physical iPhone/Safari acceptance remains open.
+
+The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 07 does not silently turn those pitch-only paths into the teacher editor and does not activate Stage 08 continuation.
 
 ## Current production/application path
 
@@ -80,7 +82,7 @@ MusicXML
   → internal/application MusicXML writer
 ```
 
-The package root remains narrower and does not export PA/PS internals, the POLY_V2 conversion pipeline, or the Stage 04–06 review/correction contracts.
+The package root remains narrower and does not export PA/PS internals, the POLY_V2 conversion pipeline, or the Stage 04–07 review/correction/UI contracts.
 
 ## Stage 03 source guitar configuration boundary
 
@@ -190,7 +192,7 @@ Renderer output is presentation only. Writers serialize canonical truth. Compati
 
 ## Open architecture gates
 
-1. Stage 07 review editor UI and renderer/host interaction integration on top of the Stage 06 backend contract.
+1. Complete Stage 07 production host integration: ST Score Rendering Layer exact current-render hit/highlight ↔ canonical resolver ↔ Stage 06 trusted editor adapter, followed by physical iPhone/Safari acceptance.
 2. Stage 08 corrected-revision revalidation → POLY_V2 → physical feasibility → TAB/product continuation.
 3. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
 4. Wider producer-realistic real-corpus coverage and hardening.
