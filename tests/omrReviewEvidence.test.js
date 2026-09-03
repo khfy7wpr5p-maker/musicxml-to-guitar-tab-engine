@@ -14,6 +14,8 @@ const {
   createOmrEvidenceIssue,
 } = require('../src/app/omrReviewEvidence');
 
+const safeSource = SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN;
+
 function payload(overrides = {}) {
   return {
     issue_id: 'omr-issue-1',
@@ -37,11 +39,17 @@ function payload(overrides = {}) {
   };
 }
 
-test('reviewable OMR evidence produces POLY_V2 + REVIEW_REQUIRED without inventing a replacement value', () => {
-  const state = buildOmrReviewScoreState({
+function build(issuePayloads, overrides = {}) {
+  return buildOmrReviewScoreState({
     route: SCORE_ROUTE.POLY_V2,
-    issuePayloads: [payload()],
+    sourceReviewAvailability: safeSource,
+    issuePayloads,
+    ...overrides,
   });
+}
+
+test('reviewable OMR evidence produces POLY_V2 + REVIEW_REQUIRED without inventing a replacement value', () => {
+  const state = build([payload()]);
 
   assert.equal(state.contractVersion, OMR_REVIEW_EVIDENCE_CONTRACT_VERSION);
   assert.equal(state.status, SCORE_STATUS.REVIEW_REQUIRED);
@@ -60,16 +68,13 @@ test('reviewable OMR evidence produces POLY_V2 + REVIEW_REQUIRED without inventi
 });
 
 test('missing semantic data may remain null and still be reviewable when stable location evidence exists', () => {
-  const state = buildOmrReviewScoreState({
-    route: SCORE_ROUTE.POLY_V2,
-    issuePayloads: [payload({
-      issue_id: 'omr-missing-duration',
-      code: 'OMR_MISSING_OR_UNCERTAIN_DURATION',
-      observed_value: null,
-      confidence_or_evidence_if_available: null,
-      suggested_review_action: 'VERIFY_DURATION',
-    })],
-  });
+  const state = build([payload({
+    issue_id: 'omr-missing-duration',
+    code: 'OMR_MISSING_OR_UNCERTAIN_DURATION',
+    observed_value: null,
+    confidence_or_evidence_if_available: null,
+    suggested_review_action: 'VERIFY_DURATION',
+  })]);
 
   assert.equal(state.status, SCORE_STATUS.REVIEW_REQUIRED);
   assert.equal(state.issues[0].reviewEvidence.observed_value, null);
@@ -77,17 +82,14 @@ test('missing semantic data may remain null and still be reviewable when stable 
 });
 
 test('missing note evidence may use measure-level location without fabricating an event id', () => {
-  const state = buildOmrReviewScoreState({
-    route: SCORE_ROUTE.POLY_V2,
-    issuePayloads: [payload({
-      issue_id: 'omr-missing-note',
-      category: 'content',
-      code: 'OMR_MISSING_NOTE',
-      event_id_or_location: null,
-      observed_value: null,
-      suggested_review_action: 'VERIFY_AND_ADD_NOTE_IF_CONFIRMED',
-    })],
-  });
+  const state = build([payload({
+    issue_id: 'omr-missing-note',
+    category: 'content',
+    code: 'OMR_MISSING_NOTE',
+    event_id_or_location: null,
+    observed_value: null,
+    suggested_review_action: 'VERIFY_AND_ADD_NOTE_IF_CONFIRMED',
+  })]);
 
   assert.equal(state.status, SCORE_STATUS.REVIEW_REQUIRED);
   assert.equal(state.issues[0].location.measure, '12');
@@ -95,38 +97,43 @@ test('missing note evidence may use measure-level location without fabricating a
 });
 
 test('hard-block OMR evidence wins over reviewable evidence', () => {
-  const state = buildOmrReviewScoreState({
-    route: SCORE_ROUTE.POLY_V2,
-    issuePayloads: [
-      payload(),
-      payload({
-        issue_id: 'omr-hard-block',
-        category: 'parse',
-        code: 'OMR_UNPARSEABLE_DOCUMENT',
-        measure: null,
-        staff: null,
-        voice: null,
-        event_id_or_location: null,
-        observed_value: null,
-        confidence_or_evidence_if_available: null,
-        suggested_review_action: 'STOP_AND_REIMPORT_SOURCE',
-      }),
-    ],
-  });
+  const state = build([
+    payload(),
+    payload({
+      issue_id: 'omr-hard-block',
+      category: 'parse',
+      code: 'OMR_UNPARSEABLE_DOCUMENT',
+      measure: null,
+      staff: null,
+      voice: null,
+      event_id_or_location: null,
+      observed_value: null,
+      confidence_or_evidence_if_available: null,
+      suggested_review_action: 'STOP_AND_REIMPORT_SOURCE',
+    }),
+  ]);
 
   assert.equal(state.status, SCORE_STATUS.BLOCKED);
   assert.equal(state.canOpenForReview, false);
 });
 
 test('reviewable OMR evidence stays blocked when immutable source is not safely available', () => {
-  const state = buildOmrReviewScoreState({
-    route: SCORE_ROUTE.POLY_V2,
+  const state = build([payload()], {
     sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.NOT_AVAILABLE,
-    issuePayloads: [payload()],
   });
 
   assert.equal(state.status, SCORE_STATUS.BLOCKED);
   assert.equal(state.canOpenForReview, false);
+});
+
+test('source review availability must be explicit and never defaults to safe', () => {
+  assert.throws(
+    () => buildOmrReviewScoreState({
+      route: SCORE_ROUTE.POLY_V2,
+      issuePayloads: [payload()],
+    }),
+    /sourceReviewAvailability must be a known source-review availability/,
+  );
 });
 
 test('unknown OMR codes fail closed instead of becoming reviewable', () => {
@@ -180,8 +187,8 @@ test('payload shape is exact and evidence values reject executable/accessor-styl
 test('evidence is copied, deeply frozen, deterministic and does not mutate producer input', () => {
   const original = payload();
   const before = JSON.stringify(original);
-  const first = buildOmrReviewScoreState({ route: SCORE_ROUTE.POLY_V2, issuePayloads: [original] });
-  const second = buildOmrReviewScoreState({ route: SCORE_ROUTE.POLY_V2, issuePayloads: [original] });
+  const first = build([original]);
+  const second = build([original]);
 
   assert.deepEqual(first, second);
   assert.equal(JSON.stringify(original), before);
