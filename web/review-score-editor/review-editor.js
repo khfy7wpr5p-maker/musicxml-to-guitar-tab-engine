@@ -240,13 +240,20 @@
       button.addEventListener('click', () => invoke(button.textContent.trim(), actions[button.dataset.action]));
     }
 
-    const mountedScore = host.mountScore(scoreHost, {
+    const ready = Promise.resolve(host.mountScore(scoreHost, {
       onSelectionChanged: refresh,
-    });
-    if (typeof mountedScore === 'function') scoreDisposer = mountedScore;
-    else if (mountedScore && typeof mountedScore.dispose === 'function') scoreDisposer = () => mountedScore.dispose();
+    })).then((mountedScore) => {
+      let dispose = null;
+      if (typeof mountedScore === 'function') dispose = mountedScore;
+      else if (mountedScore && typeof mountedScore.dispose === 'function') dispose = () => mountedScore.dispose();
 
-    const ready = refresh();
+      if (destroyed) {
+        if (dispose) dispose();
+        return null;
+      }
+      scoreDisposer = dispose;
+      return refresh();
+    });
 
     return Object.freeze({
       ready,
