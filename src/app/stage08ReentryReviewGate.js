@@ -6,12 +6,14 @@ const {
 } = require('./omrReviewEvidence');
 const {
   SCORE_STATUS,
+  SCORE_ROUTE,
 } = require('./reviewableScoreState');
 
 const STAGE08_REENTRY_REVIEW_GATE_VERSION = '1.0.0';
 const STAGE08_REENTRY_REVIEW_EVIDENCE_DOCUMENT_TYPE = 'Stage08ReentryReviewEvidence';
 const MAX_ISSUES = 128;
 const MAX_ID_LENGTH = 160;
+const REVIEWABLE_UNDERLYING_CATEGORIES = new Set(['content', 'semantic', 'quality']);
 
 class Stage08ReentryReviewGateError extends Error {
   constructor(message, code = 'INVALID_STAGE08_REENTRY_REVIEW_EVIDENCE', details = {}) {
@@ -136,6 +138,17 @@ function normalizeEvidence(value, execution, revalidatedRevision) {
   });
 }
 
+function underlyingBoundaryIsReviewable(execution) {
+  if (![SCORE_ROUTE.MONO_V1, SCORE_ROUTE.POLY_V2].includes(execution.route)) return false;
+  const issues = execution.reentry?.preflight?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) return false;
+  return issues.every((issue) => (
+    issue
+    && REVIEWABLE_UNDERLYING_CATEGORIES.has(issue.category)
+    && issue.code !== 'STAGE08_REENTRY_PARSE_FAILED'
+  ));
+}
+
 function applyStage08ReentryReviewEvidence(execution, revalidatedRevision, evidence = null) {
   if (evidence === null || evidence === undefined) return execution;
   if (!execution || execution.status !== SCORE_STATUS.BLOCKED) {
@@ -150,6 +163,13 @@ function applyStage08ReentryReviewEvidence(execution, revalidatedRevision, evide
   }
 
   const normalized = normalizeEvidence(evidence, execution, revalidatedRevision);
+  if (!underlyingBoundaryIsReviewable(execution)) {
+    return Object.freeze({
+      ...execution,
+      reentryReviewState: null,
+    });
+  }
+
   const reviewState = buildOmrReviewScoreState({
     route: execution.route,
     issuePayloads: normalized.issuePayloads,
