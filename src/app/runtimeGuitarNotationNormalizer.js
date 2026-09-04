@@ -160,7 +160,7 @@ function hasSameNamespaceChildren(node) {
   return node.children.some((child) => child.uri === node.uri);
 }
 
-function isSafeDirectionStaff(node) {
+function isSafeDirectionStaff(node, effectiveStaffCount) {
   if (
     !node
     || node.attributes.length !== 0
@@ -168,7 +168,7 @@ function isSafeDirectionStaff(node) {
     || !/^\d+$/.test(node.text.trim())
   ) return false;
   const staff = Number(node.text.trim());
-  return Number.isSafeInteger(staff) && staff >= 1 && staff <= 2;
+  return Number.isSafeInteger(staff) && staff >= 1 && staff <= effectiveStaffCount;
 }
 
 function canonicalBoundedUnsignedDecimal(value, maximum) {
@@ -321,7 +321,7 @@ function hasSafeMetronomeLayoutAttributes(node) {
   return true;
 }
 
-function safeMetronomeDirection(node) {
+function safeMetronomeDirection(node, effectiveStaffCount) {
   if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
 
   const children = node.children.filter((child) => child.uri === node.uri);
@@ -338,7 +338,7 @@ function safeMetronomeDirection(node) {
     directionTypes.length !== 1
     || soundNodes.length > 1
     || staffNodes.length > 1
-    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0]))
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return false;
   const expectedDirectionChildren = staffNodes.length === 1
     ? ['direction-type', 'staff', ...(soundNodes.length === 1 ? ['sound'] : [])]
@@ -407,7 +407,7 @@ function safeMetronomeDirection(node) {
   return true;
 }
 
-function safeGuitarProDynamicsDirection(node) {
+function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
   if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
   const children = node.children.filter((child) => child.uri === node.uri);
   if (
@@ -421,7 +421,7 @@ function safeGuitarProDynamicsDirection(node) {
     directionTypes.length !== 1
     || soundNodes.length > 1
     || staffNodes.length > 1
-    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0]))
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return false;
 
   const directionType = directionTypes[0];
@@ -884,6 +884,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
 
   const measures = [];
   const keySignatures = [];
+  let effectiveStaffCount = 1;
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
     const measure = measureNodes[measureIndex];
     const children = [];
@@ -891,6 +892,9 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
       if (child.uri !== measure.uri) continue;
       if (child.name === 'attributes') {
         const attributes = sanitizeAttributes(child, ignoredFeatures, measureIndex, keySignatures);
+        const stavesNodes = directChildren(child, 'staves');
+        if (stavesNodes.length > 1) throw unsupported('staves');
+        if (stavesNodes.length === 1) effectiveStaffCount = scalarInteger(stavesNodes[0]);
         children.push(attributes);
         continue;
       }
@@ -904,11 +908,11 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         continue;
       }
       if (child.name === 'direction') {
-        if (safeMetronomeDirection(child)) {
+        if (safeMetronomeDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:metronome-tempo');
           continue;
         }
-        if (safeGuitarProDynamicsDirection(child)) {
+        if (safeGuitarProDynamicsDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:dynamics');
           continue;
         }
