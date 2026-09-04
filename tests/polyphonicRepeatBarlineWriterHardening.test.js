@@ -87,3 +87,42 @@ test('repeat-aware writer rejects proxy repeat arrays before array traps', () =>
   );
   assert.equal(ownKeys, 0);
 });
+
+test('repeat-aware writer rejects accessor options without invoking getters', () => {
+  let gets = 0;
+  const options = {};
+  Object.defineProperty(options, 'notationContext', {
+    enumerable: true,
+    get() {
+      gets += 1;
+      throw new Error('options getter must not execute');
+    },
+  });
+
+  assert.throws(
+    () => serializeCanonicalTabResultV2ToMusicXml(canonicalResult(), options),
+    assertWriterOptionError,
+  );
+  assert.equal(gets, 0);
+});
+
+test('repeat-aware writer rejects accessor repeat context without invoking getters', () => {
+  let gets = 0;
+  const notationContext = {
+    keySignatures: [],
+    repeatBarlines: [],
+  };
+  Object.defineProperty(notationContext, 'measureOccurrencePlan', {
+    enumerable: true,
+    get() {
+      gets += 1;
+      throw new Error('repeat context getter must not execute');
+    },
+  });
+
+  assert.throws(
+    () => serializeCanonicalTabResultV2ToMusicXml(canonicalResult(), { notationContext }),
+    assertWriterOptionError,
+  );
+  assert.equal(gets, 0);
+});
