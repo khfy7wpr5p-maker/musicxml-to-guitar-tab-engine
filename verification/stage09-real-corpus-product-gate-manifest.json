@@ -1,0 +1,51 @@
+{
+  "documentType": "Stage09RealCorpusProductGateManifest",
+  "contractVersion": "1.0.0",
+  "stage": "STAGE_09_REAL_CORPUS_PRODUCT_GATE",
+  "requiredRunCount": 2,
+  "entrypoints": [
+    "processMusicXmlUpload()",
+    "continueStage08ProductionToCanonicalTab()"
+  ],
+  "thresholds": {
+    "minimumUniqueRealMusicXmlCases": 20,
+    "maximumTargetRealMusicXmlCases": 50,
+    "minimumRealTeacherCorrectionCases": 3,
+    "requiredStage08Statuses": [
+      "PASS",
+      "REVIEW_REQUIRED",
+      "BLOCKED"
+    ],
+    "requiredRepresentationTags": [
+      "voice-2",
+      "voice-3-or-4",
+      "chord",
+      "tie",
+      "staff",
+      "duration-or-onset",
+      "difficult-guitar-position"
+    ]
+  },
+  "tierA": {
+    "evidenceClass": "REAL_EXTERNAL_PINNED_MUSICXML",
+    "evidenceSets": [
+      {
+        "sourceManifest": "verification/guitar-tech-real-corpus-manifest.json",
+        "reviewedAudit": "verification/prod-tech-03-real-corpus-audit-00e62f0.json",
+        "expectedUniqueCases": 9
+      },
+      {
+        "sourceManifest": "verification/stage09-additional-real-musicxml-corpus.json",
+        "reviewedAudit": "verification/stage09-additional-real-corpus-reviewed-audit.json",
+        "expectedUniqueCases": 11
+      }
+    ],
+    "note": "Tier A counts only unique verified SHA-256 source identities. Historical audit reuse of the first nine identities never increases the count."
+  },
+  "tierB": {
+    "evidenceClass": "REAL_TEACHER_CORRECTION",
+    "correctionManifest": "verification/stage09-real-teacher-correction-corpus.json",
+    "candidateInventory": "verification/stage09-teacher-correction-evidence-candidates.json",
+    "note": "Synthetic Stage 08 fixtures, no-correction references and regression-only OMR outputs never satisfy this tier."
+  }
+}

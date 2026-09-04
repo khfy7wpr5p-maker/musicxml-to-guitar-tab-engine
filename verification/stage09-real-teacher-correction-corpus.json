@@ -1,0 +1,15 @@
+{
+  "documentType": "Stage09RealTeacherCorrectionCorpus",
+  "contractVersion": "1.0.0",
+  "evidenceClass": "REAL_TEACHER_CORRECTION",
+  "sourceFilesCommitted": false,
+  "requiredRunCount": 2,
+  "candidateInventory": "verification/stage09-teacher-correction-evidence-candidates.json",
+  "auditedCandidateCount": 2,
+  "eligibleCandidateCount": 0,
+  "cases": [],
+  "evidenceGap": {
+    "code": "NO_AUTHENTIC_TEACHER_CORRECTION_CASES_AVAILABLE",
+    "message": "Cross-repository evidence audit found two teacher-verified references and one authentic real-OMR evidence chain, but neither provides a non-empty teacher correction patch ledger that can be revalidated through Stage 08. Synthetic fixtures and regression-only OMR outputs remain excluded."
+  }
+}

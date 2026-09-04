@@ -1,0 +1,86 @@
+{
+  "documentType": "Stage09TeacherCorrectionEvidenceCandidateInventory",
+  "contractVersion": "1.0.0",
+  "purpose": "Record real teacher-verified OMR/MusicXML evidence without promoting incomplete or no-correction references into Stage 09 correction cases.",
+  "auditedAt": "2026-09-05",
+  "candidates": [
+    {
+      "candidateId": "seslitab-plan0-owner-approved-3-8",
+      "sourceRepository": "khfy7wpr5p-maker/seslitab-guitar-reader",
+      "sourceCommitSha": "7cdf08f784a38b9e50cfb465eab87cb65a6622a1",
+      "crossCheckRepository": "khfy7wpr5p-maker/st-omr-correction-engine",
+      "crossCheckCommitSha": "1b988827fe5a05e37ac94178be2665e9c2a6ba94",
+      "teacherVerified": true,
+      "realOmr": true,
+      "engineId": "audiveris",
+      "engineVersion": "5.11.0",
+      "sourcePdf": {
+        "path": "tests/fixtures/golden-reference/plan0-owner-approved-3-8/source.pdf",
+        "sha256": "df4b8ea20b6420ebdf6b3e1d625016090105fed0c2f60a4e03874d3c3be2b9b9"
+      },
+      "expectedMusicXml": {
+        "path": "tests/fixtures/golden-reference/plan0-owner-approved-3-8/expected.musicxml",
+        "sha256": "009dd2fd4439a4138ed62cd0e0945a5611add8db38c58c7b0f90429ccd9970f6"
+      },
+      "omrArtifact": {
+        "path": "tests/fixtures/golden-reference/plan0-owner-approved-3-8/project.omr",
+        "sha256": "7424e684825b51e8fd31596c94acd5ef008a84fbaecb5c0524222aaec8f8a21a"
+      },
+      "approval": {
+        "evidenceId": "seslitab-plan0-owner-approved-3-8-approval-2026-08-09",
+        "path": "tests/fixtures/golden-reference/plan0-owner-approved-3-8/APPROVAL.md",
+        "sha256": "4cda4b23b71c738e0b7117d84a4d1256656e010359c5a4b9f1f1db474ad8dfc3",
+        "fullScoreMusicalEquivalenceApproved": true
+      },
+      "observedCorrectionNeededCount": 0,
+      "nonEmptyTeacherPatchLedgerAvailable": false,
+      "stage09CorrectionEligibility": "INELIGIBLE_NO_CORRECTION_NEEDED",
+      "eligibleAsStage09CorrectionCase": false,
+      "reason": "This is authentic teacher-approved real OMR evidence, but the approved projection explicitly records no correction-needed events. Stage 08 requires a non-empty teacher patch ledger, so this reference cannot satisfy Tier B correction evidence."
+    },
+    {
+      "candidateId": "seslitab-plan0-cc0-4measure",
+      "sourceRepository": "khfy7wpr5p-maker/seslitab-guitar-reader",
+      "sourceCommitSha": "fcfa70da2d81891d98dc1029862671c35217c00f",
+      "teacherVerified": true,
+      "realOmr": false,
+      "sourcePdf": {
+        "path": "tests/fixtures/golden-reference/plan0-cc0-4measure/plan0-cc0-4measure-source.pdf",
+        "sha256": "c6e91647ba9dfcd38094f59848823ce3c92e7f5fe495747e2588ac0120f5bfed"
+      },
+      "expectedMusicXml": {
+        "path": "tests/fixtures/golden-reference/plan0-cc0-4measure/plan0-cc0-4measure-expected.musicxml",
+        "sha256": "7004b4ac37711cca340c63e2f2436dd70e0f630f4e891cb311caff159b5d9d94"
+      },
+      "omrArtifact": null,
+      "historicalAudiverisAttemptAcceptedAsReproduction": false,
+      "nonEmptyTeacherPatchLedgerAvailable": false,
+      "stage09CorrectionEligibility": "INELIGIBLE_NO_APPROVED_OMR_CORRECTION_CHAIN",
+      "eligibleAsStage09CorrectionCase": false,
+      "reason": "The source PDF and expected MusicXML are teacher-verified golden reference material, but the preserved historical Audiveris attempt is not accepted as a successful reproduction and there is no approved real OMR artifact/correction patch chain to revalidate through Stage 08."
+    }
+  ],
+  "excludedEvidenceGroups": [
+    {
+      "sourceRepository": "khfy7wpr5p-maker/seslitab-guitar-reader",
+      "sourceCommitSha": "fcfa70da2d81891d98dc1029862671c35217c00f",
+      "paths": [
+        "tests/fixtures/real-omr/django-clean.xml",
+        "tests/fixtures/real-omr/fikriminincegulu-clean.xml",
+        "tests/fixtures/real-omr/fug1001-clean.xml",
+        "tests/fixtures/real-omr/gesi-clean.xml",
+        "tests/fixtures/real-omr/karayip-korsanlari-clean.xml",
+        "tests/fixtures/real-omr/samanyolu-clean.xml",
+        "tests/fixtures/real-omr/shostywaltz-clean.xml"
+      ],
+      "eligibility": "INELIGIBLE_REGRESSION_OUTPUT_ONLY",
+      "reason": "These real-OMR MusicXML files are deterministic regression outputs only; source/licence/teacher-approval ground-truth evidence is incomplete and they must not be promoted to Stage 09 Tier B."
+    }
+  ],
+  "summary": {
+    "teacherVerifiedReferences": 2,
+    "authenticRealOmrReferences": 1,
+    "eligibleStage09CorrectionCases": 0,
+    "excludedRegressionOutputs": 7
+  }
+}
