@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-04 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -120,7 +120,7 @@ Production code contains generic, bounded contracts for:
 - validated explicit source tuning/capo configuration at the application boundary;
 - exact pre-solve legacy TAB presentation-only tuning compatibility described above;
 - exact reviewed Guitar Pro grace representation;
-- exact attribute-free grace nominal types `eighth` and `32nd`;
+- exact grace nominal types `eighth` and `32nd`;
 - exact matching grace accidental display metadata;
 - exact bracketed-below Guitar Pro 3:2 triplet display metadata backed by validated timing semantics;
 - exact two-staff notation/TAB mirror collapse after original staff-2 TAB evidence and normalized semantic equality are proven;
