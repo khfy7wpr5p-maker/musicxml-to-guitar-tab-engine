@@ -1,0 +1,40 @@
+name: Stage 09 Real Corpus Audit
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  additional-real-musicxml:
+    name: Additional real MusicXML / Node.js 22
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Fetch exact external corpus commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/stage09-animetab
+          git init -q /tmp/stage09-animetab
+          git -C /tmp/stage09-animetab remote add origin https://github.com/amamiya-yuuko/AnimeTAB.git
+          git -C /tmp/stage09-animetab fetch --depth=1 origin 18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a
+          git -C /tmp/stage09-animetab checkout -q FETCH_HEAD -- AnimeTAB/Clips/Originals
+      - name: Audit pinned real MusicXML through production entrypoint
+        run: >-
+          node scripts/stage09-additional-real-corpus-audit.js
+          /tmp/stage09-animetab/AnimeTAB/Clips/Originals
+          stage09-additional-real-corpus-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage09-additional-real-corpus-audit
+          path: stage09-additional-real-corpus-audit.json
+          if-no-files-found: error
