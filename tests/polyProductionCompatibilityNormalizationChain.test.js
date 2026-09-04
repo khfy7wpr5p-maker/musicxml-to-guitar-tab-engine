@@ -118,6 +118,13 @@ function withObservedGuitarProDirections(xml) {
   );
 }
 
+function withStaffTargetedPerformanceDirections(xml) {
+  return xml.replace(
+    '    <note>',
+    '    <direction placement="above"><direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>40</per-minute></metronome></direction-type><staff>1</staff><sound tempo="40"/></direction>\n    <direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>2</staff><sound dynamics="17.78"/></direction>\n    <note>',
+  );
+}
+
 function withExactDisplayRehearsal(xml) {
   return xml.replace(
     '    <note>',
@@ -198,6 +205,17 @@ test('POLY production chain accepts the observed Guitar Pro metronome and dynami
   assert.ok(ignored.includes('measure:direction:dynamics'));
 });
 
+test('POLY production chain accepts bounded staff-targeted metronome and dynamics metadata', () => {
+  const result = assertDeterministicPolyPass(
+    'staff-targeted-safe-directions',
+    withStaffTargetedPerformanceDirections(runtimeFixture()),
+  );
+  assert.deepEqual(eventSnapshot(result), BASE_RUNTIME_SNAPSHOT);
+  const ignored = result.preflight.issues[0].details.ignoredFeatures;
+  assert.ok(ignored.includes('measure:direction:metronome-tempo'));
+  assert.ok(ignored.includes('measure:direction:dynamics'));
+});
+
 test('POLY production chain accepts an exact display-only rehearsal mark as provenance', () => {
   const result = assertDeterministicPolyPass(
     'guitar-pro-safe-rehearsal',
@@ -214,6 +232,11 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['navigation-sound', '<direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dacapo="yes"/></direction>'],
     ['unbounded-dynamic', '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>'],
     ['invalid-layout', '<direction directive="yes"><direction-type><metronome parentheses="maybe" default-y="40"><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>'],
+    ['staff-out-of-profile', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>3</staff><sound dynamics="17.78"/></direction>'],
+    ['duplicate-direction-staff', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><staff>2</staff><sound dynamics="17.78"/></direction>'],
+    ['structured-direction-staff', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1<ext:payload xmlns:ext="urn:test"/></staff><sound dynamics="17.78"/></direction>'],
+    ['negative-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-1.11"/></direction>'],
+    ['over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>'],
     ['rehearsal-with-timing-offset', '<direction><offset>1</offset><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
     ['rehearsal-with-playback-sound', '<direction><direction-type><rehearsal>Section A</rehearsal></direction-type><sound dacapo="yes"/></direction>'],
     ['rehearsal-with-layout-attribute', '<direction placement="above"><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],

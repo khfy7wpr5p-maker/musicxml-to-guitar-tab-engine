@@ -160,6 +160,25 @@ function hasSameNamespaceChildren(node) {
   return node.children.some((child) => child.uri === node.uri);
 }
 
+function isSafeDirectionStaff(node) {
+  if (
+    !node
+    || node.attributes.length !== 0
+    || node.children.length !== 0
+    || !/^\d+$/.test(node.text.trim())
+  ) return false;
+  const staff = Number(node.text.trim());
+  return Number.isSafeInteger(staff) && staff >= 1 && staff <= 2;
+}
+
+function boundedDecimal(value, { minimum, maximum }) {
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value || '')) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= minimum && number <= maximum
+    ? number
+    : null;
+}
+
 function parseStandardGuitarTranspose(measureNodes) {
   const transposeRecords = [];
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
@@ -246,7 +265,7 @@ function safeArticulations(node, ignoredFeatures) {
 }
 
 function positiveTempo(node) {
-  if (!node || hasSameNamespaceChildren(node) || !hasOnlyUnqualifiedAttributes(node, new Set())) {
+  if (!node || node.children.length !== 0 || node.attributes.length !== 0) {
     return null;
   }
   if (!/^(?:\d+|\d+\.\d+)$/.test(node.text.trim())) return null;
@@ -286,18 +305,31 @@ function hasSafeMetronomeLayoutAttributes(node) {
 }
 
 function safeMetronomeDirection(node) {
-  if (!hasSafeMetronomeDirectionAttributes(node)) return false;
+  if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
 
   const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.some((child) => child.name !== 'direction-type' && child.name !== 'sound')) {
+  if (
+    children.length !== node.children.length
+    || children.some((child) => !['direction-type', 'sound', 'staff'].includes(child.name))
+  ) {
     return false;
   }
   const directionTypes = directChildren(node, 'direction-type');
   const soundNodes = directChildren(node, 'sound');
-  if (directionTypes.length !== 1 || soundNodes.length > 1) return false;
+  const staffNodes = directChildren(node, 'staff');
+  if (
+    directionTypes.length !== 1
+    || soundNodes.length > 1
+    || staffNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0]))
+  ) return false;
 
   const directionType = directionTypes[0];
-  if (!hasOnlyUnqualifiedAttributes(directionType, new Set())) return false;
+  if (
+    directionType.attributes.length !== 0
+    || directionType.text.trim().length !== 0
+    || directionType.children.some((child) => child.uri !== directionType.uri)
+  ) return false;
   const metronomeNodes = directChildren(directionType, 'metronome');
   if (
     metronomeNodes.length !== 1
@@ -309,7 +341,11 @@ function safeMetronomeDirection(node) {
   }
 
   const metronome = metronomeNodes[0];
-  if (!hasSafeMetronomeLayoutAttributes(metronome)) return false;
+  if (
+    !hasSafeMetronomeLayoutAttributes(metronome)
+    || metronome.text.trim().length !== 0
+    || metronome.children.some((child) => child.uri !== metronome.uri)
+  ) return false;
   const metronomeChildren = metronome.children.filter((child) => child.uri === metronome.uri);
   if (metronomeChildren.some((child) => !['beat-unit', 'per-minute'].includes(child.name))) {
     return false;
@@ -319,7 +355,8 @@ function safeMetronomeDirection(node) {
   if (beatUnits.length !== 1 || perMinutes.length !== 1) return false;
   if (
     hasSameNamespaceChildren(beatUnits[0])
-    || !hasOnlyUnqualifiedAttributes(beatUnits[0], new Set())
+    || beatUnits[0].children.length !== 0
+    || beatUnits[0].attributes.length !== 0
     || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(beatUnits[0].text.trim())
   ) {
     return false;
@@ -329,7 +366,13 @@ function safeMetronomeDirection(node) {
 
   if (soundNodes.length === 1) {
     const sound = soundNodes[0];
-    if (hasSameNamespaceChildren(sound) || !hasOnlyUnqualifiedAttributes(sound, new Set(['tempo']))) {
+    if (
+      sound.children.length !== 0
+      || sound.attributes.length !== 1
+      || sound.attributes[0].uri.length !== 0
+      || sound.attributes[0].name !== 'tempo'
+      || sound.text.trim().length !== 0
+    ) {
       return false;
     }
     const tempo = getAttribute(sound, 'tempo');
@@ -342,27 +385,72 @@ function safeMetronomeDirection(node) {
 }
 
 function safeGuitarProDynamicsDirection(node) {
-  if (node.attributes.length !== 0) return false;
+  if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
   const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.length !== 1) return false;
+  if (
+    children.length !== node.children.length
+    || children.some((child) => !['direction-type', 'sound', 'staff'].includes(child.name))
+  ) return false;
   const directionTypes = directChildren(node, 'direction-type');
-  if (directionTypes.length !== 1) return false;
+  const soundNodes = directChildren(node, 'sound');
+  const staffNodes = directChildren(node, 'staff');
+  if (
+    directionTypes.length !== 1
+    || soundNodes.length > 1
+    || staffNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0]))
+  ) return false;
 
   const directionType = directionTypes[0];
-  if (directionType.attributes.length !== 0 || directionType.children.length !== 1) return false;
+  if (
+    directionType.attributes.length !== 0
+    || directionType.children.length !== 1
+    || directionType.text.trim().length !== 0
+  ) return false;
   const dynamicsNodes = directChildren(directionType, 'dynamics');
   if (dynamicsNodes.length !== 1) return false;
 
   const dynamics = dynamicsNodes[0];
   if (dynamics.attributes.length !== 0 || dynamics.children.length !== 1) return false;
   const mark = dynamics.children[0];
-  return (
+  if (!(
     mark.uri === dynamics.uri
-    && ['p', 'mf', 'f'].includes(mark.name)
+    && ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'].includes(mark.name)
     && mark.attributes.length === 0
     && mark.children.length === 0
     && mark.text.trim().length === 0
+  )) return false;
+
+  const isLegacyExactDirection = (
+    node.attributes.length === 0
+    && children.length === 1
+    && soundNodes.length === 0
+    && staffNodes.length === 0
+    && ['p', 'mf', 'f'].includes(mark.name)
   );
+  if (isLegacyExactDirection) return true;
+
+  const placementAttributes = node.attributes.filter((attribute) => (
+    attribute.uri.length === 0 && attribute.name === 'placement'
+  ));
+  if (
+    node.attributes.length !== 1
+    || placementAttributes.length !== 1
+    || !['above', 'below'].includes(placementAttributes[0].value)
+    || soundNodes.length !== 1
+    || staffNodes.length !== 1
+  ) return false;
+
+  const sound = soundNodes[0];
+  if (
+    sound.children.length !== 0
+    || sound.attributes.length !== 1
+    || sound.attributes[0].uri.length !== 0
+    || sound.attributes[0].name !== 'dynamics'
+    || sound.text.trim().length !== 0
+    || boundedDecimal(sound.attributes[0].value, { minimum: 0, maximum: 127 }) === null
+  ) return false;
+  return true;
 }
 
 // Display-only rehearsal labels are safe only in this exact, bounded shape.
