@@ -160,6 +160,42 @@ function hasSameNamespaceChildren(node) {
   return node.children.some((child) => child.uri === node.uri);
 }
 
+function isSafeDirectionStaff(node, effectiveStaffCount) {
+  if (
+    !node
+    || node.attributes.length !== 0
+    || node.children.length !== 0
+    || !/^\d+$/.test(node.text.trim())
+  ) return false;
+  const staff = Number(node.text.trim());
+  return Number.isSafeInteger(staff) && staff >= 1 && staff <= effectiveStaffCount;
+}
+
+function canonicalBoundedUnsignedDecimal(value, maximum) {
+  const match = /^\+?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/.exec(value || '');
+  if (!match) return null;
+
+  const integerDigits = (match[1] || '0').replace(/^0+(?=\d)/, '');
+  const fractionalDigits = match[2] ?? match[3] ?? '';
+  const maximumDigits = String(maximum);
+  if (integerDigits.length !== maximumDigits.length) {
+    if (integerDigits.length > maximumDigits.length) return null;
+  } else if (integerDigits > maximumDigits) {
+    return null;
+  } else if (integerDigits === maximumDigits && /[1-9]/.test(fractionalDigits)) {
+    return null;
+  }
+  const normalizedFraction = fractionalDigits.replace(/0+$/, '');
+  return normalizedFraction.length === 0
+    ? integerDigits
+    : `${integerDigits}.${normalizedFraction}`;
+}
+
+function hasExactChildSequence(children, expectedNames) {
+  return children.length === expectedNames.length
+    && children.every((child, index) => child.name === expectedNames[index]);
+}
+
 function parseStandardGuitarTranspose(measureNodes) {
   const transposeRecords = [];
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
@@ -246,12 +282,12 @@ function safeArticulations(node, ignoredFeatures) {
 }
 
 function positiveTempo(node) {
-  if (!node || hasSameNamespaceChildren(node) || !hasOnlyUnqualifiedAttributes(node, new Set())) {
+  if (!node || node.children.length !== 0 || node.attributes.length !== 0) {
     return null;
   }
   if (!/^(?:\d+|\d+\.\d+)$/.test(node.text.trim())) return null;
-  const value = Number(node.text.trim());
-  return Number.isFinite(value) && value > 0 && value <= 1000 ? value : null;
+  const value = canonicalBoundedUnsignedDecimal(node.text.trim(), 1000);
+  return value !== null && value !== '0' ? value : null;
 }
 
 function hasSafeMetronomeDirectionAttributes(node) {
@@ -285,19 +321,36 @@ function hasSafeMetronomeLayoutAttributes(node) {
   return true;
 }
 
-function safeMetronomeDirection(node) {
-  if (!hasSafeMetronomeDirectionAttributes(node)) return false;
+function safeMetronomeDirection(node, effectiveStaffCount) {
+  if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
 
   const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.some((child) => child.name !== 'direction-type' && child.name !== 'sound')) {
+  if (
+    children.length !== node.children.length
+    || children.some((child) => !['direction-type', 'sound', 'staff'].includes(child.name))
+  ) {
     return false;
   }
   const directionTypes = directChildren(node, 'direction-type');
   const soundNodes = directChildren(node, 'sound');
-  if (directionTypes.length !== 1 || soundNodes.length > 1) return false;
+  const staffNodes = directChildren(node, 'staff');
+  if (
+    directionTypes.length !== 1
+    || soundNodes.length > 1
+    || staffNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
+  ) return false;
+  const expectedDirectionChildren = staffNodes.length === 1
+    ? ['direction-type', 'staff', ...(soundNodes.length === 1 ? ['sound'] : [])]
+    : ['direction-type', ...(soundNodes.length === 1 ? ['sound'] : [])];
+  if (!hasExactChildSequence(children, expectedDirectionChildren)) return false;
 
   const directionType = directionTypes[0];
-  if (!hasOnlyUnqualifiedAttributes(directionType, new Set())) return false;
+  if (
+    directionType.attributes.length !== 0
+    || directionType.text.trim().length !== 0
+    || directionType.children.some((child) => child.uri !== directionType.uri)
+  ) return false;
   const metronomeNodes = directChildren(directionType, 'metronome');
   if (
     metronomeNodes.length !== 1
@@ -309,9 +362,13 @@ function safeMetronomeDirection(node) {
   }
 
   const metronome = metronomeNodes[0];
-  if (!hasSafeMetronomeLayoutAttributes(metronome)) return false;
+  if (
+    !hasSafeMetronomeLayoutAttributes(metronome)
+    || metronome.text.trim().length !== 0
+    || metronome.children.some((child) => child.uri !== metronome.uri)
+  ) return false;
   const metronomeChildren = metronome.children.filter((child) => child.uri === metronome.uri);
-  if (metronomeChildren.some((child) => !['beat-unit', 'per-minute'].includes(child.name))) {
+  if (!hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])) {
     return false;
   }
   const beatUnits = directChildren(metronome, 'beat-unit');
@@ -319,7 +376,8 @@ function safeMetronomeDirection(node) {
   if (beatUnits.length !== 1 || perMinutes.length !== 1) return false;
   if (
     hasSameNamespaceChildren(beatUnits[0])
-    || !hasOnlyUnqualifiedAttributes(beatUnits[0], new Set())
+    || beatUnits[0].children.length !== 0
+    || beatUnits[0].attributes.length !== 0
     || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(beatUnits[0].text.trim())
   ) {
     return false;
@@ -328,41 +386,100 @@ function safeMetronomeDirection(node) {
   if (perMinute === null) return false;
 
   if (soundNodes.length === 1) {
+    // sound@tempo is quarter notes per minute. Other beat units need a semantic
+    // conversion policy and therefore remain fail-closed in this provenance profile.
+    if (beatUnits[0].text.trim() !== 'quarter') return false;
     const sound = soundNodes[0];
-    if (hasSameNamespaceChildren(sound) || !hasOnlyUnqualifiedAttributes(sound, new Set(['tempo']))) {
+    if (
+      sound.children.length !== 0
+      || sound.attributes.length !== 1
+      || sound.attributes[0].uri.length !== 0
+      || sound.attributes[0].name !== 'tempo'
+      || sound.text.trim().length !== 0
+    ) {
       return false;
     }
     const tempo = getAttribute(sound, 'tempo');
     if (tempo === undefined || !/^(?:\d+|\d+\.\d+)$/.test(tempo)) return false;
-    const numericTempo = Number(tempo);
-    if (!Number.isFinite(numericTempo) || numericTempo <= 0 || numericTempo > 1000) return false;
-    if (numericTempo !== perMinute) return false;
+    const canonicalTempo = canonicalBoundedUnsignedDecimal(tempo, 1000);
+    if (canonicalTempo === null || canonicalTempo === '0' || canonicalTempo !== perMinute) return false;
   }
   return true;
 }
 
-function safeGuitarProDynamicsDirection(node) {
-  if (node.attributes.length !== 0) return false;
+function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
+  if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return false;
   const children = node.children.filter((child) => child.uri === node.uri);
-  if (children.length !== 1) return false;
+  if (
+    children.length !== node.children.length
+    || children.some((child) => !['direction-type', 'sound', 'staff'].includes(child.name))
+  ) return false;
   const directionTypes = directChildren(node, 'direction-type');
-  if (directionTypes.length !== 1) return false;
+  const soundNodes = directChildren(node, 'sound');
+  const staffNodes = directChildren(node, 'staff');
+  if (
+    directionTypes.length !== 1
+    || soundNodes.length > 1
+    || staffNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
+  ) return false;
 
   const directionType = directionTypes[0];
-  if (directionType.attributes.length !== 0 || directionType.children.length !== 1) return false;
+  if (
+    directionType.attributes.length !== 0
+    || directionType.children.length !== 1
+    || directionType.text.trim().length !== 0
+  ) return false;
   const dynamicsNodes = directChildren(directionType, 'dynamics');
   if (dynamicsNodes.length !== 1) return false;
 
   const dynamics = dynamicsNodes[0];
-  if (dynamics.attributes.length !== 0 || dynamics.children.length !== 1) return false;
+  if (
+    dynamics.attributes.length !== 0
+    || dynamics.children.length !== 1
+    || dynamics.text.trim().length !== 0
+  ) return false;
   const mark = dynamics.children[0];
-  return (
+  if (!(
     mark.uri === dynamics.uri
-    && ['p', 'mf', 'f'].includes(mark.name)
+    && ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'].includes(mark.name)
     && mark.attributes.length === 0
     && mark.children.length === 0
     && mark.text.trim().length === 0
+  )) return false;
+
+  const isLegacyExactDirection = (
+    node.attributes.length === 0
+    && children.length === 1
+    && soundNodes.length === 0
+    && staffNodes.length === 0
+    && ['p', 'mf', 'f'].includes(mark.name)
   );
+  if (isLegacyExactDirection) return true;
+
+  if (!hasExactChildSequence(children, ['direction-type', 'staff', 'sound'])) return false;
+
+  const placementAttributes = node.attributes.filter((attribute) => (
+    attribute.uri.length === 0 && attribute.name === 'placement'
+  ));
+  if (
+    node.attributes.length !== 1
+    || placementAttributes.length !== 1
+    || !['above', 'below'].includes(placementAttributes[0].value)
+    || soundNodes.length !== 1
+    || staffNodes.length !== 1
+  ) return false;
+
+  const sound = soundNodes[0];
+  if (
+    sound.children.length !== 0
+    || sound.attributes.length !== 1
+    || sound.attributes[0].uri.length !== 0
+    || sound.attributes[0].name !== 'dynamics'
+    || sound.text.trim().length !== 0
+    || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 127) === null
+  ) return false;
+  return true;
 }
 
 // Display-only rehearsal labels are safe only in this exact, bounded shape.
@@ -767,6 +884,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
 
   const measures = [];
   const keySignatures = [];
+  let effectiveStaffCount = 1;
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
     const measure = measureNodes[measureIndex];
     const children = [];
@@ -774,6 +892,9 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
       if (child.uri !== measure.uri) continue;
       if (child.name === 'attributes') {
         const attributes = sanitizeAttributes(child, ignoredFeatures, measureIndex, keySignatures);
+        const stavesNodes = directChildren(child, 'staves');
+        if (stavesNodes.length > 1) throw unsupported('staves');
+        if (stavesNodes.length === 1) effectiveStaffCount = scalarInteger(stavesNodes[0]);
         children.push(attributes);
         continue;
       }
@@ -787,11 +908,11 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         continue;
       }
       if (child.name === 'direction') {
-        if (safeMetronomeDirection(child)) {
+        if (safeMetronomeDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:metronome-tempo');
           continue;
         }
-        if (safeGuitarProDynamicsDirection(child)) {
+        if (safeGuitarProDynamicsDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:dynamics');
           continue;
         }
