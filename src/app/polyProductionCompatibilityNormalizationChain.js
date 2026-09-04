@@ -11,6 +11,9 @@ const {
   normalizeDeferredPolyphonicPerformanceDirections,
 } = require('../parser/polyphonicPerformanceDirectionNormalizer');
 const {
+  normalizePolyphonicRepeatBarlines,
+} = require('../parser/polyphonicRepeatBarlineNormalizer');
+const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
 const {
@@ -33,7 +36,7 @@ class PolyProductionCompatibilityNormalizationChainError extends EngineError {
   }
 }
 
-function notationContextFromMarkers(markers, runtimeNotationContext) {
+function notationContextFromMarkers(markers, runtimeNotationContext, repeatNormalization) {
   const markerKeySignatures = markers
     .filter((marker) => marker.kind === 'key')
     .map((marker) => Object.freeze({
@@ -46,6 +49,8 @@ function notationContextFromMarkers(markers, runtimeNotationContext) {
       ...markerKeySignatures,
       ...runtimeNotationContext.keySignatures,
     ]),
+    measureOccurrencePlan: repeatNormalization.measureOccurrencePlan,
+    repeatBarlines: repeatNormalization.repeatBarlines,
   });
 }
 
@@ -78,12 +83,19 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     techniqueNormalization.parsedDocument,
     runtime,
   );
-  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+  // Repeat playback order is authoritative, while bar-style is presentation.
+  // The repeat normalizer records a bounded source-identity occurrence plan and
+  // removes only the repeat child before the existing representation pass.
+  const repeatNormalization = normalizePolyphonicRepeatBarlines(
     performanceNormalization.parsedDocument,
+    runtime,
+  );
+  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+    repeatNormalization.parsedDocument,
   );
   const representationDocument = runtimeNormalization
     ? runtimeNormalization.parsedDocument
-    : performanceNormalization.parsedDocument;
+    : repeatNormalization.parsedDocument;
   const graceAccidentalNormalization = normalizeGraceDisplayAccidental(
     representationDocument,
   );
@@ -113,6 +125,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
 
   const ignoredFeatures = Object.freeze([...new Set([
     ...performanceNormalization.ignoredFeatures,
+    ...repeatNormalization.ignoredFeatures,
     ...semanticNormalization.ignoredFeatures,
     ...(semanticNormalization.staccatoMarkers.length > 0
       ? ['notation:articulation:staccato']
@@ -127,6 +140,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const notationContext = notationContextFromMarkers(
     semanticNormalization.notationContextMarkers,
     runtimeNotationContext,
+    repeatNormalization,
   );
   const ignoredDirectionCount = performanceNormalization.ignoredDirectionCount
     + semanticNormalization.ignoredDirectionCount;
@@ -140,6 +154,8 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     extractedGraceEventCount: semanticNormalization.extractedGraceEventCount,
     ignoredFeatureCount: ignoredFeatures.length,
     ignoredDirectionCount,
+    repeatBarlineCount: repeatNormalization.repeatBarlines.length,
+    playbackOccurrenceCount: repeatNormalization.measureOccurrencePlan.length,
     guitarTechniqueProvenanceRecordCount: techniqueNormalization.guitarTechniqueProvenance.recordCount,
   });
 
@@ -161,6 +177,9 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     ignoredFeatures,
     pitchOctaveShift,
     notationContext,
+    measureOccurrencePlan: repeatNormalization.measureOccurrencePlan,
+    repeatBarlines: repeatNormalization.repeatBarlines,
+    repeatRegions: repeatNormalization.repeatRegions,
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
     ignoredDirectionCount,
     ignoredDirectionFeatureCounts,
