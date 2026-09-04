@@ -2,6 +2,9 @@
 
 const { EngineError } = require('../errors/engineError');
 const {
+  currentExactGuitarFingeringConstraints,
+} = require('../app/polyFingeringRuntimeDiagnostics');
+const {
   createGuitarVoicingCandidateModel,
 } = require('./guitarVoicingCandidateModel');
 const {
@@ -139,6 +142,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   checkpoint(runtime, 'deterministic-pa7-snapshot-handoff:start');
   const effectiveExactFingeringConstraints = exactFingeringConstraints
     || guitarOptions.exactFingeringConstraints
+    || currentExactGuitarFingeringConstraints()
     || null;
 
   const voicingCandidateSnapshot = createGuitarVoicingCandidateModel(
