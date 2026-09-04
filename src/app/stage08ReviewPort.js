@@ -50,6 +50,10 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
+function stableKey(value) {
+  return JSON.stringify(value);
+}
+
 function requireReviewPort(reviewPort) {
   if (!isPlainObject(reviewPort)) fail('Stage 06 review port is required.', 'REVIEW_PORT_MISMATCH');
   for (const method of REQUIRED_REVIEW_PORT_METHODS) {
@@ -61,19 +65,35 @@ function requireReviewPort(reviewPort) {
 }
 
 function eligibleSession(session) {
+  const saved = session?.saved_revision;
+  const revalidated = session?.revalidated_revision;
+  const savedSource = saved?.original_source;
+  const revalidatedSource = revalidated?.original_source;
   return Boolean(
     session
     && session.documentType === REVIEW_EDITOR_BACKEND_DOCUMENT_TYPE
     && session.contractVersion === REVIEW_EDITOR_BACKEND_CONTRACT_VERSION
     && session.phase === SESSION_PHASE.REVALIDATED
-    && session.revalidated_revision
-    && session.revalidated_revision.documentType === TEACHER_CORRECTION_REVISION_DOCUMENT_TYPE
-    && session.revalidated_revision.contractVersion === TEACHER_CORRECTION_REVISION_CONTRACT_VERSION
-    && session.revalidated_revision.state === REVISION_STATE.REVALIDATED_REVISION
-    && session.revalidated_revision.validation_state === VALIDATION_STATE.VALID
-    && session.saved_revision
-    && session.revalidated_revision.parent_revision_id === session.saved_revision.revision_id
-    && session.revalidated_revision.original_source?.source_id === session.saved_revision.original_source?.source_id
+    && saved
+    && saved.documentType === TEACHER_CORRECTION_REVISION_DOCUMENT_TYPE
+    && saved.contractVersion === TEACHER_CORRECTION_REVISION_CONTRACT_VERSION
+    && saved.state === REVISION_STATE.TEACHER_CORRECTED_REVISION
+    && saved.validation_state === VALIDATION_STATE.PENDING_REVALIDATION
+    && revalidated
+    && revalidated.documentType === TEACHER_CORRECTION_REVISION_DOCUMENT_TYPE
+    && revalidated.contractVersion === TEACHER_CORRECTION_REVISION_CONTRACT_VERSION
+    && revalidated.state === REVISION_STATE.REVALIDATED_REVISION
+    && revalidated.validation_state === VALIDATION_STATE.VALID
+    && revalidated.parent_revision_id === saved.revision_id
+    && savedSource
+    && revalidatedSource
+    && revalidatedSource.source_id === savedSource.source_id
+    && revalidatedSource.sha256 === savedSource.sha256
+    && revalidatedSource.byte_length === savedSource.byte_length
+    && Array.isArray(saved.patches)
+    && saved.patches.length > 0
+    && Array.isArray(revalidated.patches)
+    && stableKey(revalidated.patches) === stableKey(saved.patches)
   );
 }
 
@@ -83,8 +103,10 @@ function sessionIdentity(session) {
     sessionId: session.session_id ?? null,
     sourceId: session.revalidated_revision.original_source.source_id,
     originalSha256: session.revalidated_revision.original_source.sha256,
+    originalByteLength: session.revalidated_revision.original_source.byte_length,
     savedRevisionId: session.saved_revision.revision_id,
     revalidatedRevisionId: session.revalidated_revision.revision_id,
+    patchLedger: stableKey(session.revalidated_revision.patches),
   });
 }
 
@@ -95,8 +117,10 @@ function sameIdentity(left, right) {
     && left.sessionId === right.sessionId
     && left.sourceId === right.sourceId
     && left.originalSha256 === right.originalSha256
+    && left.originalByteLength === right.originalByteLength
     && left.savedRevisionId === right.savedRevisionId
     && left.revalidatedRevisionId === right.revalidatedRevisionId
+    && left.patchLedger === right.patchLedger
   );
 }
 
