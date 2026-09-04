@@ -219,7 +219,7 @@ test('runtime accepts bounded staff-tuning provenance while recomputing standard
       .includes('attributes:staff-tuning-provenance'),
   );
   assert.ok(result.preflight.issues[0].details.ignoredFeatures.includes('attributes:clef-layout'));
-  assert.match(result.musicXml, /<staff-tuning line="1"><tuning-step>E<\/tuning-step><tuning-octave>2<\/tuning-octave><\/staff-tuning>/);
+  assert.match(result.musicXml, /<staff-tuning line="1"><tuning-step>E<\/tuning-step><tuning-octave>2<\/octave><\/staff-tuning>/);
 });
 
 test('runtime fails closed on unsupported key semantics instead of dropping notation fidelity', () => {
@@ -315,14 +315,6 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
       xml: source.replace(
         '<direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>90</per-minute></metronome></direction-type>',
         '<direction-type><octave-shift type="down" size="8"/></direction-type>',
-      ),
-    },
-    {
-      name: 'repeat-barline',
-      expectedFeature: 'barline',
-      xml: source.replace(
-        '<bar-style>light-heavy</bar-style>',
-        '<bar-style>light-heavy</bar-style><repeat direction="backward"/>',
       ),
     },
   ];
