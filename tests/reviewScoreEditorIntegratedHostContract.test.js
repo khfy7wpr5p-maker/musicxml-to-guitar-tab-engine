@@ -8,18 +8,26 @@ const vm = require('node:vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const hostJs = fs.readFileSync(path.join(ROOT, 'web/review-score-editor/integrated-host.js'), 'utf8');
+const pinJs = fs.readFileSync(path.join(ROOT, 'web/review-score-editor/editor-core-pin.js'), 'utf8');
 const shellJs = fs.readFileSync(path.join(ROOT, 'web/review-score-editor/review-editor.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'web/review-score-editor/index.html'), 'utf8');
+const EDITOR_CORE_SOURCE_REVISION = '9429116bd5c92d4db4c4edbb21b307c6c74c2391';
 
-test('Stage 07 integrated host is syntactically valid and pins the exact reviewed renderer boundary', () => {
+test('Stage 07 integrated host is syntactically valid and pins exact reviewed renderer and Editor Core boundaries', () => {
   assert.doesNotThrow(() => new vm.Script(hostJs));
+  assert.doesNotThrow(() => new vm.Script(pinJs));
   assert.match(hostJs, /13c32eefccd5bf2c227e815aa27aae4a0583801d/);
   assert.match(hostJs, /RENDERER_CONTRACT_VERSION = '0\.2\.0'/);
   assert.match(hostJs, /OSMD_VERSION = '2\.1\.2'/);
   assert.match(hostJs, /OSMD_LICENSE = 'BSD-3-Clause'/);
   assert.match(hostJs, /runtime-manifest\.json/);
   assert.match(hostJs, /manifestUrl\.origin === global\.location\.origin/);
+  assert.match(pinJs, new RegExp(EDITOR_CORE_SOURCE_REVISION));
+  assert.match(pinJs, /Editor Core source revision mismatch/);
   assert.match(html, /integrated-host\.js/);
+  assert.match(html, /editor-core-pin\.js/);
+  assert.ok(html.indexOf('integrated-host.js') < html.indexOf('editor-core-pin.js'));
+  assert.ok(html.indexOf('editor-core-pin.js') < html.indexOf('review-editor.js'));
 });
 
 test('Stage 07 exact visual hit chain uses render freshness and Editor Core semantic authority', () => {
@@ -56,7 +64,7 @@ test('Stage 07 mobile interaction follows the physical-iPhone-proven pointerup p
   assert.match(hostJs, /ensureRenderedCurrent\(\{ force: true \}\)/);
 });
 
-test('Stage 07 integrated host exposes the shell contract and a bounded PASS handoff without implementing Stage 08', () => {
+test('Stage 07 integrated host exposes the shell contract, exact Editor Core pin and bounded PASS handoff without implementing Stage 08', () => {
   const fakeWindow = {
     location: { origin: 'https://example.test', href: 'https://example.test/' },
     setTimeout,
@@ -68,6 +76,7 @@ test('Stage 07 integrated host exposes the shell contract and a bounded PASS han
   };
   const context = { window: fakeWindow, URL, console, setTimeout, clearTimeout };
   vm.runInNewContext(hostJs, context);
+  vm.runInNewContext(pinJs, context);
   const api = {
     renderMusicXml() {}, hitTestNoteDetailed() {}, highlight() {}, clearHighlights() {}, moveCursor() {}, dispose() {},
   };
@@ -83,13 +92,20 @@ test('Stage 07 integrated host exposes the shell contract and a bounded PASS han
     scoreRendererContractVersion: '0.2.0',
     vendor: { opensheetmusicdisplay: { version: '2.1.2', license: 'BSD-3-Clause' } },
   };
+  assert.throws(() => fakeWindow.ReviewScoreEditorIntegratedHost.create({
+    reviewPort, editorController, rendererApi: api, rendererManifest: manifest,
+    editorCoreSourceRevision: '0'.repeat(40),
+  }), /Editor Core source revision mismatch/);
   const host = fakeWindow.ReviewScoreEditorIntegratedHost.create({
     reviewPort, editorController, rendererApi: api, rendererManifest: manifest,
+    editorCoreSourceRevision: EDITOR_CORE_SOURCE_REVISION,
   });
   for (const method of ['snapshot','mountScore','syncScoreSelection','selectIssue','selectScorePoint','command','undo','redo','save','revalidate','continueToTab','dispose']) {
     assert.equal(typeof host[method], 'function');
   }
   assert.equal(host.pins.rendererContractVersion, '0.2.0');
+  assert.equal(host.pins.editorCoreSourceRevision, EDITOR_CORE_SOURCE_REVISION);
+  assert.equal(fakeWindow.ReviewScoreEditorIntegratedHost.pins.editorCoreSourceRevision, EDITOR_CORE_SOURCE_REVISION);
   assert.match(hostJs, /to: 'STAGE_08_REVALIDATION_AND_TAB'/);
   assert.equal(hostJs.includes('processMusicXmlUpload('), false);
 });
