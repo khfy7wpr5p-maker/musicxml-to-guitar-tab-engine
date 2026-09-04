@@ -27,6 +27,25 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
+function dataPropertySnapshot(value, path) {
+  if (!isPlainObject(value)) return null;
+  const snapshot = {};
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') {
+      throw invalid(`${path} must not contain symbol keys.`, { field: path });
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+      throw invalid(`${path} fields must be enumerable data properties.`, {
+        field: path,
+        property: key,
+      });
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return snapshot;
+}
+
 function exactDataObject(value, fields, path) {
   if (!isPlainObject(value)) throw invalid(`${path} must be a plain object.`, { field: path });
   const descriptors = Object.getOwnPropertyDescriptors(value);
@@ -173,7 +192,17 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
   if (options && typeof options === 'object' && isProxy(options)) {
     throw invalid('options must not be a Proxy.', { field: 'options' });
   }
-  const notationContext = options && options.notationContext;
+  const optionsSnapshot = dataPropertySnapshot(options, 'options');
+  if (optionsSnapshot === null) {
+    return Object.freeze({
+      baseOptions: options,
+      measureOccurrencePlan: null,
+      repeatBarlines: Object.freeze([]),
+    });
+  }
+  const notationContext = Object.hasOwn(optionsSnapshot, 'notationContext')
+    ? optionsSnapshot.notationContext
+    : null;
   if (!notationContext) {
     return Object.freeze({
       baseOptions: options,
@@ -181,11 +210,15 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
       repeatBarlines: Object.freeze([]),
     });
   }
-  if (!isPlainObject(notationContext)) {
+  if (typeof notationContext === 'object' && notationContext !== null && isProxy(notationContext)) {
+    throw invalid('options.notationContext must not be a Proxy.', { field: 'notationContext' });
+  }
+  const notationSnapshot = dataPropertySnapshot(notationContext, 'options.notationContext');
+  if (notationSnapshot === null) {
     throw invalid('options.notationContext must be a non-proxy plain object.', { field: 'notationContext' });
   }
-  const hasOccurrencePlan = Object.hasOwn(notationContext, 'measureOccurrencePlan');
-  const hasRepeatBarlines = Object.hasOwn(notationContext, 'repeatBarlines');
+  const hasOccurrencePlan = Object.hasOwn(notationSnapshot, 'measureOccurrencePlan');
+  const hasRepeatBarlines = Object.hasOwn(notationSnapshot, 'repeatBarlines');
   if (!hasOccurrencePlan && !hasRepeatBarlines) {
     return Object.freeze({
       baseOptions: options,
@@ -194,13 +227,13 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
     });
   }
   const allowed = new Set(['keySignatures', 'measureOccurrencePlan', 'repeatBarlines']);
-  if (Reflect.ownKeys(notationContext).some((key) => typeof key !== 'string' || !allowed.has(key))) {
+  if (Reflect.ownKeys(notationSnapshot).some((key) => !allowed.has(key))) {
     throw invalid('options.notationContext contains an unknown repeat-context field.', {
       field: 'notationContext',
     });
   }
   if (
-    !Object.hasOwn(notationContext, 'keySignatures')
+    !Object.hasOwn(notationSnapshot, 'keySignatures')
     || !hasOccurrencePlan
     || !hasRepeatBarlines
   ) {
@@ -210,11 +243,11 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
   }
 
   const measureOccurrencePlan = normalizeOccurrencePlan(
-    notationContext.measureOccurrencePlan,
+    notationSnapshot.measureOccurrencePlan,
     canonicalTabResult,
   );
   const repeatBarlines = normalizeRepeatBarlines(
-    notationContext.repeatBarlines,
+    notationSnapshot.repeatBarlines,
     canonicalTabResult,
   );
   if (repeatBarlines.length > 0 && measureOccurrencePlan.length <= canonicalTabResult.measures.length) {
@@ -224,8 +257,8 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
   }
 
   const baseOptions = {
-    ...options,
-    notationContext: { keySignatures: notationContext.keySignatures },
+    ...optionsSnapshot,
+    notationContext: { keySignatures: notationSnapshot.keySignatures },
   };
   return Object.freeze({ baseOptions, measureOccurrencePlan, repeatBarlines });
 }
