@@ -164,7 +164,11 @@ function isSafeDeferredProductionDirection(directionNode, classification) {
   const placement = directionNode.attributes.find((attribute) => attribute.name === 'placement');
   if (placement && placement.value !== 'above' && placement.value !== 'below') return false;
   const staffs = sameNamespaceChildren(directionNode).filter((child) => child.name === 'staff');
-  if (staffs.length > 1 || (staffs.length === 1 && Number(staffs[0].text.trim()) > 2)) {
+  if (
+    staffs.length > 1
+    || (staffs.length === 1 && staffs[0].children.length !== 0)
+    || (staffs.length === 1 && Number(staffs[0].text.trim()) > 2)
+  ) {
     return false;
   }
 

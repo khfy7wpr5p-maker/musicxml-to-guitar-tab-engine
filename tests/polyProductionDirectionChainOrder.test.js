@@ -108,6 +108,7 @@ test('production chain preserves stricter validation for offset and inner direct
     '<direction placement="sideways"><direction-type><words>rit.</words></direction-type></direction>',
     '<direction><direction-type><words>rit.</words></direction-type><staff>1</staff><staff>2</staff></direction>',
     '<direction><direction-type><words>rit.</words></direction-type><staff>3</staff></direction>',
+    '<direction><direction-type><words>rit.</words></direction-type><staff>1<ext:payload xmlns:ext="urn:test"/></staff></direction>',
   ]) {
     assert.throws(
       () => projectParsedMusicXmlThroughPolyProductionCompatibilityChain(score(direction)),
