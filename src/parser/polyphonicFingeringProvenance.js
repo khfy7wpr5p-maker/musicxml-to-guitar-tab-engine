@@ -230,9 +230,27 @@ function finalizeNoteRecords(rawRecords, issues) {
   return Object.freeze(finalized);
 }
 
+function isLegacyTechniqueSafeFingering(node) {
+  return (
+    node.attributes.length === 0
+    && node.children.length === 0
+    && /^[1-5]$/.test(node.text.trim())
+  );
+}
+
 function normalizeTechnical(technical) {
+  const sameNamespaceFingerings = directChildren(technical, 'fingering');
+  const preserveLegacySafeFingering = (
+    sameNamespaceFingerings.length === 1
+    && isLegacyTechniqueSafeFingering(sameNamespaceFingerings[0])
+  );
+
   const children = technical.children
-    .filter((child) => !(child.uri === technical.uri && child.name === 'fingering'))
+    .filter((child) => !(
+      child.uri === technical.uri
+      && child.name === 'fingering'
+      && !preserveLegacySafeFingering
+    ))
     .map((child) => cloneNode(child));
   if (children.length === 0 && technical.attributes.length === 0 && technical.text.trim().length === 0) {
     return null;
