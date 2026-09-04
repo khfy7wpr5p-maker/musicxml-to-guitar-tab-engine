@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-04 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -35,7 +35,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 05 teacher correction revision ledger | ✅ INTERNAL / IMMUTABLE-SOURCE / REVERSIBLE |
 | Stage 06 review editor backend contract | ✅ INTERNAL / CAPABILITY-GATED / NON-UI |
 | Stage 07 review editor UI + exact host/pins | ✅ COMPLETE / INTERNAL — Editor Core `9429116…`, Rendering `13c32eef…` |
-| Stage 08 correction revalidation → production TAB | ⚠️ IN PROGRESS — PR #314 implementation/CI closeout |
+| Stage 08 correction revalidation → production TAB | ✅ COMPLETE / INTERNAL — merged PR #314 at `051aae293244ead108079b4756810558e0a44891` |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -64,7 +64,7 @@ Stage 06 adds the internal review-editor backend contract. It loads only Stage 0
 
 Stage 07 is complete. It provides the internal presentation model, responsive browser shell and exact host boundary on top of Stage 06. The host keeps the browser presentation-only, rejects stale renderer evidence, resolves renderer hits through Editor Core canonical selection, preserves the exact reviewed Editor Core revision `9429116bd5c92d4db4c4edbb21b307c6c74c2391`, Rendering Layer revision `13c32eefccd5bf2c227e815aa27aae4a0583801d`, Rendering contract `0.2.0` and OSMD `2.1.2`, and leaves production continuation disabled unless a trusted Stage 08 port is supplied. Stage 07 `readyForStage08` is eligibility evidence only, not canonical approval.
 
-Stage 08 is implemented on PR #314 and is under protected-CI closeout. It introduces a trusted corrected-score materializer boundary tied to the exact immutable source, saved/revalidated revision and patch ledger; re-enters corrected MusicXML through the existing application parser/routing/physical/canonical/writer chain; forbids polyphonic `MONO_V1` degradation; and withholds canonical output/approval on failed re-entry. Production approval additionally requires `Stage08RevalidationTabEvidence` proving exact source/revision identity, `PASS` production re-entry, canonical TAB authority and non-empty writer output. The production review port enables `Continue to TAB` only for the exact current `REVALIDATED/VALID` session and rejects stale session/source/revision identity before or during continuation. See [`stage-08-revalidation-to-tab.md`](stage-08-revalidation-to-tab.md).
+Stage 08 is complete on protected `main` at `051aae293244ead108079b4756810558e0a44891`, merged through PR #314. It introduces a trusted corrected-score materializer boundary tied to the exact immutable source, saved/revalidated revision and patch ledger; re-enters corrected MusicXML through the existing application parser/routing/physical/canonical/writer chain; forbids polyphonic `MONO_V1` degradation; and withholds canonical output/approval on failed re-entry. Production approval additionally requires `Stage08RevalidationTabEvidence` proving exact source/revision identity, `PASS` production re-entry, canonical TAB authority and non-empty writer output. The production review port enables `Continue to TAB` only for the exact current `REVALIDATED/VALID` session and rejects stale session/source/revision identity before or during continuation. Pre-merge protected checks passed on exact head `e613d1793e626ae67115a8fccfeb21f1a7b383af`; merge SHA fresh-read and post-merge Node.js 18/20/22 tests also passed. See [`stage-08-revalidation-to-tab.md`](stage-08-revalidation-to-tab.md).
 
 The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 08 does not silently turn those pitch-only paths into the teacher editor and does not widen the package-root API.
 
@@ -197,10 +197,9 @@ Renderer output is presentation only. Writers serialize canonical truth. Compati
 
 ## Open architecture gates
 
-1. Complete PR #314 protected-CI/review/merge closeout and fresh-read the merged Stage 08 main revision.
-2. Stage 09 end-to-end real OMR/MusicXML corpus and product gate.
-3. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
-4. Wider producer-realistic real-corpus coverage and hardening.
-5. Any broader public/package-root polyphonic API remains separately gated.
-6. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
-7. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
+1. Stage 09 end-to-end real OMR/MusicXML corpus and product gate.
+2. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
+3. Wider producer-realistic real-corpus coverage and hardening.
+4. Any broader public/package-root polyphonic API remains separately gated.
+5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
+6. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
