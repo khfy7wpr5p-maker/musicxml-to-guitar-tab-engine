@@ -8,6 +8,9 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 const {
+  normalizePolyphonicPerformanceMetadataPolicy,
+} = require('../parser/polyphonicPerformanceMetadataPolicy');
+const {
   normalizeDeferredPolyphonicPerformanceDirections,
 } = require('../parser/polyphonicPerformanceDirectionNormalizer');
 const {
@@ -16,6 +19,9 @@ const {
 const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
+const {
+  recordPerformanceMetadataRuntimeIssues,
+} = require('./polyPerformanceMetadataRuntimeDiagnostics');
 const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
@@ -66,6 +72,33 @@ function mergeDirectionFeatureCounts(...records) {
   ));
 }
 
+function excludedPerformanceMetadataDirectionRecords(performanceMetadata) {
+  return performanceMetadata.performanceMetadataRecords.filter((record) => (
+    record.kind === 'WORDS'
+    || (record.kind === 'METRONOME' && record.conflictingTempo === true)
+    || (record.kind === 'DYNAMICS' && record.invalidNegativeDynamics !== null)
+  ));
+}
+
+function performanceMetadataDirectionFeatureCounts(performanceMetadata) {
+  const counts = new Map();
+  const add = (feature) => counts.set(feature, (counts.get(feature) || 0) + 1);
+  for (const record of excludedPerformanceMetadataDirectionRecords(performanceMetadata)) {
+    if (record.kind === 'WORDS') {
+      add('direction:words');
+    } else if (record.kind === 'METRONOME') {
+      add('direction:metronome');
+      if (record.rawSoundTempo !== null) add('direction:sound:tempo');
+    } else if (record.kind === 'DYNAMICS') {
+      add('direction:dynamics');
+      add('direction:sound:dynamics');
+    }
+  }
+  return Object.freeze(Object.fromEntries(
+    [...counts].sort((left, right) => left[0].localeCompare(right[0])),
+  ));
+}
+
 function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   parsedDocument,
   runtime = null,
@@ -75,12 +108,23 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
     parsedDocument,
   );
+  // The V1 metadata policy classifies only exact, bounded directions proven
+  // unable to alter TAB note identity/timeline/voice/sustain/repeat semantics.
+  // It records display/playback provenance before any semantic-only exclusion.
+  const performanceMetadata = normalizePolyphonicPerformanceMetadataPolicy(
+    techniqueNormalization.parsedDocument,
+    runtime,
+  );
+  // Surface the exact issues from this owned parsed-document pass. The public
+  // runtime wrapper consumes them after the preserved base runtime returns;
+  // it never reparses caller bytes or starts a second processing budget.
+  recordPerformanceMetadataRuntimeIssues(performanceMetadata.issues);
   // Only exact performance directions that the runtime profile cannot handle
   // are deferred before the bounded runtime guitar representation pass.
   // Runtime-owned metronome/dynamics validation, offsets, unknown, structural,
   // and pitch-affecting directions remain in place and continue to fail closed.
   const performanceNormalization = normalizeDeferredPolyphonicPerformanceDirections(
-    techniqueNormalization.parsedDocument,
+    performanceMetadata.parsedDocument,
     runtime,
   );
   // Repeat playback order is authoritative, while bar-style is presentation.
@@ -124,6 +168,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   }
 
   const ignoredFeatures = Object.freeze([...new Set([
+    ...performanceMetadata.ignoredFeatures,
     ...performanceNormalization.ignoredFeatures,
     ...repeatNormalization.ignoredFeatures,
     ...semanticNormalization.ignoredFeatures,
@@ -142,9 +187,12 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     runtimeNotationContext,
     repeatNormalization,
   );
-  const ignoredDirectionCount = performanceNormalization.ignoredDirectionCount
+  const policyExcludedDirections = excludedPerformanceMetadataDirectionRecords(performanceMetadata);
+  const ignoredDirectionCount = policyExcludedDirections.length
+    + performanceNormalization.ignoredDirectionCount
     + semanticNormalization.ignoredDirectionCount;
   const ignoredDirectionFeatureCounts = mergeDirectionFeatureCounts(
+    performanceMetadataDirectionFeatureCounts(performanceMetadata),
     performanceNormalization.ignoredDirectionFeatureCounts,
     semanticNormalization.ignoredDirectionFeatureCounts,
   );
@@ -154,6 +202,8 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     extractedGraceEventCount: semanticNormalization.extractedGraceEventCount,
     ignoredFeatureCount: ignoredFeatures.length,
     ignoredDirectionCount,
+    performanceMetadataRecordCount: performanceMetadata.performanceMetadataRecords.length,
+    performanceMetadataIssueCount: performanceMetadata.issues.length,
     repeatBarlineCount: repeatNormalization.repeatBarlines.length,
     playbackOccurrenceCount: repeatNormalization.measureOccurrencePlan.length,
     guitarTechniqueProvenanceRecordCount: techniqueNormalization.guitarTechniqueProvenance.recordCount,
@@ -165,6 +215,8 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     mainSourceModel: sourceModel,
     parsedMainDocument: semanticNormalization.parsedMainDocument,
     guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
+    performanceMetadataRecords: performanceMetadata.performanceMetadataRecords,
+    performanceMetadataIssues: performanceMetadata.issues,
     graceOrnamentGroups: semanticNormalization.graceOrnamentGroups,
     extractedFeatures: semanticNormalization.extractedFeatures,
     musicalMaterialAccounting: Object.freeze({
