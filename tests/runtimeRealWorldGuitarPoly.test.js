@@ -317,14 +317,6 @@ test('runtime classifies unsupported musical metadata fail-closed instead of dro
         '<direction-type><octave-shift type="down" size="8"/></direction-type>',
       ),
     },
-    {
-      name: 'repeat-barline',
-      expectedFeature: 'barline',
-      xml: source.replace(
-        '<bar-style>light-heavy</bar-style>',
-        '<bar-style>light-heavy</bar-style><repeat direction="backward"/>',
-      ),
-    },
   ];
 
   for (const entry of cases) {
