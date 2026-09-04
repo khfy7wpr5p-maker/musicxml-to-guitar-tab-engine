@@ -26,10 +26,17 @@ function eligibleSession(overrides = {}) {
   const originalSource = {
     source_id: 'source-1',
     sha256: 'a'.repeat(64),
+    byte_length: 1234,
   };
+  const patches = [{ patch_id: 'patch-1', before: { pitch: 'C4' }, after: { pitch: 'D4' } }];
   const saved = {
+    documentType: TEACHER_CORRECTION_REVISION_DOCUMENT_TYPE,
+    contractVersion: TEACHER_CORRECTION_REVISION_CONTRACT_VERSION,
+    state: REVISION_STATE.TEACHER_CORRECTED_REVISION,
+    validation_state: VALIDATION_STATE.PENDING_REVALIDATION,
     revision_id: 'saved-1',
     original_source: originalSource,
+    patches,
   };
   const revalidated = {
     documentType: TEACHER_CORRECTION_REVISION_DOCUMENT_TYPE,
@@ -39,6 +46,7 @@ function eligibleSession(overrides = {}) {
     revision_id: 'revalidated-1',
     parent_revision_id: saved.revision_id,
     original_source: originalSource,
+    patches,
   };
   return {
     documentType: REVIEW_EDITOR_BACKEND_DOCUMENT_TYPE,
@@ -104,6 +112,43 @@ test('Stage 08 review port exposes continuation only when an exact current reval
       return true;
     },
   );
+});
+
+test('source hash, byte length and patch-ledger mismatch keep UI continuation disabled', async () => {
+  for (const mutate of [
+    (session) => ({
+      ...session,
+      revalidated_revision: {
+        ...session.revalidated_revision,
+        original_source: { ...session.revalidated_revision.original_source, sha256: 'b'.repeat(64) },
+      },
+    }),
+    (session) => ({
+      ...session,
+      revalidated_revision: {
+        ...session.revalidated_revision,
+        original_source: { ...session.revalidated_revision.original_source, byte_length: 999 },
+      },
+    }),
+    (session) => ({
+      ...session,
+      revalidated_revision: {
+        ...session.revalidated_revision,
+        patches: [{ patch_id: 'patch-2', before: { pitch: 'C4' }, after: { pitch: 'E4' } }],
+      },
+    }),
+  ]) {
+    const session = mutate(eligibleSession());
+    const port = createStage08ReviewPort({
+      reviewPort: reviewPort(uiSnapshot()),
+      getCurrentSession: () => session,
+      buildContinuationRequest: () => ({ sourceFileName: 'corrected.musicxml' }),
+      continuation: async () => ({ status: 'PASS' }),
+    });
+    const snapshot = await port.snapshot();
+    assert.equal(snapshot.uiModel.actions.continueToTab, false);
+    await assert.rejects(() => port.continueToTab(), /REVALIDATED\/VALID/);
+  }
 });
 
 test('Stage 08 review port refuses stale revision/source/session identity before execution', async () => {
