@@ -137,6 +137,9 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   exactFingeringConstraints = null,
 ) {
   checkpoint(runtime, 'deterministic-pa7-snapshot-handoff:start');
+  const effectiveExactFingeringConstraints = exactFingeringConstraints
+    || guitarOptions.exactFingeringConstraints
+    || null;
 
   const voicingCandidateSnapshot = createGuitarVoicingCandidateModel(
     sourceModel,
@@ -147,7 +150,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   const leftHandShapeSnapshot = createLeftHandShapeModelFromVoicingCandidateSnapshot(
     voicingCandidateSnapshot,
     runtime,
-    exactFingeringConstraints,
+    effectiveExactFingeringConstraints,
   );
   assertPa7ToPa8Identity(voicingCandidateSnapshot, leftHandShapeSnapshot);
 
