@@ -28,13 +28,24 @@
   },
   "tierA": {
     "evidenceClass": "REAL_EXTERNAL_PINNED_MUSICXML",
-    "sourceManifest": "verification/guitar-tech-real-corpus-manifest.json",
-    "reviewedAudit": "verification/prod-tech-03-real-corpus-audit-00e62f0.json",
-    "note": "The reviewed audit reuses the same nine SHA identities and must not be double-counted as a second corpus."
+    "evidenceSets": [
+      {
+        "sourceManifest": "verification/guitar-tech-real-corpus-manifest.json",
+        "reviewedAudit": "verification/prod-tech-03-real-corpus-audit-00e62f0.json",
+        "expectedUniqueCases": 9
+      },
+      {
+        "sourceManifest": "verification/stage09-additional-real-musicxml-corpus.json",
+        "reviewedAudit": "verification/stage09-additional-real-corpus-reviewed-audit.json",
+        "expectedUniqueCases": 11
+      }
+    ],
+    "note": "Tier A counts only unique verified SHA-256 source identities. Historical audit reuse of the first nine identities never increases the count."
   },
   "tierB": {
     "evidenceClass": "REAL_TEACHER_CORRECTION",
     "correctionManifest": "verification/stage09-real-teacher-correction-corpus.json",
-    "note": "Synthetic Stage 08 fixtures are test evidence only and never satisfy this tier."
+    "candidateInventory": "verification/stage09-teacher-correction-evidence-candidates.json",
+    "note": "Synthetic Stage 08 fixtures, no-correction references and regression-only OMR outputs never satisfy this tier."
   }
 }
