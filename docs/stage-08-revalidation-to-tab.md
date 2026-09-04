@@ -145,10 +145,11 @@ Protected required contexts all passed:
 4. `Tests, alphaTab import and SVG render / Node.js 18` — SUCCESS;
 5. `Tests, alphaTab import and SVG render / Node.js 20` — SUCCESS;
 6. `Tests, alphaTab import and SVG render / Node.js 22` — SUCCESS;
-7. `Runtime staging browser E2E / Node.js 22` — SUCCESS.
+7. `alphaTab browser renderer and cursor; synth diagnostic / Node.js 22` — SUCCESS.
 
 Additional closeout facts:
 
+- `Runtime staging browser E2E / Node.js 22` also passed as the separate Stage 08 runtime-host verification workflow;
 - unresolved PR review threads: `0`;
 - package-root API changed files: `0`;
 - exact Stage 07 dependency pins remained unchanged;
