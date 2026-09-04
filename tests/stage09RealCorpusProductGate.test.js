@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const manifest = require('../verification/stage09-real-corpus-product-gate-manifest.json');
-const tierA = require('../verification/guitar-tech-real-corpus-manifest.json');
-const tierAAudit = require('../verification/prod-tech-03-real-corpus-audit-00e62f0.json');
+const historicalTierA = require('../verification/guitar-tech-real-corpus-manifest.json');
+const additionalAudit = require('../verification/stage09-additional-real-corpus-reviewed-audit.json');
 const tierB = require('../verification/stage09-real-teacher-correction-corpus.json');
 const {
   PRODUCT_GATE_STATUS,
@@ -16,6 +16,10 @@ const {
 
 function hex(index) {
   return index.toString(16).padStart(64, '0').slice(-64);
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function correctionCase({
@@ -47,56 +51,45 @@ function correctionCase({
   };
 }
 
-function completeTierA(count = 20) {
-  const files = [];
-  const records = [];
-  for (let index = 1; index <= count; index += 1) {
-    const sha256 = hex(index);
-    const fileName = `real-${index}.musicxml`;
-    files.push({ fileName, sha256 });
-    records.push({
-      fileName,
-      sha256,
-      identityVerified: true,
-      deterministic: true,
-      sourceByteImmutable: true,
-    });
-  }
-  return {
-    source: {
-      documentType: 'GuitarTechniqueRealCorpusManifest',
-      contractVersion: '1.0.0',
-      requiredRunCount: 2,
-      files,
-    },
-    audit: {
-      documentType: 'ProdTech03RealCorpusAudit',
-      contractVersion: '1.0.0',
-      requiredRunCount: 2,
-      records,
-    },
-  };
-}
-
 test('Stage 09 manifest encodes the 20-50 real-corpus target and all three Stage 08 outcomes', () => {
   assert.equal(validateGateManifest(manifest), manifest);
   assert.equal(manifest.thresholds.minimumUniqueRealMusicXmlCases, 20);
   assert.equal(manifest.thresholds.maximumTargetRealMusicXmlCases, 50);
   assert.deepEqual(manifest.thresholds.requiredStage08Statuses, ['PASS', 'REVIEW_REQUIRED', 'BLOCKED']);
+  assert.deepEqual(manifest.tierA.evidenceSets.map((set) => set.expectedUniqueCases), [9, 11]);
 });
 
-test('current repository evidence remains HOLD instead of treating repeated audits or synthetic fixtures as real cases', () => {
+test('current repository evidence reaches the verified Tier A minimum but remains HOLD for authentic teacher correction evidence', () => {
   const report = evaluateStage09ProductGate();
   assert.equal(report.status, PRODUCT_GATE_STATUS.HOLD);
   assert.equal(report.stage09Complete, false);
-  assert.equal(report.summary.uniqueRealMusicXmlCases, 9);
-  assert.equal(report.summary.verifiedRealMusicXmlCases, 9);
+  assert.equal(report.summary.uniqueRealMusicXmlCases, 20);
+  assert.equal(report.summary.verifiedRealMusicXmlCases, 20);
+  assert.deepEqual(report.summary.tierAEvidenceSets, [
+    { name: 'historical-real-musicxml', declared: 9, verified: 9 },
+    { name: 'stage09-additional-real-musicxml', declared: 11, verified: 11 },
+  ]);
   assert.equal(report.summary.realTeacherCorrectionCases, 0);
-  assert.ok(report.gaps.includes('REAL_MUSICXML_CASES_9_OF_20'));
+  assert.ok(!report.gaps.some((gap) => gap.startsWith('REAL_MUSICXML_CASES_')));
+  assert.ok(!report.gaps.some((gap) => gap.startsWith('VERIFIED_REAL_MUSICXML_CASES_')));
   assert.ok(report.gaps.includes('REAL_TEACHER_CORRECTION_CASES_0_OF_3'));
   assert.ok(report.gaps.includes('MISSING_STAGE08_STATUS_PASS'));
   assert.ok(report.gaps.includes('MISSING_STAGE08_STATUS_REVIEW_REQUIRED'));
   assert.ok(report.gaps.includes('MISSING_STAGE08_STATUS_BLOCKED'));
+});
+
+test('the additional reviewed audit is bound to the exact production-equivalent tree and has no poly-to-mono downgrade', () => {
+  assert.equal(additionalAudit.status, 'PASS_VERIFIED');
+  assert.equal(additionalAudit.workflowEvidence.workflowRunId, 33920454602);
+  assert.equal(additionalAudit.workflowEvidence.productionMergeSha, '1303c4ad1ad5dcd856dab1d7de0ace97ed8da43e');
+  assert.equal(additionalAudit.workflowEvidence.productionTreeEquivalent, true);
+  assert.equal(additionalAudit.workflowEvidence.auditedTreeSha, additionalAudit.workflowEvidence.productionTreeSha);
+  assert.equal(additionalAudit.summary.requiredFiles, 11);
+  assert.equal(additionalAudit.summary.identityVerifiedFiles, 11);
+  assert.equal(additionalAudit.summary.deterministicFiles, 11);
+  assert.equal(additionalAudit.summary.sourceImmutableFiles, 11);
+  assert.equal(additionalAudit.summary.polyRequiredFiles, 11);
+  assert.equal(additionalAudit.summary.polyToMonoDowngrades, 0);
 });
 
 test('synthetic Stage 08 fixture metadata cannot satisfy authentic correction evidence', () => {
@@ -133,8 +126,7 @@ test('non-PASS correction evidence must not carry canonical approval or writer o
   assert.equal(authenticCorrectionCase(unsafe), false);
 });
 
-test('product gate can pass only with minimum unique real identities, authentic correction status coverage and representation coverage', () => {
-  const real = completeTierA(20);
+test('product gate can pass only after authentic correction status and representation coverage is added to the already verified Tier A minimum', () => {
   const tags = manifest.thresholds.requiredRepresentationTags;
   const correctionCorpus = {
     ...tierB,
@@ -145,23 +137,29 @@ test('product gate can pass only with minimum unique real identities, authentic 
     ],
     evidenceGap: null,
   };
-  const report = evaluateStage09ProductGate({
-    realMusicXmlManifest: real.source,
-    reviewedAudit: real.audit,
-    correctionCorpus,
-  });
+  const report = evaluateStage09ProductGate({ correctionCorpus });
   assert.equal(report.status, PRODUCT_GATE_STATUS.PASS);
   assert.equal(report.stage09Complete, true);
   assert.equal(report.summary.uniqueRealMusicXmlCases, 20);
+  assert.equal(report.summary.verifiedRealMusicXmlCases, 20);
   assert.equal(report.summary.realTeacherCorrectionCases, 3);
   assert.deepEqual(report.gaps, []);
 });
 
-test('malformed evidence fails closed instead of becoming an evidence gap', () => {
-  const report = evaluateStage09ProductGate({
-    realMusicXmlManifest: { ...tierA, files: [{ fileName: 'bad.xml', sha256: 'not-a-sha' }] },
-    reviewedAudit: tierAAudit,
-  });
+test('Tier A overlap cannot inflate the unique real-corpus count', () => {
+  const forged = clone(additionalAudit);
+  forged.records[0].sha256 = historicalTierA.files[0].sha256;
+  const report = evaluateStage09ProductGate({ additionalReviewedAudit: forged });
+  assert.equal(report.status, PRODUCT_GATE_STATUS.FAIL);
+  assert.equal(report.stage09Complete, false);
+  assert.deepEqual(report.gaps, ['INVALID_EVIDENCE']);
+  assert.match(report.error, /overlap/);
+});
+
+test('incomplete or non-equivalent additional audit fails closed instead of becoming a countable evidence gap', () => {
+  const forged = clone(additionalAudit);
+  forged.workflowEvidence.productionTreeEquivalent = false;
+  const report = evaluateStage09ProductGate({ additionalReviewedAudit: forged });
   assert.equal(report.status, PRODUCT_GATE_STATUS.FAIL);
   assert.equal(report.stage09Complete, false);
   assert.deepEqual(report.gaps, ['INVALID_EVIDENCE']);
