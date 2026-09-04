@@ -27,6 +27,18 @@ function assertRequest(request) {
   }
 }
 
+function normalizeApprovalEvidence(execution) {
+  const evidence = execution.approvalEvidence;
+  if (!isPlainObject(evidence)) throw new TypeError('Stage 08 PASS execution must expose approvalEvidence.');
+  const canonicalVersion = evidence.canonical_contract_version
+    ?? execution.canonicalTabResult?.contractVersion
+    ?? execution.canonicalTabResult?.schemaVersion;
+  return Object.freeze({
+    ...evidence,
+    canonical_contract_version: canonicalVersion,
+  });
+}
+
 function freezeResult(result) {
   return Object.freeze(result);
 }
@@ -42,9 +54,10 @@ function continueStage08ProductionToCanonicalTab(request, options = {}, runtime 
     });
   }
 
+  const approvalEvidence = normalizeApprovalEvidence(execution);
   const approvedRevision = createStage08ApprovedCanonicalRevision(
     request.session.revalidated_revision,
-    execution.approvalEvidence,
+    approvalEvidence,
     request.approvalMetadata,
   );
 
@@ -52,6 +65,7 @@ function continueStage08ProductionToCanonicalTab(request, options = {}, runtime 
     ...execution,
     productionDocumentType: STAGE08_PRODUCTION_CONTINUATION_DOCUMENT_TYPE,
     productionContractVersion: STAGE08_PRODUCTION_CONTINUATION_VERSION,
+    approvalEvidence,
     approvedRevision,
   });
 }
