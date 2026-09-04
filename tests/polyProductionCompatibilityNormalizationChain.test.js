@@ -237,6 +237,8 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['structured-direction-staff', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1<ext:payload xmlns:ext="urn:test"/></staff><sound dynamics="17.78"/></direction>'],
     ['negative-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-1.11"/></direction>'],
     ['over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>'],
+    ['underflow-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-0.0000000000000000001"/></direction>'],
+    ['rounded-over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="127.000000000000000001"/></direction>'],
     ['rehearsal-with-timing-offset', '<direction><offset>1</offset><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
     ['rehearsal-with-playback-sound', '<direction><direction-type><rehearsal>Section A</rehearsal></direction-type><sound dacapo="yes"/></direction>'],
     ['rehearsal-with-layout-attribute', '<direction placement="above"><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],

@@ -171,12 +171,18 @@ function isSafeDirectionStaff(node) {
   return Number.isSafeInteger(staff) && staff >= 1 && staff <= 2;
 }
 
-function boundedDecimal(value, { minimum, maximum }) {
-  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value || '')) return null;
-  const number = Number(value);
-  return Number.isFinite(number) && number >= minimum && number <= maximum
-    ? number
-    : null;
+function isBoundedUnsignedDecimal(value, maximum) {
+  const match = /^\+?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/.exec(value || '');
+  if (!match) return false;
+
+  const integerDigits = (match[1] || '0').replace(/^0+(?=\d)/, '');
+  const fractionalDigits = match[2] ?? match[3] ?? '';
+  const maximumDigits = String(maximum);
+  if (integerDigits.length !== maximumDigits.length) {
+    return integerDigits.length < maximumDigits.length;
+  }
+  if (integerDigits !== maximumDigits) return integerDigits < maximumDigits;
+  return !/[1-9]/.test(fractionalDigits);
 }
 
 function parseStandardGuitarTranspose(measureNodes) {
@@ -448,7 +454,7 @@ function safeGuitarProDynamicsDirection(node) {
     || sound.attributes[0].uri.length !== 0
     || sound.attributes[0].name !== 'dynamics'
     || sound.text.trim().length !== 0
-    || boundedDecimal(sound.attributes[0].value, { minimum: 0, maximum: 127 }) === null
+    || !isBoundedUnsignedDecimal(sound.attributes[0].value, 127)
   ) return false;
   return true;
 }
