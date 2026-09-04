@@ -191,6 +191,11 @@ function canonicalBoundedUnsignedDecimal(value, maximum) {
     : `${integerDigits}.${normalizedFraction}`;
 }
 
+function hasExactChildSequence(children, expectedNames) {
+  return children.length === expectedNames.length
+    && children.every((child, index) => child.name === expectedNames[index]);
+}
+
 function parseStandardGuitarTranspose(measureNodes) {
   const transposeRecords = [];
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
@@ -335,6 +340,10 @@ function safeMetronomeDirection(node) {
     || staffNodes.length > 1
     || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0]))
   ) return false;
+  const expectedDirectionChildren = staffNodes.length === 1
+    ? ['direction-type', 'staff', ...(soundNodes.length === 1 ? ['sound'] : [])]
+    : ['direction-type', ...(soundNodes.length === 1 ? ['sound'] : [])];
+  if (!hasExactChildSequence(children, expectedDirectionChildren)) return false;
 
   const directionType = directionTypes[0];
   if (
@@ -359,7 +368,7 @@ function safeMetronomeDirection(node) {
     || metronome.children.some((child) => child.uri !== metronome.uri)
   ) return false;
   const metronomeChildren = metronome.children.filter((child) => child.uri === metronome.uri);
-  if (metronomeChildren.some((child) => !['beat-unit', 'per-minute'].includes(child.name))) {
+  if (!hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])) {
     return false;
   }
   const beatUnits = directChildren(metronome, 'beat-unit');
@@ -377,6 +386,9 @@ function safeMetronomeDirection(node) {
   if (perMinute === null) return false;
 
   if (soundNodes.length === 1) {
+    // sound@tempo is quarter notes per minute. Other beat units need a semantic
+    // conversion policy and therefore remain fail-closed in this provenance profile.
+    if (beatUnits[0].text.trim() !== 'quarter') return false;
     const sound = soundNodes[0];
     if (
       sound.children.length !== 0
@@ -444,6 +456,8 @@ function safeGuitarProDynamicsDirection(node) {
     && ['p', 'mf', 'f'].includes(mark.name)
   );
   if (isLegacyExactDirection) return true;
+
+  if (!hasExactChildSequence(children, ['direction-type', 'staff', 'sound'])) return false;
 
   const placementAttributes = node.attributes.filter((attribute) => (
     attribute.uri.length === 0 && attribute.name === 'placement'
