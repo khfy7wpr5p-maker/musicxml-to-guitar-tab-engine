@@ -171,18 +171,24 @@ function isSafeDirectionStaff(node) {
   return Number.isSafeInteger(staff) && staff >= 1 && staff <= 2;
 }
 
-function isBoundedUnsignedDecimal(value, maximum) {
+function canonicalBoundedUnsignedDecimal(value, maximum) {
   const match = /^\+?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/.exec(value || '');
-  if (!match) return false;
+  if (!match) return null;
 
   const integerDigits = (match[1] || '0').replace(/^0+(?=\d)/, '');
   const fractionalDigits = match[2] ?? match[3] ?? '';
   const maximumDigits = String(maximum);
   if (integerDigits.length !== maximumDigits.length) {
-    return integerDigits.length < maximumDigits.length;
+    if (integerDigits.length > maximumDigits.length) return null;
+  } else if (integerDigits > maximumDigits) {
+    return null;
+  } else if (integerDigits === maximumDigits && /[1-9]/.test(fractionalDigits)) {
+    return null;
   }
-  if (integerDigits !== maximumDigits) return integerDigits < maximumDigits;
-  return !/[1-9]/.test(fractionalDigits);
+  const normalizedFraction = fractionalDigits.replace(/0+$/, '');
+  return normalizedFraction.length === 0
+    ? integerDigits
+    : `${integerDigits}.${normalizedFraction}`;
 }
 
 function parseStandardGuitarTranspose(measureNodes) {
@@ -275,8 +281,8 @@ function positiveTempo(node) {
     return null;
   }
   if (!/^(?:\d+|\d+\.\d+)$/.test(node.text.trim())) return null;
-  const value = Number(node.text.trim());
-  return Number.isFinite(value) && value > 0 && value <= 1000 ? value : null;
+  const value = canonicalBoundedUnsignedDecimal(node.text.trim(), 1000);
+  return value !== null && value !== '0' ? value : null;
 }
 
 function hasSafeMetronomeDirectionAttributes(node) {
@@ -383,9 +389,8 @@ function safeMetronomeDirection(node) {
     }
     const tempo = getAttribute(sound, 'tempo');
     if (tempo === undefined || !/^(?:\d+|\d+\.\d+)$/.test(tempo)) return false;
-    const numericTempo = Number(tempo);
-    if (!Number.isFinite(numericTempo) || numericTempo <= 0 || numericTempo > 1000) return false;
-    if (numericTempo !== perMinute) return false;
+    const canonicalTempo = canonicalBoundedUnsignedDecimal(tempo, 1000);
+    if (canonicalTempo === null || canonicalTempo === '0' || canonicalTempo !== perMinute) return false;
   }
   return true;
 }
@@ -454,7 +459,7 @@ function safeGuitarProDynamicsDirection(node) {
     || sound.attributes[0].uri.length !== 0
     || sound.attributes[0].name !== 'dynamics'
     || sound.text.trim().length !== 0
-    || !isBoundedUnsignedDecimal(sound.attributes[0].value, 127)
+    || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 127) === null
   ) return false;
   return true;
 }

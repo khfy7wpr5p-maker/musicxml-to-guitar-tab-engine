@@ -239,6 +239,8 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>'],
     ['underflow-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-0.0000000000000000001"/></direction>'],
     ['rounded-over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="127.000000000000000001"/></direction>'],
+    ['rounded-over-range-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>1000.000000000000000001</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000.000000000000000001"/></direction>'],
+    ['rounded-mismatched-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>999.999999999999999999</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000"/></direction>'],
     ['rehearsal-with-timing-offset', '<direction><offset>1</offset><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
     ['rehearsal-with-playback-sound', '<direction><direction-type><rehearsal>Section A</rehearsal></direction-type><sound dacapo="yes"/></direction>'],
     ['rehearsal-with-layout-attribute', '<direction placement="above"><direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
