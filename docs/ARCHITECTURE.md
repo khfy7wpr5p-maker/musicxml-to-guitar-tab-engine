@@ -233,3 +233,38 @@ A corpus run may expose the next blocker after a compatibility fix. That observa
 Versioned PA/PS closure files, feature-stage documents and corpus audits are retained as historical evidence. A document that reports an older branch SHA or older first blocker must be read as an observation at that revision, not as current status. Stale corpus-status documents are historical evidence unless explicitly refreshed.
 
 For current state use [`current-status.md`](current-status.md) and [`stage-03-source-guitar-configuration-closeout.md`](stage-03-source-guitar-configuration-closeout.md).
+
+## 10. Stage 04–08 teacher correction and production re-entry boundary
+
+Stage 04–07 add an internal review/correction surface without changing parser, renderer, or browser presentation into canonical authority. The original OMR/MusicXML source remains immutable; teacher changes are recorded as a separate Stage 05 patch/revision chain. Stage 06 owns capability-gated review/edit operations and trusted revalidation. Stage 07 is presentation-only and its `readyForStage08` state is eligibility evidence, not approval.
+
+Stage 08 is the only bounded return path from a teacher-corrected revision into production TAB processing:
+
+```text
+REVIEW_REQUIRED
+  → teacher edits / saved correction revision
+  → REVALIDATED_REVISION + VALID
+  → exact current session/source/revision identity gate
+  → trusted corrected-score materialization
+  → corrected MusicXML parse + independent route classification
+  → existing application production re-entry
+  → POLY_V2 when corrected score is polyphonic
+  → existing physical feasibility / solver rules unchanged
+  → validated CanonicalTabResult
+  → writer output
+  → evidence-bound approved canonical revision
+```
+
+The relevant internal/application boundaries are `src/app/stage08RevalidationTabContinuation.js`, `src/app/stage08ReentryReviewGate.js`, `src/app/stage08ApprovedCanonicalRevision.js`, `src/app/stage08ProductionContinuation.js`, `src/app/stage08ReviewPort.js`, and `src/app/stage08ProductionReviewPort.js`. They are not package-root exports.
+
+The trusted materializer must bind its output to the exact immutable original source identity, saved correction revision, revalidated revision, and ordered patch ledger. Stage 08 verifies the original SHA/byte length before materialization and verifies that the materializer did not mutate the supplied original bytes. Corrected bytes must match their materialization evidence. Missing pitch, duration, onset, voice, staff, tie, chord, or other semantic values are never synthesized by Stage 08.
+
+Corrected MusicXML is routed again from its actual parsed semantics. A polyphonic corrected score may not silently leave `POLY_V2` for `MONO_V1`. Production re-entry reuses the existing `src/app/musicXmlUploadRuntime.js` parser/compatibility/physical/canonical/writer path; Stage 08 does not create alternate physical rules, candidate ordering, solver cost/ranking, tie-break behavior, or larger PA-8 resource ceilings.
+
+If trusted re-entry evidence still proves an allow-listed reviewable OMR problem, Stage 08 returns `REVIEW_REQUIRED` and emits no canonical TAB, writer output, or approval. Parse, structural, capability, playability, physical, or other hard production failure returns bounded `BLOCKED` with the same no-output/no-approval rule.
+
+Canonical approval is evidence-bound. `REVALIDATED_REVISION + VALID` alone is insufficient product authority: the approved state is meaningful only after exact Stage 08 source/revision identity, `PASS` re-entry, validated canonical TAB authority, and non-empty writer output have been established. The browser `stage07:continue-to-tab` event remains a presentation signal only; a trusted Stage 08 review/production port must be connected, and stale session/source/revision continuation fails closed.
+
+The exact Stage 07 dependency pins remain unchanged: Editor Core revision `9429116bd5c92d4db4c4edbb21b307c6c74c2391`, Rendering Layer revision `13c32eefccd5bf2c227e815aa27aae4a0583801d`, Rendering contract `0.2.0`, and OSMD `2.1.2`. Changing those pins is a separate reviewed gate, not a Stage 08 compatibility fix.
+
+See [`stage-08-revalidation-to-tab.md`](stage-08-revalidation-to-tab.md) for the Stage 08 implementation and verification contract.
