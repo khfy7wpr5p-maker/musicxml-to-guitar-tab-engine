@@ -17,9 +17,11 @@ const {
   normalizePolyphonicRepeatBarlines,
 } = require('../parser/polyphonicRepeatBarlineNormalizer');
 const {
-  normalizePolyphonicFingeringProvenance,
   bindPolyphonicFingeringProvenance,
 } = require('../parser/polyphonicFingeringProvenance');
+const {
+  normalizeInstrumentAwareFingeringProvenance,
+} = require('./fingeringCompatibilityNormalizer');
 const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
@@ -28,6 +30,7 @@ const {
 } = require('./polyPerformanceMetadataRuntimeDiagnostics');
 const {
   recordFingeringRuntimeIssues,
+  recordExactGuitarFingeringConstraints,
 } = require('./polyFingeringRuntimeDiagnostics');
 const {
   tryNormalizeRuntimeGuitarNotation,
@@ -106,26 +109,42 @@ function performanceMetadataDirectionFeatureCounts(performanceMetadata) {
   ));
 }
 
+function bindFingeringIssuesToSourceEvents(issues, records) {
+  if (!Array.isArray(issues) || issues.length === 0) return Object.freeze([]);
+  const sourceEventIdByLocation = new Map();
+  for (const record of records) {
+    const key = `${record.measureIndex}:${record.provenance.noteIndex}`;
+    if (!sourceEventIdByLocation.has(key)) sourceEventIdByLocation.set(key, record.sourceEventId);
+  }
+  return Object.freeze(issues.map((issue) => {
+    const key = `${issue.location?.measureIndex}:${issue.location?.eventIndex}`;
+    const sourceEventId = sourceEventIdByLocation.get(key) || issue.location?.sourceEventId || null;
+    return Object.freeze({
+      ...issue,
+      location: Object.freeze({
+        ...issue.location,
+        sourceEventId,
+      }),
+    });
+  }));
+}
+
 function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   parsedDocument,
   runtime = null,
-  sourceConfigurationProvenance = null,
 ) {
   runtime?.checkpoint('poly-production-compatibility:start');
 
-  // Fingering must be classified before the generic guitar-technique provenance
-  // layer strips technical wrappers. Generic/piano annotations are evidence only;
-  // only later binding can promote a proven guitar-group annotation to an exact
-  // pre-existing PA-8 finger constraint.
-  const fingeringNormalization = normalizePolyphonicFingeringProvenance(
+  // Fingering is classified before the generic technique provenance pass can
+  // remove technical wrappers. Only explicit six-string source-configuration
+  // evidence may promote it beyond SOURCE_ANNOTATION_ONLY.
+  const fingeringNormalization = normalizeInstrumentAwareFingeringProvenance(
     parsedDocument,
-    sourceConfigurationProvenance,
     runtime,
   );
-  recordFingeringRuntimeIssues(fingeringNormalization.issues);
 
-  // Unknown or non-fingering technical children are deliberately left in the
-  // document so the existing verified technique profile remains fail-closed.
+  // Unknown/non-fingering technical children remain in place so the existing
+  // verified technique profile preserves its fail-closed authority boundary.
   const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
     fingeringNormalization.parsedDocument,
   );
@@ -159,12 +178,23 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     semanticNormalization.parsedMainDocument,
     runtime,
   );
-  const fingeringProvenance = bindPolyphonicFingeringProvenance(
+  const boundFingering = bindPolyphonicFingeringProvenance(
     fingeringNormalization,
     semanticNormalization.graceOrnamentGroups,
     sourceModel,
     runtime,
   );
+  const fingeringIssues = bindFingeringIssuesToSourceEvents(
+    boundFingering.issues,
+    boundFingering.records,
+  );
+  const fingeringProvenance = Object.freeze({
+    ...boundFingering,
+    issues: fingeringIssues,
+  });
+  recordFingeringRuntimeIssues(fingeringIssues);
+  recordExactGuitarFingeringConstraints(fingeringProvenance.exactConstraints);
+
   const reconciledNoteElementCount = sourceModel.eventCount
     + semanticNormalization.extractedGraceEventCount;
   if (reconciledNoteElementCount !== semanticNormalization.originalNoteElementCount) {
