@@ -3,10 +3,9 @@
 // Preserve the prior production runtime byte-for-byte and layer only the
 // bounded performance-metadata status/diagnostic policy on the public path.
 const baseRuntime = require('./musicXmlUploadRuntimeBase');
-const { parseParsedMusicXmlDocument } = require('../parser/parsedMusicXmlDocument');
 const {
-  normalizePolyphonicPerformanceMetadataPolicy,
-} = require('../parser/polyphonicPerformanceMetadataPolicy');
+  collectPerformanceMetadataRuntimeIssues,
+} = require('./polyPerformanceMetadataRuntimeDiagnostics');
 const {
   SCORE_ROUTE,
   SCORE_STATUS,
@@ -28,11 +27,6 @@ function deepFreeze(root) {
     Object.freeze(value);
   }
   return root;
-}
-
-function policyIssuesFromSuccessfulPolyUpload(upload, runtime = null) {
-  const parsedDocument = parseParsedMusicXmlDocument(upload.bytes, {}, runtime);
-  return normalizePolyphonicPerformanceMetadataPolicy(parsedDocument, runtime).issues;
 }
 
 function mergeIssues(left, right) {
@@ -59,19 +53,17 @@ function mergeIssues(left, right) {
 }
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
-  const result = baseRuntime.processMusicXmlUpload(upload, options, runtime);
+  const collected = collectPerformanceMetadataRuntimeIssues(
+    () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
+  );
+  const { result, issues: policyIssues } = collected;
   if (
     result.status !== SCORE_STATUS.PASS
     || result.route !== SCORE_ROUTE.POLY_V2
-    || !upload
-    || (typeof upload !== 'object')
-    || (!Buffer.isBuffer(upload.bytes) && !(upload.bytes instanceof Uint8Array))
+    || policyIssues.length === 0
   ) {
     return result;
   }
-
-  const policyIssues = policyIssuesFromSuccessfulPolyUpload(upload, runtime);
-  if (policyIssues.length === 0) return result;
 
   const issues = mergeIssues(result.preflight?.issues || [], policyIssues);
   const scoreState = buildScoreState({
