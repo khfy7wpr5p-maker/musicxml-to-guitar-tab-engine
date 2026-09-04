@@ -21,6 +21,8 @@ const MAX_LEFT_HAND_ASSIGNMENT_ATTEMPTS = 100_000;
 const OPEN_STRING_FINGER = 0;
 const MIN_FRETTING_FINGER = 1;
 const MAX_FRETTING_FINGER = 4;
+const EXACT_FINGERING_DOCUMENT_TYPE = 'ExactGuitarFingeringConstraints';
+const EXACT_FINGERING_VERSION = '1.0.0';
 const authenticLeftHandShapeModelSnapshots = new WeakSet();
 
 class LeftHandShapeModelError extends EngineError {
@@ -63,9 +65,7 @@ function assignmentAttemptLimitExceeded(observed, details = {}) {
 }
 
 function checkpoint(runtime, phase, details = {}) {
-  if (runtime) {
-    runtime.checkpoint(phase, details);
-  }
+  if (runtime) runtime.checkpoint(phase, details);
 }
 
 function isDeeplyFrozen(value, seen = new WeakSet()) {
@@ -96,6 +96,56 @@ function validateVoicingModel(voicing) {
   ) {
     throw invalid('PA-8 requires an authentic, deeply immutable PA-7 voicing candidate snapshot.');
   }
+}
+
+function validateExactFingeringConstraints(value) {
+  if (value === null || value === undefined) return null;
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.documentType !== EXACT_FINGERING_DOCUMENT_TYPE
+    || value.contractVersion !== EXACT_FINGERING_VERSION
+    || value.authority !== 'EXPLICIT_SOURCE_GUITAR_FINGERING_ONLY'
+    || !Number.isSafeInteger(value.constraintCount)
+    || value.constraintCount < 0
+    || !value.bySourceEventId
+    || typeof value.bySourceEventId !== 'object'
+    || Array.isArray(value.bySourceEventId)
+    || Object.getPrototypeOf(value.bySourceEventId) !== null
+    || !Object.isFrozen(value)
+    || !Object.isFrozen(value.bySourceEventId)
+  ) {
+    throw invalid('PA-8 exact fingering constraints must use the immutable V1 internal contract.');
+  }
+  const keys = Object.keys(value.bySourceEventId);
+  if (keys.length !== value.constraintCount) {
+    throw invalid('PA-8 exact fingering constraint count is inconsistent.', {
+      expected: value.constraintCount,
+      observed: keys.length,
+    });
+  }
+  for (const sourceEventId of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(value.bySourceEventId, sourceEventId);
+    if (
+      !descriptor
+      || !Object.hasOwn(descriptor, 'value')
+      || descriptor.enumerable !== true
+      || descriptor.writable !== false
+      || descriptor.configurable !== false
+      || !Number.isInteger(descriptor.value)
+      || descriptor.value < MIN_FRETTING_FINGER
+      || descriptor.value > MAX_FRETTING_FINGER
+    ) {
+      throw invalid('PA-8 exact fingering constraint is invalid.', { sourceEventId });
+    }
+  }
+  return value.bySourceEventId;
+}
+
+function constrainedFinger(constraintIndex, sourceEventId) {
+  if (!constraintIndex || !Object.hasOwn(constraintIndex, sourceEventId)) return null;
+  return constraintIndex[sourceEventId];
 }
 
 function normalizePositions(candidate, sourceGroupId) {
@@ -276,16 +326,26 @@ function buildShapeCandidate(candidateId, positions, fingers, shapeIndex) {
   });
 }
 
-function enumerateShapeCandidates(candidateId, positions, runtime, counters, sourceGroupId) {
+function enumerateShapeCandidates(
+  candidateId,
+  positions,
+  runtime,
+  counters,
+  sourceGroupId,
+  constraintIndex = null,
+) {
   const shapeCandidates = [];
   if (!Number.isSafeInteger(counters.groupShapeCandidates)) counters.groupShapeCandidates = 0;
-  if (!Number.isSafeInteger(counters.groupAssignmentAttempts)) {
-    counters.groupAssignmentAttempts = 0;
-  }
+  if (!Number.isSafeInteger(counters.groupAssignmentAttempts)) counters.groupAssignmentAttempts = 0;
   const fingers = new Array(positions.length).fill(OPEN_STRING_FINGER);
   const frettedIndexes = [];
   for (let index = 0; index < positions.length; index += 1) {
-    if (positions[index].fret > 0) frettedIndexes.push(index);
+    const exactFinger = constrainedFinger(constraintIndex, positions[index].sourceEventId);
+    if (positions[index].fret === 0) {
+      if (exactFinger !== null) return Object.freeze([]);
+    } else {
+      frettedIndexes.push(index);
+    }
   }
 
   function visit(frettedIndex) {
@@ -315,9 +375,15 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
       return;
     }
     const positionIndex = frettedIndexes[frettedIndex];
-    for (let finger = MIN_FRETTING_FINGER; finger <= MAX_FRETTING_FINGER; finger += 1) {
-      fingers[positionIndex] = finger;
+    const requiredFinger = constrainedFinger(constraintIndex, positions[positionIndex].sourceEventId);
+    if (requiredFinger !== null) {
+      fingers[positionIndex] = requiredFinger;
       visit(frettedIndex + 1);
+    } else {
+      for (let finger = MIN_FRETTING_FINGER; finger <= MAX_FRETTING_FINGER; finger += 1) {
+        fingers[positionIndex] = finger;
+        visit(frettedIndex + 1);
+      }
     }
     fingers[positionIndex] = OPEN_STRING_FINGER;
   }
@@ -326,9 +392,14 @@ function enumerateShapeCandidates(candidateId, positions, runtime, counters, sou
   return Object.freeze(shapeCandidates);
 }
 
-function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime = null) {
+function createLeftHandShapeModelFromVoicingCandidateSnapshot(
+  voicing,
+  runtime = null,
+  exactFingeringConstraints = null,
+) {
   checkpoint(runtime, 'left-hand-shape-model:start');
   validateVoicingModel(voicing);
+  const constraintIndex = validateExactFingeringConstraints(exactFingeringConstraints);
 
   const counters = { voicingCandidates: 0, shapeCandidates: 0, assignmentAttempts: 0 };
   const groups = new Array(voicing.groups.length);
@@ -354,6 +425,7 @@ function createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime =
         runtime,
         counters,
         group.sourceGroupId,
+        constraintIndex,
       );
       counters.voicingCandidates += 1;
       voicingCandidates[candidateIndex] = Object.freeze({
@@ -406,6 +478,7 @@ function createLeftHandShapeModel(
   arrangementDecisions,
   runtime = null,
   guitarOptions = {},
+  exactFingeringConstraints = null,
 ) {
   const voicing = createGuitarVoicingCandidateModel(
     sourceModel,
@@ -413,7 +486,29 @@ function createLeftHandShapeModel(
     runtime,
     guitarOptions,
   );
-  return createLeftHandShapeModelFromVoicingCandidateSnapshot(voicing, runtime);
+  return createLeftHandShapeModelFromVoicingCandidateSnapshot(
+    voicing,
+    runtime,
+    exactFingeringConstraints,
+  );
+}
+
+function enumerateStaticLeftHandShapeCandidatesFromPositions(
+  candidateId,
+  positions,
+  runtime,
+  counters,
+  sourceGroupId,
+  exactFingeringConstraints = null,
+) {
+  return enumerateShapeCandidates(
+    candidateId,
+    positions,
+    runtime,
+    counters,
+    sourceGroupId,
+    validateExactFingeringConstraints(exactFingeringConstraints),
+  );
 }
 
 module.exports = {
@@ -426,5 +521,5 @@ module.exports = {
   createLeftHandShapeModel,
   createLeftHandShapeModelFromVoicingCandidateSnapshot,
   isAuthenticLeftHandShapeModelSnapshot,
-  enumerateStaticLeftHandShapeCandidatesFromPositions: enumerateShapeCandidates,
+  enumerateStaticLeftHandShapeCandidatesFromPositions,
 };

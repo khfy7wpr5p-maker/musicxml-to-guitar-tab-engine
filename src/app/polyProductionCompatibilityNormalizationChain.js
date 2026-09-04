@@ -17,11 +17,21 @@ const {
   normalizePolyphonicRepeatBarlines,
 } = require('../parser/polyphonicRepeatBarlineNormalizer');
 const {
+  bindPolyphonicFingeringProvenance,
+} = require('../parser/polyphonicFingeringProvenance');
+const {
+  normalizeInstrumentAwareFingeringProvenance,
+} = require('./fingeringCompatibilityNormalizer');
+const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
 const {
   recordPerformanceMetadataRuntimeIssues,
 } = require('./polyPerformanceMetadataRuntimeDiagnostics');
+const {
+  recordFingeringRuntimeIssues,
+  recordExactGuitarFingeringConstraints,
+} = require('./polyFingeringRuntimeDiagnostics');
 const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
@@ -99,37 +109,54 @@ function performanceMetadataDirectionFeatureCounts(performanceMetadata) {
   ));
 }
 
+function bindFingeringIssuesToSourceEvents(issues, records) {
+  if (!Array.isArray(issues) || issues.length === 0) return Object.freeze([]);
+  const sourceEventIdByLocation = new Map();
+  for (const record of records) {
+    const key = `${record.measureIndex}:${record.provenance.noteIndex}`;
+    if (!sourceEventIdByLocation.has(key)) sourceEventIdByLocation.set(key, record.sourceEventId);
+  }
+  return Object.freeze(issues.map((issue) => {
+    const key = `${issue.location?.measureIndex}:${issue.location?.eventIndex}`;
+    const sourceEventId = sourceEventIdByLocation.get(key) || issue.location?.sourceEventId || null;
+    return Object.freeze({
+      ...issue,
+      location: Object.freeze({
+        ...issue.location,
+        sourceEventId,
+      }),
+    });
+  }));
+}
+
 function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   parsedDocument,
   runtime = null,
 ) {
   runtime?.checkpoint('poly-production-compatibility:start');
 
-  const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
+  // Fingering is classified before the generic technique provenance pass can
+  // remove technical wrappers. Only explicit six-string source-configuration
+  // evidence may promote it beyond SOURCE_ANNOTATION_ONLY.
+  const fingeringNormalization = normalizeInstrumentAwareFingeringProvenance(
     parsedDocument,
+    runtime,
   );
-  // The V1 metadata policy classifies only exact, bounded directions proven
-  // unable to alter TAB note identity/timeline/voice/sustain/repeat semantics.
-  // It records display/playback provenance before any semantic-only exclusion.
+
+  // Unknown/non-fingering technical children remain in place so the existing
+  // verified technique profile preserves its fail-closed authority boundary.
+  const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
+    fingeringNormalization.parsedDocument,
+  );
   const performanceMetadata = normalizePolyphonicPerformanceMetadataPolicy(
     techniqueNormalization.parsedDocument,
     runtime,
   );
-  // Surface the exact issues from this owned parsed-document pass. The public
-  // runtime wrapper consumes them after the preserved base runtime returns;
-  // it never reparses caller bytes or starts a second processing budget.
   recordPerformanceMetadataRuntimeIssues(performanceMetadata.issues);
-  // Only exact performance directions that the runtime profile cannot handle
-  // are deferred before the bounded runtime guitar representation pass.
-  // Runtime-owned metronome/dynamics validation, offsets, unknown, structural,
-  // and pitch-affecting directions remain in place and continue to fail closed.
   const performanceNormalization = normalizeDeferredPolyphonicPerformanceDirections(
     performanceMetadata.parsedDocument,
     runtime,
   );
-  // Repeat playback order is authoritative, while bar-style is presentation.
-  // The repeat normalizer records a bounded source-identity occurrence plan and
-  // removes only the repeat child before the existing representation pass.
   const repeatNormalization = normalizePolyphonicRepeatBarlines(
     performanceNormalization.parsedDocument,
     runtime,
@@ -143,8 +170,6 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const graceAccidentalNormalization = normalizeGraceDisplayAccidental(
     representationDocument,
   );
-  // This extractor is the existing composite semantic chain: presentation and
-  // directions -> notation context -> staccato -> exact 3:2 triplets -> grace.
   const semanticNormalization = extractPolyphonicGraceOrnaments(
     graceAccidentalNormalization.parsedDocument,
     runtime,
@@ -153,6 +178,23 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     semanticNormalization.parsedMainDocument,
     runtime,
   );
+  const boundFingering = bindPolyphonicFingeringProvenance(
+    fingeringNormalization,
+    semanticNormalization.graceOrnamentGroups,
+    sourceModel,
+    runtime,
+  );
+  const fingeringIssues = bindFingeringIssuesToSourceEvents(
+    boundFingering.issues,
+    boundFingering.records,
+  );
+  const fingeringProvenance = Object.freeze({
+    ...boundFingering,
+    issues: fingeringIssues,
+  });
+  recordFingeringRuntimeIssues(fingeringIssues);
+  recordExactGuitarFingeringConstraints(fingeringProvenance.exactConstraints);
+
   const reconciledNoteElementCount = sourceModel.eventCount
     + semanticNormalization.extractedGraceEventCount;
   if (reconciledNoteElementCount !== semanticNormalization.originalNoteElementCount) {
@@ -168,6 +210,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   }
 
   const ignoredFeatures = Object.freeze([...new Set([
+    ...fingeringNormalization.ignoredFeatures,
     ...performanceMetadata.ignoredFeatures,
     ...performanceNormalization.ignoredFeatures,
     ...repeatNormalization.ignoredFeatures,
@@ -204,6 +247,9 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     ignoredDirectionCount,
     performanceMetadataRecordCount: performanceMetadata.performanceMetadataRecords.length,
     performanceMetadataIssueCount: performanceMetadata.issues.length,
+    fingeringRecordCount: fingeringProvenance.recordCount,
+    exactGuitarFingeringConstraintCount: fingeringProvenance.exactConstraints.constraintCount,
+    fingeringIssueCount: fingeringProvenance.issues.length,
     repeatBarlineCount: repeatNormalization.repeatBarlines.length,
     playbackOccurrenceCount: repeatNormalization.measureOccurrencePlan.length,
     guitarTechniqueProvenanceRecordCount: techniqueNormalization.guitarTechniqueProvenance.recordCount,
@@ -215,6 +261,8 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     mainSourceModel: sourceModel,
     parsedMainDocument: semanticNormalization.parsedMainDocument,
     guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
+    fingeringProvenance,
+    exactGuitarFingeringConstraints: fingeringProvenance.exactConstraints,
     performanceMetadataRecords: performanceMetadata.performanceMetadataRecords,
     performanceMetadataIssues: performanceMetadata.issues,
     graceOrnamentGroups: semanticNormalization.graceOrnamentGroups,

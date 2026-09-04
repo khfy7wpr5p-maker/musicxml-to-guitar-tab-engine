@@ -2,6 +2,9 @@
 
 const { EngineError } = require('../errors/engineError');
 const {
+  currentExactGuitarFingeringConstraints,
+} = require('../app/polyFingeringRuntimeDiagnostics');
+const {
   createGuitarVoicingCandidateModel,
 } = require('./guitarVoicingCandidateModel');
 const {
@@ -47,7 +50,6 @@ function assertPa7ToPa8Identity(voicing, leftHand) {
   if (voicing.groupCount !== leftHand.groupCount || voicing.groups.length !== leftHand.groups.length) {
     throw invalid('PA-8 group count diverged from the immutable PA-7 snapshot.');
   }
-
   let observedCandidateCount = 0;
   for (let groupIndex = 0; groupIndex < voicing.groups.length; groupIndex += 1) {
     const sourceGroup = voicing.groups[groupIndex];
@@ -57,11 +59,8 @@ function assertPa7ToPa8Identity(voicing, leftHand) {
       || sourceGroup.candidateCount !== leftGroup.voicingCandidateCount
       || sourceGroup.candidates.length !== leftGroup.voicingCandidates.length
     ) {
-      throw invalid('PA-8 group identity diverged from the immutable PA-7 snapshot.', {
-        groupIndex,
-      });
+      throw invalid('PA-8 group identity diverged from the immutable PA-7 snapshot.', { groupIndex });
     }
-
     for (let candidateIndex = 0; candidateIndex < sourceGroup.candidates.length; candidateIndex += 1) {
       const sourceCandidate = sourceGroup.candidates[candidateIndex];
       const leftCandidate = leftGroup.voicingCandidates[candidateIndex];
@@ -81,7 +80,6 @@ function assertPa7ToPa8Identity(voicing, leftHand) {
       observedCandidateCount += 1;
     }
   }
-
   if (
     observedCandidateCount !== voicing.candidateCount
     || observedCandidateCount !== leftHand.voicingCandidateCount
@@ -98,7 +96,6 @@ function assertPa8ToPa9Identity(leftHand, physical) {
   if (leftHand.groupCount !== physical.groupCount || leftHand.groups.length !== physical.groups.length) {
     throw invalid('PA-9 group count diverged from the immutable PA-8 snapshot.');
   }
-
   let observedCandidateCount = 0;
   for (let groupIndex = 0; groupIndex < leftHand.groups.length; groupIndex += 1) {
     const leftGroup = leftHand.groups[groupIndex];
@@ -108,11 +105,8 @@ function assertPa8ToPa9Identity(leftHand, physical) {
       || leftGroup.voicingCandidateCount !== physicalGroup.voicingCandidateCount
       || leftGroup.voicingCandidates.length !== physicalGroup.voicingCandidates.length
     ) {
-      throw invalid('PA-9 group identity diverged from the immutable PA-8 snapshot.', {
-        groupIndex,
-      });
+      throw invalid('PA-9 group identity diverged from the immutable PA-8 snapshot.', { groupIndex });
     }
-
     for (let candidateIndex = 0; candidateIndex < leftGroup.voicingCandidates.length; candidateIndex += 1) {
       const leftCandidate = leftGroup.voicingCandidates[candidateIndex];
       const physicalCandidate = physicalGroup.voicingCandidates[candidateIndex];
@@ -126,7 +120,6 @@ function assertPa8ToPa9Identity(leftHand, physical) {
       observedCandidateCount += 1;
     }
   }
-
   if (
     observedCandidateCount !== leftHand.voicingCandidateCount
     || observedCandidateCount !== physical.voicingCandidateCount
@@ -144,8 +137,13 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   arrangementDecisions,
   runtime = null,
   guitarOptions = {},
+  exactFingeringConstraints = null,
 ) {
   checkpoint(runtime, 'deterministic-pa7-snapshot-handoff:start');
+  const effectiveExactFingeringConstraints = exactFingeringConstraints
+    || guitarOptions.exactFingeringConstraints
+    || currentExactGuitarFingeringConstraints()
+    || null;
 
   const voicingCandidateSnapshot = createGuitarVoicingCandidateModel(
     sourceModel,
@@ -156,6 +154,7 @@ function createDeterministicPa7CandidateSnapshotHandoff(
   const leftHandShapeSnapshot = createLeftHandShapeModelFromVoicingCandidateSnapshot(
     voicingCandidateSnapshot,
     runtime,
+    effectiveExactFingeringConstraints,
   );
   assertPa7ToPa8Identity(voicingCandidateSnapshot, leftHandShapeSnapshot);
 

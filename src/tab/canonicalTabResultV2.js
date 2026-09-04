@@ -9,6 +9,9 @@ const {
   validateCanonicalTabResultV2,
 } = require('../contracts/canonicalTabResultV2Contract');
 const {
+  currentExactGuitarFingeringConstraints,
+} = require('../app/polyFingeringRuntimeDiagnostics');
+const {
   POLYPHONIC_SOURCE_MODEL_VERSION,
   POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE,
   validatePolyphonicSourceModel,
@@ -114,6 +117,12 @@ function createSelectedShapeFacts(finalSelection) {
   }));
 }
 
+function activeExactFingeringConstraints(guitarOptions) {
+  return guitarOptions.exactFingeringConstraints
+    || currentExactGuitarFingeringConstraints()
+    || null;
+}
+
 function createCanonicalTabResultV2(
   sourceModel,
   arrangementDecisions,
@@ -143,6 +152,16 @@ function createCanonicalTabResultV2(
     ) {
       throw error;
     }
+
+    // V1 exact source-guitar fingering is implemented only in the existing
+    // static PA-8 finger-assignment space. A sustained fallback has a distinct
+    // physical-state model; silently dropping exact fingering there would
+    // violate source authority. Keep the original bounded unsupported outcome.
+    const exactFingeringConstraints = activeExactFingeringConstraints(guitarOptions);
+    if (exactFingeringConstraints && exactFingeringConstraints.constraintCount > 0) {
+      throw error;
+    }
+
     if (runtime) runtime.checkpoint('canonical-tab-result-v2:sustained-fallback', { reason });
     finalSelection = createSustainedCanonicalFinalSelection(
       source,
