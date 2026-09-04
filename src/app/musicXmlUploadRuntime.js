@@ -1,11 +1,15 @@
 'use strict';
 
-// Preserve the prior production runtime byte-for-byte and layer only the
-// bounded performance-metadata status/diagnostic policy on the public path.
+// Preserve the production base runtime and layer bounded single-pass diagnostic
+// policies on the public path. Both collectors are active while the base call
+// runs, so neither policy reparses caller bytes or escapes the processing budget.
 const baseRuntime = require('./musicXmlUploadRuntimeBase');
 const {
   collectPerformanceMetadataRuntimeIssues,
 } = require('./polyPerformanceMetadataRuntimeDiagnostics');
+const {
+  collectFingeringRuntimeIssues,
+} = require('./polyFingeringRuntimeDiagnostics');
 const {
   SCORE_ROUTE,
   SCORE_STATUS,
@@ -29,10 +33,10 @@ function deepFreeze(root) {
   return root;
 }
 
-function mergeIssues(left, right) {
+function mergeIssues(...issueLists) {
   const merged = [];
   const keys = new Set();
-  for (const issue of [...left, ...right]) {
+  for (const issue of issueLists.flat()) {
     const location = issue.location || {};
     const key = JSON.stringify([
       issue.severity,
@@ -41,6 +45,7 @@ function mergeIssues(left, right) {
       location.measure ?? null,
       location.measureIndex ?? null,
       location.eventIndex ?? null,
+      location.sourceEventId ?? null,
       issue.details?.rawLexeme ?? null,
       issue.details?.rawPerMinute ?? null,
       issue.details?.rawSoundTempo ?? null,
@@ -53,10 +58,17 @@ function mergeIssues(left, right) {
 }
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
-  const collected = collectPerformanceMetadataRuntimeIssues(
-    () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
+  const fingeringCollected = collectFingeringRuntimeIssues(() => (
+    collectPerformanceMetadataRuntimeIssues(
+      () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
+    )
+  ));
+  const performanceCollected = fingeringCollected.result;
+  const result = performanceCollected.result;
+  const policyIssues = mergeIssues(
+    performanceCollected.issues,
+    fingeringCollected.issues,
   );
-  const { result, issues: policyIssues } = collected;
   if (
     result.status !== SCORE_STATUS.PASS
     || result.route !== SCORE_ROUTE.POLY_V2
@@ -88,11 +100,9 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   }
 
   if (scoreState.status !== SCORE_STATUS.PASS) {
-    // A policy issue may never silently downgrade a base PASS into an
-    // unclassified state. This is an internal invariant, not a recovery path.
     throw new baseRuntime.MusicXmlUploadRuntimeError(
-      'Performance metadata diagnostics produced an unexpected score state.',
-      'INVALID_PERFORMANCE_METADATA_SCORE_STATE',
+      'Bounded runtime diagnostics produced an unexpected score state.',
+      'INVALID_RUNTIME_DIAGNOSTIC_SCORE_STATE',
       { status: scoreState.status },
     );
   }
