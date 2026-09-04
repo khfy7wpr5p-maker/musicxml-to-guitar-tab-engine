@@ -7,6 +7,9 @@ const {
 const {
   createStage08ApprovedCanonicalRevision,
 } = require('./stage08ApprovedCanonicalRevision');
+const {
+  applyStage08ReentryReviewEvidence,
+} = require('./stage08ReentryReviewGate');
 
 const STAGE08_PRODUCTION_CONTINUATION_VERSION = '1.0.0';
 const STAGE08_PRODUCTION_CONTINUATION_DOCUMENT_TYPE = 'Stage08ProductionContinuationResult';
@@ -47,11 +50,19 @@ function continueStage08ProductionToCanonicalTab(request, options = {}, runtime 
   assertRequest(request);
   const execution = continueRevalidatedRevisionToTab(request, options, runtime);
   if (execution.status !== STAGE08_STATUS.PASS) {
+    const classified = applyStage08ReentryReviewEvidence(
+      execution,
+      request.session.revalidated_revision,
+      request.reentryReviewEvidence ?? null,
+    );
     return freezeResult({
-      ...execution,
+      ...classified,
       productionDocumentType: STAGE08_PRODUCTION_CONTINUATION_DOCUMENT_TYPE,
       productionContractVersion: STAGE08_PRODUCTION_CONTINUATION_VERSION,
     });
+  }
+  if (request.reentryReviewEvidence !== null && request.reentryReviewEvidence !== undefined) {
+    throw new TypeError('Stage 08 review evidence is not applicable to a PASS re-entry.');
   }
 
   const approvalEvidence = normalizeApprovalEvidence(execution);
