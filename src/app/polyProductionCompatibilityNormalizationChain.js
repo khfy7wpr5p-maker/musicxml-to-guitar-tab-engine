@@ -8,6 +8,9 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 const {
+  normalizeDeferredPolyphonicPerformanceDirections,
+} = require('../parser/polyphonicPerformanceDirectionNormalizer');
+const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
 const {
@@ -46,6 +49,18 @@ function notationContextFromMarkers(markers, runtimeNotationContext) {
   });
 }
 
+function mergeDirectionFeatureCounts(...records) {
+  const merged = new Map();
+  for (const record of records) {
+    for (const [feature, count] of Object.entries(record || {})) {
+      merged.set(feature, (merged.get(feature) || 0) + count);
+    }
+  }
+  return Object.freeze(Object.fromEntries(
+    [...merged].sort((left, right) => left[0].localeCompare(right[0])),
+  ));
+}
+
 function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   parsedDocument,
   runtime = null,
@@ -55,12 +70,20 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
     parsedDocument,
   );
-  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+  // Only exact performance directions that the runtime profile cannot handle
+  // are deferred before the bounded runtime guitar representation pass.
+  // Runtime-owned metronome/dynamics validation, offsets, unknown, structural,
+  // and pitch-affecting directions remain in place and continue to fail closed.
+  const performanceNormalization = normalizeDeferredPolyphonicPerformanceDirections(
     techniqueNormalization.parsedDocument,
+    runtime,
+  );
+  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+    performanceNormalization.parsedDocument,
   );
   const representationDocument = runtimeNormalization
     ? runtimeNormalization.parsedDocument
-    : techniqueNormalization.parsedDocument;
+    : performanceNormalization.parsedDocument;
   const graceAccidentalNormalization = normalizeGraceDisplayAccidental(
     representationDocument,
   );
@@ -89,6 +112,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   }
 
   const ignoredFeatures = Object.freeze([...new Set([
+    ...performanceNormalization.ignoredFeatures,
     ...semanticNormalization.ignoredFeatures,
     ...(semanticNormalization.staccatoMarkers.length > 0
       ? ['notation:articulation:staccato']
@@ -104,11 +128,18 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     semanticNormalization.notationContextMarkers,
     runtimeNotationContext,
   );
+  const ignoredDirectionCount = performanceNormalization.ignoredDirectionCount
+    + semanticNormalization.ignoredDirectionCount;
+  const ignoredDirectionFeatureCounts = mergeDirectionFeatureCounts(
+    performanceNormalization.ignoredDirectionFeatureCounts,
+    semanticNormalization.ignoredDirectionFeatureCounts,
+  );
 
   runtime?.checkpoint('poly-production-compatibility:complete', {
     eventCount: sourceModel.eventCount,
     extractedGraceEventCount: semanticNormalization.extractedGraceEventCount,
     ignoredFeatureCount: ignoredFeatures.length,
+    ignoredDirectionCount,
     guitarTechniqueProvenanceRecordCount: techniqueNormalization.guitarTechniqueProvenance.recordCount,
   });
 
@@ -131,8 +162,8 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     pitchOctaveShift,
     notationContext,
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
-    ignoredDirectionCount: semanticNormalization.ignoredDirectionCount,
-    ignoredDirectionFeatureCounts: semanticNormalization.ignoredDirectionFeatureCounts,
+    ignoredDirectionCount,
+    ignoredDirectionFeatureCounts,
     octaveShiftMarkers: semanticNormalization.octaveShiftMarkers,
     notationContextMarkers: semanticNormalization.notationContextMarkers,
     timeSignatureDisplayMarkers: semanticNormalization.timeSignatureDisplayMarkers,
