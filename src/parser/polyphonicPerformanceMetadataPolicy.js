@@ -9,6 +9,7 @@ const MAX_LAYOUT_TENTHS_MAGNITUDE = 1_000_000;
 const MAX_WORD_TEXT_LENGTH = 256;
 const MAX_FONT_FAMILY_LENGTH = 256;
 const MAX_INVALID_DYNAMICS_FRACTION_DIGITS = 6;
+const MAX_EXACT_TEMPO_FRACTION_DIGITS = 6;
 
 const SAFE_DYNAMIC_MARKS = new Set(['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff']);
 const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement', 'directive']);
@@ -182,6 +183,11 @@ function canonicalInvalidNegativeDynamics(value) {
   return `-${magnitude}`;
 }
 
+function hasBoundedPositiveDecimalPrecision(value, maximumFractionDigits) {
+  const match = /^(?:\d+)(?:\.(\d+))?$/.exec(value || '');
+  return match !== null && (match[1]?.length || 0) <= maximumFractionDigits;
+}
+
 function isBoundedLayoutTenths(value) {
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value || '')) return false;
   const parsed = Number(value);
@@ -273,8 +279,9 @@ function parseWordsDirection(node, effectiveStaffCount, location) {
 
 function positiveTempo(node) {
   if (!node || node.children.length !== 0 || node.attributes.length !== 0) return null;
-  if (!/^(?:\d+|\d+\.\d+)$/.test(node.text.trim())) return null;
-  const value = canonicalBoundedUnsignedDecimal(node.text.trim(), 1000);
+  const rawValue = node.text.trim();
+  if (!hasBoundedPositiveDecimalPrecision(rawValue, MAX_EXACT_TEMPO_FRACTION_DIGITS)) return null;
+  const value = canonicalBoundedUnsignedDecimal(rawValue, 1000);
   return value !== null && value !== '0' ? value : null;
 }
 
@@ -347,7 +354,10 @@ function parseMetronomeDirection(node, effectiveStaffCount, location) {
       || sound.attributes[0].uri.length !== 0
       || sound.attributes[0].name !== 'tempo'
       || sound.text.trim().length !== 0
-      || !/^(?:\d+|\d+\.\d+)$/.test(sound.attributes[0].value)
+      || !hasBoundedPositiveDecimalPrecision(
+        sound.attributes[0].value,
+        MAX_EXACT_TEMPO_FRACTION_DIGITS,
+      )
     ) return null;
     rawSoundTempo = sound.attributes[0].value;
     canonicalSoundTempo = canonicalBoundedUnsignedDecimal(rawSoundTempo, 1000);
