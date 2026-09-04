@@ -1,0 +1,12 @@
+{
+  "documentType": "Stage09RealTeacherCorrectionCorpus",
+  "contractVersion": "1.0.0",
+  "evidenceClass": "REAL_TEACHER_CORRECTION",
+  "sourceFilesCommitted": false,
+  "requiredRunCount": 2,
+  "cases": [],
+  "evidenceGap": {
+    "code": "NO_AUTHENTIC_TEACHER_CORRECTION_CASES_AVAILABLE",
+    "message": "No authentic OMR-to-teacher-correction package is currently committed or pinned. Synthetic Stage 08 fixtures are excluded from product evidence."
+  }
+}
