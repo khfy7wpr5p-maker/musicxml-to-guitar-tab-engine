@@ -1,0 +1,48 @@
+{
+  "documentType": "Stage09AdditionalRealMusicXmlReviewedAudit",
+  "contractVersion": "1.0.0",
+  "evidenceClass": "REAL_EXTERNAL_PINNED_MUSICXML",
+  "sourceRepository": "amamiya-yuuko/AnimeTAB",
+  "sourceCommit": "18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a",
+  "requiredRunCount": 2,
+  "workflowEvidence": {
+    "workflowName": "Stage 09 Real Corpus Audit",
+    "workflowRunId": 33920454602,
+    "jobId": 101177320360,
+    "artifactId": 9954803566,
+    "artifactName": "stage09-additional-real-corpus-audit",
+    "artifactDigest": "sha256:5ade371f3822d71122b62f478f35b70902bc99ffda0350e8b0ec4a7b87710806",
+    "auditedHeadSha": "540821912e4af58a6d2adec68092799cd778e0c2",
+    "auditedEngineCommit": "8a774714f8ecee12a32c23fc31394bd630ac33fd",
+    "auditedTreeSha": "cd52150b592f1cb92cfa2a5232e6855f958e8789",
+    "productionMergeSha": "1303c4ad1ad5dcd856dab1d7de0ace97ed8da43e",
+    "productionTreeSha": "cd52150b592f1cb92cfa2a5232e6855f958e8789",
+    "productionTreeEquivalent": true
+  },
+  "status": "PASS_VERIFIED",
+  "summary": {
+    "requiredFiles": 11,
+    "identityVerifiedFiles": 11,
+    "deterministicFiles": 11,
+    "sourceImmutableFiles": 11,
+    "polyRequiredFiles": 11,
+    "polyToMonoDowngrades": 0,
+    "pass": 0,
+    "reviewRequired": 0,
+    "blocked": 11,
+    "outputSemanticsValidFiles": 11
+  },
+  "records": [
+    {"path":"[CLANNAD]汐.xml","gitBlobSha":"ad7a56ad4ad5dafa643dee29b8768a90da860816","sha256":"457c7bd157cce0c683aae08e46deb11c4071ce2d666667c4ca37256ea8fdcec1","byteLength":182946,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"2c3abebd8279352e95e7c1ea27fdc63dd4930b1218690624168c86c193433a54"},
+    {"path":"[CLANNAD]团子大家族.xml","gitBlobSha":"d26acb746f8b463c2f9ab9b6b357ec0477c22a5d","sha256":"407c03a6c86607b9e50b59db36863bcd90e03344b925f4bcb648300c4eef5b44","byteLength":298096,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"11039a146b0b54e45cac639adbd3d35363ff4806c3d036635d9098fb7c96e029"},
+    {"path":"[CLANNAD]空に光る.xml","gitBlobSha":"45284e5134ee931c98903fb0c41ea64d7f3d77c9","sha256":"06ad820a76a178fab0824d539d1ddd2a9dad72da0681163178401c62aa9ff6f5","byteLength":300372,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"176258172283833de33a37708ca0c2284861f9c217b6c2af2bd2e969064092fd"},
+    {"path":"[Fate Stay Night]光.xml","gitBlobSha":"ba1620a307c2401d80f51ec3fd0e792aa7f6f128","sha256":"9b0b2291f8993f1f7380905d20582b64d79ed98899bdcbbdc0faf2152c8f5674","byteLength":315229,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"9989c0fcdd9357e558b80ddeba83c133c19f834c9e0985751b071ad1c2b64059"},
+    {"path":"[Fate Stay Night]命运の夜.xml","gitBlobSha":"97d37a3334503f19c12f322b27087e3f0e6097cf","sha256":"475de7f7254be642862f450506653b24cfbc19eb162f0447ab3d9e05b2f7e7ac","byteLength":266295,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"b766d6587bc465a185127f22fac76f45d57483ef2e16d4ecc54892651279a12a"},
+    {"path":"[Fate Zero]空は高く風は歌う.xml","gitBlobSha":"b6ed3fbaebd2a063a20ecd99b352ee75bf2207be","sha256":"57b1e168c90402e58fe691af412c49c672b08f4814dcce4504e179d19511b421","byteLength":290504,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"feef88ab543812561cf352509f4093749879702d5935f7ca163e88ff8b90ed27"},
+    {"path":"[KOKIA]ありがとう(谢谢).xml","gitBlobSha":"bcd7719055fd94812b481ad3cb28661b84962017","sha256":"c0a4150c34c66d5532b832dcffd9c7d29adf8d11466316d54fde24ad26b77c71","byteLength":226156,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"e47939f9865ac4508ba8dc27e768da59a825282a4c7275abd6bf16a2160f2150"},
+    {"path":"[Kanon]夢の跡.xml","gitBlobSha":"77bcad52469dcf0301e0002a9ff561e0fcab00a0","sha256":"a36095b2bb26b9cafd40ed05779c4f4585dce75a77d49082b91c5746d78bc10b","byteLength":250167,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"5203b9160625e030fbd9a2dd79edada98779d579e540ad57efd1999b2856c473"},
+    {"path":"[Little Busters!]遥か彼方.xml","gitBlobSha":"b5dab68a0d9348da305fb7b3b7323aa206dfba8e","sha256":"e68b72e3b7eb9cb3a95ef84f60b4aaff21d5b90e448c9c33005f42d77631c8c1","byteLength":269861,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"595a37c574e4b7756edb85ebae1f1b61755b3fe510308885f342546935119db3"},
+    {"path":"[Narcissu]週末の過ごし方より(如何度过周末).xml","gitBlobSha":"c77c446adb3177d08a2ea7ab2c5482ceff0cc5ae","sha256":"95294ad441333d40d95cdf8a3511f6b545b5c67ca142e73f787c565880a48253","byteLength":221163,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"312d83e47c07caf557f4fd647a25a4d1f8973d43705a664aeab17e4071dcd644"},
+    {"path":"[一周的朋友]奏.xml","gitBlobSha":"a15610892b122481e6670177163cd24ae5d679f1","sha256":"279acf30fd7b591a29b8506b6bc42e538c240cac5793439b92bf5e7f802a4300","byteLength":142590,"identityVerified":true,"deterministic":true,"sourceByteImmutable":true,"routeRequirement":"POLY_V2","status":"BLOCKED","route":"POLY_V2","noPolyToMonoDowngrade":true,"validOutputSemantics":true,"resultSha256":"bf8cf1943fa190faadfcc8c7868f4d4918dfc2d99168f2d72689aca50a3ea08e"}
+  ]
+}
