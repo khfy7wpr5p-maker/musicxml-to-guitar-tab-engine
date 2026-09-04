@@ -1,0 +1,22 @@
+{
+  "documentType": "Stage09AdditionalRealMusicXmlCorpusManifest",
+  "contractVersion": "1.0.0",
+  "evidenceClass": "REAL_EXTERNAL_PINNED_MUSICXML",
+  "sourceRepository": "amamiya-yuuko/AnimeTAB",
+  "sourceCommit": "18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a",
+  "sourceRoot": "AnimeTAB/Clips/Originals",
+  "requiredRunCount": 2,
+  "files": [
+    { "path": "[CLANNAD]汐.xml", "gitBlobSha": "ad7a56ad4ad5dafa643dee29b8768a90da860816", "byteLength": 182946 },
+    { "path": "[CLANNAD]团子大家族.xml", "gitBlobSha": "d26acb746f8b463c2f9ab9b6b357ec0477c22a5d", "byteLength": 298096 },
+    { "path": "[CLANNAD]空に光る.xml", "gitBlobSha": "45284e5134ee931c98903fb0c41ea64d7f3d77c9", "byteLength": 300372 },
+    { "path": "[Fate Stay Night]光.xml", "gitBlobSha": "ba1620a307c2401d80f51ec3fd0e792aa7f6f128", "byteLength": 315229 },
+    { "path": "[Fate Stay Night]命运の夜.xml", "gitBlobSha": "97d37a3334503f19c12f322b27087e3f0e6097cf", "byteLength": 266295 },
+    { "path": "[Fate Zero]空は高く風は歌う.xml", "gitBlobSha": "b6ed3fbaebd2a063a20ecd99b352ee75bf2207be", "byteLength": 290504 },
+    { "path": "[KOKIA]ありがとう(谢谢).xml", "gitBlobSha": "bcd7719055fd94812b481ad3cb28661b84962017", "byteLength": 226156 },
+    { "path": "[Kanon]夢の跡.xml", "gitBlobSha": "77bcad52469dcf0301e0002a9ff561e0fcab00a0", "byteLength": 250167 },
+    { "path": "[Little Busters!]遥か彼方.xml", "gitBlobSha": "b5dab68a0d9348da305fb7b3b7323aa206dfba8e", "byteLength": 269861 },
+    { "path": "[Narcissu]週末の過ごし方より(如何度过周末).xml", "gitBlobSha": "c77c446adb3177d08a2ea7ab2c5482ceff0cc5ae", "byteLength": 221163 },
+    { "path": "[一周的朋友]奏.xml", "gitBlobSha": "a15610892b122481e6670177163cd24ae5d679f1", "byteLength": 142590 }
+  ]
+}
