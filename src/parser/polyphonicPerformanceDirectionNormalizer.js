@@ -22,6 +22,7 @@ const SAFE_DIRECTION_TYPES = new Set([
 const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement']);
 const SAFE_DIRECTION_CHILDREN = new Set(['direction-type', 'offset', 'sound', 'staff']);
 const SAFE_SOUND_ATTRIBUTES = new Set(['tempo', 'dynamics']);
+const DEFERRED_PRODUCTION_DIRECTION_TYPES = new Set(['pedal', 'wedge', 'words']);
 const MAX_NUMERIC_MAGNITUDE = 10000;
 
 class PolyphonicPerformanceDirectionNormalizerError extends EngineError {
@@ -109,6 +110,73 @@ function safeDirectionTypeNames(directionTypeNode) {
   return names;
 }
 
+function hasExactUnqualifiedAttributes(node, validators) {
+  const seen = new Set();
+  for (const attribute of node.attributes) {
+    if (attribute.uri.length !== 0 || !Object.hasOwn(validators, attribute.name)) return false;
+    if (seen.has(attribute.name) || !validators[attribute.name](attribute.value)) return false;
+    seen.add(attribute.name);
+  }
+  return true;
+}
+
+function isSafeDeferredWords(node) {
+  return (
+    sameNamespaceChildren(node).length === 0
+    && node.children.length === 0
+    && node.text.trim().length > 0
+    && node.text.trim().length <= 256
+    && hasExactUnqualifiedAttributes(node, {
+      'font-style': (value) => value === 'normal' || value === 'italic',
+    })
+  );
+}
+
+function isSafeDeferredPedal(node) {
+  if (sameNamespaceChildren(node).length !== 0 || node.children.length !== 0) return false;
+  if (node.text.trim().length !== 0) return false;
+  if (!hasExactUnqualifiedAttributes(node, {
+    type: (value) => ['start', 'stop', 'change', 'continue', 'resume', 'discontinue'].includes(value),
+    line: (value) => value === 'yes' || value === 'no',
+    sign: (value) => value === 'yes' || value === 'no',
+    number: (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 16,
+  })) return false;
+  return node.attributes.some((attribute) => attribute.name === 'type');
+}
+
+function isSafeDeferredWedge(node) {
+  if (sameNamespaceChildren(node).length !== 0 || node.children.length !== 0) return false;
+  if (node.text.trim().length !== 0) return false;
+  if (!hasExactUnqualifiedAttributes(node, {
+    type: (value) => ['crescendo', 'diminuendo', 'stop', 'continue'].includes(value),
+    number: (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 16,
+  })) return false;
+  return node.attributes.some((attribute) => attribute.name === 'type');
+}
+
+function isSafeDeferredProductionDirection(directionNode, classification) {
+  if (classification.hasOffset || classification.soundAttributes.length !== 0) return false;
+  if (classification.typeNames.some((name) => !DEFERRED_PRODUCTION_DIRECTION_TYPES.has(name))) {
+    return false;
+  }
+  if (directionNode.text.trim().length !== 0) return false;
+  const placement = directionNode.attributes.find((attribute) => attribute.name === 'placement');
+  if (placement && placement.value !== 'above' && placement.value !== 'below') return false;
+
+  const directionTypes = sameNamespaceChildren(directionNode)
+    .filter((child) => child.name === 'direction-type');
+  return directionTypes.every((directionType) => (
+    directionType.text.trim().length === 0
+    && directionType.children.every((child) => {
+      if (child.uri !== directionType.uri) return false;
+      if (child.name === 'words') return isSafeDeferredWords(child);
+      if (child.name === 'pedal') return isSafeDeferredPedal(child);
+      if (child.name === 'wedge') return isSafeDeferredWedge(child);
+      return false;
+    })
+  ));
+}
+
 function classifySafePerformanceDirection(directionNode) {
   if (!hasOnlyUnqualifiedAttributes(directionNode, SAFE_DIRECTION_ATTRIBUTES)) return null;
   const children = sameNamespaceChildren(directionNode);
@@ -177,12 +245,14 @@ function addCount(counts, feature) {
   counts.set(feature, (counts.get(feature) || 0) + 1);
 }
 
-function sanitizeMeasure(measure, provenance, runtime, measureIndex) {
+function sanitizeMeasure(measure, provenance, runtime, measureIndex, shouldNormalizeDirection) {
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:measure', { measureIndex });
   return cloneNode(measure, (child) => {
     if (child.uri !== measure.uri || child.name !== 'direction') return cloneNode(child);
     const classification = classifySafePerformanceDirection(child);
-    if (classification === null) return cloneNode(child);
+    if (classification === null || !shouldNormalizeDirection(child, classification)) {
+      return cloneNode(child);
+    }
 
     provenance.ignoredDirectionCount += 1;
     for (const typeName of classification.typeNames) addCount(provenance.counts, `direction:${typeName}`);
@@ -194,11 +264,17 @@ function sanitizeMeasure(measure, provenance, runtime, measureIndex) {
   });
 }
 
-function sanitizePart(part, provenance, runtime) {
+function sanitizePart(part, provenance, runtime, shouldNormalizeDirection) {
   let measureIndex = 0;
   return cloneNode(part, (child) => {
     if (child.uri === part.uri && child.name === 'measure') {
-      const normalized = sanitizeMeasure(child, provenance, runtime, measureIndex);
+      const normalized = sanitizeMeasure(
+        child,
+        provenance,
+        runtime,
+        measureIndex,
+        shouldNormalizeDirection,
+      );
       measureIndex += 1;
       return normalized;
     }
@@ -206,7 +282,11 @@ function sanitizePart(part, provenance, runtime) {
   });
 }
 
-function normalizePolyphonicPerformanceDirections(parsedDocument, runtime = null) {
+function normalizePolyphonicPerformanceDirectionsWithSelector(
+  parsedDocument,
+  runtime,
+  shouldNormalizeDirection,
+) {
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:start');
   const presentation = normalizePolyphonicPresentationMetadata(parsedDocument, runtime);
   const source = presentation.parsedDocument;
@@ -214,7 +294,7 @@ function normalizePolyphonicPerformanceDirections(parsedDocument, runtime = null
 
   const normalizedRoot = cloneNode(source.root, (child) => {
     if (child.uri === source.root.uri && child.name === 'part') {
-      return sanitizePart(child, provenance, runtime);
+      return sanitizePart(child, provenance, runtime, shouldNormalizeDirection);
     }
     return cloneNode(child);
   });
@@ -247,6 +327,22 @@ function normalizePolyphonicPerformanceDirections(parsedDocument, runtime = null
   });
 }
 
+function normalizePolyphonicPerformanceDirections(parsedDocument, runtime = null) {
+  return normalizePolyphonicPerformanceDirectionsWithSelector(
+    parsedDocument,
+    runtime,
+    () => true,
+  );
+}
+
+function normalizeDeferredPolyphonicPerformanceDirections(parsedDocument, runtime = null) {
+  return normalizePolyphonicPerformanceDirectionsWithSelector(
+    parsedDocument,
+    runtime,
+    isSafeDeferredProductionDirection,
+  );
+}
+
 function projectParsedMusicXmlWithPerformanceDirectionCompatibility(parsedDocument, runtime = null) {
   const normalization = normalizePolyphonicPerformanceDirections(parsedDocument, runtime);
   const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(
@@ -268,6 +364,7 @@ module.exports = {
   POLYPHONIC_PERFORMANCE_DIRECTION_NORMALIZER_AUTHORITY,
   PolyphonicPerformanceDirectionNormalizerError,
   classifySafePerformanceDirection,
+  normalizeDeferredPolyphonicPerformanceDirections,
   normalizePolyphonicPerformanceDirections,
   projectParsedMusicXmlWithPerformanceDirectionCompatibility,
 };

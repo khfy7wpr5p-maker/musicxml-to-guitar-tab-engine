@@ -55,6 +55,30 @@ test('production chain removes bounded performance-only direction before runtime
   assert.ok(result.ignoredFeatures.includes('direction:words'));
 });
 
+test('production chain accepts exact bounded pedal and wedge directions without mutating source', () => {
+  const source = score(`
+    <direction placement="below">
+      <direction-type><pedal type="start" line="yes"/></direction-type>
+      <staff>1</staff>
+    </direction>
+    <direction placement="above">
+      <direction-type><wedge type="crescendo" number="1"/></direction-type>
+      <staff>1</staff>
+    </direction>
+  `);
+  const sourceBefore = JSON.stringify(source);
+
+  const result = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(source);
+
+  assert.equal(JSON.stringify(source), sourceBefore);
+  assert.equal(result.sourceModel.eventCount, 1);
+  assert.equal(result.ignoredDirectionCount, 2);
+  assert.deepEqual(result.ignoredDirectionFeatureCounts, {
+    'direction:pedal': 1,
+    'direction:wedge': 1,
+  });
+});
+
 test('production chain still fails closed for structural playback directions', () => {
   const source = score(`
     <direction>
@@ -71,4 +95,24 @@ test('production chain still fails closed for structural playback directions', (
       return true;
     },
   );
+});
+
+test('production chain preserves stricter validation for offset and inner direction shapes', () => {
+  for (const direction of [
+    '<direction><offset>1</offset><direction-type><words>rit.</words></direction-type></direction>',
+    '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>',
+    '<direction><direction-type><words><display-text>rit.</display-text></words></direction-type></direction>',
+    '<direction><direction-type><pedal type="unknown" line="yes"/></direction-type></direction>',
+    '<direction><direction-type><wedge type="crescendo" spread="12"/></direction-type></direction>',
+    '<direction placement="sideways"><direction-type><words>rit.</words></direction-type></direction>',
+  ]) {
+    assert.throws(
+      () => projectParsedMusicXmlThroughPolyProductionCompatibilityChain(score(direction)),
+      (error) => {
+        assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
+        assert.equal(error.details.feature, 'direction');
+        return true;
+      },
+    );
+  }
 });

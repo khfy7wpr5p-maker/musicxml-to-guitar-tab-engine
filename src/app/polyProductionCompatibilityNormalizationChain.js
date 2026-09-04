@@ -8,7 +8,7 @@ const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 const {
-  normalizePolyphonicPerformanceDirections,
+  normalizeDeferredPolyphonicPerformanceDirections,
 } = require('../parser/polyphonicPerformanceDirectionNormalizer');
 const {
   normalizeVerifiedGuitarTechniqueProvenance,
@@ -70,12 +70,11 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
     parsedDocument,
   );
-  // Performance-only directions must be normalized before the bounded runtime
-  // guitar representation pass. Otherwise that earlier representation layer
-  // can accidentally block directions that the semantic chain already knows
-  // how to classify safely. Unknown, structural, and pitch-affecting directions
-  // remain in the document and therefore continue to fail closed downstream.
-  const performanceNormalization = normalizePolyphonicPerformanceDirections(
+  // Only exact performance directions that the runtime profile cannot handle
+  // are deferred before the bounded runtime guitar representation pass.
+  // Runtime-owned metronome/dynamics validation, offsets, unknown, structural,
+  // and pitch-affecting directions remain in place and continue to fail closed.
+  const performanceNormalization = normalizeDeferredPolyphonicPerformanceDirections(
     techniqueNormalization.parsedDocument,
     runtime,
   );
