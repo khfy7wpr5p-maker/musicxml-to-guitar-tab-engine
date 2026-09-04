@@ -23,6 +23,7 @@ const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement']);
 const SAFE_DIRECTION_CHILDREN = new Set(['direction-type', 'offset', 'sound', 'staff']);
 const SAFE_SOUND_ATTRIBUTES = new Set(['tempo', 'dynamics']);
 const DEFERRED_PRODUCTION_DIRECTION_TYPES = new Set(['pedal', 'wedge', 'words']);
+const SAFE_DEFERRED_WORDS = new Set(['rit.']);
 const MAX_NUMERIC_MAGNITUDE = 10000;
 
 class PolyphonicPerformanceDirectionNormalizerError extends EngineError {
@@ -121,11 +122,11 @@ function hasExactUnqualifiedAttributes(node, validators) {
 }
 
 function isSafeDeferredWords(node) {
+  const text = node.text.trim();
   return (
     sameNamespaceChildren(node).length === 0
     && node.children.length === 0
-    && node.text.trim().length > 0
-    && node.text.trim().length <= 256
+    && SAFE_DEFERRED_WORDS.has(text)
     && hasExactUnqualifiedAttributes(node, {
       'font-style': (value) => value === 'normal' || value === 'italic',
     })
@@ -162,6 +163,10 @@ function isSafeDeferredProductionDirection(directionNode, classification) {
   if (directionNode.text.trim().length !== 0) return false;
   const placement = directionNode.attributes.find((attribute) => attribute.name === 'placement');
   if (placement && placement.value !== 'above' && placement.value !== 'below') return false;
+  const staffs = sameNamespaceChildren(directionNode).filter((child) => child.name === 'staff');
+  if (staffs.length > 1 || (staffs.length === 1 && Number(staffs[0].text.trim()) > 2)) {
+    return false;
+  }
 
   const directionTypes = sameNamespaceChildren(directionNode)
     .filter((child) => child.name === 'direction-type');

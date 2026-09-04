@@ -102,9 +102,12 @@ test('production chain preserves stricter validation for offset and inner direct
     '<direction><offset>1</offset><direction-type><words>rit.</words></direction-type></direction>',
     '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>',
     '<direction><direction-type><words><display-text>rit.</display-text></words></direction-type></direction>',
+    '<direction><direction-type><words>Da Capo</words></direction-type></direction>',
     '<direction><direction-type><pedal type="unknown" line="yes"/></direction-type></direction>',
     '<direction><direction-type><wedge type="crescendo" spread="12"/></direction-type></direction>',
     '<direction placement="sideways"><direction-type><words>rit.</words></direction-type></direction>',
+    '<direction><direction-type><words>rit.</words></direction-type><staff>1</staff><staff>2</staff></direction>',
+    '<direction><direction-type><words>rit.</words></direction-type><staff>3</staff></direction>',
   ]) {
     assert.throws(
       () => projectParsedMusicXmlThroughPolyProductionCompatibilityChain(score(direction)),
