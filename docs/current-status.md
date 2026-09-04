@@ -36,7 +36,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 06 review editor backend contract | ✅ INTERNAL / CAPABILITY-GATED / NON-UI |
 | Stage 07 review editor UI + exact host/pins | ✅ COMPLETE / INTERNAL — Editor Core `9429116…`, Rendering `13c32eef…` |
 | Stage 08 correction revalidation → production TAB | ✅ COMPLETE / INTERNAL — merged PR #314 at `051aae293244ead108079b4756810558e0a44891` |
-| Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / EVIDENCE GAP — 9/20 unique real MusicXML, 0/3 real teacher corrections |
+| Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -67,7 +67,9 @@ Stage 07 is complete. It provides the internal presentation model, responsive br
 
 Stage 08 is complete on protected `main` at `051aae293244ead108079b4756810558e0a44891`, merged through PR #314. It introduces a trusted corrected-score materializer boundary tied to the exact immutable source, saved/revalidated revision and patch ledger; re-enters corrected MusicXML through the existing application parser/routing/physical/canonical/writer chain; forbids polyphonic `MONO_V1` degradation; and withholds canonical output/approval on failed re-entry. Production approval additionally requires `Stage08RevalidationTabEvidence` proving exact source/revision identity, `PASS` production re-entry, canonical TAB authority and non-empty writer output. The production review port enables `Continue to TAB` only for the exact current `REVALIDATED/VALID` session and rejects stale session/source/revision identity before or during continuation. Pre-merge protected checks passed on exact head `e613d1793e626ae67115a8fccfeb21f1a7b383af`; merge SHA fresh-read and post-merge Node.js 18/20/22 tests also passed. See [`stage-08-revalidation-to-tab.md`](stage-08-revalidation-to-tab.md).
 
-Stage 09 now has a dedicated evidence gate. It deliberately separates authentic product evidence from unit-test fixtures. The existing historical real MusicXML manifest provides nine unique SHA identities and the Stage 03 reviewed audit verifies those same identities; the audit is not counted as a second corpus. No authentic OMR-to-teacher-correction package is currently pinned, so synthetic Stage 08 fixtures do not satisfy Tier B. The product gate remains `HOLD_EVIDENCE_GAP` until at least 20 unique authentic MusicXML cases, at least three authentic teacher-correction cases, all `PASS` / `REVIEW_REQUIRED` / `BLOCKED` outcomes and the required representation coverage are demonstrated. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
+Stage 09 has a dedicated evidence gate and now meets the Tier-A minimum with 20 unique verified real MusicXML identities. Nine come from the historical manifest/reviewed audit. Eleven additional identities are pinned to `amamiya-yuuko/AnimeTAB` commit `18c0993cbe0a0948cbf0b7768bcb09ff81c23a9a` and were verified in GitHub Actions run `33920454602`: 11/11 identity, determinism and source-byte immutability, with 11/11 true-polyphony requirements and zero POLY→MONO downgrade. The audited PR head and protected-main merge have identical tree SHA `cd52150b592f1cb92cfa2a5232e6855f958e8789`.
+
+Tier B remains intentionally open. A cross-repository audit found two teacher-verified references, including one authentic teacher-approved Audiveris chain, but neither supplies a non-empty real teacher-correction patch ledger that can be revalidated through Stage 08. The product gate therefore remains `HOLD_EVIDENCE_GAP` at 0/3 eligible teacher-correction cases and still lacks required real `PASS` / `REVIEW_REQUIRED` / `BLOCKED` plus representation coverage. Synthetic, no-correction and regression-only OMR material cannot satisfy Tier B. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
 
 The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 08 does not silently turn those pitch-only paths into the teacher editor and Stage 09 does not widen the package-root API.
 
@@ -158,17 +160,21 @@ In the sustained PS-4C path, the enforcement window resets once per PS-4A sonori
 
 ### Historical Guitar Pro manifest corpus
 
-`verification/guitar-tech-real-corpus-manifest.json` remains the currently pinned nine-file historical Guitar Pro evidence corpus. Historical audit/state files remain evidence for the exact revisions they measured.
+`verification/guitar-tech-real-corpus-manifest.json` remains the pinned nine-file historical Guitar Pro evidence corpus. Historical audit/state files remain evidence for the exact revisions they measured.
 
 ### Stage 03 reviewed audit
 
-The committed Stage 03 reviewed audit contains the same nine file names and SHA-256 identities as the historical manifest. It verifies identity, determinism and source immutability for those cases, but Stage 09 intentionally deduplicates by exact source SHA and therefore counts **9 unique real MusicXML cases, not 18**.
+The committed Stage 03 reviewed audit contains the same nine file names and SHA-256 identities as the historical manifest. It verifies identity, determinism and source immutability for those cases, but Stage 09 deduplicates by exact source SHA and therefore counts **9 unique real MusicXML cases, not 18**.
 
-The reviewed audit still exposes many `BLOCKED` outcomes. That is a current product limitation, not an ingestion failure and not a reason to weaken tuning/capo, physical or resource safety opportunistically. Stage 04 supplies the generic evidence contract for repairable/local OMR uncertainty to become `REVIEW_REQUIRED`; Stage 08 supplies the bounded corrected-revision return path.
+### Stage 09 additional real MusicXML audit
 
-### Stage 09 evidence gap
+`verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` pins the successful workflow evidence. Together with the historical nine, Tier A is **20 unique / 20 verified**. Evidence-set overlap fails closed and cannot inflate this count.
 
-`verification/stage09-real-teacher-correction-corpus.json` is currently empty by design because no authentic teacher-correction package has been verified. Synthetic tests must remain synthetic. Stage 09 completion therefore requires new external evidence rather than relabeling existing fixtures.
+All eleven additional cases currently return bounded `BLOCKED` outcomes. That is product evidence about current compatibility/physical boundaries, not a reason to weaken solver policy or resource ceilings.
+
+### Stage 09 teacher-correction evidence gap
+
+`verification/stage09-teacher-correction-evidence-candidates.json` records the cross-repository intake audit. Two teacher-verified references were found; one is authentic real OMR but requires no correction, and the other lacks an accepted OMR correction chain. Seven regression-only real-OMR outputs remain excluded. Consequently `verification/stage09-real-teacher-correction-corpus.json` contains **0 eligible Tier-B cases** by design.
 
 ## Real-corpus gate contract
 
@@ -197,9 +203,9 @@ Renderer output is presentation only. Writers serialize canonical truth. Compati
 
 ## Open architecture gates
 
-1. Stage 09 evidence acquisition: add at least 11 additional unique authentic MusicXML cases and at least 3 authentic teacher-correction cases with required status/representation coverage.
+1. Stage 09 Tier-B evidence acquisition: add at least 3 authentic teacher-correction cases with `PASS`, `REVIEW_REQUIRED`, `BLOCKED` and required representation coverage.
 2. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
-3. Wider producer-realistic real-corpus coverage and hardening.
+3. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
 4. Any broader public/package-root polyphonic API remains separately gated.
 5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
 6. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
