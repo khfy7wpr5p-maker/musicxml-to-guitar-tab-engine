@@ -422,7 +422,11 @@ function safeGuitarProDynamicsDirection(node) {
   if (dynamicsNodes.length !== 1) return false;
 
   const dynamics = dynamicsNodes[0];
-  if (dynamics.attributes.length !== 0 || dynamics.children.length !== 1) return false;
+  if (
+    dynamics.attributes.length !== 0
+    || dynamics.children.length !== 1
+    || dynamics.text.trim().length !== 0
+  ) return false;
   const mark = dynamics.children[0];
   if (!(
     mark.uri === dynamics.uri
