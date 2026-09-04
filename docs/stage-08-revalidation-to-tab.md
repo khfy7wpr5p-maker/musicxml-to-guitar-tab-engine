@@ -1,6 +1,6 @@
 # Stage 08 — Correction Revalidation → Production TAB
 
-Status: implementation/verification in PR #314. This document describes the bounded Stage 08 production contract; merge/closeout evidence is recorded only after all protected checks are green.
+Status: ✅ COMPLETE on protected `main` at merge SHA `051aae293244ead108079b4756810558e0a44891`, merged through PR #314.
 
 ## Goal
 
@@ -133,18 +133,30 @@ Stage 08 adds focused regressions for:
 - browser event/non-ready session cannot activate trusted continuation;
 - package-root API remains unchanged.
 
-## Merge gate
+## Closeout evidence
 
-PR #314 may leave draft state only after:
+PR #314 was verified on exact head `e613d1793e626ae67115a8fccfeb21f1a7b383af` before merge.
 
-1. all focused Stage 08 tests pass on Node.js 18/20/22;
-2. all existing regression tests pass;
-3. MusicXML compatibility / alphaTab import+SVG render checks pass on Node.js 18/20/22;
-4. Runtime staging browser E2E passes on Node.js 22;
-5. no source mutation/determinism regression exists;
-6. exact Stage 07 dependency pins remain unchanged;
-7. no unresolved P0/P1 review thread remains;
-8. current-status/architecture documentation matches the merged code;
-9. branch protection is not bypassed.
+Protected required contexts all passed:
 
-After merge, `main` must be fresh-read and the exact merge SHA plus protected CI evidence recorded before Stage 08 is marked complete.
+1. `Node.js 18` — SUCCESS;
+2. `Node.js 20` — SUCCESS;
+3. `Node.js 22` — SUCCESS;
+4. `Tests, alphaTab import and SVG render / Node.js 18` — SUCCESS;
+5. `Tests, alphaTab import and SVG render / Node.js 20` — SUCCESS;
+6. `Tests, alphaTab import and SVG render / Node.js 22` — SUCCESS;
+7. `Runtime staging browser E2E / Node.js 22` — SUCCESS.
+
+Additional closeout facts:
+
+- unresolved PR review threads: `0`;
+- package-root API changed files: `0`;
+- exact Stage 07 dependency pins remained unchanged;
+- PR #314 merged without bypassing branch protection;
+- merge SHA: `051aae293244ead108079b4756810558e0a44891`;
+- merge commit is GitHub-verified;
+- protected `main` fresh-read resolved to the exact merge SHA;
+- protected `main` still requires the same seven status contexts;
+- post-merge `Tests` push workflow run `1333` passed on Node.js 18, 20 and 22.
+
+Stage 08 is therefore closed. The next architecture gate is Stage 09 end-to-end real OMR/MusicXML corpus and product validation; Stage 08 semantics must not be widened opportunistically during that work.
