@@ -62,7 +62,8 @@ test('Stage 07 browser shell delegates semantic authority and score highlighting
   ]) {
     assert.ok(js.includes(`'${method}'`), `review editor host contract must require ${method}()`);
   }
-  assert.match(js, /host\.selectScorePoint\(\{\s*clientX: event\.clientX,\s*clientY: event\.clientY/);
+  assert.match(js, /async function selectScorePoint\(point\)[\s\S]*host\.selectScorePoint\(\{\s*clientX: point\.clientX,\s*clientY: point\.clientY/);
+  assert.match(js, /async function onScorePoint\(event\)\s*\{\s*return selectScorePoint\(\{ clientX: event\.clientX, clientY: event\.clientY \}\);/);
   assert.match(js, /host\.syncScoreSelection\(\{\s*selectedTarget:/);
   assert.match(js, /host\.command\(\{ command, value \}\)/);
   assert.equal(js.includes('hitTestNote('), false, 'UI must not convert renderer hit evidence into edit identity itself');
