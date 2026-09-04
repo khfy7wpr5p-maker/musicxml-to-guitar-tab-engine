@@ -71,11 +71,14 @@ The policy records the existing exact metronome profile without changing its run
 - one `metronome` direction type;
 - exact child order `beat-unit`, `per-minute`;
 - bounded positive `per-minute`;
+- at most six fractional digits for exact numeric tempo classification;
 - optional exact staff target;
 - optional `sound@tempo` only when the beat unit is `quarter`;
 - `sound@tempo`, when present and non-conflicting, must equal the exact metronome value under the existing canonical decimal contract.
 
 A valid tempo word and a valid metronome in the same musical region therefore remain **two distinct metadata records**. The word is not used to derive or override the numeric metronome value.
+
+Values with excessive decimal precision are deliberately not intercepted as exact V1 tempo metadata; they remain on the pre-existing fail-closed path.
 
 ## Conflicting numeric tempo
 
@@ -108,7 +111,14 @@ The production runtime that existed at base SHA `ebf5971...` is preserved byte-f
 
 `src/app/musicXmlUploadRuntimeBase.js`
 
-The existing public module path `src/app/musicXmlUploadRuntime.js` is a narrow wrapper. It adds only the performance-metadata diagnostic/status policy after the preserved base runtime has produced a successful `POLY_V2` result.
+The existing public module path `src/app/musicXmlUploadRuntime.js` is a narrow diagnostic/status wrapper. It does **not** parse the upload a second time.
+
+The compatibility chain classifies metadata while processing the runtime-owned parsed-document snapshot and records the resulting immutable policy issues into a synchronous per-call collector. The wrapper consumes only those already-produced issues after the preserved base runtime returns. Consequently:
+
+- the original processing deadline and cancellation budget covers the metadata policy pass;
+- caller-owned bytes are never reread after the base runtime has taken its owned snapshot;
+- diagnostics and `result.input` always describe the same upload snapshot;
+- concurrent/re-entrant calls do not share issue arrays because the collector is stack-scoped to the synchronous runtime call.
 
 The compatibility chain itself performs the exact semantic exclusion before projection, so invalid playback-only metadata cannot become a pitch/string/fret/solver input. The wrapper only surfaces named warning/review evidence and converts a numeric tempo conflict to the already-existing `REVIEW_REQUIRED` score-state contract.
 
@@ -120,7 +130,9 @@ Regression requirements include:
 
 - two-run upload result equality;
 - parsed-source facts remain unchanged;
-- upload bytes compare equal before/after processing;
+- upload bytes compare equal before/after ordinary processing;
+- caller-buffer mutation after `app-upload:start` cannot change diagnostic evidence because the runtime-owned snapshot is authoritative;
+- the performance metadata policy executes once per upload, inside the existing processing budget;
 - four identical `-1.11` occurrences produce four stable located warning records;
 - canonical note/timing snapshots match the same score with only the non-authoritative invalid metadata removed.
 
@@ -137,7 +149,7 @@ The following are not generalized by this capability:
 - reordered direction/metronome/dynamics children;
 - unsupported print attributes;
 - non-quarter `sound@tempo` semantic conversion;
-- malformed or over-range numeric values;
+- malformed, over-range, or excessive-precision numeric values;
 - dynamics values outside the bounded exact negative exception;
 - any field whose effect on note identity, score timeline, sustain, repeat order, or physical feasibility is not proven non-authoritative.
 
