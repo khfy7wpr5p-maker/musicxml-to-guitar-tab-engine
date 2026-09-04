@@ -81,6 +81,7 @@
     let destroyed = false;
     let current = null;
     let scoreDisposer = null;
+    const scorePointerEvent = 'PointerEvent' in global ? 'pointerup' : 'click';
 
     async function invoke(operation, fn) {
       if (destroyed) return;
@@ -184,12 +185,16 @@
       return model;
     }
 
-    async function onScorePoint(event) {
+    async function selectScorePoint(point) {
       if (!current || current.documentStatus !== REVIEW_REQUIRED || !current.score?.canOpen) return;
       await invoke('Select note', () => host.selectScorePoint({
-        clientX: event.clientX,
-        clientY: event.clientY,
+        clientX: point.clientX,
+        clientY: point.clientY,
       }));
+    }
+
+    async function onScorePoint(event) {
+      return selectScorePoint({ clientX: event.clientX, clientY: event.clientY });
     }
 
     function requestedPitch() {
@@ -200,7 +205,7 @@
       };
     }
 
-    scoreHost.addEventListener('pointerdown', onScorePoint);
+    scoreHost.addEventListener(scorePointerEvent, onScorePoint);
 
     for (const button of root.querySelectorAll('[data-command]')) {
       button.addEventListener('click', () => {
@@ -242,6 +247,7 @@
 
     const ready = Promise.resolve(host.mountScore(scoreHost, {
       onSelectionChanged: refresh,
+      onScorePoint: selectScorePoint,
     })).then((mountedScore) => {
       let dispose = null;
       if (typeof mountedScore === 'function') dispose = mountedScore;
@@ -261,7 +267,7 @@
       destroy() {
         if (destroyed) return;
         destroyed = true;
-        scoreHost.removeEventListener('pointerdown', onScorePoint);
+        scoreHost.removeEventListener(scorePointerEvent, onScorePoint);
         if (scoreDisposer) scoreDisposer();
       },
     });
