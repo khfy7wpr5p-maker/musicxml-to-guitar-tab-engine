@@ -20,6 +20,9 @@ const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
 const {
+  recordPerformanceMetadataRuntimeIssues,
+} = require('./polyPerformanceMetadataRuntimeDiagnostics');
+const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
 const {
@@ -112,6 +115,10 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     techniqueNormalization.parsedDocument,
     runtime,
   );
+  // Surface the exact issues from this owned parsed-document pass. The public
+  // runtime wrapper consumes them after the preserved base runtime returns;
+  // it never reparses caller bytes or starts a second processing budget.
+  recordPerformanceMetadataRuntimeIssues(performanceMetadata.issues);
   // Only exact performance directions that the runtime profile cannot handle
   // are deferred before the bounded runtime guitar representation pass.
   // Runtime-owned metronome/dynamics validation, offsets, unknown, structural,
