@@ -1,5 +1,6 @@
 'use strict';
 
+const { types: { isProxy } } = require('node:util');
 const baseWriter = require('./canonicalTabMusicXmlWriterV2Base');
 const {
   DEFAULT_REPEAT_PLAY_COUNT,
@@ -21,7 +22,7 @@ function invalid(message, details = {}) {
 }
 
 function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
@@ -46,7 +47,10 @@ function exactDataObject(value, fields, path) {
 
 function boundedNativeArray(value, path, maximumLength) {
   if (
-    !Array.isArray(value)
+    !value
+    || typeof value !== 'object'
+    || isProxy(value)
+    || !Array.isArray(value)
     || Object.getPrototypeOf(value) !== Array.prototype
     || value.length > maximumLength
     || Reflect.ownKeys(value).some((key) => (
@@ -166,11 +170,11 @@ function normalizeRepeatBarlines(value, canonicalTabResult) {
 }
 
 function splitRepeatNotationContext(options, canonicalTabResult) {
+  if (options && typeof options === 'object' && isProxy(options)) {
+    throw invalid('options must not be a Proxy.', { field: 'options' });
+  }
   const notationContext = options && options.notationContext;
-  if (!notationContext || (
-    !Object.hasOwn(notationContext, 'measureOccurrencePlan')
-    && !Object.hasOwn(notationContext, 'repeatBarlines')
-  )) {
+  if (!notationContext) {
     return Object.freeze({
       baseOptions: options,
       measureOccurrencePlan: null,
@@ -178,7 +182,16 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
     });
   }
   if (!isPlainObject(notationContext)) {
-    throw invalid('options.notationContext must be a plain object.', { field: 'notationContext' });
+    throw invalid('options.notationContext must be a non-proxy plain object.', { field: 'notationContext' });
+  }
+  const hasOccurrencePlan = Object.hasOwn(notationContext, 'measureOccurrencePlan');
+  const hasRepeatBarlines = Object.hasOwn(notationContext, 'repeatBarlines');
+  if (!hasOccurrencePlan && !hasRepeatBarlines) {
+    return Object.freeze({
+      baseOptions: options,
+      measureOccurrencePlan: null,
+      repeatBarlines: Object.freeze([]),
+    });
   }
   const allowed = new Set(['keySignatures', 'measureOccurrencePlan', 'repeatBarlines']);
   if (Reflect.ownKeys(notationContext).some((key) => typeof key !== 'string' || !allowed.has(key))) {
@@ -188,8 +201,8 @@ function splitRepeatNotationContext(options, canonicalTabResult) {
   }
   if (
     !Object.hasOwn(notationContext, 'keySignatures')
-    || !Object.hasOwn(notationContext, 'measureOccurrencePlan')
-    || !Object.hasOwn(notationContext, 'repeatBarlines')
+    || !hasOccurrencePlan
+    || !hasRepeatBarlines
   ) {
     throw invalid('Repeat-aware notationContext requires keySignatures, measureOccurrencePlan, and repeatBarlines.', {
       field: 'notationContext',
