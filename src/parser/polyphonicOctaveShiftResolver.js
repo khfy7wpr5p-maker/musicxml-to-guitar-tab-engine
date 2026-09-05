@@ -158,7 +158,7 @@ function parseExactOctaveShiftDirection(directionNode, location) {
 }
 
 function scalarForwardMetadata(node, field, location, { staff = false } = {}) {
-  if (directChildren(node).length !== 0 || node.attributes.length !== 0) {
+  if (node.children.length !== 0 || node.attributes.length !== 0) {
     throw invalid(`${field} must be a scalar leaf.`, { ...location, field });
   }
   const value = node.text.trim();
@@ -411,6 +411,13 @@ function removeResolvedDirections(root, markerKeys) {
           && measureChild.name === 'direction'
           && markerKeys.has(`${currentMeasureIndex}:${childIndex}`)
         ) return null;
+        if (measureChild.uri === partChild.uri && measureChild.name === 'forward') {
+          // collectMarkers validated every cursor first. The strict projector
+          // consumes only its duration; preserve caller metadata in the source tree.
+          return cloneNode(measureChild, (child) => (
+            child.name === 'duration' ? cloneNode(child) : null
+          ));
+        }
         return cloneNode(measureChild);
       });
     });

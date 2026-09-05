@@ -7,6 +7,7 @@ const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
 const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
 const {
   normalizePolyphonicOctaveShifts,
+  projectParsedMusicXmlWithOctaveShiftCompatibility,
 } = require('../src/parser/polyphonicOctaveShiftResolver');
 
 function score(measureBody) {
@@ -68,8 +69,49 @@ test('Stage 09 surfaces ambiguous backward repeat as REVIEW_REQUIRED without can
   assert.equal(result.preflight.issues.length, 1);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
   assert.equal(result.preflight.issues[0].details.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(result.preflight.issues[0].reviewDisposition, 'REVIEW_REQUIRED');
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
+});
+
+test('Stage 09 projects validated forward metadata deterministically without changing source bytes or nodes', () => {
+  for (const metadata of ['', '<voice>2</voice>', '<staff>2</staff>', '<voice>2</voice><staff>2</staff>']) {
+    const bytes = Buffer.from(score(`
+      ${octaveShift('down')}
+      <forward><duration>4</duration>${metadata}</forward>
+      ${note('G', 4, { voice: 2, staff: 2 })}
+      ${octaveShift('stop')}
+    `));
+    const before = Buffer.from(bytes);
+    const parsed = parseParsedMusicXmlDocument(bytes);
+    const snapshot = JSON.stringify(parsed);
+    const first = projectParsedMusicXmlWithOctaveShiftCompatibility(parsed);
+    assert.deepEqual(first, projectParsedMusicXmlWithOctaveShiftCompatibility(parsed));
+    assert.equal(first.sourceModel.measures[0].events[0].pitch.written, 'G4');
+    assert.equal(first.sourceModel.measures[0].events[0].onsetDivisions, 4);
+    assert.deepEqual(first.octaveShiftMarkers.map((marker) => marker.cursorDivisions), [0, 8]);
+    assert.equal(JSON.stringify(parsed), snapshot);
+    assert.deepEqual(bytes, before);
+  }
+});
+
+test('Stage 09 rejects malformed forward metadata and keeps backup validation strict', () => {
+  const invalidCursors = [
+    '<backup><duration>4</duration><voice>2</voice></backup>',
+    '<backup><duration>4</duration><staff>2</staff></backup>',
+    '<forward><duration>4</duration><voice/></forward>',
+    '<forward><duration>4</duration><voice>2</voice><voice>3</voice></forward>',
+    '<forward><duration>4</duration><staff>2</staff><voice>2</voice></forward>',
+    '<forward><duration>4</duration><staff>3</staff></forward>',
+    '<forward><duration>4</duration><voice id="x">2</voice></forward>',
+    '<forward><duration>4</duration><voice><x xmlns="urn:foreign"/>2</voice></forward>',
+    '<forward><duration>4</duration><unknown/></forward>',
+  ];
+  for (const cursor of invalidCursors) {
+    assert.throws(() => normalizePolyphonicOctaveShifts(parseParsedMusicXmlDocument(score(`
+      ${note('C', 4)}${cursor}
+    `))), { code: 'INVALID_POLYPHONIC_OCTAVE_SHIFT' }, cursor);
+  }
 });
 
 test('Stage 09 does not widen unrelated blocked capability failures', () => {
@@ -86,4 +128,20 @@ test('Stage 09 does not widen unrelated blocked capability failures', () => {
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
+});
+
+test('Stage 09 keeps unsupported directions BLOCKED without canonical output', () => {
+  const bytes = Buffer.from(score(`
+    ${note('C', 4)}
+    <backup><duration>4</duration></backup>
+    ${note('E', 3, { voice: 2, staff: 2 })}
+    <direction><direction-type><unknown-direction/></direction-type></direction>
+  `));
+  const before = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'direction.musicxml', bytes });
+  assert.equal(first.status, 'BLOCKED');
+  assert.equal(first.canonicalTabResult, null);
+  assert.equal(first.musicXml, null);
+  assert.deepEqual(first, processMusicXmlUpload({ fileName: 'direction.musicxml', bytes }));
+  assert.deepEqual(bytes, before);
 });
