@@ -149,8 +149,11 @@ function parseSupportedSlur(node, context, slurIndex) {
   const type = sourceAttributes.type;
   if (!['start', 'stop', 'continue'].includes(type)) return null;
   const rawNumber = sourceAttributes.number ?? null;
-  const number = rawNumber ?? '1';
-  if (!/^\d+$/.test(number) || Number(number) < 1 || Number(number) > 16) return null;
+  const numberLexeme = rawNumber ?? '1';
+  if (!/^[0-9]+$/.test(numberLexeme)) return null;
+  const numericNumber = Number(numberLexeme);
+  if (!Number.isInteger(numericNumber) || numericNumber < 1 || numericNumber > 16) return null;
+  const number = String(numericNumber);
 
   const presentationMetadata = Object.create(null);
   for (const name of PRESENTATION_ATTRIBUTES) {

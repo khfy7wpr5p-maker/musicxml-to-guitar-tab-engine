@@ -51,7 +51,7 @@ function canonicalSelectionSnapshot(result) {
 
 test('numbered slur start/stop becomes exact articulation provenance with source endpoints', () => {
   const bytes = score([
-    note({ step: 'C', notation: slur('start', '1') }),
+    note({ step: 'C', notation: slur('start', '01') }),
     note({ step: 'D', notation: slur('stop', '1') }),
   ].join(''));
   const result = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
