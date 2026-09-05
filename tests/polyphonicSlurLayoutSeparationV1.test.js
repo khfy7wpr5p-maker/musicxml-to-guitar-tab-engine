@@ -70,7 +70,7 @@ test('numbered slur start/stop becomes exact articulation provenance with source
   const span = result.slurProvenance.spans[0];
   assert.equal(span.number, '1');
   assert.equal(span.voice, '1');
-  assert.equal(span.staff, '1');
+  assert.equal(span.staff, 1);
   assert.equal(span.startSourceEventId, 'P1:measure:0:note:0');
   assert.equal(span.stopSourceEventId, 'P1:measure:0:note:1');
 });
