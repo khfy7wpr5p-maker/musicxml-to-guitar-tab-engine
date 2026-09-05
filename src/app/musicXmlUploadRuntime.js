@@ -1,8 +1,8 @@
 'use strict';
 
 // Preserve the production base runtime and layer bounded single-pass diagnostic
-// policies on the public path. Both collectors are active while the base call
-// runs, so neither policy reparses caller bytes or escapes the processing budget.
+// policies on the public path. Collectors remain active while the base call
+// runs, so no policy reparses caller bytes or escapes the processing budget.
 const baseRuntime = require('./musicXmlUploadRuntimeBase');
 const {
   collectPerformanceMetadataRuntimeIssues,
@@ -10,6 +10,9 @@ const {
 const {
   collectFingeringRuntimeIssues,
 } = require('./polyFingeringRuntimeDiagnostics');
+const {
+  collectSlurRuntimeIssues,
+} = require('./polySlurRuntimeDiagnostics');
 const {
   SCORE_ROUTE,
   SCORE_STATUS,
@@ -49,6 +52,8 @@ function mergeIssues(...issueLists) {
       issue.details?.rawLexeme ?? null,
       issue.details?.rawPerMinute ?? null,
       issue.details?.rawSoundTempo ?? null,
+      issue.details?.slurNumber ?? null,
+      issue.details?.slurType ?? null,
     ]);
     if (keys.has(key)) continue;
     keys.add(key);
@@ -58,16 +63,20 @@ function mergeIssues(...issueLists) {
 }
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
-  const fingeringCollected = collectFingeringRuntimeIssues(() => (
-    collectPerformanceMetadataRuntimeIssues(
-      () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
-    )
+  const slurCollected = collectSlurRuntimeIssues(() => (
+    collectFingeringRuntimeIssues(() => (
+      collectPerformanceMetadataRuntimeIssues(
+        () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
+      )
+    ))
   ));
+  const fingeringCollected = slurCollected.result;
   const performanceCollected = fingeringCollected.result;
   const result = performanceCollected.result;
   const policyIssues = mergeIssues(
     performanceCollected.issues,
     fingeringCollected.issues,
+    slurCollected.issues,
   );
   if (
     result.status !== SCORE_STATUS.PASS
