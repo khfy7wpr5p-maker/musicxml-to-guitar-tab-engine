@@ -27,8 +27,14 @@ const {
   normalizeInstrumentAwareFingeringProvenance,
 } = require('./fingeringCompatibilityNormalizer');
 const {
+  normalizeSourceNotationReviewCompatibility,
+} = require('./sourceNotationReviewCompatibility');
+const {
   normalizeVerifiedGuitarTechniqueProvenance,
 } = require('./guitarTechniqueCompatibilityNormalizer');
+const {
+  recordSourceNotationRuntimeIssues,
+} = require('./polySourceNotationRuntimeDiagnostics');
 const {
   recordPerformanceMetadataRuntimeIssues,
 } = require('./polyPerformanceMetadataRuntimeDiagnostics');
@@ -142,26 +148,34 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
 ) {
   runtime?.checkpoint('poly-production-compatibility:start');
 
-  // Slur semantics are captured before generic notation normalization removes
-  // presentation-only notation. The resulting provenance has no duration,
-  // tie, guitar-technique or solver authority.
+  // Capture bounded slur semantics before any generic notation compatibility
+  // pass can alter presentation-only notation. Slur provenance never gains
+  // duration, tie, guitar-technique or solver authority.
   const slurNormalization = normalizePolyphonicSlurProvenance(
     parsedDocument,
     runtime,
   );
 
-  // Fingering is classified before the generic technique provenance pass can
-  // remove technical wrappers. Only explicit six-string source-configuration
-  // evidence may promote it beyond SOURCE_ANNOTATION_ONLY.
+  // Fingering is classified before any technical wrapper can be removed.
+  // Only explicit six-string source-configuration evidence may promote it
+  // beyond SOURCE_ANNOTATION_ONLY.
   const fingeringNormalization = normalizeInstrumentAwareFingeringProvenance(
     slurNormalization.parsedDocument,
     runtime,
   );
 
+  // Strip only bounded layout metadata from already-supported articulations.
+  // Exact non-guitar source techniques are removed from automatic projection
+  // only when a semantic REVIEW_REQUIRED issue is recorded in the same pass.
+  const sourceNotationNormalization = normalizeSourceNotationReviewCompatibility(
+    fingeringNormalization.parsedDocument,
+  );
+  recordSourceNotationRuntimeIssues(sourceNotationNormalization.issues);
+
   // Unknown/non-fingering technical children remain in place so the existing
   // verified technique profile preserves its fail-closed authority boundary.
   const techniqueNormalization = normalizeVerifiedGuitarTechniqueProvenance(
-    fingeringNormalization.parsedDocument,
+    sourceNotationNormalization.parsedDocument,
   );
   const performanceMetadata = normalizePolyphonicPerformanceMetadataPolicy(
     techniqueNormalization.parsedDocument,
@@ -234,6 +248,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const ignoredFeatures = Object.freeze([...new Set([
     ...slurNormalization.ignoredFeatures,
     ...fingeringNormalization.ignoredFeatures,
+    ...sourceNotationNormalization.ignoredFeatures,
     ...performanceMetadata.ignoredFeatures,
     ...performanceNormalization.ignoredFeatures,
     ...repeatNormalization.ignoredFeatures,
@@ -268,6 +283,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     extractedGraceEventCount: semanticNormalization.extractedGraceEventCount,
     ignoredFeatureCount: ignoredFeatures.length,
     ignoredDirectionCount,
+    sourceNotationReviewIssueCount: sourceNotationNormalization.issues.length,
     performanceMetadataRecordCount: performanceMetadata.performanceMetadataRecords.length,
     performanceMetadataIssueCount: performanceMetadata.issues.length,
     slurRecordCount: slurProvenance.recordCount,
