@@ -157,15 +157,55 @@ function parseExactOctaveShiftDirection(directionNode, location) {
   });
 }
 
+function scalarForwardMetadata(node, field, location, { staff = false } = {}) {
+  if (node.children.length !== 0 || node.attributes.length !== 0) {
+    throw invalid(`${field} must be a scalar leaf.`, { ...location, field });
+  }
+  const value = node.text.trim();
+  if (staff) return positiveInteger(value, field, { maximum: 2 });
+  if (value.length === 0 || value.length > 160) {
+    throw invalid(`${field} must be a bounded non-empty scalar.`, { ...location, field });
+  }
+  return value;
+}
+
 function parseCursorDuration(operationNode, location) {
+  const children = directChildren(operationNode);
   const durations = directChildren(operationNode, 'duration');
   if (durations.length !== 1) {
     throw invalid(`${operationNode.name} must contain exactly one duration.`, location);
   }
-  if (operationNode.attributes.length !== 0 || directChildren(operationNode).length !== 1) {
+  if (operationNode.attributes.length !== 0 || operationNode.children.some((child) => child.uri !== operationNode.uri)) {
     throw invalid(`${operationNode.name} contains unsupported structure.`, location);
   }
-  return scalarDuration(durations[0], `${operationNode.name}.duration`, location);
+
+  if (operationNode.name === 'backup') {
+    if (children.length !== 1 || children[0] !== durations[0]) {
+      throw invalid('backup contains unsupported structure.', location);
+    }
+    return scalarDuration(durations[0], 'backup.duration', location);
+  }
+
+  if (operationNode.name !== 'forward') {
+    throw invalid('octave-shift cursor operation must be backup or forward.', location);
+  }
+
+  const voices = directChildren(operationNode, 'voice');
+  const staffs = directChildren(operationNode, 'staff');
+  if (
+    voices.length > 1
+    || staffs.length > 1
+    || children.some((child) => !['duration', 'voice', 'staff'].includes(child.name))
+    || children[0] !== durations[0]
+  ) {
+    throw invalid('forward contains unsupported structure.', location);
+  }
+  if (voices.length === 1 && staffs.length === 1 && children.indexOf(voices[0]) > children.indexOf(staffs[0])) {
+    throw invalid('forward voice must precede staff.', location);
+  }
+  if (voices.length === 1) scalarForwardMetadata(voices[0], 'forward.voice', location);
+  if (staffs.length === 1) scalarForwardMetadata(staffs[0], 'forward.staff', location, { staff: true });
+  return scalarDuration(durations[0], 'forward.duration', location);
 }
 
 function noteTiming(noteNode, cursor, chordAnchorCursor, location) {
@@ -371,6 +411,13 @@ function removeResolvedDirections(root, markerKeys) {
           && measureChild.name === 'direction'
           && markerKeys.has(`${currentMeasureIndex}:${childIndex}`)
         ) return null;
+        if (measureChild.uri === partChild.uri && measureChild.name === 'forward') {
+          // collectMarkers validated every cursor first. The strict projector
+          // consumes only its duration; preserve caller metadata in the source tree.
+          return cloneNode(measureChild, (child) => (
+            child.name === 'duration' ? cloneNode(child) : null
+          ));
+        }
         return cloneNode(measureChild);
       });
     });

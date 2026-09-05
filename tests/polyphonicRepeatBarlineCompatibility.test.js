@@ -60,6 +60,16 @@ function inputHash(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+function assertReviewWithoutOutput(result) {
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.preflight.status, 'REVIEW_REQUIRED');
+  assert.equal(result.preflight.canProcess, false);
+  assert.equal(result.preflight.issues[0].details.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(result.preflight.issues[0].reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+}
+
 test('repeat normalizer derives a deterministic two-pass occurrence plan without changing source identities', () => {
   assert.equal(DEFAULT_REPEAT_PLAY_COUNT, 2);
   const xml = repeatScore();
@@ -133,7 +143,7 @@ test('writer preserves explicit repeat times rather than normalizing the source 
   assert.match(result.musicXml, /<repeat direction="backward" times="3"\/>/);
 });
 
-test('orphan backward repeat remains fail-closed at a stable source measure', () => {
+test('orphan backward repeat requires review without output at a stable source measure', () => {
   const xml = fixture().replace(
     '<bar-style>light-heavy</bar-style>',
     '<bar-style>light-heavy</bar-style><repeat direction="backward"/>',
@@ -142,14 +152,14 @@ test('orphan backward repeat remains fail-closed at a stable source measure', ()
     fileName: 'orphan-backward-repeat.musicxml',
     bytes: Buffer.from(xml),
   });
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assertReviewWithoutOutput(result);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
   assert.equal(result.preflight.issues[0].details.reason, 'ORPHAN_BACKWARD_REPEAT');
   assert.equal(result.preflight.issues[0].location.measureIndex, 0);
 });
 
-test('nested repeat structure remains fail-closed in the bounded V1 contract', () => {
+test('nested repeat structure requires review without traversal or output', () => {
   const xml = repeatScore().replace(
     '    <measure number="2">',
     '    <measure number="2">\n      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>',
@@ -158,18 +168,18 @@ test('nested repeat structure remains fail-closed in the bounded V1 contract', (
     fileName: 'nested-repeat.musicxml',
     bytes: Buffer.from(xml),
   });
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assertReviewWithoutOutput(result);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
   assert.equal(result.preflight.issues[0].details.reason, 'NESTED_REPEAT_UNSUPPORTED');
 });
 
-test('repeat times above the fixed resource bound remains fail-closed', () => {
+test('repeat times above the unchanged fixed bound requires review without output', () => {
   const result = processMusicXmlUpload({
     fileName: 'repeat-times-excessive.musicxml',
     bytes: Buffer.from(repeatScore({ times: MAX_REPEAT_PLAY_COUNT + 1 })),
   });
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assertReviewWithoutOutput(result);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
   assert.equal(result.preflight.issues[0].details.reason, 'REPEAT_TIMES_OUT_OF_RANGE');
@@ -184,7 +194,7 @@ test('repeat barline with ending/volta metadata is not admitted by the V1 wildca
     fileName: 'repeat-ending-unsupported.musicxml',
     bytes: Buffer.from(xml),
   });
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assertReviewWithoutOutput(result);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
 });
