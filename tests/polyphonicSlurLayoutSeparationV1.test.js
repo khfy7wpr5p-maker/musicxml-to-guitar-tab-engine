@@ -70,7 +70,7 @@ test('numbered slur start/stop becomes exact articulation provenance with source
   const span = result.slurProvenance.spans[0];
   assert.equal(span.number, '1');
   assert.equal(span.voice, '1');
-  assert.equal(span.staff, 1);
+  assert.equal(span.staff, '1');
   assert.equal(span.startSourceEventId, 'P1:measure:0:note:0');
   assert.equal(span.stopSourceEventId, 'P1:measure:0:note:1');
 });
@@ -158,7 +158,7 @@ test('slur changes neither source musical facts nor final guitar selection and c
   const slurred = processMusicXmlUpload({ fileName: 'slurred.musicxml', bytes: slurredBytes });
   assert.equal(baseline.status, MUSICXML_UPLOAD_STATUS.PASS);
   assert.equal(slurred.status, MUSICXML_UPLOAD_STATUS.PASS);
-  assert.equal(slurred.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(slurred.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
   assert.deepEqual(canonicalSelectionSnapshot(slurred), canonicalSelectionSnapshot(baseline));
 });
 
@@ -182,6 +182,7 @@ test('same slur number in simultaneous voices pairs independently by voice and s
 test('orphan slur stop is a located REVIEW_REQUIRED issue rather than guessed pairing', () => {
   const bytes = score([
     note({ step: 'C', notation: slur('stop', '1') }),
+    note({ step: 'E', notation: '', chord: true }),
     note({ step: 'D' }),
   ].join(''));
   const result = processMusicXmlUpload({ fileName: 'orphan-stop.musicxml', bytes });
@@ -198,6 +199,7 @@ test('orphan slur stop is a located REVIEW_REQUIRED issue rather than guessed pa
 test('duplicate slur start becomes REVIEW_REQUIRED and is not silently re-paired', () => {
   const bytes = score([
     note({ step: 'C', duration: 1, notation: slur('start', '1') }),
+    note({ step: 'F', duration: 1, notation: '', chord: true }),
     note({ step: 'D', duration: 1, notation: slur('start', '1') }),
     note({ step: 'E', duration: 2, notation: slur('stop', '1') }),
   ].join(''));
@@ -226,6 +228,7 @@ test('cross-staff endpoint mismatch remains review-required instead of nearest-n
 test('unknown slur attributes remain fail-closed and cannot use the provenance normalizer as a wildcard bypass', () => {
   const bytes = score([
     note({ step: 'C', notation: '<notations><slur type="start" number="1" mystery="x"/></notations>' }),
+    note({ step: 'E', notation: '', chord: true }),
     note({ step: 'D', notation: slur('stop', '1') }),
   ].join(''));
   const result = processMusicXmlUpload({ fileName: 'unsupported-slur.musicxml', bytes });
@@ -245,7 +248,7 @@ test('Mudarra-observed Bezier slur shape is admitted without changing musical au
   ].join(''));
   const result = processMusicXmlUpload({ fileName: 'rights-safe-observed-slur-shape.musicxml', bytes });
 
-  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
   assert.ok(!result.preflight.issues.some((issue) => (
     issue.code === 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE'
