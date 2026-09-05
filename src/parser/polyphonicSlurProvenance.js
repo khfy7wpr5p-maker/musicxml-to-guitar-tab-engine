@@ -48,10 +48,10 @@ const NUMERIC_PRESENTATION_ATTRIBUTES = new Set([
 ]);
 
 class PolyphonicSlurProvenanceError extends EngineError {
-  constructor(message, details = {}) {
+  constructor(message, details = {}, code = 'INVALID_POLYPHONIC_SLUR_PROVENANCE') {
     super(
       message,
-      'INVALID_POLYPHONIC_SLUR_PROVENANCE',
+      code,
       Object.freeze({ ...details }),
       'PolyphonicSlurProvenanceError',
     );
@@ -60,6 +60,20 @@ class PolyphonicSlurProvenanceError extends EngineError {
 
 function fail(message, details = {}) {
   throw new PolyphonicSlurProvenanceError(message, details);
+}
+
+function unsupportedSlur(context) {
+  throw new PolyphonicSlurProvenanceError(
+    'MusicXML slur is outside the bounded semantic/layout provenance profile.',
+    {
+      feature: 'notation:slur',
+      partId: context.partId,
+      measure: context.measureNumber,
+      measureIndex: context.measureIndex,
+      eventIndex: context.noteIndex,
+    },
+    'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE',
+  );
 }
 
 function checkpoint(runtime, phase, details = {}) {
@@ -177,10 +191,9 @@ function normalizeNotations(notations, context, records) {
     if (child.uri === notations.uri && child.name === 'slur') {
       const parsed = parseSupportedSlur(child, context, slurIndex);
       slurIndex += 1;
-      if (parsed) {
-        records.push(parsed);
-        continue;
-      }
+      if (!parsed) unsupportedSlur(context);
+      records.push(parsed);
+      continue;
     }
     children.push(cloneNode(child));
   }
@@ -330,7 +343,7 @@ function bindSourceEventIds(normalization, graceOrnamentGroups, sourceModel) {
   return Object.freeze(normalization.preliminaryRecords.map((record) => {
     const graceEventId = graceIdByMeasureAndOrder.get(`${record.measureIndex}:${record.noteIndex}`) || null;
     let sourceEventId = graceEventId;
-    let isGraceEvent = graceEventId !== null;
+    const isGraceEvent = graceEventId !== null;
     if (!sourceEventId) {
       const removed = removedByMeasure.get(record.measureIndex) || [];
       let removedBefore = 0;
