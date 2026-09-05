@@ -36,6 +36,9 @@ const {
   normalizeXmlInput,
 } = require('../validation/xmlSafety');
 const {
+  extractCompressedMusicXml,
+} = require('../validation/compressedMusicXml');
+const {
   serializeCanonicalTabResultToMusicXml,
 } = require('../writers/canonicalTabMusicXmlWriter');
 const {
@@ -68,7 +71,7 @@ const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
 const MUSICXML_UPLOAD_STATUS = SCORE_STATUS;
 const MUSICXML_UPLOAD_ROUTE = SCORE_ROUTE;
-const ALLOWED_UPLOAD_EXTENSIONS = Object.freeze(['.musicxml', '.xml']);
+const ALLOWED_UPLOAD_EXTENSIONS = Object.freeze(['.musicxml', '.xml', '.mxl']);
 const MAX_UPLOAD_FILE_NAME_LENGTH = 255;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
 const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
@@ -849,7 +852,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       severity: 'error',
       category: 'capability',
       code: 'UNSUPPORTED_UPLOAD_EXTENSION',
-      message: 'Only .xml and .musicxml uploads are accepted.',
+      message: 'Only .xml, .musicxml and .mxl uploads are accepted.',
       location: { measure: null, measureIndex: null, eventIndex: null, sourceEventId: null },
       details: { allowedExtensions: ALLOWED_UPLOAD_EXTENSIONS },
     });
@@ -857,13 +860,22 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
 
   let processing;
   let harmonyExtraction;
+  let sourceBytes;
   try {
     processing = resolveProcessingRuntime(normalizedOptions.processing, runtime);
     processing.checkpoint('app-upload:start', { byteLength: normalizedUpload.bytes.byteLength });
-    normalizeXmlInput(normalizedUpload.bytes, { maxBytes: DEFAULT_MAX_XML_BYTES });
+    sourceBytes = extension === '.mxl'
+      ? extractCompressedMusicXml(normalizedUpload.bytes, {
+        maximumXmlBytes: DEFAULT_MAX_XML_BYTES,
+      })
+      : normalizedUpload.bytes;
+    if (extension === '.mxl') {
+      processing.checkpoint('app-upload:mxl-extracted', { byteLength: sourceBytes.byteLength });
+    }
+    normalizeXmlInput(sourceBytes, { maxBytes: DEFAULT_MAX_XML_BYTES });
     processing.checkpoint('app-upload:safety-complete');
     harmonyExtraction = extractBasicMusicXmlHarmony(
-      parseParsedMusicXmlDocument(normalizedUpload.bytes, {}, processing),
+      parseParsedMusicXmlDocument(sourceBytes, {}, processing),
       processing,
     );
   } catch (error) {
@@ -904,7 +916,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   } else {
     try {
       monophonic = convertMusicXmlToCanonicalTab(
-        normalizedUpload.bytes,
+        sourceBytes,
         {
           parser: {},
           guitar: sourceGuitarConfiguration.guitar
