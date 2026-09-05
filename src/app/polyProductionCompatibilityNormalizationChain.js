@@ -20,6 +20,10 @@ const {
   bindPolyphonicFingeringProvenance,
 } = require('../parser/polyphonicFingeringProvenance');
 const {
+  normalizePolyphonicSlurProvenance,
+  bindPolyphonicSlurProvenance,
+} = require('../parser/polyphonicSlurProvenance');
+const {
   normalizeInstrumentAwareFingeringProvenance,
 } = require('./fingeringCompatibilityNormalizer');
 const {
@@ -32,6 +36,9 @@ const {
   recordFingeringRuntimeIssues,
   recordExactGuitarFingeringConstraints,
 } = require('./polyFingeringRuntimeDiagnostics');
+const {
+  recordSlurRuntimeIssues,
+} = require('./polySlurRuntimeDiagnostics');
 const {
   tryNormalizeRuntimeGuitarNotation,
 } = require('./runtimeGuitarNotationNormalizer');
@@ -135,11 +142,19 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
 ) {
   runtime?.checkpoint('poly-production-compatibility:start');
 
+  // Slur semantics are captured before generic notation normalization removes
+  // presentation-only notation. The resulting provenance has no duration,
+  // tie, guitar-technique or solver authority.
+  const slurNormalization = normalizePolyphonicSlurProvenance(
+    parsedDocument,
+    runtime,
+  );
+
   // Fingering is classified before the generic technique provenance pass can
   // remove technical wrappers. Only explicit six-string source-configuration
   // evidence may promote it beyond SOURCE_ANNOTATION_ONLY.
   const fingeringNormalization = normalizeInstrumentAwareFingeringProvenance(
-    parsedDocument,
+    slurNormalization.parsedDocument,
     runtime,
   );
 
@@ -178,6 +193,13 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     semanticNormalization.parsedMainDocument,
     runtime,
   );
+  const slurProvenance = bindPolyphonicSlurProvenance(
+    slurNormalization,
+    semanticNormalization.graceOrnamentGroups,
+    sourceModel,
+    runtime,
+  );
+  recordSlurRuntimeIssues(slurProvenance.issues);
   const boundFingering = bindPolyphonicFingeringProvenance(
     fingeringNormalization,
     semanticNormalization.graceOrnamentGroups,
@@ -210,6 +232,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   }
 
   const ignoredFeatures = Object.freeze([...new Set([
+    ...slurNormalization.ignoredFeatures,
     ...fingeringNormalization.ignoredFeatures,
     ...performanceMetadata.ignoredFeatures,
     ...performanceNormalization.ignoredFeatures,
@@ -247,6 +270,9 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     ignoredDirectionCount,
     performanceMetadataRecordCount: performanceMetadata.performanceMetadataRecords.length,
     performanceMetadataIssueCount: performanceMetadata.issues.length,
+    slurRecordCount: slurProvenance.recordCount,
+    slurSpanCount: slurProvenance.spanCount,
+    slurIssueCount: slurProvenance.issues.length,
     fingeringRecordCount: fingeringProvenance.recordCount,
     exactGuitarFingeringConstraintCount: fingeringProvenance.exactConstraints.constraintCount,
     fingeringIssueCount: fingeringProvenance.issues.length,
@@ -261,6 +287,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     mainSourceModel: sourceModel,
     parsedMainDocument: semanticNormalization.parsedMainDocument,
     guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
+    slurProvenance,
     fingeringProvenance,
     exactGuitarFingeringConstraints: fingeringProvenance.exactConstraints,
     performanceMetadataRecords: performanceMetadata.performanceMetadataRecords,
