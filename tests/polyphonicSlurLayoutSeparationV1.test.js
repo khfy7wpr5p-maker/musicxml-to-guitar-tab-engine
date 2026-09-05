@@ -256,6 +256,7 @@ test('Mudarra-observed Bezier slur shape is admitted without changing musical au
 test('slur normalization is deterministic, single-pass and leaves caller bytes immutable', () => {
   const bytes = score([
     note({ step: 'C', notation: slur('start', '3', ' bezier-x="1" default-y="12"') }),
+    note({ step: 'E', notation: '', chord: true }),
     note({ step: 'D', notation: slur('stop', '3') }),
   ].join(''));
   const before = Buffer.from(bytes);
@@ -282,6 +283,7 @@ test('slur normalization is deterministic, single-pass and leaves caller bytes i
     runtime,
   );
   assert.equal(publicResult.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(publicResult.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(slurStarts, 1);
   assert.deepEqual(bytes, before);
   assert.equal(sha256(bytes), beforeHash);
