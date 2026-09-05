@@ -76,9 +76,14 @@ function promoteBoundedRepeatReview(result) {
   );
   if (!exactReviewableRepeat) return result;
 
+  const reviewIssues = issues.map((issue) => ({
+    ...issue,
+    category: 'semantic',
+    reviewDisposition: 'REVIEW_REQUIRED',
+  }));
   const scoreState = buildScoreState({
     route: SCORE_ROUTE.POLY_V2,
-    issues,
+    issues: reviewIssues,
     sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
   });
   if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
@@ -96,7 +101,7 @@ function promoteBoundedRepeatReview(result) {
       ...result.preflight,
       status: 'REVIEW_REQUIRED',
       canProcess: false,
-      issues,
+      issues: reviewIssues,
     },
     canonicalTabResult: null,
     musicXml: null,
