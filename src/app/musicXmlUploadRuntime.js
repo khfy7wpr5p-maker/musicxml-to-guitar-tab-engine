@@ -14,6 +14,9 @@ const {
   collectFingeringRuntimeIssues,
 } = require('./polyFingeringRuntimeDiagnostics');
 const {
+  collectSlurRuntimeIssues,
+} = require('./polySlurRuntimeDiagnostics');
+const {
   SCORE_ROUTE,
   SCORE_STATUS,
   SOURCE_REVIEW_AVAILABILITY,
@@ -53,6 +56,8 @@ function mergeIssues(...issueLists) {
       issue.details?.rawLexeme ?? null,
       issue.details?.rawPerMinute ?? null,
       issue.details?.rawSoundTempo ?? null,
+      issue.details?.slurNumber ?? null,
+      issue.details?.slurType ?? null,
     ]);
     if (keys.has(key)) continue;
     keys.add(key);
@@ -110,18 +115,22 @@ function promoteBoundedRepeatReview(result) {
 
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const sourceNotationCollected = collectSourceNotationRuntimeIssues(() => (
-    collectFingeringRuntimeIssues(() => (
-      collectPerformanceMetadataRuntimeIssues(
-        () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
-      )
+    collectSlurRuntimeIssues(() => (
+      collectFingeringRuntimeIssues(() => (
+        collectPerformanceMetadataRuntimeIssues(
+          () => baseRuntime.processMusicXmlUpload(upload, options, runtime),
+        )
+      ))
     ))
   ));
-  const fingeringCollected = sourceNotationCollected.result;
+  const slurCollected = sourceNotationCollected.result;
+  const fingeringCollected = slurCollected.result;
   const performanceCollected = fingeringCollected.result;
   const result = promoteBoundedRepeatReview(performanceCollected.result);
   const policyIssues = mergeIssues(
     performanceCollected.issues,
     fingeringCollected.issues,
+    slurCollected.issues,
     sourceNotationCollected.issues,
   );
   if (
