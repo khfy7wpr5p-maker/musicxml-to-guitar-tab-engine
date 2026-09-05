@@ -61,6 +61,53 @@ function mergeIssues(...issueLists) {
   return merged;
 }
 
+function promoteBoundedRepeatReview(result) {
+  const issues = Array.isArray(result.preflight?.issues) ? result.preflight.issues : [];
+  const exactReviewableRepeat = (
+    result.status === SCORE_STATUS.BLOCKED
+    && result.route === SCORE_ROUTE.POLY_V2
+    && issues.length > 0
+    && issues.every((issue) => (
+      issue.code === 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE'
+      && issue.category === 'capability'
+      && issue.details?.feature === 'barline-repeat'
+      && issue.details?.reviewDisposition === 'REVIEW_REQUIRED'
+    ))
+  );
+  if (!exactReviewableRepeat) return result;
+
+  const reviewIssues = issues.map((issue) => ({
+    ...issue,
+    category: 'semantic',
+    reviewDisposition: 'REVIEW_REQUIRED',
+  }));
+  const scoreState = buildScoreState({
+    route: SCORE_ROUTE.POLY_V2,
+    issues: reviewIssues,
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+  });
+  if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
+    throw new baseRuntime.MusicXmlUploadRuntimeError(
+      'Bounded repeat review evidence produced an unexpected score state.',
+      'INVALID_REPEAT_REVIEW_SCORE_STATE',
+      { status: scoreState.status },
+    );
+  }
+
+  return deepFreeze({
+    ...result,
+    status: SCORE_STATUS.REVIEW_REQUIRED,
+    preflight: {
+      ...result.preflight,
+      status: 'REVIEW_REQUIRED',
+      canProcess: false,
+      issues: reviewIssues,
+    },
+    canonicalTabResult: null,
+    musicXml: null,
+  });
+}
+
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const sourceNotationCollected = collectSourceNotationRuntimeIssues(() => (
     collectFingeringRuntimeIssues(() => (
@@ -71,7 +118,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   ));
   const fingeringCollected = sourceNotationCollected.result;
   const performanceCollected = fingeringCollected.result;
-  const result = performanceCollected.result;
+  const result = promoteBoundedRepeatReview(performanceCollected.result);
   const policyIssues = mergeIssues(
     performanceCollected.issues,
     fingeringCollected.issues,
