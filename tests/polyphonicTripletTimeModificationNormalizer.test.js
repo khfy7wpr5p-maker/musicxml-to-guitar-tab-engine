@@ -82,6 +82,26 @@ test('PS-6B5A records exact 3:2 triplet relations without rescaling MusicXML dur
   assert.ok(result.ignoredFeatures.includes('note:triplet-time-modification-context'));
 });
 
+test('records exact 6:4 sextuplet relations without rescaling MusicXML duration', () => {
+  const sextuplet = tripletNode('<actual-notes>6</actual-notes><normal-notes>4</normal-notes>');
+  const result = normalizePolyphonicTripletTimeModification(parsed(score({
+    firstTimeModification: sextuplet,
+    secondTimeModification: sextuplet,
+    thirdTimeModification: sextuplet,
+  })));
+
+  assert.deepEqual(result.tripletTimeModificationMarkers[0], {
+    kind: 'sextuplet-time-modification',
+    actualNotes: 6,
+    normalNotes: 4,
+    measureIndex: 0,
+    measureNumber: '1',
+    sourceOrder: 0,
+    noteChildIndex: 4,
+  });
+  assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
+});
+
 test('PS-6B5A fails closed on other ratios, normal-type and decorated time-modification shapes', () => {
   const fixtures = [
     tripletNode('<actual-notes>5</actual-notes><normal-notes>4</normal-notes>'),
