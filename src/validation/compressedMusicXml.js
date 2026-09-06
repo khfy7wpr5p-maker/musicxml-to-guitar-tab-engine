@@ -291,13 +291,22 @@ function parseContainerRootPath(containerBytes) {
     }
     if (local !== 'rootfile') return;
     const attributes = Object.values(tag.attributes || {});
+    if (attributes.some((attribute) => (
+      (attribute.uri || '')
+      || !['full-path', 'media-type'].includes(attribute.local || attribute.name)
+    ))) {
+      throw invalidArchive('Compressed MusicXML root-file metadata contains unsupported attributes.');
+    }
     const fullPath = attributes.find((attribute) => (
       (attribute.local || attribute.name) === 'full-path' && !(attribute.uri || '')
     ));
     const mediaType = attributes.find((attribute) => (
       (attribute.local || attribute.name) === 'media-type' && !(attribute.uri || '')
     ));
-    if (fullPath && mediaType?.value === MUSICXML_MEDIA_TYPE) {
+    // Older MusicXML producers omit media-type and the container namespace.
+    // A single explicit full-path is still deterministic. If media-type is
+    // present, however, it must identify MusicXML exactly.
+    if (fullPath && (!mediaType || mediaType.value === MUSICXML_MEDIA_TYPE)) {
       rootPaths.push(fullPath.value);
     }
   });
