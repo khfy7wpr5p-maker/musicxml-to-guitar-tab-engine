@@ -126,3 +126,22 @@ test('repeat-aware writer rejects accessor repeat context without invoking gette
   );
   assert.equal(gets, 0);
 });
+
+test('tempo-aware writer rejects XML control characters at its direct option boundary', () => {
+  const result = canonicalResult();
+  const tempoDirection = {
+    measureIndex: 0,
+    measureNumber: result.measures[0].number,
+    placement: 'above',
+    staff: 1,
+    words: { text: 'Lar\u0001ghetto', attributes: [] },
+    metronome: null,
+    soundTempo: '64',
+  };
+  assert.throws(
+    () => serializeCanonicalTabResultV2ToMusicXml(result, {
+      notationContext: { keySignatures: [], tempoDirections: [tempoDirection] },
+    }),
+    assertWriterOptionError,
+  );
+});

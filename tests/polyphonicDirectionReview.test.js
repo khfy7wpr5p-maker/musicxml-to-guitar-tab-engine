@@ -11,38 +11,46 @@ function score(direction) {
   <part id="P1"><measure number="1">
     <attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves><clef><sign>G</sign><line>2</line></clef></attributes>
     ${direction}
-    <note><rest/><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+    <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
     <backup><duration>4</duration></backup>
-    <note><rest/><duration>4</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
   </measure></part>
 </score-partwise>`;
 }
 
-function assertReview(result) {
-  assert.equal(result.status, 'REVIEW_REQUIRED');
+function assertPassWithPreservedDirection(result, expectedDirection) {
+  assert.equal(result.status, 'PASS');
   assert.equal(result.route, 'POLY_V2');
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
-  assert.equal(result.preflight.issues[0].details.feature, 'direction-review');
-  assert.equal(result.preflight.issues[0].location.measure, '1');
+  assert.ok(result.canonicalTabResult);
+  assert.match(result.musicXml, expectedDirection);
 }
 
-test('routes bounded words plus playback tempo to located review without producing TAB', () => {
-  const result = processMusicXmlUpload({
+test('preserves bounded tempo words plus playback tempo and continues TAB production', () => {
+  const request = {
     fileName: 'words-tempo.musicxml',
     bytes: Buffer.from(score('<direction placement="above"><direction-type><words>Larghetto</words></direction-type><staff>1</staff><sound tempo="116"/></direction>')),
-  });
-  assertReview(result);
-  assert.deepEqual(result.preflight.issues[0].details.direction.typeNames, ['words']);
+  };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+  assertPassWithPreservedDirection(
+    first,
+    /<direction placement="above"><direction-type><words>Larghetto<\/words><\/direction-type><staff>1<\/staff><sound tempo="116"\/><\/direction>/,
+  );
+  assert.deepEqual(first, second);
 });
 
-test('routes bounded combined words and metronome direction to located review', () => {
-  const result = processMusicXmlUpload({
+test('preserves compatible Larghetto metronome and playback tempo and continues TAB production', () => {
+  const request = {
     fileName: 'combined-tempo.musicxml',
     bytes: Buffer.from(score('<direction placement="above"><direction-type><words font-weight="bold" font-size="12">Larghetto</words></direction-type><direction-type><metronome parentheses="no"><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="64.0002"/></direction>')),
-  });
-  assertReview(result);
-  assert.deepEqual(result.preflight.issues[0].details.direction.typeNames, ['words', 'metronome']);
+  };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+  assertPassWithPreservedDirection(
+    first,
+    /<direction placement="above"><direction-type><words font-size="12" font-weight="bold">Larghetto<\/words><\/direction-type><direction-type><metronome parentheses="no"><beat-unit>half<\/beat-unit><per-minute>32<\/per-minute><\/metronome><\/direction-type><staff>1<\/staff><sound tempo="64\.0002"\/><\/direction>/,
+  );
+  assert.deepEqual(first, second);
 });
 
 test('unknown direction semantics remain fail-closed', () => {
@@ -52,4 +60,15 @@ test('unknown direction semantics remain fail-closed', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.preflight.issues[0].details.feature, 'direction');
+});
+
+test('conflicting metronome and playback tempo remains review-required', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'conflicting-combined-tempo.musicxml',
+    bytes: Buffer.from(score('<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>')),
+  });
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(result.route, 'POLY_V2');
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
 });

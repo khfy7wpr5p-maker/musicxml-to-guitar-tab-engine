@@ -65,7 +65,12 @@ class PolyProductionCompatibilityNormalizationChainError extends EngineError {
   }
 }
 
-function notationContextFromMarkers(markers, runtimeNotationContext, repeatNormalization) {
+function notationContextFromMarkers(
+  markers,
+  runtimeNotationContext,
+  repeatNormalization,
+  performanceNormalization,
+) {
   const markerKeySignatures = markers
     .filter((marker) => marker.kind === 'key')
     .map((marker) => Object.freeze({
@@ -80,6 +85,8 @@ function notationContextFromMarkers(markers, runtimeNotationContext, repeatNorma
     ]),
     measureOccurrencePlan: repeatNormalization.measureOccurrencePlan,
     repeatBarlines: repeatNormalization.repeatBarlines,
+    endingBarlines: repeatNormalization.endingBarlines,
+    tempoDirections: performanceNormalization.tempoDirections,
   });
 }
 
@@ -267,6 +274,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     semanticNormalization.notationContextMarkers,
     runtimeNotationContext,
     repeatNormalization,
+    performanceNormalization,
   );
   const policyExcludedDirections = excludedPerformanceMetadataDirectionRecords(performanceMetadata);
   const ignoredDirectionCount = policyExcludedDirections.length
@@ -322,6 +330,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     notationContext,
     measureOccurrencePlan: repeatNormalization.measureOccurrencePlan,
     repeatBarlines: repeatNormalization.repeatBarlines,
+    endingBarlines: repeatNormalization.endingBarlines,
     repeatRegions: repeatNormalization.repeatRegions,
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
     ignoredDirectionCount,
