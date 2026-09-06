@@ -121,6 +121,33 @@ test('secure upload extracts a bounded MXL score without mutating source bytes',
   assert.deepEqual(archive, before);
 });
 
+test('MXL upload accepts the bounded legacy container shape without media-type or namespace', () => {
+  const legacyContainer = `<?xml version="1.0" encoding="UTF-8"?>
+<container><rootfiles><rootfile full-path="score.musicxml"></rootfile></rootfiles></container>`;
+  const archive = createMxl(fixture('parser-single-voice.musicxml'), {
+    containerXml: legacyContainer,
+  });
+  const result = processMusicXmlUpload({ fileName: 'legacy-container.mxl', bytes: archive });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.MONO_V1);
+  assert.ok(result.canonicalTabResult);
+});
+
+test('MXL upload rejects an explicit non-MusicXML root media type', () => {
+  const wrongMediaType = CONTAINER_XML.replace(
+    'application/vnd.recordare.musicxml+xml',
+    'application/octet-stream',
+  );
+  const archive = createMxl(fixture('parser-single-voice.musicxml'), {
+    containerXml: wrongMediaType,
+  });
+  const result = processMusicXmlUpload({ fileName: 'wrong-media-type.mxl', bytes: archive });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'INVALID_MXL_ARCHIVE');
+});
+
 test('MXL upload rejects traversal paths before extraction', () => {
   const archive = createMxl(fixture('parser-single-voice.musicxml'), {
     scorePath: '../score.musicxml',
