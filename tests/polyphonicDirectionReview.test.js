@@ -53,6 +53,39 @@ test('preserves compatible Larghetto metronome and playback tempo and continues 
   assert.deepEqual(first, second);
 });
 
+test('canonicalizes all bounded decimal tempo spellings admitted by normalization', () => {
+  for (const [input, expected] of [['+116', '116'], ['116.', '116'], ['.5', '0.5']]) {
+    const result = processMusicXmlUpload({
+      fileName: 'decimal-tempo.musicxml',
+      bytes: Buffer.from(score(`<direction><direction-type><words>Larghetto</words></direction-type><staff>1</staff><sound tempo="${input}"/></direction>`)),
+    });
+    assertPassWithPreservedDirection(result, new RegExp(`<sound tempo="${expected.replace('.', '\\.')}"/>`));
+  }
+});
+
+test('tempo direction targeting an undeclared staff remains blocked', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'undeclared-tempo-staff.musicxml',
+    bytes: Buffer.from(score('<direction><direction-type><words>Larghetto</words></direction-type><staff>2</staff><sound tempo="116"/></direction>')),
+  });
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.musicXml, null);
+});
+
+test('non-leading tempo direction remains review-required instead of moving to measure start', () => {
+  const xml = score('<direction><direction-type><words>Larghetto</words></direction-type><staff>1</staff><sound tempo="116"/></direction>')
+    .replace(
+      '<direction><direction-type><words>Larghetto</words></direction-type><staff>1</staff><sound tempo="116"/></direction>\n    <note>',
+      '<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>\n    <direction><direction-type><words>Larghetto</words></direction-type><staff>1</staff><sound tempo="116"/></direction>\n    <note>',
+    );
+  const result = processMusicXmlUpload({
+    fileName: 'mid-measure-tempo.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(result.musicXml, null);
+});
+
 test('unknown direction semantics remain fail-closed', () => {
   const result = processMusicXmlUpload({
     fileName: 'navigation.musicxml',

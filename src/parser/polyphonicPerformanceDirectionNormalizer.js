@@ -232,14 +232,19 @@ function safeTempoMetronome(node) {
   ) return null;
   return Object.freeze({
     beatUnit: beatUnit.text.trim(),
-    perMinute: perMinute.text.trim(),
+    perMinute: String(Number(perMinute.text.trim())),
     attributes: Object.freeze(node.attributes
       .map((attribute) => Object.freeze({ name: attribute.name, value: attribute.value }))
       .sort((left, right) => left.name.localeCompare(right.name))),
   });
 }
 
-function safeBoundedTempoDirection(directionNode, classification) {
+function safeBoundedTempoDirection(
+  directionNode,
+  classification,
+  { effectiveStaffCount = null, isLeading = false } = {},
+) {
+  if (!isLeading) return null;
   if (classification.hasOffset || classification.soundAttributes.join(',') !== 'tempo') return null;
   if (!classification.typeNames.includes('words')) return null;
   if (classification.typeNames.some((name) => !['words', 'metronome'].includes(name))) return null;
@@ -259,7 +264,11 @@ function safeBoundedTempoDirection(directionNode, classification) {
   if (children.length !== expectedNames.length
     || children.some((child, index) => child.name !== expectedNames[index])) return null;
   const staff = staffs.length === 1 && isSafeStaff(staffs[0]) ? Number(staffs[0].text.trim()) : null;
-  if (staffs.length === 1 && (staff === null || staff > 2)) return null;
+  if (staffs.length === 1 && (
+    staff === null
+    || effectiveStaffCount === null
+    || staff > effectiveStaffCount
+  )) return null;
   const sound = sounds[0];
   if (sound.attributes.length !== 1 || sound.attributes[0].name !== 'tempo') return null;
   const soundTempo = sound.attributes[0].value;
@@ -282,11 +291,17 @@ function safeBoundedTempoDirection(directionNode, classification) {
       * BEAT_UNIT_QUARTER_MULTIPLIERS.get(metronome.beatUnit);
     if (Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001) return null;
   }
-  return Object.freeze({ placement, staff, words, metronome, soundTempo });
+  return Object.freeze({
+    placement,
+    staff,
+    words,
+    metronome,
+    soundTempo: String(Number(soundTempo)),
+  });
 }
 
-function isSafeDeferredProductionDirection(directionNode, classification) {
-  if (safeBoundedTempoDirection(directionNode, classification) !== null) return true;
+function isSafeDeferredProductionDirection(directionNode, classification, context) {
+  if (safeBoundedTempoDirection(directionNode, classification, context) !== null) return true;
   if (classification.hasOffset || classification.soundAttributes.length !== 0) return false;
   if (classification.typeNames.some((name) => !DEFERRED_PRODUCTION_DIRECTION_TYPES.has(name))) {
     return false;
@@ -385,16 +400,29 @@ function addCount(counts, feature) {
   counts.set(feature, (counts.get(feature) || 0) + 1);
 }
 
-function sanitizeMeasure(measure, provenance, runtime, measureIndex, shouldNormalizeDirection) {
+function sanitizeMeasure(
+  measure,
+  provenance,
+  runtime,
+  measureIndex,
+  effectiveStaffCount,
+  shouldNormalizeDirection,
+) {
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:measure', { measureIndex });
-  return cloneNode(measure, (child) => {
+  return cloneNode(measure, (child, childIndex) => {
     if (child.uri !== measure.uri || child.name !== 'direction') return cloneNode(child);
     const classification = classifySafePerformanceDirection(child);
-    if (classification === null || !shouldNormalizeDirection(child, classification)) {
+    const context = Object.freeze({
+      effectiveStaffCount,
+      isLeading: !measure.children.slice(0, childIndex).some((previous) => (
+        previous.uri === measure.uri && ['note', 'backup', 'forward'].includes(previous.name)
+      )),
+    });
+    if (classification === null || !shouldNormalizeDirection(child, classification, context)) {
       return cloneNode(child);
     }
 
-    const tempoDirection = safeBoundedTempoDirection(child, classification);
+    const tempoDirection = safeBoundedTempoDirection(child, classification, context);
     if (tempoDirection !== null) {
       provenance.tempoDirections.push(Object.freeze({
         measureIndex,
@@ -417,13 +445,22 @@ function sanitizeMeasure(measure, provenance, runtime, measureIndex, shouldNorma
 
 function sanitizePart(part, provenance, runtime, shouldNormalizeDirection) {
   let measureIndex = 0;
+  let effectiveStaffCount = 1;
   return cloneNode(part, (child) => {
     if (child.uri === part.uri && child.name === 'measure') {
+      const attributes = child.children.find((measureChild) => (
+        measureChild.uri === child.uri && measureChild.name === 'attributes'
+      ));
+      const staves = attributes?.children.find((attributeChild) => (
+        attributeChild.uri === attributes.uri && attributeChild.name === 'staves'
+      ));
+      if (staves && isSafeStaff(staves)) effectiveStaffCount = Number(staves.text.trim());
       const normalized = sanitizeMeasure(
         child,
         provenance,
         runtime,
         measureIndex,
+        effectiveStaffCount,
         shouldNormalizeDirection,
       );
       measureIndex += 1;
