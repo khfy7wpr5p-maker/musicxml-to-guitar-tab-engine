@@ -526,6 +526,50 @@ function safeSimpleBarline(node) {
   );
 }
 
+function reviewableEndingBarline(node) {
+  if (node.text.trim().length !== 0) return null;
+  if (node.attributes.some((attribute) => (
+    attribute.uri.length !== 0 || attribute.name !== 'location'
+  ))) return null;
+  const location = getAttribute(node, 'location');
+  if (location !== undefined && !['left', 'middle', 'right'].includes(location)) return null;
+  if (node.children.some((child) => child.uri !== node.uri)) return null;
+  const barStyles = directChildren(node, 'bar-style');
+  const endings = directChildren(node, 'ending');
+  if (node.children.length !== 2 || barStyles.length !== 1 || endings.length !== 1) return null;
+
+  const barStyle = barStyles[0];
+  if (
+    hasSameNamespaceChildren(barStyle)
+    || barStyle.attributes.length !== 0
+    || !SAFE_BARLINE_STYLES.has(barStyle.text.trim())
+  ) return null;
+
+  const ending = endings[0];
+  if (ending.children.length !== 0 || ending.text.trim().length !== 0) return null;
+  const allowedEndingAttributes = new Set(['number', 'type', 'default-y']);
+  if (ending.attributes.some((attribute) => (
+    attribute.uri.length !== 0 || !allowedEndingAttributes.has(attribute.name)
+  ))) return null;
+  const number = getAttribute(ending, 'number');
+  const type = getAttribute(ending, 'type');
+  const defaultY = getAttribute(ending, 'default-y');
+  if (!/^\d+$/.test(number || '') || Number(number) < 1 || Number(number) > 16) return null;
+  if (!['start', 'stop', 'discontinue'].includes(type)) return null;
+  if (
+    defaultY !== undefined
+    && (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(defaultY)
+      || Math.abs(Number(defaultY)) > 10000)
+  ) return null;
+  return Object.freeze({
+    number: String(Number(number)),
+    type,
+    location: location || 'right',
+    barStyle: barStyle.text.trim(),
+    defaultY: defaultY ?? null,
+  });
+}
+
 function safeStaffTuning(node) {
   if (!hasOnlyUnqualifiedAttributes(node, new Set(['line']))) return false;
   const line = getAttribute(node, 'line');
@@ -923,7 +967,25 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         throw unsupported('direction');
       }
       if (child.name === 'barline') {
-        if (!safeSimpleBarline(child)) throw unsupported('barline');
+        if (!safeSimpleBarline(child)) {
+          const ending = reviewableEndingBarline(child);
+          if (ending) {
+            throw unsupported('barline-ending', {
+              reviewDisposition: 'REVIEW_REQUIRED',
+              reason: 'ENDING_PLAYBACK_POLICY_REQUIRES_REVIEW',
+              measureIndex,
+              measureNumber: getAttribute(measure, 'number') ?? null,
+              measureChildIndex: measure.children.indexOf(child),
+              ending,
+            });
+          }
+          throw unsupported('barline', {
+            measureIndex,
+            measureNumber: getAttribute(measure, 'number') ?? null,
+            measureChildIndex: measure.children.indexOf(child),
+            childNames: Object.freeze(child.children.map((item) => item.name)),
+          });
+        }
         ignoredFeatures.add('measure:barline:style');
         continue;
       }
