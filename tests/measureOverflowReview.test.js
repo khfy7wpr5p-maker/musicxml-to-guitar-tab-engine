@@ -71,3 +71,26 @@ test('other invalid XML and unsafe input do not acquire overflow review authorit
     assert.equal(result.musicXml, null);
   }
 });
+
+test('TAB mirror overflow review identifies the original staff-2 source event', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const generated = processMusicXmlUpload({ fileName: 'poly.musicxml', bytes: fs.readFileSync(path.join(__dirname, 'fixtures/pa12-polyphonic-e2e.musicxml')) });
+  assert.equal(generated.status, 'PASS');
+  const staffIndex = generated.musicXml.indexOf('<staff>2</staff>');
+  const noteStart = generated.musicXml.lastIndexOf('<note', staffIndex);
+  const durationStart = generated.musicXml.indexOf('<duration>', noteStart) + '<duration>'.length;
+  const durationEnd = generated.musicXml.indexOf('</duration>', durationStart);
+  const xml = generated.musicXml.slice(0, durationStart) + '1000' + generated.musicXml.slice(durationEnd);
+  const parsed = parseParsedMusicXmlDocument(xml);
+  const measure = parsed.root.children.find(n => n.name === 'part').children.find(n => n.name === 'measure');
+  const notes = measure.children.filter(n => n.name === 'note');
+  const expectedIndex = notes.findIndex(n => n.children.some(c => c.name === 'staff' && c.text === '2'));
+  const result = processMusicXmlUpload({ fileName: 'mirror.musicxml', bytes: Buffer.from(xml) });
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  const evidence = result.reviewState.issues[0].reviewEvidence;
+  assert.equal(evidence.staff, 2);
+  assert.equal(evidence.event_id_or_location.eventIndex, expectedIndex);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+});

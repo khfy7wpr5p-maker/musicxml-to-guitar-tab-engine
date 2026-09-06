@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+  PolyphonicMusicXmlProjectorError,
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../parser/polyphonicMusicXmlProjector');
 
@@ -525,8 +526,18 @@ function tryProjectExactTabStaffMirror(parsedDocument, runtime, options = {}) {
     parts[0],
     tabMeasures,
   );
-  const notationModel = projectParsedMusicXmlToPolyphonicSourceModel(notationDocument, runtime);
-  const tabModel = projectParsedMusicXmlToPolyphonicSourceModel(tabDocument, runtime);
+  let notationModel;
+  let tabModel;
+  try {
+    notationModel = projectParsedMusicXmlToPolyphonicSourceModel(notationDocument, runtime);
+    tabModel = projectParsedMusicXmlToPolyphonicSourceModel(tabDocument, runtime);
+  } catch (error) {
+    // Derived documents renumber notes and staffs. Let the original-document
+    // projection report reviewable overflow with original source coordinates.
+    if (error instanceof PolyphonicMusicXmlProjectorError
+      && error.details?.reason === 'MEASURE_EVENT_OVERFLOW') return null;
+    throw error;
+  }
   if (!exactModelsMatch(notationModel, tabModel)) return null;
 
   const omittedRepresentationNoteCount = tabModel.measures.reduce(
