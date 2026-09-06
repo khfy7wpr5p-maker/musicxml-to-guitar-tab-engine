@@ -78,18 +78,20 @@ function deepFreezeNode(node) {
   return Object.freeze(node);
 }
 
-function assertScalarLeaf(node, expectedText, field, location) {
+function assertScalarLeaf(node, allowedTexts, field, location) {
+  const observedText = node.text.trim();
   if (
-    node.text.trim() !== expectedText
+    !allowedTexts.has(observedText)
     || node.attributes.length !== 0
     || node.children.length !== 0
   ) {
-    throw unsupported(`${field} must be the exact scalar value ${expectedText}.`, {
+    throw unsupported(`${field} is outside the bounded 3:2/6:4 tuplet profile.`, {
       ...location,
       field,
-      observedText: node.text.trim(),
+      observedText,
     });
   }
+  return Number(observedText);
 }
 
 function parseExactTripletTimeModification(node, location) {
@@ -113,13 +115,20 @@ function parseExactTripletTimeModification(node, location) {
     });
   }
 
-  assertScalarLeaf(children[0], '3', 'actual-notes', location);
-  assertScalarLeaf(children[1], '2', 'normal-notes', location);
+  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6']), 'actual-notes', location);
+  const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4']), 'normal-notes', location);
+  if (!((actualNotes === 3 && normalNotes === 2) || (actualNotes === 6 && normalNotes === 4))) {
+    throw unsupported('Only exact 3:2 triplet and 6:4 sextuplet relations are supported.', {
+      ...location,
+      actualNotes,
+      normalNotes,
+    });
+  }
 
   return Object.freeze({
-    kind: 'triplet-time-modification',
-    actualNotes: 3,
-    normalNotes: 2,
+    kind: actualNotes === 3 ? 'triplet-time-modification' : 'sextuplet-time-modification',
+    actualNotes,
+    normalNotes,
   });
 }
 
