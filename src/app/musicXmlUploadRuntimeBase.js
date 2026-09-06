@@ -3,6 +3,8 @@
 const crypto = require('node:crypto');
 const { types: { isProxy } } = require('node:util');
 const { EngineError } = require('../errors/engineError');
+const { PolyphonicMusicXmlProjectorError } = require('../parser/polyphonicMusicXmlProjector');
+const { buildOmrReviewScoreState } = require('./omrReviewEvidence');
 const {
   extractMusicXmlGuitarConfigurationProvenance,
 } = require('../parser/musicXmlGuitarConfigurationProvenance');
@@ -319,6 +321,40 @@ function isCapabilityOnlyPreflight(preflight) {
     && preflight.issues.length > 0
     && preflight.issues.every((issue) => issue.category === 'capability'),
   );
+}
+
+function measureOverflowReviewResult(identity, error, normalization) {
+  const details = error.details;
+  const reviewState = buildOmrReviewScoreState({
+    route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+    issuePayloads: [{
+      issue_id: `measure-overflow:${details.sourceEventId}`,
+      category: 'content',
+      code: 'OMR_MEASURE_DURATION_MISMATCH',
+      severity: 'error',
+      measure: details.measureNumber,
+      staff: details.staff,
+      voice: details.voice,
+      event_id_or_location: {
+        sourceEventId: details.sourceEventId,
+        measureIndex: details.measureIndex,
+        eventIndex: details.sourceOrder,
+      },
+      observed_value: details,
+      confidence_or_evidence_if_available: null,
+      suggested_review_action: 'VERIFY_DURATION_AND_ONSET_AGAINST_SOURCE',
+      source_provenance: { engine: 'polyphonicMusicXmlProjector', sourceSha256: identity.sha256 },
+    }],
+  });
+  const issue = { ...issueFromError(error), reviewDisposition: 'REVIEW_REQUIRED', reviewEvidence: reviewState.issues[0].reviewEvidence };
+  const base = blockedResult(identity, MUSICXML_UPLOAD_ROUTE.POLY_V2, issue, normalization);
+  return deepFreeze({
+    ...base,
+    status: reviewState.status,
+    reviewState,
+    preflight: { ...base.preflight, status: reviewState.status, canOpenForReview: true },
+  });
 }
 
 function noRepresentationNormalization() {
@@ -1102,6 +1138,13 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       musicXml: conversion.musicXml,
     });
   } catch (error) {
+    // XML parsing/safety checks have completed. This exact semantic failure
+    // permits teacher review only; strict projection still rejects the score.
+    if (error instanceof PolyphonicMusicXmlProjectorError
+      && error.code === 'INVALID_MUSICXML'
+      && error.details?.reason === 'MEASURE_EVENT_OVERFLOW') {
+      return measureOverflowReviewResult(identity, error, normalization ? publicNormalization(normalization) : null);
+    }
     return blockedResult(
       identity,
       MUSICXML_UPLOAD_ROUTE.POLY_V2,

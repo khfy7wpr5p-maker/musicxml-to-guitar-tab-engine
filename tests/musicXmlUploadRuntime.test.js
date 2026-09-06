@@ -381,7 +381,7 @@ test('near-mirror notation and TAB staves fail closed instead of dropping change
   assert.equal(result.musicXml, null);
 });
 
-test('TAB mirror normalization rejects a partial staff reset and unsupported technique', () => {
+test('TAB mirror partial-reset overflow requires review while unsupported technique remains blocked', () => {
   const first = processMusicXmlUpload({
     fileName: 'poly.xml',
     bytes: fixture('pa12-polyphonic-e2e.musicxml'),
@@ -397,14 +397,19 @@ test('TAB mirror normalization rejects a partial staff reset and unsupported tec
     '<technical><bend><bend-alter>1</bend-alter></bend>',
   );
 
-  for (const [fileName, musicXml] of [
-    ['partial-reset.musicxml', partialReset],
-    ['unsupported-technique.musicxml', unsupportedTechnique],
+  for (const [fileName, musicXml, expectedStatus] of [
+    ['partial-reset.musicxml', partialReset, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED],
+    ['unsupported-technique.musicxml', unsupportedTechnique, MUSICXML_UPLOAD_STATUS.BLOCKED],
   ]) {
     const result = processMusicXmlUpload({ fileName, bytes: Buffer.from(musicXml) });
-    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+    assert.equal(result.status, expectedStatus);
+    if (expectedStatus === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED) {
+      assert.equal(result.preflight.issues[0].details.reason, 'MEASURE_EVENT_OVERFLOW');
+      assert.equal(result.preflight.canOpenForReview, true);
+    }
     assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
     assert.equal(result.canonicalTabResult, null);
+    assert.equal(result.musicXml, null);
   }
 });
 

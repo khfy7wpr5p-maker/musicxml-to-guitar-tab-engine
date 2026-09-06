@@ -431,6 +431,12 @@ function parseBasicNote(noteNode, context) {
   if (end > expectedDuration) {
     throw invalid('Projected event extends beyond the measure boundary.', {
       ...location,
+      reason: 'MEASURE_EVENT_OVERFLOW',
+      sourceEventId: createSourceEventId(partId, measureIndex, sourceOrder),
+      voice,
+      staff,
+      onsetDivisions,
+      durationDivisions,
       endDivisions: end,
       expectedDurationDivisions: expectedDuration,
     });
