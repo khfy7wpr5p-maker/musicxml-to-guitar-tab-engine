@@ -19,6 +19,7 @@ const POLYPHONIC_GRACE_SOLVER_STATUS = Object.freeze({
   BLOCKED_PENDING_PHYSICAL_INTEGRATION: 'BLOCKED_PENDING_GRACE_PHYSICAL_INTEGRATION',
 });
 const SAFE_GRACE_NOMINAL_TYPES = new Set(['eighth', '32nd']);
+const SAFE_GRACE_NOTE_LAYOUT_ATTRIBUTES = new Set(['default-x', 'default-y']);
 const MAX_GRACE_GROUPS = 128;
 const MAX_GRACE_EVENTS = 256;
 const MAX_SCALAR_LENGTH = 64;
@@ -302,10 +303,53 @@ function parseBeam(note, location, expectedBeamText) {
   return expectedBeamText;
 }
 
-function parseGraceNote(note, location, expectedBeamText) {
-  if (note.text.trim().length !== 0 || note.attributes.length !== 0) {
-    throw unsupported('Extracted grace notes must have no note-level attributes or text.', location);
+function isBoundedLayoutNumber(value) {
+  return typeof value === 'string'
+    && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)
+    && Number.isFinite(Number(value))
+    && Math.abs(Number(value)) <= 1_000_000;
+}
+
+function validateGraceNoteLayoutAttributes(note, location) {
+  const seen = new Set();
+  for (const attribute of note.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || !SAFE_GRACE_NOTE_LAYOUT_ATTRIBUTES.has(attribute.name)
+      || seen.has(attribute.name)
+      || !isBoundedLayoutNumber(attribute.value)
+    ) {
+      throw unsupported('Grace note contains unsupported note-level attributes.', {
+        ...location,
+        attribute: attribute.name,
+      });
+    }
+    seen.add(attribute.name);
   }
+}
+
+function parseUnslashed16thPairBeams(note, location, expectedBeamText) {
+  const beams = directChildren(note, 'beam');
+  if (beams.length !== 2) {
+    throw unsupported('Unslashed 16th grace pair must contain two exact beam levels.', {
+      ...location,
+      observedBeamCount: beams.length,
+    });
+  }
+  for (let index = 0; index < beams.length; index += 1) {
+    requireExactLeaf(beams[index], 'beam', location, {
+      text: expectedBeamText,
+      attributes: { number: String(index + 1) },
+    });
+  }
+  return expectedBeamText;
+}
+
+function parseGraceNote(note, location, expectedBeamText) {
+  if (note.text.trim().length !== 0) {
+    throw unsupported('Extracted grace notes must have no note-level text.', location);
+  }
+  validateGraceNoteLayoutAttributes(note, location);
   if (directChildren(note, 'duration').length !== 0) {
     throw unsupported('Grace note must not contain or be assigned a numeric duration.', location);
   }
@@ -329,7 +373,11 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
 
   const grace = requireSingleChild(note, 'grace', location);
-  requireExactLeaf(grace, 'grace', location, { attributes: { slash: 'yes' }, text: '' });
+  const slash = grace.attributes.length === 0 ? 'no' : 'yes';
+  requireExactLeaf(grace, 'grace', location, {
+    attributes: slash === 'yes' ? { slash: 'yes' } : {},
+    text: '',
+  });
   const pitch = parsePitch(note, location);
   const voice = parseScalar(note, 'voice', location);
   const staffText = parseScalar(note, 'staff', location);
@@ -339,7 +387,10 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
   const type = requireSingleChild(note, 'type', location);
   const nominalType = requireExactLeaf(type, 'type', location, { attributes: {} });
-  if (!SAFE_GRACE_NOMINAL_TYPES.has(nominalType)) {
+  const isUnslashed16thPair = slash === 'no'
+    && nominalType === '16th'
+    && expectedBeamText !== null;
+  if (!SAFE_GRACE_NOMINAL_TYPES.has(nominalType) && !isUnslashed16thPair) {
     throw unsupported('Grace type has an unsupported nominal value.', {
       ...location,
       field: 'type',
@@ -348,14 +399,19 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
   const stem = parseOptionalStem(note, location);
   validateOptionalNormalNotehead(note, location);
-  const beam = parseBeam(note, location, expectedBeamText);
+  if (slash === 'no' && !isUnslashed16thPair) {
+    throw unsupported('Unslashed grace is supported only as an exact two-note 16th sequence.', location);
+  }
+  const beam = isUnslashed16thPair
+    ? parseUnslashed16thPairBeams(note, location, expectedBeamText)
+    : parseBeam(note, location, expectedBeamText);
 
   return Object.freeze({
     pitch,
     voice,
     staff,
     nominalType,
-    slash: 'yes',
+    slash,
     stem,
     beam,
   });
@@ -505,9 +561,11 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
     removedBefore += run.length;
     groups.push(freezeGraceGroup({
       graceGroupId,
-      kind: run.length === 1
-        ? 'slashed-single-eighth-grace'
-        : 'slashed-two-note-eighth-grace-sequence',
+      kind: first.slash === 'no'
+        ? 'unslashed-two-note-16th-grace-sequence'
+        : (run.length === 1
+          ? 'slashed-single-eighth-grace'
+          : 'slashed-two-note-eighth-grace-sequence'),
       timingAuthority: 'ORDER_ONLY_BEFORE_ANCHOR',
       measureIndex: context.measureIndex,
       measureNumber: context.measureNumber,
