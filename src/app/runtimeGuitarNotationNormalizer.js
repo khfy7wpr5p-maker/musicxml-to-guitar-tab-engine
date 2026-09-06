@@ -511,6 +511,90 @@ function safeDisplayRehearsalDirection(node) {
   );
 }
 
+function reviewableBoundedDirection(node, effectiveStaffCount) {
+  if (!hasSafeMetronomeDirectionAttributes(node) || node.text.trim().length !== 0) return null;
+  if (node.children.some((child) => child.uri !== node.uri)) return null;
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (
+    children.length < 1
+    || children.length > 4
+    || children.some((child) => !['direction-type', 'staff', 'sound'].includes(child.name))
+  ) return null;
+
+  const directionTypes = directChildren(node, 'direction-type');
+  const staffNodes = directChildren(node, 'staff');
+  const soundNodes = directChildren(node, 'sound');
+  if (
+    directionTypes.length < 1
+    || directionTypes.length > 2
+    || staffNodes.length > 1
+    || soundNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
+  ) return null;
+
+  const typeNames = [];
+  for (const directionType of directionTypes) {
+    if (
+      directionType.attributes.length !== 0
+      || directionType.text.trim().length !== 0
+      || directionType.children.length < 1
+      || directionType.children.length > 2
+      || directionType.children.some((child) => child.uri !== directionType.uri)
+    ) return null;
+    for (const child of directionType.children) {
+      if (!['words', 'metronome'].includes(child.name)) return null;
+      typeNames.push(child.name);
+      if (child.name === 'words') {
+        if (
+          child.children.length !== 0
+          || child.text.trim().length === 0
+          || child.text.length > 256
+          || child.attributes.some((attribute) => (
+            attribute.uri.length !== 0
+            || !['default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style', 'font-size', 'font-weight', 'color', 'halign', 'valign', 'enclosure'].includes(attribute.name)
+            || attribute.value.length > 256
+          ))
+        ) return null;
+      }
+      if (child.name === 'metronome') {
+        const metronomeChildren = child.children.filter((item) => item.uri === child.uri);
+        if (
+          !hasSafeMetronomeLayoutAttributes(child)
+          || child.text.trim().length !== 0
+          || metronomeChildren.length !== child.children.length
+          || !hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])
+          || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(metronomeChildren[0].text.trim())
+          || metronomeChildren[0].attributes.length !== 0
+          || metronomeChildren[0].children.length !== 0
+          || positiveTempo(metronomeChildren[1]) === null
+        ) return null;
+      }
+    }
+  }
+
+  const exactTypeProfile = typeNames.length === 1 && typeNames[0] === 'words'
+    || typeNames.length === 2 && typeNames[0] === 'words' && typeNames[1] === 'metronome';
+  if (!exactTypeProfile || staffNodes.length !== 1 || soundNodes.length !== 1) return null;
+
+  const sound = soundNodes[0];
+  if (
+    sound.children.length !== 0
+    || sound.text.trim().length !== 0
+    || sound.attributes.length !== 1
+    || sound.attributes[0].uri.length !== 0
+    || sound.attributes[0].name !== 'tempo'
+    || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
+  ) return null;
+
+  return Object.freeze({
+    typeNames: Object.freeze(typeNames),
+    hasStaff: staffNodes.length === 1,
+    soundAttributes: Object.freeze(soundNodes.length === 0
+      ? []
+      : soundNodes[0].attributes.map((attribute) => attribute.name)),
+  });
+}
+
 function safeSimpleBarline(node) {
   if (!hasOnlyUnqualifiedAttributes(node, new Set(['location']))) return false;
   const location = getAttribute(node, 'location');
@@ -964,7 +1048,22 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
           ignoredFeatures.add('measure:direction:rehearsal');
           continue;
         }
-        throw unsupported('direction');
+        const reviewDirection = reviewableBoundedDirection(child, effectiveStaffCount);
+        if (reviewDirection) {
+          throw unsupported('direction-review', {
+            reviewDisposition: 'REVIEW_REQUIRED',
+            reason: 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW',
+            measureIndex,
+            measureNumber: getAttribute(measure, 'number') ?? null,
+            measureChildIndex: measure.children.indexOf(child),
+            direction: reviewDirection,
+          });
+        }
+        throw unsupported('direction', {
+          measureIndex,
+          measureNumber: getAttribute(measure, 'number') ?? null,
+          measureChildIndex: measure.children.indexOf(child),
+        });
       }
       if (child.name === 'barline') {
         if (!safeSimpleBarline(child)) {

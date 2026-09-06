@@ -163,6 +163,21 @@ function parseExactTupletDisplay(node, location) {
     });
   }
   if (
+    names.length === 2
+    && names[0] === 'bracket'
+    && names[1] === 'type'
+    && attributes.type === 'start'
+    && attributes.bracket === 'yes'
+  ) {
+    return Object.freeze({
+      type: 'start',
+      bracket: true,
+      profile: 'GENERIC_BRACKETED',
+      placement: null,
+      number: null,
+    });
+  }
+  if (
     names.length === 4
     && names[0] === 'bracket'
     && names[1] === 'number'
@@ -201,6 +216,9 @@ function sameDisplayIdentity(left, right) {
 function stopMatchesOpenDisplay(openDisplay, stopDisplay) {
   if (!openDisplay || !stopDisplay || stopDisplay.type !== 'stop') return false;
   if (openDisplay.profile === 'LEGACY_UNBRACKETED') {
+    return stopDisplay.profile === 'LEGACY_UNBRACKETED';
+  }
+  if (openDisplay.profile === 'GENERIC_BRACKETED') {
     return stopDisplay.profile === 'LEGACY_UNBRACKETED';
   }
   return sameDisplayIdentity(openDisplay, stopDisplay);
