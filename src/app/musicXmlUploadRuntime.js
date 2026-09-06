@@ -161,6 +161,103 @@ function promoteBoundedEndingReview(result) {
   });
 }
 
+function promoteBoundedDirectionReview(result) {
+  const issues = Array.isArray(result.preflight?.issues) ? result.preflight.issues : [];
+  const exactReviewableDirection = (
+    result.status === SCORE_STATUS.BLOCKED
+    && result.route === SCORE_ROUTE.POLY_V2
+    && issues.length > 0
+    && issues.every((issue) => (
+      issue.code === 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE'
+      && issue.category === 'capability'
+      && issue.details?.feature === 'direction-review'
+      && issue.details?.reviewDisposition === 'REVIEW_REQUIRED'
+      && issue.details?.reason === 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW'
+    ))
+  );
+  if (!exactReviewableDirection) return result;
+
+  const reviewIssues = issues.map((issue) => ({
+    ...issue,
+    category: 'semantic',
+    reviewDisposition: 'REVIEW_REQUIRED',
+  }));
+  const scoreState = buildScoreState({
+    route: SCORE_ROUTE.POLY_V2,
+    issues: reviewIssues,
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+  });
+  if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
+    throw new baseRuntime.MusicXmlUploadRuntimeError(
+      'Bounded direction review evidence produced an unexpected score state.',
+      'INVALID_DIRECTION_REVIEW_SCORE_STATE',
+      { status: scoreState.status },
+    );
+  }
+  return deepFreeze({
+    ...result,
+    status: SCORE_STATUS.REVIEW_REQUIRED,
+    preflight: {
+      ...result.preflight,
+      status: 'REVIEW_REQUIRED',
+      canProcess: false,
+      issues: reviewIssues,
+    },
+    canonicalTabResult: null,
+    musicXml: null,
+  });
+}
+
+function promoteUnplayablePhysicalPointReview(result) {
+  const issues = Array.isArray(result.preflight?.issues) ? result.preflight.issues : [];
+  const exactPhysicalReview = (
+    result.status === SCORE_STATUS.BLOCKED
+    && result.route === SCORE_ROUTE.POLY_V2
+    && issues.length > 0
+    && issues.every((issue) => (
+      issue.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
+      && issue.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
+      && Number.isInteger(issue.details?.measureIndex)
+      && Number.isInteger(issue.details?.timeDivisions)
+    ))
+  );
+  if (!exactPhysicalReview) return result;
+
+  const reviewIssues = issues.map((issue) => ({
+    ...issue,
+    category: 'semantic',
+    reviewDisposition: 'REVIEW_REQUIRED',
+    details: {
+      ...issue.details,
+      originalCategory: issue.category,
+    },
+  }));
+  const scoreState = buildScoreState({
+    route: SCORE_ROUTE.POLY_V2,
+    issues: reviewIssues,
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+  });
+  if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
+    throw new baseRuntime.MusicXmlUploadRuntimeError(
+      'Physical-point review evidence produced an unexpected score state.',
+      'INVALID_PHYSICAL_POINT_REVIEW_SCORE_STATE',
+      { status: scoreState.status },
+    );
+  }
+  return deepFreeze({
+    ...result,
+    status: SCORE_STATUS.REVIEW_REQUIRED,
+    preflight: {
+      ...result.preflight,
+      status: 'REVIEW_REQUIRED',
+      canProcess: false,
+      issues: reviewIssues,
+    },
+    canonicalTabResult: null,
+    musicXml: null,
+  });
+}
+
 function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const sourceNotationCollected = collectSourceNotationRuntimeIssues(() => (
     collectSlurRuntimeIssues(() => (
@@ -174,8 +271,12 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   const slurCollected = sourceNotationCollected.result;
   const fingeringCollected = slurCollected.result;
   const performanceCollected = fingeringCollected.result;
-  const result = promoteBoundedEndingReview(
-    promoteBoundedRepeatReview(performanceCollected.result),
+  const result = promoteUnplayablePhysicalPointReview(
+    promoteBoundedDirectionReview(
+      promoteBoundedEndingReview(
+        promoteBoundedRepeatReview(performanceCollected.result),
+      ),
+    ),
   );
   const policyIssues = mergeIssues(
     performanceCollected.issues,
