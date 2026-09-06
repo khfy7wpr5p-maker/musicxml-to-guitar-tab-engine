@@ -155,6 +155,33 @@ test('PS-6B6A preserves the exact BWV-shaped F4 -> G4 ordered pair and following
   });
 });
 
+test('extracts a bounded unslashed two-note 16th grace pair with layout-only note attributes', () => {
+  const first = graceNote({
+    step: 'F',
+    type: '16th',
+    graceMarkup: '<grace/>',
+    noteAttributes: 'default-x="10.5" default-y="-15.0"',
+    beam: 'begin',
+  }).replace('</note>', '<beam number="2">begin</beam></note>');
+  const second = graceNote({
+    step: 'G',
+    type: '16th',
+    graceMarkup: '<grace/>',
+    noteAttributes: 'default-x="12.5" default-y="-20.0"',
+    beam: 'end',
+  }).replace('</note>', '<beam number="2">end</beam></note>');
+  const result = extractPolyphonicGraceOrnaments(parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  })));
+
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-two-note-16th-grace-sequence');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['no', 'no']);
+  assert.deepEqual(group.notes.map((note) => note.nominalType), ['16th', '16th']);
+  assert.deepEqual(group.notes.map((note) => note.beam), ['begin', 'end']);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
 test('PS-6B6A preserves grace provenance and never adds duration fields to sidecar events', () => {
   const result = extractPolyphonicGraceOrnaments(parsed(bwvGracePairScore()));
   const [first, second] = result.graceOrnamentGroups[0].notes;
