@@ -109,7 +109,6 @@ test('PS-6B5B preserves score timing while recording paired triplet display prov
 
 test('PS-6B5B fails closed on unsupported tuplet display shapes', () => {
   const fixtures = [
-    { firstTuplet: '<tuplet type="start" bracket="yes"/>' },
     { firstTuplet: '<tuplet type="start"/>' },
     { firstTuplet: '<tuplet type="start" bracket="no" number="1"/>' },
     { thirdTuplet: '<tuplet type="stop" number="1"/>' },
@@ -121,6 +120,24 @@ test('PS-6B5B fails closed on unsupported tuplet display shapes', () => {
       'UNSUPPORTED_POLYPHONIC_TRIPLET_DISPLAY',
     );
   }
+});
+
+test('records a bounded bracketed tuplet whose ratio is backed by time-modification', () => {
+  const sextuplet = '<time-modification><actual-notes>6</actual-notes><normal-notes>4</normal-notes></time-modification>';
+  const result = normalizePolyphonicTripletDisplay(parsed(score({
+    firstTuplet: '<tuplet type="start" bracket="yes"/>',
+    firstTimeModification: sextuplet,
+    secondTimeModification: sextuplet,
+    thirdTimeModification: sextuplet,
+  })));
+
+  assert.deepEqual(result.tripletDisplayMarkers.map((marker) => ({
+    type: marker.type,
+    bracket: marker.bracket,
+  })), [
+    { type: 'start', bracket: true },
+    { type: 'stop', bracket: null },
+  ]);
 });
 
 test('PS-6B5B requires same-note validated 3:2 time-modification provenance', () => {
