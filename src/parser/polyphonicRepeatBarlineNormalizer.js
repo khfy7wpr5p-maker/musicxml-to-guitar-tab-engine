@@ -190,6 +190,45 @@ function parseRepeat(node, location) {
   return Object.freeze({ direction, times, playCount });
 }
 
+function parseEnding(node, location) {
+  if (
+    node.text.trim().length !== 0
+    || node.children.length !== 0
+    || !hasExactUnqualifiedAttributes(
+      node,
+      new Set(['number', 'type', 'default-y']),
+      ['number', 'type'],
+    )
+  ) {
+    throw unsupported('Ending element must use the bounded number/type layout shape.', {
+      ...location,
+      reason: 'UNSUPPORTED_ENDING_SHAPE',
+    });
+  }
+  const number = getUniqueAttribute(node, 'number');
+  const type = getUniqueAttribute(node, 'type');
+  const defaultY = getUniqueAttribute(node, 'default-y');
+  if (!['1', '2'].includes(number) || !['start', 'stop', 'discontinue'].includes(type)) {
+    throw unsupported('Only an exact first/second ending pair is supported.', {
+      ...location,
+      reason: 'UNSUPPORTED_ENDING_NUMBER_OR_TYPE',
+      number: number ?? null,
+      type: type ?? null,
+    });
+  }
+  if (defaultY !== undefined && (
+    !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(defaultY)
+    || !Number.isFinite(Number(defaultY))
+    || Math.abs(Number(defaultY)) > 10000
+  )) {
+    throw unsupported('Ending default-y exceeds the bounded layout profile.', {
+      ...location,
+      reason: 'UNSUPPORTED_ENDING_LAYOUT',
+    });
+  }
+  return Object.freeze({ number, type, defaultY: defaultY ?? null });
+}
+
 function parseRepeatBarline(node, location) {
   if (
     node.text.trim().length !== 0
@@ -205,19 +244,25 @@ function parseRepeatBarline(node, location) {
   const children = directChildren(node);
   const barStyles = directChildren(node, 'bar-style');
   const repeats = directChildren(node, 'repeat');
-  if (repeats.length === 0) return null;
+  const endings = directChildren(node, 'ending');
+  if (repeats.length === 0 && endings.length === 0) return null;
   if (
-    repeats.length !== 1
+    repeats.length > 1
+    || endings.length > 1
     || barStyles.length > 1
-    || children.some((child) => child.name !== 'bar-style' && child.name !== 'repeat')
+    || children.some((child) => !['bar-style', 'ending', 'repeat'].includes(child.name))
   ) {
-    throw unsupported('Repeat barline must contain one repeat and at most one bar-style.', {
+    throw unsupported('Repeat/ending barline exceeds the bounded child profile.', {
       ...location,
       reason: 'UNSUPPORTED_BARLINE_CHILDREN',
     });
   }
 
-  const expectedNames = barStyles.length === 1 ? ['bar-style', 'repeat'] : ['repeat'];
+  const expectedNames = [
+    ...(barStyles.length === 1 ? ['bar-style'] : []),
+    ...(endings.length === 1 ? ['ending'] : []),
+    ...(repeats.length === 1 ? ['repeat'] : []),
+  ];
   if (
     children.length !== expectedNames.length
     || children.some((child, index) => child.name !== expectedNames[index])
@@ -228,12 +273,13 @@ function parseRepeatBarline(node, location) {
     });
   }
 
-  const repeat = parseRepeat(repeats[0], location);
+  const repeat = repeats.length === 1 ? parseRepeat(repeats[0], location) : null;
+  const ending = endings.length === 1 ? parseEnding(endings[0], location) : null;
   const barStyle = barStyles.length === 1 ? parseBarStyle(barStyles[0], location) : null;
   const locationValue = getUniqueAttribute(node, 'location');
   if (
-    (repeat.direction === 'forward' && locationValue !== 'left')
-    || (repeat.direction === 'backward' && locationValue !== 'right')
+    (repeat?.direction === 'forward' && locationValue !== 'left')
+    || (repeat?.direction === 'backward' && locationValue !== 'right')
   ) {
     throw unsupported('Repeat direction must use its exact left/right measure-boundary location.', {
       ...location,
@@ -244,11 +290,10 @@ function parseRepeatBarline(node, location) {
   }
 
   return Object.freeze({
-    location: locationValue,
-    direction: repeat.direction,
+    location: locationValue ?? 'right',
+    repeat,
+    ending,
     barStyle,
-    times: repeat.times,
-    playCount: repeat.playCount,
   });
 }
 
@@ -260,7 +305,7 @@ function sanitizeRepeatBarline(node, parsed) {
     attributes: cloneAttributes(node.attributes),
     text: node.text,
     children: node.children
-      .filter((child) => child.uri !== node.uri || child.name !== 'repeat')
+      .filter((child) => child.uri !== node.uri || !['repeat', 'ending'].includes(child.name))
       .map((child) => cloneNode(child)),
   };
 }
@@ -305,11 +350,60 @@ function buildMeasureOccurrencePlan(measureCount, regions) {
   return Object.freeze(plan);
 }
 
+function buildFirstSecondEndingOccurrencePlan(measureCount, regions, endingSpans) {
+  if (
+    regions.length !== 1
+    || endingSpans.length !== 2
+    || endingSpans[0].number !== '1'
+    || endingSpans[1].number !== '2'
+  ) {
+    throw unsupported('Ending playback requires one complete first/second pair and one repeat region.', {
+      reason: 'INCOMPLETE_OR_AMBIGUOUS_ENDING_PAIR',
+    });
+  }
+  const [first, second] = endingSpans;
+  const region = regions[0];
+  if (
+    region.playCount !== 2
+    || first.startMeasureIndex < region.startMeasureIndex
+    || first.endMeasureIndex !== region.endMeasureIndex
+    || second.startMeasureIndex !== first.endMeasureIndex + 1
+    || second.endMeasureIndex < second.startMeasureIndex
+  ) {
+    throw unsupported('First/second ending boundaries do not match an exact two-pass repeat.', {
+      reason: 'ENDING_REPEAT_BOUNDARY_MISMATCH',
+    });
+  }
+  const plan = [];
+  for (let index = 0; index < region.startMeasureIndex; index += 1) pushOccurrence(plan, index, 0);
+  for (let index = region.startMeasureIndex; index <= first.endMeasureIndex; index += 1) {
+    pushOccurrence(plan, index, 1);
+  }
+  for (let index = region.startMeasureIndex; index < first.startMeasureIndex; index += 1) {
+    pushOccurrence(plan, index, 2);
+  }
+  for (let index = second.startMeasureIndex; index <= second.endMeasureIndex; index += 1) {
+    pushOccurrence(plan, index, 2);
+  }
+  for (let index = second.endMeasureIndex + 1; index < measureCount; index += 1) {
+    pushOccurrence(plan, index, 0);
+  }
+  return Object.freeze(plan);
+}
+
 function normalizeSelectedPart(part, runtime) {
   const measures = directChildren(part, 'measure');
+  const admitEndingPairCandidate = measures.some((measure) => directChildren(measure, 'barline')
+    .some((barline) => (
+      directChildren(barline, 'ending').length === 1
+      && directChildren(barline, 'repeat').length === 1
+    )));
   const repeatBarlines = [];
+  const endingBarlines = [];
+  const endingSpans = [];
   const regions = [];
   let openRepeatStart = null;
+  let openEnding = null;
 
   const normalizedPart = cloneNode(part, (measure, childIndex) => {
     if (measure.uri !== part.uri || measure.name !== 'measure') return cloneNode(measure);
@@ -325,6 +419,9 @@ function normalizeSelectedPart(part, runtime) {
       if (measureChild.uri !== measure.uri || measureChild.name !== 'barline') {
         return cloneNode(measureChild);
       }
+      if (!admitEndingPairCandidate && directChildren(measureChild, 'ending').length > 0) {
+        return cloneNode(measureChild);
+      }
       const location = {
         measureIndex,
         measureNumber: number,
@@ -333,7 +430,7 @@ function normalizeSelectedPart(part, runtime) {
       const parsed = parseRepeatBarline(measureChild, location);
       if (parsed === null) return cloneNode(measureChild);
 
-      repeatMarkerCount += 1;
+      if (parsed.repeat !== null) repeatMarkerCount += 1;
       if (repeatMarkerCount > 1) {
         throw unsupported('Multiple repeat markers in one measure are outside the bounded V1 contract.', {
           ...location,
@@ -341,18 +438,20 @@ function normalizeSelectedPart(part, runtime) {
         });
       }
 
-      const marker = Object.freeze({
-        measureIndex,
-        measureNumber: number,
-        location: parsed.location,
-        direction: parsed.direction,
-        barStyle: parsed.barStyle,
-        times: parsed.times,
-        playCount: parsed.playCount,
-      });
-      repeatBarlines.push(marker);
+      if (parsed.repeat !== null) {
+        const marker = Object.freeze({
+          measureIndex,
+          measureNumber: number,
+          location: parsed.location,
+          direction: parsed.repeat.direction,
+          barStyle: parsed.barStyle,
+          times: parsed.repeat.times,
+          playCount: parsed.repeat.playCount,
+        });
+        repeatBarlines.push(marker);
+      }
 
-      if (parsed.direction === 'forward') {
+      if (parsed.repeat?.direction === 'forward') {
         if (openRepeatStart !== null) {
           throw unsupported('Nested or crossing forward repeats are outside the bounded V1 contract.', {
             ...location,
@@ -361,7 +460,7 @@ function normalizeSelectedPart(part, runtime) {
           });
         }
         openRepeatStart = measureIndex;
-      } else {
+      } else if (parsed.repeat?.direction === 'backward') {
         if (openRepeatStart === null) {
           throw unsupported('Backward repeat has no unambiguous forward-repeat boundary.', {
             ...location,
@@ -374,9 +473,43 @@ function normalizeSelectedPart(part, runtime) {
         regions.push(Object.freeze({
           startMeasureIndex: openRepeatStart,
           endMeasureIndex: measureIndex,
-          playCount: parsed.playCount,
+          playCount: parsed.repeat.playCount,
         }));
         openRepeatStart = null;
+      }
+
+      if (parsed.ending !== null) {
+        endingBarlines.push(Object.freeze({
+          measureIndex,
+          measureNumber: number,
+          location: parsed.location,
+          number: parsed.ending.number,
+          type: parsed.ending.type,
+          defaultY: parsed.ending.defaultY,
+          barStyle: parsed.barStyle,
+        }));
+        if (parsed.ending.type === 'start') {
+          if (openEnding !== null) {
+            throw unsupported('Nested or overlapping endings are not supported.', {
+              ...location,
+              reason: 'OVERLAPPING_ENDINGS',
+            });
+          }
+          openEnding = { number: parsed.ending.number, startMeasureIndex: measureIndex };
+        } else {
+          if (openEnding === null || openEnding.number !== parsed.ending.number) {
+            throw unsupported('Ending stop has no matching start.', {
+              ...location,
+              reason: 'ORPHAN_ENDING_STOP',
+            });
+          }
+          endingSpans.push(Object.freeze({
+            number: openEnding.number,
+            startMeasureIndex: openEnding.startMeasureIndex,
+            endMeasureIndex: measureIndex,
+          }));
+          openEnding = null;
+        }
       }
 
       return sanitizeRepeatBarline(measureChild, parsed);
@@ -390,13 +523,24 @@ function normalizeSelectedPart(part, runtime) {
       reason: 'UNCLOSED_FORWARD_REPEAT',
     });
   }
+  if (openEnding !== null) {
+    throw unsupported('Ending start is not closed.', {
+      measureIndex: openEnding.startMeasureIndex,
+      reason: 'UNCLOSED_ENDING',
+    });
+  }
+
+  const measureOccurrencePlan = endingBarlines.length === 0
+    ? buildMeasureOccurrencePlan(measures.length, regions)
+    : buildFirstSecondEndingOccurrencePlan(measures.length, regions, endingSpans);
 
   return Object.freeze({
     parsedPart: normalizedPart,
     measureCount: measures.length,
     repeatBarlines: Object.freeze(repeatBarlines),
     repeatRegions: Object.freeze(regions),
-    measureOccurrencePlan: buildMeasureOccurrencePlan(measures.length, regions),
+    endingBarlines: Object.freeze(endingBarlines),
+    measureOccurrencePlan,
   });
 }
 
@@ -420,6 +564,7 @@ function normalizePolyphonicRepeatBarlines(parsedDocument, runtime = null) {
       }),
       ignoredFeatures: Object.freeze([]),
       repeatBarlines: Object.freeze([]),
+      endingBarlines: Object.freeze([]),
       repeatRegions: Object.freeze([]),
       measureOccurrencePlan: Object.freeze([]),
     });
@@ -434,7 +579,7 @@ function normalizePolyphonicRepeatBarlines(parsedDocument, runtime = null) {
     return cloneNode(rootChild);
   });
   const ignoredFeatures = Object.freeze(
-    partNormalization.repeatBarlines.length > 0
+    partNormalization.repeatBarlines.length > 0 || partNormalization.endingBarlines.length > 0
       ? ['measure:barline:repeat-playback-order']
       : [],
   );
@@ -456,6 +601,7 @@ function normalizePolyphonicRepeatBarlines(parsedDocument, runtime = null) {
     parsedDocument: normalizedDocument,
     ignoredFeatures,
     repeatBarlines: partNormalization.repeatBarlines,
+    endingBarlines: partNormalization.endingBarlines,
     repeatRegions: partNormalization.repeatRegions,
     measureOccurrencePlan: partNormalization.measureOccurrencePlan,
   });

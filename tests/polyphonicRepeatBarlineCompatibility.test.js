@@ -48,6 +48,24 @@ function repeatScore({ times = null } = {}) {
     );
 }
 
+function firstAndSecondEndingScore() {
+  const forward = '      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>';
+  const first = [
+    '      <barline location="left"><ending number="1" type="start"/></barline>',
+    '      <barline location="right"><bar-style>light-heavy</bar-style><ending number="1" type="stop"/><repeat direction="backward"/></barline>\n',
+  ].join('\n');
+  const second = [
+    '      <barline location="left"><ending number="2" type="start"/></barline>',
+    '      <barline location="right"><ending number="2" type="stop"/></barline>\n',
+  ].join('\n');
+  return fixture()
+    .replace('      </attributes>', `      </attributes>\n${forward}`)
+    .replace(
+      '    </measure>\n  </part>',
+      `    </measure>\n${extraMeasure('2', 'D', first)}\n${extraMeasure('3', 'E', second)}\n${extraMeasure('4', 'F')}\n  </part>`,
+    );
+}
+
 function parsed(xml) {
   return parseParsedMusicXmlDocument(Buffer.from(xml));
 }
@@ -185,15 +203,30 @@ test('repeat times above the unchanged fixed bound requires review without outpu
   assert.equal(result.preflight.issues[0].details.reason, 'REPEAT_TIMES_OUT_OF_RANGE');
 });
 
-test('repeat barline with ending/volta metadata is not admitted by the V1 wildcard boundary', () => {
-  const xml = repeatScore().replace(
-    '<bar-style>light-heavy</bar-style><repeat direction="backward"/>',
-    '<ending number="1" type="stop"/><bar-style>light-heavy</bar-style><repeat direction="backward"/>',
+test('valid first and second endings preserve volta marks and continue TAB production', () => {
+  const bytes = Buffer.from(firstAndSecondEndingScore());
+  const before = inputHash(bytes);
+  const normalization = normalizePolyphonicRepeatBarlines(parsed(bytes));
+  assert.deepEqual(sourceIndices(normalization.measureOccurrencePlan), [0, 1, 0, 2, 3]);
+  const result = processMusicXmlUpload({ fileName: 'repeat-endings.musicxml', bytes });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.match(result.musicXml, /<ending number="1" type="start"\/>/);
+  assert.match(result.musicXml, /<ending number="1" type="stop"\/>/);
+  assert.match(result.musicXml, /<ending number="2" type="start"\/>/);
+  assert.match(result.musicXml, /<ending number="2" type="stop"\/>/);
+  assert.equal(inputHash(bytes), before);
+});
+
+test('first ending without a complete second ending remains review-required', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    /\s*<barline location="left"><ending number="2" type="start"\/><\/barline>/,
+    '',
+  ).replace(
+    /\s*<barline location="right"><ending number="2" type="stop"\/><\/barline>/,
+    '',
   );
-  const result = processMusicXmlUpload({
-    fileName: 'repeat-ending-unsupported.musicxml',
-    bytes: Buffer.from(xml),
-  });
+  const result = processMusicXmlUpload({ fileName: 'incomplete-endings.musicxml', bytes: Buffer.from(xml) });
   assertReviewWithoutOutput(result);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
