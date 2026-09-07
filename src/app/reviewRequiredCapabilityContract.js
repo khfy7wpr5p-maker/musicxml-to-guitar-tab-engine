@@ -215,7 +215,10 @@ function decorateUploadResultWithCapabilities(result) {
 
   return deepFreeze({
     ...result,
-    contractVersion: MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
+    // Keep the established upload runtime contractVersion untouched. The
+    // capability extension is additive and therefore carries its own schema
+    // version instead of silently changing the meaning of an existing field.
+    resultSchemaVersion: MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
     capabilityContractVersion: REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION,
     scoreAvailable: renderScore,
     capabilities,
