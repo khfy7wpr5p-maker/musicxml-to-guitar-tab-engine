@@ -99,6 +99,40 @@ test('product bridge cannot invent review renderability without capabilities and
   assert.equal(bridge.currentResult(), authoritative);
 });
 
+test('preview controller feeds raw REVIEW_REQUIRED result through the bridge exactly once', async () => {
+  const api = hostApi();
+  const authoritative = reviewResult();
+  const rawAdapter = {
+    upload: async () => authoritative,
+    edit: async () => ({ status: 'PASS' }),
+    polyphonicEdit: async () => ({ status: 'PASS' }),
+    transpose: async () => ({ status: 'PASS' }),
+    loadPreview: async () => authoritative,
+  };
+  const bridge = api.createCapabilityBridge(rawAdapter);
+  let coreRuntimeResult = null;
+  const presentationWorkbench = {
+    loadFile: async () => true,
+    loadRuntimeResult(result) {
+      coreRuntimeResult = bridge.present(result);
+      return true;
+    },
+    applySelectedEdit: async () => false,
+    applyDocumentTransposition: async () => false,
+    snapshot: () => ({ runtimeResult: bridge.currentResult() }),
+  };
+
+  const controller = api.createDocumentController(presentationWorkbench, rawAdapter);
+  const loaded = await controller.loadPreview();
+
+  assert.equal(loaded, authoritative);
+  assert.equal(coreRuntimeResult.status, 'PASS');
+  assert.equal(bridge.currentResult(), authoritative);
+  assert.equal(bridge.currentResult().status, 'REVIEW_REQUIRED');
+  assert.match(source, /document: createDocumentController\(workbench, adapter\)/);
+  assert.doesNotMatch(source, /document: createDocumentController\(workbench, capabilityBridge\.adapter\)/);
+});
+
 test('legacy PASS behavior is unchanged and non-upload operations clear review authority', async () => {
   const api = hostApi();
   const pass = { status: 'PASS', musicXml: '<score-partwise/>', canonicalTabResult: {} };
