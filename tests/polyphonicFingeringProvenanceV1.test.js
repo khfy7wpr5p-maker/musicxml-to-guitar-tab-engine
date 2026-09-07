@@ -154,14 +154,18 @@ test('identical duplicate fingering wrappers preserve both source records but cr
   assert.equal(result.exactGuitarFingeringConstraints.bySourceEventId['P1:measure:0:note:0'], 2);
 });
 
-test('conflicting duplicate fingering wrappers become REVIEW_REQUIRED with bound source identity', () => {
+test('conflicting duplicate fingering wrappers become REVIEW_REQUIRED with bound source identity and provisional TAB', () => {
   const conflicting = '<notations><technical><fingering>1</fingering></technical><technical><fingering>2</fingering></technical></notations>';
   const bytes = score({ body: chordBody(conflicting) });
   const result = processMusicXmlUpload({ fileName: 'conflicting-generic-fingering.musicxml', bytes });
 
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
-  assert.equal(result.canonicalTabResult, null);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
   const issue = result.preflight.issues.find((entry) => entry.code === 'CONFLICTING_FINGERING_ANNOTATIONS');
   assert.ok(issue);
   assert.equal(issue.reviewDisposition, 'REVIEW_REQUIRED');
