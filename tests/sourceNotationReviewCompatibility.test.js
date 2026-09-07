@@ -32,6 +32,17 @@ function issueCodes(result) {
   return (result.preflight?.issues || []).map((issue) => issue.code);
 }
 
+function assertProvisionalReviewArtifacts(result) {
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.ok(result.musicXml.length > 0);
+  assert.equal(result.capabilities.renderScore, true);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
+}
+
 test('bounded articulation layout attributes do not turn known staccato semantics into a block', () => {
   const bytes = Buffer.from(withNotation(
     '<articulations><staccato placement="below" default-y="-68"/></articulations>',
@@ -49,7 +60,7 @@ test('bounded articulation layout attributes do not turn known staccato semantic
   assert.ok(ignored.includes('notation:articulation:staccato'));
 });
 
-test('exact down-bow source technique becomes semantic REVIEW_REQUIRED without canonical TAB authority', () => {
+test('exact down-bow source technique becomes semantic REVIEW_REQUIRED with provisional TAB but no export authority', () => {
   const bytes = Buffer.from(withNotation(
     '<technical><down-bow placement="above"/></technical>',
   ));
@@ -61,8 +72,7 @@ test('exact down-bow source technique becomes semantic REVIEW_REQUIRED without c
   assert.equal(first.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(first.preflight.canProcess, false);
-  assert.equal(first.canonicalTabResult, null);
-  assert.equal(first.musicXml, null);
+  assertProvisionalReviewArtifacts(first);
   assert.ok(issueCodes(first).includes('NON_GUITAR_SOURCE_TECHNIQUE_REVIEW_REQUIRED'));
   assert.equal(sha256(bytes), before);
 });
@@ -75,8 +85,7 @@ test('strong-accent source articulation is reviewable while adjacent known stacc
 
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assertProvisionalReviewArtifacts(result);
   assert.ok(issueCodes(result).includes('SOURCE_ARTICULATION_REVIEW_REQUIRED'));
 });
 
@@ -88,8 +97,7 @@ test('caesura source articulation is reviewable rather than silently discarded',
 
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assertProvisionalReviewArtifacts(result);
   assert.ok(issueCodes(result).includes('SOURCE_ARTICULATION_REVIEW_REQUIRED'));
 });
 
