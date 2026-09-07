@@ -70,6 +70,8 @@ test('tempo direction targeting an undeclared staff remains blocked', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.musicXml, null);
+  assert.equal(result.capabilities.renderScore, false);
+  assert.equal(result.capabilities.generateTab, false);
 });
 
 test('non-leading tempo direction remains review-required instead of moving to measure start', () => {
@@ -83,7 +85,13 @@ test('non-leading tempo direction remains review-required instead of moving to m
     bytes: Buffer.from(xml),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
+  // No bounded writer artifact exists for this exact mid-measure placement yet.
+  // The capability contract reports that honestly instead of turning the state
+  // into BLOCKED or inventing a moved tempo event.
   assert.equal(result.musicXml, null);
+  assert.equal(result.capabilities.renderScore, false);
+  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.export, false);
 });
 
 test('unknown direction semantics remain fail-closed', () => {
@@ -93,15 +101,23 @@ test('unknown direction semantics remain fail-closed', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.preflight.issues[0].details.feature, 'direction');
+  assert.equal(result.capabilities.renderScore, false);
+  assert.equal(result.capabilities.generateTab, false);
 });
 
-test('conflicting metronome and playback tempo remains review-required', () => {
+test('conflicting metronome and playback tempo remains review-required with provisional TAB', () => {
   const result = processMusicXmlUpload({
     fileName: 'conflicting-combined-tempo.musicxml',
     bytes: Buffer.from(score('<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>')),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
   assert.equal(result.route, 'POLY_V2');
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.equal(result.capabilities.renderScore, true);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
