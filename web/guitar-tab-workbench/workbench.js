@@ -4,6 +4,7 @@
   const MAX_CLIENT_UPLOAD_BYTES = 5 * 1024 * 1024;
   const MAX_REVISION_COMMANDS = 128;
   const ALLOWED_EXTENSIONS = ['.musicxml', '.xml'];
+  const UPLOAD_RESULT_STATUSES = new Set(['PASS', 'REVIEW_REQUIRED', 'BLOCKED']);
 
   function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -856,7 +857,7 @@
 
     function setRuntimeResult(result) {
       assert(result && typeof result === 'object', 'Upload result is invalid.');
-      assert(result.status === 'PASS' || result.status === 'BLOCKED', 'Upload result status is invalid.');
+      assert(UPLOAD_RESULT_STATUSES.has(result.status), 'Upload result status is invalid.');
       state.runtimeResult = result;
       state.lastError = null;
       setText(documentStatus, result.status);
@@ -865,7 +866,9 @@
 
       if (result.status !== 'PASS') {
         clearActiveScoreState();
-        clearSelection('Load a valid score before editing.');
+        clearSelection(result.status === 'REVIEW_REQUIRED'
+          ? 'Review the reported score issues before editing.'
+          : 'Load a valid score before editing.');
         updateControls();
         return false;
       }

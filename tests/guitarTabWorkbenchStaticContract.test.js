@@ -89,6 +89,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
 
   assert.match(script, /5 \* 1024 \* 1024/);
   assert.match(script, /MAX_REVISION_COMMANDS\s*=\s*128/);
+  assert.match(script, /\['PASS', 'REVIEW_REQUIRED', 'BLOCKED'\]/);
+  assert.match(script, /UPLOAD_RESULT_STATUSES\.has\(result\.status\)/);
   assert.match(script, /Only \.musicxml and \.xml files are accepted/);
   assert.match(script, /alphaTab\.PlayerMode\.EnabledSynthesizer/);
   assert.match(script, /includeNoteBounds:\s*true/);
