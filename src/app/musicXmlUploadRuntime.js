@@ -347,6 +347,6 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
 
 module.exports = {
   ...baseRuntime,
-  MUSICXML_UPLOAD_RUNTIME_VERSION: MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
+  MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
   processMusicXmlUpload,
 };
