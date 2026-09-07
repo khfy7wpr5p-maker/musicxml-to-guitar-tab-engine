@@ -428,7 +428,10 @@
     const workbench = createWorkbenchPresentation(coreWorkbench, root, capabilityBridge);
 
     const controllers = Object.freeze({
-      document: createDocumentController(workbench, capabilityBridge.adapter),
+      // Preview results must enter the presentation bridge exactly once. The
+      // document controller therefore reads from the raw adapter; uploads and
+      // mutations still use the bridged adapter supplied to the legacy core.
+      document: createDocumentController(workbench, adapter),
       playback: createPlaybackController(workbench),
       selection: createSelectionController(workbench),
       issues: createIssueController(workbench),
