@@ -17,6 +17,10 @@ const {
   collectSlurRuntimeIssues,
 } = require('./polySlurRuntimeDiagnostics');
 const {
+  MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
+  decorateUploadResultWithCapabilities,
+} = require('./reviewRequiredCapabilityContract');
+const {
   SCORE_ROUTE,
   SCORE_STATUS,
   SOURCE_REVIEW_AVAILABILITY,
@@ -37,6 +41,10 @@ function deepFreeze(root) {
     Object.freeze(value);
   }
   return root;
+}
+
+function finalize(result) {
+  return decorateUploadResultWithCapabilities(result);
 }
 
 function mergeIssues(...issueLists) {
@@ -289,7 +297,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     || result.route !== SCORE_ROUTE.POLY_V2
     || policyIssues.length === 0
   ) {
-    return result;
+    return finalize(result);
   }
 
   const issues = mergeIssues(result.preflight?.issues || [], policyIssues);
@@ -300,18 +308,21 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   });
 
   if (scoreState.status === SCORE_STATUS.REVIEW_REQUIRED) {
-    return deepFreeze({
+    // The conversion already completed successfully. Keep those artifacts as a
+    // review-only provisional surface instead of deleting them merely because
+    // a diagnostic requires teacher attention. Export authority stays false in
+    // the capability contract until review is resolved.
+    return finalize(deepFreeze({
       ...result,
       status: SCORE_STATUS.REVIEW_REQUIRED,
       preflight: {
         ...result.preflight,
         status: 'REVIEW_REQUIRED',
         canProcess: false,
+        canOpenForReview: true,
         issues,
       },
-      canonicalTabResult: null,
-      musicXml: null,
-    });
+    }));
   }
 
   if (scoreState.status !== SCORE_STATUS.PASS) {
@@ -322,7 +333,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     );
   }
 
-  return deepFreeze({
+  return finalize(deepFreeze({
     ...result,
     status: SCORE_STATUS.PASS,
     preflight: {
@@ -331,10 +342,11 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       canProcess: true,
       issues,
     },
-  });
+  }));
 }
 
 module.exports = {
   ...baseRuntime,
+  MUSICXML_UPLOAD_RUNTIME_VERSION: MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION,
   processMusicXmlUpload,
 };
