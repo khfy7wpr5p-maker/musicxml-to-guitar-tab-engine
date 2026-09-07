@@ -34,11 +34,87 @@
     });
   }
 
-  function createWorkbenchPresentation(coreWorkbench, root) {
+  // The core Workbench predates the additive capability contract and still has
+  // PASS-only internal render/playback gates. This bridge is deliberately
+  // presentation-only: it never changes the authoritative result returned to
+  // product controllers. A REVIEW_REQUIRED result is presented to the legacy
+  // core as renderable only when the backend explicitly supplies the renderer
+  // and provisional TAB capabilities plus both artifacts.
+  function createCapabilityBridge(adapter) {
+    let authoritativeResult = null;
+
+    function isRenderableReview(result) {
+      return Boolean(
+        result?.status === 'REVIEW_REQUIRED'
+        && result?.capabilities?.renderScore === true
+        && result?.capabilities?.generateTab === true
+        && result?.artifacts?.provisionalTabAvailable === true
+        && typeof result?.musicXml === 'string'
+        && result.musicXml.length > 0
+        && result?.canonicalTabResult,
+      );
+    }
+
+    function present(result) {
+      authoritativeResult = result && typeof result === 'object' ? result : null;
+      if (!isRenderableReview(result)) return result;
+      return {
+        ...result,
+        status: 'PASS',
+      };
+    }
+
+    function clearAuthority(result) {
+      authoritativeResult = null;
+      return result;
+    }
+
+    const bridgedAdapter = Object.freeze({
+      ...adapter,
+      async upload(file, ownedBytes) {
+        return present(await adapter.upload(file, ownedBytes));
+      },
+      async edit(request) {
+        return clearAuthority(await adapter.edit(request));
+      },
+      async polyphonicEdit(request) {
+        return clearAuthority(await adapter.polyphonicEdit(request));
+      },
+      async transpose(request) {
+        return clearAuthority(await adapter.transpose(request));
+      },
+      loadPreview: typeof adapter.loadPreview === 'function'
+        ? async () => present(await adapter.loadPreview())
+        : null,
+    });
+
+    return Object.freeze({
+      adapter: bridgedAdapter,
+      present,
+      currentResult() {
+        return authoritativeResult;
+      },
+    });
+  }
+
+  function createWorkbenchPresentation(coreWorkbench, root, capabilityBridge) {
     const selectedNote = root.querySelector('[data-role="selected-note"]');
     const editStep = root.querySelector('[data-role="edit-step"]');
     const editAlter = root.querySelector('[data-role="edit-alter"]');
     const editOctave = root.querySelector('[data-role="edit-octave"]');
+    const applyEditButton = root.querySelector('[data-role="apply-edit"]');
+    const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
+    const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
+    const transposeDownButton = root.querySelector('[data-role="transpose-down"]');
+    const transposeUpButton = root.querySelector('[data-role="transpose-up"]');
+    const transposeTargetButton = root.querySelector('[data-role="transpose-target"]');
+    const playButton = root.querySelector('[data-role="play"]');
+    const stopButton = root.querySelector('[data-role="stop"]');
+    const documentStatus = root.querySelector('[data-role="document-status"]');
+
+    function authoritativeRuntimeResult(coreSnapshot) {
+      return capabilityBridge?.currentResult() || coreSnapshot.runtimeResult;
+    }
 
     function syncMonoEditor() {
       const snapshot = coreWorkbench.snapshot();
@@ -54,12 +130,79 @@
       if (editOctave) editOctave.value = String(pitch.octave);
     }
 
+    function syncCapabilityUi() {
+      const coreSnapshot = coreWorkbench.snapshot();
+      const result = authoritativeRuntimeResult(coreSnapshot);
+      if (!result || !result.capabilities) return;
+
+      if (documentStatus) documentStatus.textContent = result.status;
+      if (playButton) {
+        playButton.dataset.playbackReliability = result.capabilities.playback || 'DISABLED';
+        playButton.title = result.capabilities.playback === 'APPROXIMATE'
+          ? 'Approximate playback: one or more score details require review.'
+          : '';
+      }
+
+      if (result.status !== 'REVIEW_REQUIRED') return;
+
+      const playbackAllowed = result.capabilities.playback === 'FULL'
+        || result.capabilities.playback === 'APPROXIMATE';
+      if (!playbackAllowed) {
+        if (playButton) playButton.disabled = true;
+        if (stopButton) stopButton.disabled = true;
+      }
+
+      if (result.capabilities.editPitch !== true) {
+        if (editStep) editStep.disabled = true;
+        if (editAlter) editAlter.disabled = true;
+        if (editOctave) editOctave.disabled = true;
+        if (applyEditButton) applyEditButton.disabled = true;
+      }
+
+      // Document transposition is not a teacher-review operation. Keep it off
+      // until the review revision contract explicitly grants structure edits.
+      if (transposeSpelling) transposeSpelling.disabled = true;
+      if (transposeTargetKey) transposeTargetKey.disabled = true;
+      if (transposeDownButton) transposeDownButton.disabled = true;
+      if (transposeUpButton) transposeUpButton.disabled = true;
+      if (transposeTargetButton) transposeTargetButton.disabled = true;
+    }
+
+    function snapshotWithAuthority() {
+      syncCapabilityUi();
+      const coreSnapshot = coreWorkbench.snapshot();
+      const result = authoritativeRuntimeResult(coreSnapshot);
+      const snapshot = result === coreSnapshot.runtimeResult
+        ? coreSnapshot
+        : Object.freeze({ ...coreSnapshot, runtimeResult: result });
+      return userFacingSnapshot(snapshot);
+    }
+
     const presentation = Object.create(coreWorkbench);
     Object.defineProperties(presentation, {
+      loadFile: {
+        enumerable: true,
+        async value(file) {
+          const accepted = await coreWorkbench.loadFile(file);
+          syncMonoEditor();
+          syncCapabilityUi();
+          return accepted;
+        },
+      },
+      loadRuntimeResult: {
+        enumerable: true,
+        value(result) {
+          const presented = capabilityBridge ? capabilityBridge.present(result) : result;
+          const accepted = coreWorkbench.loadRuntimeResult(presented);
+          syncMonoEditor();
+          syncCapabilityUi();
+          return accepted;
+        },
+      },
       snapshot: {
         enumerable: true,
         value() {
-          return userFacingSnapshot(coreWorkbench.snapshot());
+          return snapshotWithAuthority();
         },
       },
       selectNote: {
@@ -67,6 +210,7 @@
         value(note) {
           const accepted = coreWorkbench.selectNote(note);
           syncMonoEditor();
+          syncCapabilityUi();
           return accepted;
         },
       },
@@ -75,25 +219,54 @@
         value(identity) {
           const accepted = coreWorkbench.selectEvent(identity);
           syncMonoEditor();
+          syncCapabilityUi();
           return accepted;
         },
       },
       applySelectedEdit: {
         enumerable: true,
         async value() {
+          const result = authoritativeRuntimeResult(coreWorkbench.snapshot());
+          if (result?.status === 'REVIEW_REQUIRED' && result?.capabilities?.editPitch !== true) {
+            syncCapabilityUi();
+            return false;
+          }
           syncMonoEditor();
           const applied = await coreWorkbench.applySelectedEdit();
           syncMonoEditor();
+          syncCapabilityUi();
+          return applied;
+        },
+      },
+      applyDocumentTransposition: {
+        enumerable: true,
+        async value(operation) {
+          const result = authoritativeRuntimeResult(coreWorkbench.snapshot());
+          if (result?.status === 'REVIEW_REQUIRED') {
+            syncCapabilityUi();
+            return false;
+          }
+          const applied = await coreWorkbench.applyDocumentTransposition(operation);
+          syncCapabilityUi();
           return applied;
         },
       },
     });
 
     coreWorkbench.api.noteMouseDown.on(() => {
-      Promise.resolve().then(syncMonoEditor);
+      Promise.resolve().then(() => {
+        syncMonoEditor();
+        syncCapabilityUi();
+      });
     });
     coreWorkbench.api.scoreLoaded.on(() => {
-      Promise.resolve().then(syncMonoEditor);
+      Promise.resolve().then(() => {
+        syncMonoEditor();
+        syncCapabilityUi();
+      });
+    });
+    coreWorkbench.api.playerReady.on(() => {
+      Promise.resolve().then(syncCapabilityUi);
     });
 
     return Object.freeze(presentation);
@@ -236,25 +409,26 @@
     const adapter = mode === 'preview'
       ? adapters.createStaticPreviewAdapter({previewResultUrl: config.previewResultUrl})
       : adapters.createRuntimeApiAdapter({apiBaseUrl: config.apiBaseUrl});
+    const capabilityBridge = createCapabilityBridge(adapter);
     const assetUrls = resolveAssetUrls(root.ownerDocument, config.assetBaseUrl);
     const shell = configureShell(root, mode);
 
     const coreWorkbench = global.GuitarTabWorkbench.mount({
       root,
       alphaTab,
-      upload: adapter.upload,
-      edit: adapter.edit,
-      polyphonicEdit: adapter.polyphonicEdit,
-      transpose: adapter.transpose,
+      upload: capabilityBridge.adapter.upload,
+      edit: capabilityBridge.adapter.edit,
+      polyphonicEdit: capabilityBridge.adapter.polyphonicEdit,
+      transpose: capabilityBridge.adapter.transpose,
       assetBaseUrl: assetUrls.assetBaseUrl,
       scriptFileUrl: assetUrls.scriptFileUrl,
       soundFontUrl: assetUrls.soundFontUrl,
       playerMode: resolvePlayerMode(alphaTab, config.playerMode),
     });
-    const workbench = createWorkbenchPresentation(coreWorkbench, root);
+    const workbench = createWorkbenchPresentation(coreWorkbench, root, capabilityBridge);
 
     const controllers = Object.freeze({
-      document: createDocumentController(workbench, adapter),
+      document: createDocumentController(workbench, capabilityBridge.adapter),
       playback: createPlaybackController(workbench),
       selection: createSelectionController(workbench),
       issues: createIssueController(workbench),
@@ -289,6 +463,7 @@
 
   global.GuitarTabWorkbenchHost = Object.freeze({
     mount,
+    createCapabilityBridge,
     createDocumentController,
     createPlaybackController,
     createSelectionController,
