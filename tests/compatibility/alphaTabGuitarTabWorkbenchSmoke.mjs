@@ -475,6 +475,28 @@ try {
   assert.equal(warningFocus.snapshot.currentMeasureIndex,1);
   assert.match(warningFocus.cursorText,/Measure 2/);
 
+  const reviewRequiredLoad = await page.evaluate(() => {
+    const accepted = window.__workbench.loadRuntimeResult({
+      status:'REVIEW_REQUIRED',route:'POLY_V2',preflight:{status:'REVIEW_REQUIRED',issues:[{
+        severity:'error',category:'semantic',code:'TEST_REVIEW_REQUIRED',
+        message:'A bounded score detail requires teacher review.',
+        reviewDisposition:'REVIEW_REQUIRED',location:{measure:1,measureIndex:0},
+      }]},musicXml:null,
+    });
+    return {
+      accepted,
+      snapshot:window.__workbench.snapshot(),
+      documentStatus:document.querySelector('[data-role="document-status"]').textContent,
+      issueText:document.querySelector('[data-role="issues"]').textContent,
+    };
+  });
+  assert.equal(reviewRequiredLoad.accepted,false);
+  assert.equal(reviewRequiredLoad.snapshot.runtimeResult.status,'REVIEW_REQUIRED');
+  assert.equal(reviewRequiredLoad.snapshot.lastError,null);
+  assert.equal(reviewRequiredLoad.snapshot.scoreLoaded,false);
+  assert.equal(reviewRequiredLoad.documentStatus,'REVIEW_REQUIRED');
+  assert.match(reviewRequiredLoad.issueText,/TEST_REVIEW_REQUIRED/);
+
   await page.evaluate(() => {
     window.__workbench.loadRuntimeResult({
       status:'BLOCKED',route:'MONO_V1',preflight:{issues:[{
@@ -508,6 +530,7 @@ try {
     blockedEdit:blockedEdit.snapshot,
     blockedTieEdit:blockedTieEdit.snapshot,
     warningFocus:warningFocus.snapshot,
+    reviewRequiredLoad:reviewRequiredLoad.snapshot,
     blockedLoad:blockedLoad.snapshot,
     transposed:transposed.snapshot,
     browserMessages:messages,

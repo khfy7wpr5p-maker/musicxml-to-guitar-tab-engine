@@ -53,6 +53,7 @@ test('UI-06 controller stays outside engine authority and browser persistence', 
   assert.match(source, /api\.render\(\)/);
   assert.match(source, /api\.playbackSpeed/);
   assert.match(source, /workbench\.snapshot\(\)/);
+  assert.match(source, /Score requires review/);
 });
 
 test('UI-06 responsive shell keeps inspector panels singular and mobile-safe', () => {

@@ -199,7 +199,9 @@
         const tempo = currentPosition.originalTempo;
         scoreContext.textContent = tempo ? `${measureText} · ♩ ${Math.round(tempo)}` : measureText;
       } else {
-        scoreContext.textContent = result?.status === 'BLOCKED' ? 'Score blocked by validation' : 'No score loaded';
+        scoreContext.textContent = result?.status === 'BLOCKED'
+          ? 'Score blocked by validation'
+          : (result?.status === 'REVIEW_REQUIRED' ? 'Score requires review' : 'No score loaded');
       }
 
       fingeringPitch.textContent = selectedPitch || '—';
