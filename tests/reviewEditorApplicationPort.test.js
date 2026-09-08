@@ -255,7 +255,7 @@ test('application port connects capability review session to Stage 07 protocol a
   assert.equal(continued.revalidatedRevisionId, 'revalidated-app-port-1');
 });
 
-test('application port refuses UI-authored target/before authority and unsupported commands', async () => {
+test('application port refuses UI-authored patch authority and unsupported commands', async () => {
   const bytes = Buffer.from('<score-partwise/>', 'utf8');
   const port = createPort(bytes);
   await port.selectIssue('issue_pitch_7');
@@ -268,9 +268,11 @@ test('application port refuses UI-authored target/before authority and unsupport
   await assert.rejects(
     () => port.command({
       command: EDIT_CLASS.PITCH_UPDATE,
-      value: { target_event: 'evil-target', before: 'invented', after: 'invented' },
+      value: { step: 'D', alter: 0, octave: 4 },
+      target_event: 'evil-target',
+      before: { step: 'X', alter: 9, octave: 9 },
     }),
-    /correction patch violates|must be|no-op|after/,
+    /exactly command and value/,
   );
 });
 
