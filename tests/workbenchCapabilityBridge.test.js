@@ -149,3 +149,26 @@ test('legacy PASS behavior is unchanged and non-upload operations clear review a
   await bridge.adapter.edit({});
   assert.equal(bridge.currentResult(), null);
 });
+
+test('failed replacement upload clears prior review authority', async () => {
+  const api = hostApi();
+  const authoritative = reviewResult();
+  let rejectReplacement = false;
+  const bridge = api.createCapabilityBridge({
+    upload: async () => {
+      if (rejectReplacement) throw new Error('replacement upload failed');
+      return authoritative;
+    },
+    edit: async () => ({ status: 'PASS' }),
+    polyphonicEdit: async () => ({ status: 'PASS' }),
+    transpose: async () => ({ status: 'PASS' }),
+    loadPreview: null,
+  });
+
+  await bridge.adapter.upload({}, new Uint8Array());
+  assert.equal(bridge.currentResult(), authoritative);
+
+  rejectReplacement = true;
+  await assert.rejects(() => bridge.adapter.upload({}, new Uint8Array()), /replacement upload failed/);
+  assert.equal(bridge.currentResult(), null);
+});

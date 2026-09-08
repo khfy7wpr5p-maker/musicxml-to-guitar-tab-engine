@@ -282,8 +282,14 @@ test('POLY production chain returns REVIEW_REQUIRED for conflicting exact numeri
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.status, 'REVIEW_REQUIRED');
   assert.equal(result.preflight.canProcess, false);
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.equal(result.capabilities.renderScore, true);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
   assert.deepEqual(bytes, before);
   const issue = result.preflight.issues.find((candidate) => candidate.code === 'CONFLICTING_PERFORMANCE_TEMPO');
   assert.ok(issue);

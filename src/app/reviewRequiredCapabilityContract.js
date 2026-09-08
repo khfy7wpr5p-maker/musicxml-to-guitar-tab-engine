@@ -149,8 +149,10 @@ function issueAffectsTab(issue) {
 function enrichedIssues(result, tabVisible) {
   const issues = Array.isArray(result?.preflight?.issues) ? result.preflight.issues : [];
   return issues.map((issue, index) => {
-    const reviewRequired = result.status === 'REVIEW_REQUIRED'
-      || issue?.reviewDisposition === 'REVIEW_REQUIRED'
+    // A document can be REVIEW_REQUIRED because of one localized issue while
+    // also carrying ordinary warnings. Only explicitly reviewable issues may
+    // require teacher action; document status must not promote warnings.
+    const reviewRequired = issue?.reviewDisposition === 'REVIEW_REQUIRED'
       || issue?.details?.reviewDisposition === 'REVIEW_REQUIRED';
     return {
       ...issue,

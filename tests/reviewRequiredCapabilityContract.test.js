@@ -47,7 +47,7 @@ test('upload result schema 1.1 exposes additive capability and artifact authorit
   assert.ok(Object.isFrozen(result));
 });
 
-test('diagnostic REVIEW_REQUIRED preserves successful score and TAB artifacts as provisional', () => {
+test('combined direction review does not invent score or TAB artifacts', () => {
   const direction = '<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>';
   const request = {
     fileName: 'conflicting-combined-tempo.musicxml',
@@ -60,21 +60,20 @@ test('diagnostic REVIEW_REQUIRED preserves successful score and TAB artifacts as
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.contractVersion, '1.0.0');
   assert.equal(first.resultSchemaVersion, '1.1.0');
-  assert.ok(first.canonicalTabResult);
-  assert.equal(typeof first.musicXml, 'string');
-  assert.ok(first.musicXml.length > 0);
-  assert.equal(first.scoreAvailable, true);
-  assert.equal(first.capabilities.renderScore, true);
-  assert.equal(first.capabilities.generateTab, true);
-  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.canonicalTabResult, null);
+  assert.equal(first.musicXml, null);
+  assert.equal(first.scoreAvailable, false);
+  assert.equal(first.capabilities.renderScore, false);
+  assert.equal(first.capabilities.generateTab, false);
+  assert.equal(first.capabilities.playback, 'DISABLED');
   assert.equal(first.capabilities.export, false);
-  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, false);
   assert.equal(first.artifacts.canonicalTabAvailable, false);
-  assert.equal(first.artifacts.playbackTimelineReliability, 'PARTIAL');
+  assert.equal(first.artifacts.playbackTimelineReliability, 'NONE');
   assert.equal(first.issues.length > 0, true);
   assert.match(first.issues[0].issueId, /^issue_[0-9a-f]{20}$/);
   assert.equal(first.issues[0].affectsTab, false);
-  assert.equal(first.issues[0].tabVisible, true);
+  assert.equal(first.issues[0].tabVisible, false);
   assert.equal(first.issues[0].teacherActionRequired, true);
   assert.deepEqual(
     first.issues[0].allowedActions,
@@ -112,6 +111,30 @@ test('timeline review keeps TAB capability when a provisional artifact exists', 
   assert.equal(result.issues[0].affectsTab, false);
   assert.equal(result.issues[0].tabVisible, true);
   assert.deepEqual(result.issues[0].affects, ['rhythm', 'playback']);
+});
+
+test('only explicitly reviewable issues require teacher action', () => {
+  const result = decorateUploadResultWithCapabilities({
+    documentType: 'MusicXmlUploadRuntimeResult',
+    contractVersion: '1.0.0',
+    status: 'REVIEW_REQUIRED',
+    route: 'POLY_V2',
+    preflight: {
+      status: 'REVIEW_REQUIRED',
+      canProcess: false,
+      issues: [
+        { severity: 'error', category: 'semantic', code: 'CONFLICTING_PERFORMANCE_TEMPO', reviewDisposition: 'REVIEW_REQUIRED', message: 'Tempo requires review.' },
+        { severity: 'warning', category: 'quality', code: 'INVALID_PERFORMANCE_DYNAMICS', message: 'Playback-only dynamics was excluded.' },
+      ],
+    },
+    canonicalTabResult: { source: { documentType: 'PolyphonicSourceModel' } },
+    musicXml: '<score-partwise version="4.0"></score-partwise>',
+  });
+
+  assert.equal(result.issues[0].teacherActionRequired, true);
+  assert.deepEqual(result.issues[0].allowedActions, ['ACCEPT_AS_IS', 'APPLY_SUGGESTED_FIX', 'EDIT_MANUALLY']);
+  assert.equal(result.issues[1].teacherActionRequired, false);
+  assert.deepEqual(result.issues[1].allowedActions, []);
 });
 
 test('hard block remains capability-closed', () => {

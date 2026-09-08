@@ -72,6 +72,10 @@
     const bridgedAdapter = Object.freeze({
       ...adapter,
       async upload(file, ownedBytes) {
+        // A rejected replacement upload leaves the core workbench in its
+        // error state. Do not let presentation snapshots resurrect the prior
+        // review result over that error.
+        authoritativeResult = null;
         return present(await adapter.upload(file, ownedBytes));
       },
       async edit(request) {

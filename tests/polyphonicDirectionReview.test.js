@@ -105,19 +105,22 @@ test('unknown direction semantics remain fail-closed', () => {
   assert.equal(result.capabilities.generateTab, false);
 });
 
-test('conflicting metronome and playback tempo remains review-required with provisional TAB', () => {
+test('combined conflicting direction remains review-required without inventing a provisional TAB', () => {
   const result = processMusicXmlUpload({
     fileName: 'conflicting-combined-tempo.musicxml',
     bytes: Buffer.from(score('<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>')),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
   assert.equal(result.route, 'POLY_V2');
-  assert.ok(result.canonicalTabResult);
-  assert.equal(typeof result.musicXml, 'string');
-  assert.equal(result.capabilities.renderScore, true);
-  assert.equal(result.capabilities.generateTab, true);
-  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  // This source is stopped before a writer-safe projection exists. It remains
+  // locally reviewable, but no TAB or timing is invented merely to make it
+  // renderable.
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.musicXml, null);
+  assert.equal(result.capabilities.renderScore, false);
+  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.playback, 'DISABLED');
   assert.equal(result.capabilities.export, false);
-  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.provisionalTabAvailable, false);
   assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
