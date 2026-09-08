@@ -189,7 +189,11 @@ test('orphan slur stop is a located REVIEW_REQUIRED issue rather than guessed pa
 
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
-  assert.equal(result.canonicalTabResult, null);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
   const issue = result.preflight.issues.find((entry) => entry.code === 'ORPHAN_SLUR_STOP');
   assert.ok(issue);
   assert.equal(issue.location.sourceEventId, 'P1:measure:0:note:0');
