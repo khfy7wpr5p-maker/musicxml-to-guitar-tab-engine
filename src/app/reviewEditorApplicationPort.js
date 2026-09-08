@@ -162,6 +162,10 @@ function createReviewEditorApplicationPort({
 
   async function command(payload) {
     if (!isPlainObject(payload)) fail('command payload must be a plain object.', 'INVALID_UI_COMMAND');
+    const payloadKeys = Object.keys(payload).sort();
+    if (payloadKeys.length !== 2 || payloadKeys[0] !== 'command' || payloadKeys[1] !== 'value') {
+      fail('command payload must contain exactly command and value.', 'INVALID_UI_COMMAND');
+    }
     const commandName = payload.command;
     if (typeof commandName !== 'string' || !COMMAND_SET.has(commandName)) {
       fail('command is not a supported Stage 05 edit class.', 'INVALID_UI_COMMAND', { command: commandName ?? null });
@@ -169,7 +173,7 @@ function createReviewEditorApplicationPort({
     if (session.selected_target === null || session.selected_target === undefined) {
       fail('a current Stage 06 target is required before resolving an edit.', 'SELECTION_REQUIRED');
     }
-    const requestedValue = boundedJson(payload.value ?? null, 'command.value');
+    const requestedValue = boundedJson(payload.value, 'command.value');
     const resolved = await commandResolver(Object.freeze({
       session,
       command: commandName,
