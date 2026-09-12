@@ -85,12 +85,14 @@ test('non-leading tempo direction remains review-required instead of moving to m
     bytes: Buffer.from(xml),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
-  // No bounded writer artifact exists for this exact mid-measure placement yet.
-  // The capability contract reports that honestly instead of turning the state
-  // into BLOCKED or inventing a moved tempo event.
+  // No bounded TAB-writer artifact exists for this exact mid-measure placement
+  // yet. The independent source artifact still makes the original score
+  // renderable without moving the tempo event or inventing TAB.
   assert.equal(result.musicXml, null);
-  assert.equal(result.capabilities.renderScore, false);
+  assert.equal(result.sourceArtifact.rendererMusicXml, xml);
+  assert.equal(result.capabilities.renderScore, true);
   assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.capabilities.export, false);
 });
 
@@ -112,14 +114,14 @@ test('combined conflicting direction remains review-required without inventing a
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
   assert.equal(result.route, 'POLY_V2');
-  // This source is stopped before a writer-safe projection exists. It remains
-  // locally reviewable, but no TAB or timing is invented merely to make it
-  // renderable.
+  // This source is stopped before a writer-safe TAB projection exists. The
+  // safely parsed source remains renderable, but no TAB or timing is invented.
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
-  assert.equal(result.capabilities.renderScore, false);
+  assert.match(result.sourceArtifact.rendererMusicXml, /<sound tempo="80"\/>/);
+  assert.equal(result.capabilities.renderScore, true);
   assert.equal(result.capabilities.generateTab, false);
-  assert.equal(result.capabilities.playback, 'DISABLED');
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.capabilities.export, false);
   assert.equal(result.artifacts.provisionalTabAvailable, false);
   assert.equal(result.artifacts.canonicalTabAvailable, false);

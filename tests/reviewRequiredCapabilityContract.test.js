@@ -25,16 +25,16 @@ function polyphonicScore(direction = '') {
 </score-partwise>`;
 }
 
-test('upload result schema 1.1 exposes additive capability and artifact authority', () => {
+test('upload result schema 1.2 exposes additive capability and artifact authority', () => {
   assert.equal(MUSICXML_UPLOAD_RUNTIME_VERSION, '1.0.0');
-  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.1.0');
+  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.2.0');
   const result = processMusicXmlUpload({
     fileName: 'capability-pass.musicxml',
     bytes: Buffer.from(polyphonicScore()),
   });
   assert.equal(result.status, 'PASS');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.1.0');
+  assert.equal(result.resultSchemaVersion, '1.2.0');
   assert.equal(result.capabilityContractVersion, '1.0.0');
   assert.equal(result.scoreAvailable, true);
   assert.equal(result.capabilities.renderScore, true);
@@ -47,7 +47,7 @@ test('upload result schema 1.1 exposes additive capability and artifact authorit
   assert.ok(Object.isFrozen(result));
 });
 
-test('combined direction review does not invent score or TAB artifacts', () => {
+test('combined direction review retains only the safely parsed source score', () => {
   const direction = '<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>';
   const request = {
     fileName: 'conflicting-combined-tempo.musicxml',
@@ -59,17 +59,28 @@ test('combined direction review does not invent score or TAB artifacts', () => {
   assert.equal(first.status, 'REVIEW_REQUIRED');
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.contractVersion, '1.0.0');
-  assert.equal(first.resultSchemaVersion, '1.1.0');
+  assert.equal(first.resultSchemaVersion, '1.2.0');
   assert.equal(first.canonicalTabResult, null);
   assert.equal(first.musicXml, null);
-  assert.equal(first.scoreAvailable, false);
-  assert.equal(first.capabilities.renderScore, false);
+  assert.equal(first.sourceArtifact.documentType, 'MusicXmlSourceArtifact');
+  assert.equal(first.sourceArtifact.contractVersion, '1.0.0');
+  assert.equal(first.sourceArtifact.sourceUploadSha256, first.input.sha256);
+  assert.equal(first.sourceArtifact.sourceKind, 'DIRECT_XML');
+  assert.equal(first.sourceArtifact.mediaType, 'application/vnd.recordare.musicxml+xml');
+  assert.equal(first.sourceArtifact.byteLength, Buffer.byteLength(first.sourceArtifact.rendererMusicXml));
+  assert.match(first.sourceArtifact.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(first.sourceArtifact.rendererMusicXml, request.bytes.toString('utf8'));
+  assert.equal(Object.isFrozen(first.sourceArtifact), true);
+  assert.equal(first.scoreAvailable, true);
+  assert.equal(first.capabilities.renderScore, true);
   assert.equal(first.capabilities.generateTab, false);
-  assert.equal(first.capabilities.playback, 'DISABLED');
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
   assert.equal(first.capabilities.export, false);
+  assert.equal(first.artifacts.sourceArtifactAvailable, true);
+  assert.equal(first.artifacts.rendererMusicXmlAvailable, true);
   assert.equal(first.artifacts.provisionalTabAvailable, false);
   assert.equal(first.artifacts.canonicalTabAvailable, false);
-  assert.equal(first.artifacts.playbackTimelineReliability, 'NONE');
+  assert.equal(first.artifacts.playbackTimelineReliability, 'PARTIAL');
   assert.equal(first.issues.length > 0, true);
   assert.match(first.issues[0].issueId, /^issue_[0-9a-f]{20}$/);
   assert.equal(first.issues[0].affectsTab, false);
@@ -104,7 +115,7 @@ test('timeline review keeps TAB capability when a provisional artifact exists', 
   });
 
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.1.0');
+  assert.equal(result.resultSchemaVersion, '1.2.0');
   assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.artifacts.provisionalTabAvailable, true);
@@ -144,7 +155,7 @@ test('hard block remains capability-closed', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.1.0');
+  assert.equal(result.resultSchemaVersion, '1.2.0');
   assert.equal(result.scoreAvailable, false);
   assert.equal(result.capabilities.renderScore, false);
   assert.equal(result.capabilities.generateTab, false);
@@ -152,4 +163,7 @@ test('hard block remains capability-closed', () => {
   assert.equal(result.capabilities.export, false);
   assert.equal(result.artifacts.provisionalTabAvailable, false);
   assert.equal(result.artifacts.canonicalTabAvailable, false);
+  assert.equal(result.sourceArtifact, null);
+  assert.equal(result.artifacts.sourceArtifactAvailable, false);
+  assert.equal(result.artifacts.rendererMusicXmlAvailable, false);
 });

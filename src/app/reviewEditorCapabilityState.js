@@ -120,7 +120,13 @@ function assertCapabilityUploadResult(result) {
   if (result.capabilities?.renderScore !== true || result.scoreAvailable !== true) {
     throw new TypeError('Capability editor state requires backend-authorized score rendering.');
   }
-  if (typeof result.musicXml !== 'string' || result.musicXml.length === 0) {
+  const rendererMusicXml = typeof result.musicXml === 'string' && result.musicXml.length > 0
+    ? result.musicXml
+    : result.sourceArtifact?.documentType === 'MusicXmlSourceArtifact'
+      && result.sourceArtifact?.contractVersion === '1.0.0'
+      ? result.sourceArtifact.rendererMusicXml
+      : null;
+  if (typeof rendererMusicXml !== 'string' || rendererMusicXml.length === 0) {
     throw new TypeError('Capability editor state requires renderer MusicXML evidence.');
   }
   if (!Array.isArray(result.issues) || result.issues.length === 0 || result.issues.length > MAX_ISSUES) {

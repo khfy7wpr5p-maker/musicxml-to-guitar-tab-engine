@@ -15,12 +15,16 @@ A renderer is never semantic authority. Writers consume already-selected canonic
 
 The application score-state contract is also independent from route: `PASS`, `REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while `MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See [`reviewable-score-state-contract.md`](reviewable-score-state-contract.md). The early routing rules are defined in [`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
 
+The application source-rendering artifact is independent from canonical TAB authority. After XML/MXL safety and bounded parsing succeed, `MusicXmlSourceArtifact 1.0.0` retains safety-normalized renderer MusicXML even when a later projection, arrangement or solver boundary stops conversion. It never grants TAB or export authority. See [`r1-source-artifact-retention.md`](r1-source-artifact-retention.md).
+
 ## 2. Production pipeline
 
 ```text
 MusicXML Input
     ↓
 XML Safety / Parser
+    ↓
+Immutable Source Artifact (presentation only)
     ↓
 Source Guitar Configuration Provenance / Authority
     ↓
@@ -48,6 +52,7 @@ MusicXML / TAB Writer
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
+- source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
 - source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;
@@ -64,6 +69,7 @@ Representative implementation boundaries:
 Every stage is constrained by the following invariants:
 
 - immutable source bytes and immutable source musical facts;
+- source rendering remains independent from canonical TAB and export authority;
 - deterministic output for identical input/options;
 - bounded work and fixed resource ceilings;
 - fail-closed unsupported or ambiguous semantics;

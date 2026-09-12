@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 
 const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.0.0';
-const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.1.0';
+const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.2.0';
 
 const PLAYBACK_CAPABILITY = Object.freeze({
   FULL: 'FULL',
@@ -176,13 +176,33 @@ function playbackCapability(result, renderScore, issues) {
     : PLAYBACK_CAPABILITY.FULL;
 }
 
+function sourceArtifactMusicXml(result) {
+  const artifact = result?.sourceArtifact;
+  if (
+    artifact?.documentType !== 'MusicXmlSourceArtifact'
+    || artifact?.contractVersion !== '1.0.0'
+  ) return null;
+  return typeof artifact.rendererMusicXml === 'string' && artifact.rendererMusicXml.length > 0
+    ? artifact.rendererMusicXml
+    : null;
+}
+
+function rendererMusicXml(result) {
+  if (typeof result?.musicXml === 'string' && result.musicXml.length > 0) {
+    return result.musicXml;
+  }
+  return sourceArtifactMusicXml(result);
+}
+
 function decorateUploadResultWithCapabilities(result) {
   if (!result || typeof result !== 'object') {
     throw new TypeError('Upload result must be an object.');
   }
 
-  const renderScore = typeof result.musicXml === 'string' && result.musicXml.length > 0;
+  const rendererMusicXmlAvailable = rendererMusicXml(result) !== null;
+  const renderScore = rendererMusicXmlAvailable && result.status !== 'BLOCKED';
   const tabArtifactAvailable = Boolean(result.canonicalTabResult);
+  const sourceArtifactAvailable = sourceArtifactMusicXml(result) !== null;
   const reviewable = result.status === 'REVIEW_REQUIRED';
   const passed = result.status === 'PASS';
   const tabVisible = renderScore && tabArtifactAvailable;
@@ -205,7 +225,8 @@ function decorateUploadResultWithCapabilities(result) {
 
   const artifacts = {
     sourceScoreGraphAvailable: Boolean(result.canonicalTabResult?.source),
-    rendererMusicXmlAvailable: renderScore,
+    sourceArtifactAvailable,
+    rendererMusicXmlAvailable,
     provisionalTabAvailable: reviewable && tabArtifactAvailable,
     canonicalTabAvailable: passed && tabArtifactAvailable,
     playbackTimelineReliability: playback === PLAYBACK_CAPABILITY.FULL
