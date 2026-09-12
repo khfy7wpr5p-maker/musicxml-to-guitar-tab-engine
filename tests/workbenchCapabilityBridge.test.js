@@ -38,6 +38,8 @@ function reviewResult(overrides = {}) {
       export: false,
     },
     artifacts: {
+      sourceArtifactAvailable: false,
+      rendererMusicXmlAvailable: true,
       provisionalTabAvailable: true,
       canonicalTabAvailable: false,
     },
@@ -97,6 +99,51 @@ test('product bridge cannot invent review renderability without capabilities and
   assert.equal(presented.status, 'REVIEW_REQUIRED');
   assert.equal(presented.musicXml, null);
   assert.equal(bridge.currentResult(), authoritative);
+});
+
+test('product bridge presents an authorized source-only review without inventing TAB authority', async () => {
+  const api = hostApi();
+  const sourceMusicXml = '<score-partwise version="4.0"><part-list/></score-partwise>';
+  const authoritative = reviewResult({
+    canonicalTabResult: null,
+    musicXml: null,
+    sourceArtifact: {
+      documentType: 'MusicXmlSourceArtifact',
+      contractVersion: '1.0.0',
+      rendererMusicXml: sourceMusicXml,
+    },
+    capabilities: {
+      renderScore: true,
+      generateTab: false,
+      editPitch: false,
+      editRhythm: false,
+      editVoice: false,
+      editStructure: false,
+      playback: 'APPROXIMATE',
+      export: false,
+    },
+    artifacts: {
+      sourceArtifactAvailable: true,
+      rendererMusicXmlAvailable: true,
+      provisionalTabAvailable: false,
+      canonicalTabAvailable: false,
+    },
+  });
+  const bridge = api.createCapabilityBridge({
+    upload: async () => authoritative,
+    edit: async () => ({ status: 'PASS' }),
+    polyphonicEdit: async () => ({ status: 'PASS' }),
+    transpose: async () => ({ status: 'PASS' }),
+    loadPreview: null,
+  });
+
+  const presented = await bridge.adapter.upload({}, new Uint8Array());
+  assert.equal(presented.status, 'PASS');
+  assert.equal(presented.musicXml, sourceMusicXml);
+  assert.equal(presented.canonicalTabResult, null);
+  assert.equal(bridge.currentResult(), authoritative);
+  assert.equal(bridge.currentResult().status, 'REVIEW_REQUIRED');
+  assert.equal(bridge.currentResult().capabilities.generateTab, false);
 });
 
 test('preview controller feeds raw REVIEW_REQUIRED result through the bridge exactly once', async () => {

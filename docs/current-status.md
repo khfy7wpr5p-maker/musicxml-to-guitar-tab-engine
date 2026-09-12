@@ -37,6 +37,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 07 review editor UI + exact host/pins | ✅ COMPLETE / INTERNAL — Editor Core `9429116…`, Rendering `13c32eef…` |
 | Stage 08 correction revalidation → production TAB | ✅ COMPLETE / INTERNAL — merged PR #314 at `051aae293244ead108079b4756810558e0a44891` |
 | Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections |
+| R1 safely parsed source-artifact retention | ✅ IMPLEMENTED — source rendering separated from TAB/export authority |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -71,13 +72,14 @@ Stage 09 has a dedicated evidence gate and now meets the Tier-A minimum with 20 
 
 Tier B remains intentionally open. A cross-repository audit found two teacher-verified references, including one authentic teacher-approved Audiveris chain, but neither supplies a non-empty real teacher-correction patch ledger that can be revalidated through Stage 08. The product gate therefore remains `HOLD_EVIDENCE_GAP` at 0/3 eligible teacher-correction cases and still lacks required real `PASS` / `REVIEW_REQUIRED` / `BLOCKED` plus representation coverage. Synthetic, no-correction and regression-only OMR material cannot satisfy Tier B. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
 
-The existing Guitar TAB Workbench and pitch edit runtimes remain separate and retain their existing `PASS`-only authority. Stage 08 does not silently turn those pitch-only paths into the teacher editor and Stage 09 does not widen the package-root API.
+The Guitar TAB Workbench now has a presentation-only bridge for source-backed `REVIEW_REQUIRED` results. It can load the immutable source score into the legacy renderer while preserving the authoritative review status. Existing structured pitch-edit runtimes remain PASS-only unless the separate Stage 06 review-editor capability contract grants an operation. Stage 08 does not silently turn those pitch-only paths into the teacher editor and Stage 09 does not widen the package-root API.
 
 ## Current production/application path
 
 ```text
 MusicXML
   → XML safety + bounded parser
+  → immutable source artifact for presentation/recovery
   → source guitar configuration provenance / authority
   → representation compatibility normalizers
   → PolyphonicSourceModel
@@ -170,7 +172,7 @@ The committed Stage 03 reviewed audit contains the same nine file names and SHA-
 
 `verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` pins the successful workflow evidence. Together with the historical nine, Tier A is **20 unique / 20 verified**. Evidence-set overlap fails closed and cannot inflate this count.
 
-All eleven additional cases currently return bounded `BLOCKED` outcomes. That is product evidence about current compatibility/physical boundaries, not a reason to weaken solver policy or resource ceilings.
+The R0 fresh run over the eleven additional cases produced `0 PASS`, `6 REVIEW_REQUIRED` and `5 BLOCKED`, with zero renderer/TAB artifacts. R1 now retains a source artifact after successful parsing; the updated artifact-backed real-corpus audit remains to be run in protected CI. These outcomes are product evidence about current compatibility/physical boundaries, not a reason to weaken solver policy or resource ceilings.
 
 ### Stage 09 teacher-correction evidence gap
 
@@ -199,12 +201,12 @@ The engine does not silently infer or rewrite pitch, octave, onset, duration, vo
 
 Physical impossibility must not be bypassed by changing solver ranking/cost/tie-break or inventing string assignments. Genuine tuning/capo changes must not be downgraded to presentation compatibility. Fixed resource ceilings must not be raised as a corpus workaround. Unsupported musical semantics must not be guessed from notation shape alone.
 
-Renderer output is presentation only. Writers serialize canonical truth. Compatibility normalizers remove or reinterpret only proven representation-level differences. Candidate order, physical policy, ranking/cost and tie-breaks are not compatibility levers.
+Renderer output and the R1 source artifact are presentation only. Writers serialize canonical truth. A source artifact can authorize score display but never TAB generation or export. Compatibility normalizers remove or reinterpret only proven representation-level differences. Candidate order, physical policy, ranking/cost and tie-breaks are not compatibility levers.
 
 ## Open architecture gates
 
 1. Stage 09 Tier-B evidence acquisition: add at least 3 authentic teacher-correction cases with `PASS`, `REVIEW_REQUIRED`, `BLOCKED` and required representation coverage.
-2. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
+2. R2 partial arrangement result for safely parsed scores that cannot yet produce a complete canonical TAB, with explicit per-note disposition and no silent note loss.
 3. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
 4. Any broader public/package-root polyphonic API remains separately gated.
 5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.

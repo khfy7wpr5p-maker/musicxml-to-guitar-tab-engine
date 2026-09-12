@@ -117,6 +117,12 @@ test('secure upload extracts a bounded MXL score without mutating source bytes',
   assert.equal(first.input.byteLength, archive.byteLength);
   assert.deepEqual(first.canonicalTabResult, direct.canonicalTabResult);
   assert.equal(first.musicXml, direct.musicXml);
+  assert.equal(first.sourceArtifact.sourceKind, 'MXL_ROOTFILE');
+  assert.equal(first.sourceArtifact.sourceUploadSha256, first.input.sha256);
+  assert.equal(first.sourceArtifact.rendererMusicXml, scoreBytes.toString('utf8'));
+  assert.equal(first.sourceArtifact.sha256, direct.sourceArtifact.sha256);
+  assert.equal(first.sourceArtifact.byteLength, scoreBytes.byteLength);
+  assert.equal(first.artifacts.sourceArtifactAvailable, true);
   assert.deepEqual(first, second);
   assert.deepEqual(archive, before);
 });

@@ -71,6 +71,9 @@ const {
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
+const MUSICXML_SOURCE_ARTIFACT_VERSION = '1.0.0';
+const MUSICXML_SOURCE_ARTIFACT_DOCUMENT_TYPE = 'MusicXmlSourceArtifact';
+const MUSICXML_MEDIA_TYPE = 'application/vnd.recordare.musicxml+xml';
 const MUSICXML_UPLOAD_STATUS = SCORE_STATUS;
 const MUSICXML_UPLOAD_ROUTE = SCORE_ROUTE;
 const ALLOWED_UPLOAD_EXTENSIONS = Object.freeze(['.musicxml', '.xml', '.mxl']);
@@ -243,6 +246,20 @@ function createOversizedInputIdentity(fileName, byteLength) {
   });
 }
 
+function createSourceArtifact(rendererMusicXml, identity, extension) {
+  const bytes = Buffer.from(rendererMusicXml, 'utf8');
+  return Object.freeze({
+    documentType: MUSICXML_SOURCE_ARTIFACT_DOCUMENT_TYPE,
+    contractVersion: MUSICXML_SOURCE_ARTIFACT_VERSION,
+    sourceUploadSha256: identity.sha256,
+    sourceKind: extension === '.mxl' ? 'MXL_ROOTFILE' : 'DIRECT_XML',
+    mediaType: MUSICXML_MEDIA_TYPE,
+    byteLength: bytes.byteLength,
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    rendererMusicXml,
+  });
+}
+
 function deepFreeze(root) {
   const pending = [root];
   const seen = new WeakSet();
@@ -285,7 +302,7 @@ function issueFromError(error) {
   };
 }
 
-function blockedResult(identity, route, issue, normalization = null) {
+function blockedResult(identity, route, issue, normalization = null, sourceArtifact = null) {
   const scoreState = buildScoreState({
     route,
     issues: [issue],
@@ -310,6 +327,7 @@ function blockedResult(identity, route, issue, normalization = null) {
     },
     canonicalTabResult: null,
     musicXml: null,
+    sourceArtifact,
   });
 }
 
@@ -323,7 +341,7 @@ function isCapabilityOnlyPreflight(preflight) {
   );
 }
 
-function measureOverflowReviewResult(identity, error, normalization) {
+function measureOverflowReviewResult(identity, error, normalization, sourceArtifact) {
   const details = error.details;
   const reviewState = buildOmrReviewScoreState({
     route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
@@ -348,7 +366,13 @@ function measureOverflowReviewResult(identity, error, normalization) {
     }],
   });
   const issue = { ...issueFromError(error), reviewDisposition: 'REVIEW_REQUIRED', reviewEvidence: reviewState.issues[0].reviewEvidence };
-  const base = blockedResult(identity, MUSICXML_UPLOAD_ROUTE.POLY_V2, issue, normalization);
+  const base = blockedResult(
+    identity,
+    MUSICXML_UPLOAD_ROUTE.POLY_V2,
+    issue,
+    normalization,
+    sourceArtifact,
+  );
   return deepFreeze({
     ...base,
     status: reviewState.status,
@@ -897,6 +921,8 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   let processing;
   let harmonyExtraction;
   let sourceBytes;
+  let normalizedSourceXml;
+  let sourceArtifact;
   try {
     processing = resolveProcessingRuntime(normalizedOptions.processing, runtime);
     processing.checkpoint('app-upload:start', { byteLength: normalizedUpload.bytes.byteLength });
@@ -908,17 +934,16 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     if (extension === '.mxl') {
       processing.checkpoint('app-upload:mxl-extracted', { byteLength: sourceBytes.byteLength });
     }
-    normalizeXmlInput(sourceBytes, { maxBytes: DEFAULT_MAX_XML_BYTES });
+    normalizedSourceXml = normalizeXmlInput(sourceBytes, { maxBytes: DEFAULT_MAX_XML_BYTES });
     processing.checkpoint('app-upload:safety-complete');
-    harmonyExtraction = extractBasicMusicXmlHarmony(
-      parseParsedMusicXmlDocument(sourceBytes, {}, processing),
-      processing,
-    );
+    const parsedDocument = parseParsedMusicXmlDocument(sourceBytes, {}, processing);
+    sourceArtifact = createSourceArtifact(normalizedSourceXml, identity, extension);
+    harmonyExtraction = extractBasicMusicXmlHarmony(parsedDocument, processing);
   } catch (error) {
     const route = error?.code === 'UNSUPPORTED_BASIC_MUSICXML_HARMONY'
       ? MUSICXML_UPLOAD_ROUTE.POLY_V2
       : MUSICXML_UPLOAD_ROUTE.UNRESOLVED;
-    return blockedResult(identity, route, issueFromError(error));
+    return blockedResult(identity, route, issueFromError(error), null, sourceArtifact);
   }
 
   let monophonic;
@@ -936,6 +961,8 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         ? MUSICXML_UPLOAD_ROUTE.POLY_V2
         : MUSICXML_UPLOAD_ROUTE.MONO_V1,
       issueFromError(error),
+      null,
+      sourceArtifact,
     );
   }
   if (
@@ -968,7 +995,13 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         processing,
       );
     } catch (error) {
-      return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.MONO_V1, issueFromError(error));
+      return blockedResult(
+        identity,
+        MUSICXML_UPLOAD_ROUTE.MONO_V1,
+        issueFromError(error),
+        null,
+        sourceArtifact,
+      );
     }
   }
 
@@ -991,9 +1024,16 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         },
         canonicalTabResult: monophonic.canonicalTabResult,
         musicXml,
+        sourceArtifact,
       });
     } catch (error) {
-      return blockedResult(identity, MUSICXML_UPLOAD_ROUTE.MONO_V1, issueFromError(error));
+      return blockedResult(
+        identity,
+        MUSICXML_UPLOAD_ROUTE.MONO_V1,
+        issueFromError(error),
+        null,
+        sourceArtifact,
+      );
     }
   }
 
@@ -1012,6 +1052,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       },
       canonicalTabResult: null,
       musicXml: null,
+      sourceArtifact,
     });
   }
 
@@ -1136,6 +1177,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       normalization: publicNormalization(normalization),
       canonicalTabResult: conversion.canonicalTabResult,
       musicXml: conversion.musicXml,
+      sourceArtifact,
     });
   } catch (error) {
     // XML parsing/safety checks have completed. This exact semantic failure
@@ -1143,13 +1185,19 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     if (error instanceof PolyphonicMusicXmlProjectorError
       && error.code === 'INVALID_MUSICXML'
       && error.details?.reason === 'MEASURE_EVENT_OVERFLOW') {
-      return measureOverflowReviewResult(identity, error, normalization ? publicNormalization(normalization) : null);
+      return measureOverflowReviewResult(
+        identity,
+        error,
+        normalization ? publicNormalization(normalization) : null,
+        sourceArtifact,
+      );
     }
     return blockedResult(
       identity,
       MUSICXML_UPLOAD_ROUTE.POLY_V2,
       issueFromError(error),
       normalization ? publicNormalization(normalization) : null,
+      sourceArtifact,
     );
   }
 }
@@ -1157,6 +1205,8 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
 module.exports = {
   MUSICXML_UPLOAD_RUNTIME_VERSION,
   MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
+  MUSICXML_SOURCE_ARTIFACT_VERSION,
+  MUSICXML_SOURCE_ARTIFACT_DOCUMENT_TYPE,
   MUSICXML_UPLOAD_STATUS,
   MUSICXML_UPLOAD_ROUTE,
   MusicXmlUploadRuntimeError,

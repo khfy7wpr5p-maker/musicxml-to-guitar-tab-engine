@@ -72,6 +72,10 @@ test('Stage 09 surfaces ambiguous backward repeat as REVIEW_REQUIRED without can
   assert.equal(result.preflight.issues[0].reviewDisposition, 'REVIEW_REQUIRED');
   assert.equal(result.canonicalTabResult, null);
   assert.equal(result.musicXml, null);
+  assert.equal(result.sourceArtifact.rendererMusicXml, xml);
+  assert.equal(result.capabilities.renderScore, true);
+  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.export, false);
 });
 
 test('Stage 09 projects validated forward metadata deterministically without changing source bytes or nodes', () => {
@@ -142,6 +146,11 @@ test('Stage 09 keeps unsupported directions BLOCKED without canonical output', (
   assert.equal(first.status, 'BLOCKED');
   assert.equal(first.canonicalTabResult, null);
   assert.equal(first.musicXml, null);
+  assert.equal(first.sourceArtifact.rendererMusicXml, bytes.toString('utf8'));
+  assert.equal(first.artifacts.sourceArtifactAvailable, true);
+  assert.equal(first.artifacts.rendererMusicXmlAvailable, true);
+  assert.equal(first.capabilities.renderScore, false);
+  assert.equal(first.capabilities.generateTab, false);
   assert.deepEqual(first, processMusicXmlUpload({ fileName: 'direction.musicxml', bytes }));
   assert.deepEqual(bytes, before);
 });

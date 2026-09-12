@@ -133,4 +133,4 @@ A legitimate `BLOCKED` result remains valid safety evidence, but a recoverable s
 - `tests/stage09AdditionalRealCorpusAudit.test.js`
 - `tests/stage09TeacherCorrectionEvidenceIntake.test.js`
 
-The next product-recovery work is R1 source-artifact retention: preserve a safely parsed source score independently from canonical TAB completion and make repeat/direction review cases renderable. Genuine Tier-B evidence acquisition remains required for Stage 09 closure, but no longer hides the more immediate usable-output gap.
+R1 source-artifact retention is now implemented on its recovery branch: a safely parsed source score is preserved independently from canonical TAB completion, and allow-listed repeat/direction review cases can be rendered without granting TAB or export authority. The next product-recovery work is R2 partial arrangement output with explicit note dispositions. Genuine Tier-B evidence acquisition remains required for Stage 09 closure.

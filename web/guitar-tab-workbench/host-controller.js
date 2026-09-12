@@ -38,21 +38,32 @@
   // PASS-only internal render/playback gates. This bridge is deliberately
   // presentation-only: it never changes the authoritative result returned to
   // product controllers. A REVIEW_REQUIRED result is presented to the legacy
-  // core as renderable only when the backend explicitly supplies the renderer
-  // and provisional TAB capabilities plus both artifacts.
+  // core as renderable only when the backend explicitly supplies a renderer
+  // artifact. Source-only review never invents canonical or provisional TAB.
   function createCapabilityBridge(adapter) {
     let authoritativeResult = null;
 
+    function reviewRendererMusicXml(result) {
+      if (typeof result?.musicXml === 'string' && result.musicXml.length > 0) {
+        return result.musicXml;
+      }
+      const artifact = result?.sourceArtifact;
+      if (
+        result?.artifacts?.sourceArtifactAvailable !== true
+        || artifact?.documentType !== 'MusicXmlSourceArtifact'
+        || artifact?.contractVersion !== '1.0.0'
+      ) return null;
+      const sourceMusicXml = artifact.rendererMusicXml;
+      return typeof sourceMusicXml === 'string' && sourceMusicXml.length > 0
+        ? sourceMusicXml
+        : null;
+    }
+
     function isRenderableReview(result) {
-      return Boolean(
-        result?.status === 'REVIEW_REQUIRED'
+      return result?.status === 'REVIEW_REQUIRED'
         && result?.capabilities?.renderScore === true
-        && result?.capabilities?.generateTab === true
-        && result?.artifacts?.provisionalTabAvailable === true
-        && typeof result?.musicXml === 'string'
-        && result.musicXml.length > 0
-        && result?.canonicalTabResult,
-      );
+        && result?.artifacts?.rendererMusicXmlAvailable === true
+        && reviewRendererMusicXml(result) !== null;
     }
 
     function present(result) {
@@ -61,6 +72,7 @@
       return {
         ...result,
         status: 'PASS',
+        musicXml: reviewRendererMusicXml(result),
       };
     }
 
