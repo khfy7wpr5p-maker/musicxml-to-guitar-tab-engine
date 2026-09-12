@@ -6,6 +6,12 @@ const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 
 const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
+const {
+  CAPABILITY_STATUS,
+  REVIEW_EDITOR_BACKEND_CONTRACT_VERSION,
+  REVIEW_EDITOR_BACKEND_DOCUMENT_TYPE,
+  SESSION_PHASE,
+} = require('../src/app/reviewEditorBackend');
 const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
 const {
   MUSICXML_ROUTE_REQUIREMENT,
@@ -146,7 +152,27 @@ function tabDispositionCounts(result) {
   };
 }
 
-function buildUsableOutputRecord(result, { sourceParseable, blocker }) {
+function reviewEditorCapabilityAvailable(session) {
+  if (
+    session?.documentType !== REVIEW_EDITOR_BACKEND_DOCUMENT_TYPE
+    || session?.contractVersion !== REVIEW_EDITOR_BACKEND_CONTRACT_VERSION
+    || session?.phase !== SESSION_PHASE.EDITING
+    || session?.review_revision?.review_evidence?.status !== 'REVIEW_REQUIRED'
+    || session?.review_revision?.review_evidence?.canOpenForReview !== true
+  ) return false;
+
+  const adapterCapabilities = session?.adapter_manifest?.capabilities;
+  if (!adapterCapabilities || typeof adapterCapabilities !== 'object') return false;
+  return Object.values(adapterCapabilities).some((status) => (
+    status === CAPABILITY_STATUS.AVAILABLE || status === CAPABILITY_STATUS.BOUNDED
+  ));
+}
+
+function buildUsableOutputRecord(result, {
+  sourceParseable,
+  blocker,
+  reviewEditorSession = null,
+}) {
   const usableOutputEligible = sourceParseable === true && blocker?.category !== 'safety';
   const capabilities = result?.capabilities || {};
   const sourceRenderable = Boolean(
@@ -167,7 +193,7 @@ function buildUsableOutputRecord(result, { sourceParseable, blocker }) {
     && capabilities.export === true
     && result?.artifacts?.canonicalTabAvailable === true,
   );
-  const editCapabilityAvailable = [
+  const directEditCapabilityAvailable = result?.status === 'PASS' && [
     'editPitch',
     'editRhythm',
     'editVoice',
@@ -175,7 +201,13 @@ function buildUsableOutputRecord(result, { sourceParseable, blocker }) {
     'editTab',
     'editFingering',
   ].some((name) => capabilities[name] === true);
-  const teacherEditable = Boolean(tabArtifactAvailable && editCapabilityAvailable);
+  const bridgedEditCapabilityAvailable = result?.status === 'REVIEW_REQUIRED'
+    && reviewEditorCapabilityAvailable(reviewEditorSession);
+  const teacherEditable = Boolean(
+    sourceRenderable
+    && tabArtifactAvailable
+    && (directEditCapabilityAvailable || bridgedEditCapabilityAvailable),
+  );
   const counts = tabArtifactAvailable
     ? tabDispositionCounts(result)
     : { source: null, assigned: null, unassigned: null, coverageBasisPoints: null };
@@ -291,6 +323,7 @@ function runAudit({
   sourceDirectory,
   manifest = manifestDefault,
   processUpload = processMusicXmlUpload,
+  reviewEditorSessionFactory = null,
   engineCommit = process.env.GITHUB_SHA || null,
 } = {}) {
   validateManifest(manifest);
@@ -330,9 +363,22 @@ function runAudit({
     );
     const validOutputSemantics = outputSemanticsValid(firstResult);
     const blocker = blockerSnapshot(firstResult);
+    let reviewEditorSession = null;
+    if (firstResult?.status === 'REVIEW_REQUIRED' && typeof reviewEditorSessionFactory === 'function') {
+      try {
+        reviewEditorSession = reviewEditorSessionFactory(Object.freeze({
+          uploadResult: firstResult,
+          sourceBytes: Buffer.from(original),
+          path: entry.path,
+        }));
+      } catch {
+        reviewEditorSession = null;
+      }
+    }
     const usableOutput = buildUsableOutputRecord(firstResult, {
       sourceParseable: requirement !== 'UNRESOLVED',
       blocker,
+      reviewEditorSession,
     });
 
     records.push({

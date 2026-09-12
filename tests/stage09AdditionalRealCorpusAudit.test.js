@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -15,6 +16,14 @@ const {
   usableOutputSummaryMarkdown,
   validateManifest,
 } = require('../scripts/stage09-additional-real-corpus-audit');
+const {
+  CAPABILITY_STATUS,
+  REVIEW_EDITOR_BACKEND_CONTRACT_VERSION,
+} = require('../src/app/reviewEditorBackend');
+const {
+  createReviewEditorCapabilitySession,
+} = require('../src/app/reviewEditorCapabilityBridge');
+const { EDIT_CLASS } = require('../src/app/teacherCorrectionRevision');
 
 function syntheticCorpus({ poly = false } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-additional-'));
@@ -81,6 +90,84 @@ function usablePass() {
       canonicalTabAvailable: true,
     },
   };
+}
+
+function usableReview(bytes, fileName = 'review.musicxml') {
+  return {
+    status: 'REVIEW_REQUIRED',
+    route: 'POLY_V2',
+    resultSchemaVersion: '1.1.0',
+    capabilityContractVersion: '1.0.0',
+    input: {
+      fileName,
+      byteLength: bytes.length,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    },
+    scoreAvailable: true,
+    preflight: { issues: [] },
+    canonicalTabResult: {
+      documentType: 'CanonicalTabResult',
+      noteCount: 1,
+    },
+    musicXml: '<score-partwise><part-list/></score-partwise>',
+    capabilities: {
+      renderScore: true,
+      generateTab: true,
+      editPitch: false,
+      editRhythm: false,
+      editVoice: false,
+      editStructure: false,
+      editTab: false,
+      editFingering: false,
+      export: false,
+    },
+    artifacts: {
+      provisionalTabAvailable: true,
+      canonicalTabAvailable: false,
+    },
+    issues: [{
+      issueId: 'issue-pitch-1',
+      severity: 'error',
+      category: 'semantic',
+      code: 'OMR_SUSPECTED_PITCH',
+      message: 'Pitch requires teacher review.',
+      teacherActionRequired: true,
+      allowedActions: ['EDIT_MANUALLY'],
+      location: { measure: 1, measureIndex: 0, eventIndex: 0, sourceEventId: 'event-1' },
+    }],
+  };
+}
+
+function reviewEditorManifest() {
+  return {
+    contractVersion: REVIEW_EDITOR_BACKEND_CONTRACT_VERSION,
+    adapterId: 'stage09-audit-editor-test',
+    capabilities: Object.fromEntries(Object.values(EDIT_CLASS).map((editClass) => [
+      editClass,
+      editClass === EDIT_CLASS.PITCH_UPDATE
+        ? CAPABILITY_STATUS.AVAILABLE
+        : CAPABILITY_STATUS.UNAVAILABLE,
+    ])),
+    history: { undo: true, redo: true },
+    revalidate: true,
+  };
+}
+
+function openReviewEditor({ uploadResult, sourceBytes, path: pathName = 'review.musicxml' }) {
+  return createReviewEditorCapabilitySession({
+    sessionId: `stage09:${uploadResult.input.sha256.slice(0, 16)}`,
+    uploadResult,
+    sourceBytes,
+    reviewMetadata: {
+      revision_id: `stage09-review:${uploadResult.input.sha256.slice(0, 16)}`,
+      actor: { kind: 'SYSTEM', id: 'stage09-audit' },
+      timestamp: '2026-09-12T00:00:00.000Z',
+      reason: 'Verify Stage 06 teacher-editor admission.',
+      provenance: { source: 'STAGE09_AUDIT', path: pathName },
+    },
+    adapterManifest: reviewEditorManifest(),
+    adapterState: { documentId: uploadResult.input.sha256 },
+  });
 }
 
 test('additional real-corpus manifest requires exactly eleven unique pinned blob identities', () => {
@@ -166,6 +253,44 @@ test('usable-output record requires real artifacts and capabilities instead of t
   assert.equal(observed.tabAssignedNoteCount, 1);
   assert.equal(observed.tabUnassignedNoteCount, 0);
   assert.equal(observed.tabCoverageBasisPoints, 10_000);
+});
+
+test('REVIEW_REQUIRED editability is measured through the Stage 06 session adapter manifest', () => {
+  const bytes = Buffer.from('<score-partwise><part-list/></score-partwise>');
+  const result = usableReview(bytes);
+  const withoutBridge = buildUsableOutputRecord(result, {
+    sourceParseable: true,
+    blocker: null,
+  });
+  assert.equal(withoutBridge.teacherEditable, false);
+
+  const reviewEditorSession = openReviewEditor({ uploadResult: result, sourceBytes: bytes });
+  const bridged = buildUsableOutputRecord(result, {
+    sourceParseable: true,
+    blocker: null,
+    reviewEditorSession,
+  });
+  assert.equal(result.capabilities.editPitch, false);
+  assert.equal(bridged.sourceRenderable, true);
+  assert.equal(bridged.tabArtifactAvailable, true);
+  assert.equal(bridged.canonicalAvailable, false);
+  assert.equal(bridged.teacherEditable, true);
+});
+
+test('real-corpus runner passes Stage 06 session evidence into the usable-output gate', () => {
+  const corpus = syntheticCorpus();
+  try {
+    const report = runAudit({
+      sourceDirectory: corpus.directory,
+      manifest: corpus.manifest,
+      processUpload: ({ fileName, bytes }) => usableReview(bytes, fileName),
+      reviewEditorSessionFactory: openReviewEditor,
+    });
+    assert.equal(report.usableOutputGate.summary.teacherEditableFiles, 11);
+    assert.equal(report.records.every((record) => record.teacherEditable), true);
+  } finally {
+    fs.rmSync(corpus.directory, { recursive: true, force: true });
+  }
 });
 
 test('usable-output gate passes only when every eligible score renders, has TAB, and is teacher-editable', () => {

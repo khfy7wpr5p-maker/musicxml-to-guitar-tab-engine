@@ -59,6 +59,8 @@ Current Tier A: **20 / 20 minimum verified**. The product-gate script rejects ev
 
 The safety audit keeps its existing independent `PASS_VERIFIED` meaning: exact identity, deterministic reruns, immutable bytes, correct route and bounded output semantics. The new product gate reports `PASS_USABLE_OUTPUT_GATE` only when every eligible file actually renders, has a TAB artifact and is teacher-editable. Otherwise it reports `FAIL_USABLE_OUTPUT_GATE` with exact gaps. The GitHub workflow publishes both outcomes in its artifact and writes the product result into the job summary.
 
+For `REVIEW_REQUIRED`, teacher editability is measured from an observed Stage 06 review-editor session and its validated adapter manifest. Upload-result `edit*` flags are deliberately ignored because they do not grant review editing authority. If the bridge is absent or cannot open the score, the audit records the file as not teacher-editable.
+
 This separation is intentional during recovery: an honest product failure must be visible without weakening or disabling the security/determinism CI required to implement R1–R6.
 
 ## Tier B — authentic OMR → teacher correction → Stage 08
