@@ -1,8 +1,16 @@
 # AI Context — Read This First
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-12 -->
 
 This is the active read-first context for coding agents and reviewers. Historical versioned contracts, closure records, corpus audits, PR numbers, commit SHAs, and sealed scientific evidence remain historical records; they are not current architecture authority merely because they are retained in the repository.
+
+## Product recovery priority
+
+As of the verified `2026-09-12` snapshot, green unit/compatibility CI does **not** prove that a real upload produces usable TAB. A fresh run of the pinned eleven-file Stage 09 corpus on main `963274a5425488b07df153460409e491f56c423d` produced `0 PASS`, `6 REVIEW_REQUIRED`, and `5 BLOCKED`; all eleven results had no canonical TAB and no writer output. The deployed runtime also returned no renderer or provisional-TAB artifact for a representative `REVIEW_REQUIRED` repeat case.
+
+The current top product goal is therefore the usable-output recovery contract in [`docs/tab-product-recovery-architecture.md`](docs/tab-product-recovery-architecture.md): every safe, parseable, resource-bounded MusicXML upload must open a review workspace and preserve a source-score artifact; unsupported metadata or an imperfect arrangement must not erase already recoverable score data. `BLOCKED` is reserved for transport, XML safety, genuinely unparseable input, or a bounded execution failure that cannot return a safe partial artifact.
+
+The existing deterministic canonical pipeline remains the certification authority. A new best-effort arrangement path may emit clearly marked `PROVISIONAL` or `PARTIAL` TAB for teacher correction, but it must not mislabel that result as canonical or silently export it as approved.
 
 ## Source-of-truth order
 

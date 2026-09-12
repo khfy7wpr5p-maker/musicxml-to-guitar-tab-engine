@@ -1,6 +1,6 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-12 -->
 
 This is the live package-boundary view. Historical PR numbers, commit SHAs, corpus first-blocker reports, and sealed evidence remain revision-specific records and do not override current source/tests.
 

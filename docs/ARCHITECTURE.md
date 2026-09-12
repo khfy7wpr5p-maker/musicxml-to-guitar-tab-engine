@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-12 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -14,6 +14,20 @@ The repository has two deliberately different exposure boundaries:
 A renderer is never semantic authority. Writers consume already-selected canonical truth and may not recalculate fingering or solver decisions.
 
 The application score-state contract is also independent from route: `PASS`, `REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while `MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See [`reviewable-score-state-contract.md`](reviewable-score-state-contract.md). The early routing rules are defined in [`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
+
+### 1.1 Usable output is a separate authority
+
+The current runtime derives render/TAB capability from whether the strict canonical pipeline reached its final artifact. This makes a review label insufficient: several promoted `REVIEW_REQUIRED` results still carry `canonicalTabResult: null` and `musicXml: null`, so the Workbench has nothing to display.
+
+The recovery architecture separates three questions:
+
+1. **Can the source be accepted safely?** Only transport, XML safety, genuinely unparseable input, and non-recoverable bounded-resource failures may answer no.
+2. **Can a useful artifact be shown?** A safe, parseable score should retain source-score material and may carry `PROVISIONAL` or `PARTIAL` TAB even when exact conversion is unavailable.
+3. **Can the result be certified/exported?** Only the existing validated canonical path or an explicit teacher-approved revision may grant canonical/export authority.
+
+`PASS` continues to mean canonical success. `REVIEW_REQUIRED` may carry editable provisional artifacts. `BLOCKED` must no longer be the ordinary answer for unsupported directions, display metadata, imperfect fingering, physically dense piano texture, or solver search exhaustion when a safe partial result can be returned.
+
+The detailed contract, verified failure evidence and delivery stages are in [`tab-product-recovery-architecture.md`](tab-product-recovery-architecture.md).
 
 ## 2. Production pipeline
 
@@ -44,6 +58,17 @@ Canonical TAB Result
     ↓
 MusicXML / TAB Writer
 ```
+
+This strict pipeline remains the **canonical certification path**. It is not sufficient by itself as the product upload path because any exception before final selection currently deletes all downstream artifacts. The target product architecture adds a tolerant source/read model and a provisional arrangement path beside it:
+
+```text
+safe MusicXML
+  ├─→ source-score artifact → renderer / teacher editor
+  ├─→ tolerant musical facts → provisional arrangement → editable TAB
+  └─→ strict canonical pipeline → validated TAB → approved export
+```
+
+The three branches share immutable source identity but do not share authority. A renderer success does not certify TAB; provisional TAB does not grant export; strict canonical failure does not erase the source-score or best-known provisional artifacts.
 
 Representative implementation boundaries:
 
@@ -268,3 +293,17 @@ Canonical approval is evidence-bound. `REVALIDATED_REVISION + VALID` alone is in
 The exact Stage 07 dependency pins remain unchanged: Editor Core revision `9429116bd5c92d4db4c4edbb21b307c6c74c2391`, Rendering Layer revision `13c32eefccd5bf2c227e815aa27aae4a0583801d`, Rendering contract `0.2.0`, and OSMD `2.1.2`. Changing those pins is a separate reviewed gate, not a Stage 08 compatibility fix.
 
 See [`stage-08-revalidation-to-tab.md`](stage-08-revalidation-to-tab.md) for the Stage 08 implementation and verification contract.
+
+## 11. Product recovery architecture
+
+The next implementation program is outcome-driven rather than blocker-driven:
+
+- decouple source rendering from canonical conversion;
+- preserve unknown/display-only MusicXML as diagnostics or opaque source provenance instead of rejecting note conversion;
+- introduce a versioned provisional TAB artifact with explicit kept, omitted, octave-shifted, revoiced, arpeggiated and unassigned dispositions;
+- make solver deadlines and search ceilings return the best validated incumbent when one exists;
+- implement actual piano-to-guitar reduction and revoicing rather than naming deferred decision types;
+- unify review editing with the Workbench so a teacher can correct source facts and provisional TAB;
+- replace the no-output-friendly corpus gate with usable-output metrics.
+
+The canonical path and its safety invariants stay intact as the final validator. See [`tab-product-recovery-architecture.md`](tab-product-recovery-architecture.md).

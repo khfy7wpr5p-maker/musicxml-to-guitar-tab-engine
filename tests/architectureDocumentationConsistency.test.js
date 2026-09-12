@@ -16,6 +16,7 @@ const ACTIVE_ARCHITECTURE_DOCS = [
   'docs/current-status.md',
   'docs/package-status.md',
   'docs/polyphonic-guitar-arrangement-foundation.md',
+  'docs/tab-product-recovery-architecture.md',
 ];
 const CURRENT_STAGE_STATUS_DOCS = [
   'AI_CONTEXT.md',
@@ -34,10 +35,10 @@ function read(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
-test('active architecture documents use the 2026-09-01 live snapshot', () => {
+test('active architecture documents use the 2026-09-12 live snapshot', () => {
   for (const relativePath of ACTIVE_ARCHITECTURE_DOCS) {
     const text = read(relativePath);
-    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-09-01/, `${relativePath} snapshot marker`);
+    assert.match(text, /ARCHITECTURE-SNAPSHOT: 2026-09-12/, `${relativePath} snapshot marker`);
     assert.equal(text.includes('ARCHITECTURE-SNAPSHOT: 2026-08-24'), false, `${relativePath} stale snapshot marker`);
     assert.equal(text.includes(SUPERSEDED_CONVERGENCE_BASE), false, `${relativePath} stale convergence base`);
     assert.equal(text.includes('Architecture convergence base:'), false, `${relativePath} stale convergence claim`);
@@ -180,6 +181,25 @@ test('live architecture documents do not retain superseded current-state claims'
     for (const stale of forbidden) {
       assert.equal(lowerText.includes(stale), false, `${relativePath} contains stale claim: ${stale}`);
     }
+  }
+});
+
+test('TAB product recovery architecture records verified usable-output gaps and recovery boundaries', () => {
+  const text = read('docs/tab-product-recovery-architecture.md');
+  for (const required of [
+    '0 PASS',
+    '6 REVIEW_REQUIRED',
+    '5 BLOCKED',
+    '0 / 11',
+    'provisionalTabAvailable=false',
+    'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED',
+    'sourceArtifact',
+    'ProvisionalTabResult 1.0.0',
+    'REVOICED',
+    'ARPEGGIATED',
+    'UNASSIGNED',
+  ]) {
+    assert.ok(text.includes(required), `recovery architecture must mention ${required}`);
   }
 });
 

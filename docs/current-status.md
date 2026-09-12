@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-12 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -40,10 +40,31 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
-| Partial usable-result policy beyond review-state evidence | ⚠️ LATER GATE |
+| Real-upload usable TAB outcome | ❌ NOT ACHIEVED — fresh pinned corpus: 0/11 TAB artifacts |
+| REVIEW_REQUIRED with source/TAB artifacts | ❌ INCOMPLETE — several promoted review results contain no renderable artifact |
+| Piano-to-guitar automatic arrangement | ❌ FOUNDATION ONLY — reduction contract exists; autonomous revoicing/arpeggiation is deferred |
+| Partial usable-result policy beyond review-state evidence | 🚨 CURRENT PRODUCT PRIORITY |
 | Public PA-13 polyphonic package API | 🔒 NOT IMPLEMENTED |
 
 Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
+
+## Verified product reality — 2026-09-12
+
+The repository is technically well-tested but the primary user outcome is not complete. Fresh verification on main `963274a5425488b07df153460409e491f56c423d` produced:
+
+| Evidence | Result |
+|---|---|
+| Full local Node test suite | 1,553 passed, 0 failed |
+| Pinned Stage 09 eleven-file corpus | `0 PASS`, `6 REVIEW_REQUIRED`, `5 BLOCKED` |
+| Corpus canonical TAB artifacts | `0 / 11` |
+| Corpus writer outputs | `0 / 11` |
+| Live repeat-review upload | `REVIEW_REQUIRED`, but `renderScore=false`, `generateTab=false`, `provisionalTabAvailable=false` |
+| Live direction upload | `BLOCKED / UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE(direction)` |
+| Live dense-score upload | `BLOCKED / LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED` |
+
+The Stage 09 audit still reports `PASS_VERIFIED` because its `validOutputSemantics` rule treats “no canonical result and no MusicXML output” as correct for any non-`PASS` status. This proves determinism and fail-closed behavior, not product usefulness. Green CI is therefore genuine engineering evidence but is not a usable-TAB product gate.
+
+The root-cause report and replacement working architecture are in [`tab-product-recovery-architecture.md`](tab-product-recovery-architecture.md).
 
 ## Stage 04–09 review, correction and production continuation boundary
 
@@ -168,9 +189,9 @@ The committed Stage 03 reviewed audit contains the same nine file names and SHA-
 
 ### Stage 09 additional real MusicXML audit
 
-`verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` pins the successful workflow evidence. Together with the historical nine, Tier A is **20 unique / 20 verified**. Evidence-set overlap fails closed and cannot inflate this count.
+`verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` is historical evidence for the older audited tree and must not be read as current runtime output. Together with the historical nine, Tier A is **20 unique / 20 identity-verified**. Evidence-set overlap fails closed and cannot inflate this count.
 
-All eleven additional cases currently return bounded `BLOCKED` outcomes. That is product evidence about current compatibility/physical boundaries, not a reason to weaken solver policy or resource ceilings.
+A fresh `2026-09-12` run against current main changed the eleven outcomes to `6 REVIEW_REQUIRED` and `5 BLOCKED`, but still produced **zero TAB artifacts and zero writer outputs**. The review promotions improved classification without completing usable artifact preservation.
 
 ### Stage 09 teacher-correction evidence gap
 
@@ -203,9 +224,9 @@ Renderer output is presentation only. Writers serialize canonical truth. Compati
 
 ## Open architecture gates
 
-1. Stage 09 Tier-B evidence acquisition: add at least 3 authentic teacher-correction cases with `PASS`, `REVIEW_REQUIRED`, `BLOCKED` and required representation coverage.
-2. Partial usable-output policy for cases that are not covered by the explicit Stage 04 OMR review evidence contract.
-3. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
-4. Any broader public/package-root polyphonic API remains separately gated.
-5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
-6. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
+1. Implement the usable-output recovery contract: every safe, parseable, resource-bounded input opens with source-score evidence; provisional/partial TAB survives ordinary compatibility, notation and physical-arrangement failures.
+2. Replace the current Stage 09 success rule with explicit render-rate, provisional-TAB-rate, canonical-TAB-rate, hard-block-rate and teacher-editability gates.
+3. Implement actual piano-to-guitar reduction, revoicing and arpeggiation behind a versioned arrangement policy.
+4. Connect provisional TAB and source corrections to one teacher-editable Workbench flow.
+5. Continue Stage 09 Tier-B evidence acquisition after the product path can retain usable artifacts.
+6. Keep public/package-root polyphony, learned authority, hosting, authentication, persistence, PDF/playback and release gates separate from deterministic certification.
