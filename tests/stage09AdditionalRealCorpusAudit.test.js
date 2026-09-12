@@ -7,8 +7,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  AUDIT_CONTRACT_VERSION,
+  USABLE_OUTPUT_GATE_STATUS,
+  buildUsableOutputRecord,
   gitBlobSha,
   runAudit,
+  usableOutputSummaryMarkdown,
   validateManifest,
 } = require('../scripts/stage09-additional-real-corpus-audit');
 
@@ -51,6 +55,34 @@ function blocked(route = 'POLY_V2') {
   };
 }
 
+function usablePass() {
+  return {
+    status: 'PASS',
+    route: 'MONO_V1',
+    preflight: { issues: [] },
+    canonicalTabResult: {
+      documentType: 'CanonicalTabResult',
+      noteCount: 1,
+    },
+    musicXml: '<score-partwise><part-list/></score-partwise>',
+    capabilities: {
+      renderScore: true,
+      generateTab: true,
+      editPitch: true,
+      editRhythm: false,
+      editVoice: false,
+      editStructure: false,
+      export: true,
+    },
+    artifacts: {
+      sourceScoreGraphAvailable: true,
+      rendererMusicXmlAvailable: true,
+      provisionalTabAvailable: false,
+      canonicalTabAvailable: true,
+    },
+  };
+}
+
 test('additional real-corpus manifest requires exactly eleven unique pinned blob identities', () => {
   const corpus = syntheticCorpus();
   try {
@@ -70,11 +102,106 @@ test('additional corpus audit verifies identity, deterministic reruns and source
       engineCommit: 'b'.repeat(40),
     });
     assert.equal(report.status, 'PASS_VERIFIED');
+    assert.equal(report.contractVersion, AUDIT_CONTRACT_VERSION);
+    assert.equal(report.contractVersion, '1.1.0');
     assert.equal(report.summary.requiredFiles, 11);
     assert.equal(report.summary.identityVerifiedFiles, 11);
     assert.equal(report.summary.deterministicFiles, 11);
     assert.equal(report.summary.sourceImmutableFiles, 11);
     assert.equal(report.summary.outputSemanticsValidFiles, 11);
+    assert.equal(report.usableOutputGate.status, USABLE_OUTPUT_GATE_STATUS.FAIL);
+    assert.equal(report.usableOutputGate.summary.eligibleFiles, 11);
+    assert.equal(report.usableOutputGate.summary.sourceRenderableFiles, 0);
+    assert.equal(report.usableOutputGate.summary.tabArtifactFiles, 0);
+    assert.equal(report.usableOutputGate.summary.teacherEditableFiles, 0);
+    assert.deepEqual(report.usableOutputGate.gaps, [
+      'SOURCE_RENDERABLE_FILES_0_OF_11',
+      'TAB_ARTIFACT_FILES_0_OF_11',
+      'TEACHER_EDITABLE_FILES_0_OF_11',
+    ]);
+    assert.equal(report.records[0].usableOutputEligible, true);
+    assert.equal(report.records[0].sourceRenderable, false);
+    assert.equal(report.records[0].tabArtifactAvailable, false);
+    assert.equal(report.records[0].canonicalAvailable, false);
+    assert.equal(report.records[0].teacherEditable, false);
+    assert.equal(report.records[0].tabCoverageBasisPoints, null);
+    assert.deepEqual(report.records[0].hardBlockReason, {
+      code: 'TEST_BLOCKER',
+      category: 'capability',
+      feature: null,
+    });
+  } finally {
+    fs.rmSync(corpus.directory, { recursive: true, force: true });
+  }
+});
+
+test('usable-output record requires real artifacts and capabilities instead of trusting PASS alone', () => {
+  const advertisedOnly = buildUsableOutputRecord({
+    status: 'PASS',
+    route: 'MONO_V1',
+    capabilities: {
+      renderScore: true,
+      generateTab: true,
+      editPitch: true,
+      export: true,
+    },
+    canonicalTabResult: null,
+    musicXml: null,
+  }, { sourceParseable: true, blocker: null });
+  assert.equal(advertisedOnly.sourceRenderable, false);
+  assert.equal(advertisedOnly.tabArtifactAvailable, false);
+  assert.equal(advertisedOnly.canonicalAvailable, false);
+  assert.equal(advertisedOnly.teacherEditable, false);
+
+  const observed = buildUsableOutputRecord(usablePass(), {
+    sourceParseable: true,
+    blocker: null,
+  });
+  assert.equal(observed.usableOutputEligible, true);
+  assert.equal(observed.sourceRenderable, true);
+  assert.equal(observed.tabArtifactAvailable, true);
+  assert.equal(observed.canonicalAvailable, true);
+  assert.equal(observed.teacherEditable, true);
+  assert.equal(observed.tabSourceNoteCount, 1);
+  assert.equal(observed.tabAssignedNoteCount, 1);
+  assert.equal(observed.tabUnassignedNoteCount, 0);
+  assert.equal(observed.tabCoverageBasisPoints, 10_000);
+});
+
+test('usable-output gate passes only when every eligible score renders, has TAB, and is teacher-editable', () => {
+  const corpus = syntheticCorpus();
+  try {
+    const report = runAudit({
+      sourceDirectory: corpus.directory,
+      manifest: corpus.manifest,
+      processUpload: () => usablePass(),
+    });
+    assert.equal(report.status, 'PASS_VERIFIED');
+    assert.equal(report.usableOutputGate.status, USABLE_OUTPUT_GATE_STATUS.PASS);
+    assert.equal(report.usableOutputGate.summary.sourceRenderableFiles, 11);
+    assert.equal(report.usableOutputGate.summary.tabArtifactFiles, 11);
+    assert.equal(report.usableOutputGate.summary.canonicalFiles, 11);
+    assert.equal(report.usableOutputGate.summary.teacherEditableFiles, 11);
+    assert.equal(report.usableOutputGate.summary.aggregateTabCoverageBasisPoints, 10_000);
+    assert.deepEqual(report.usableOutputGate.gaps, []);
+  } finally {
+    fs.rmSync(corpus.directory, { recursive: true, force: true });
+  }
+});
+
+test('usable-output gate produces a compact GitHub summary independent from safety status', () => {
+  const corpus = syntheticCorpus();
+  try {
+    const report = runAudit({
+      sourceDirectory: corpus.directory,
+      manifest: corpus.manifest,
+      processUpload: () => blocked(),
+    });
+    const markdown = usableOutputSummaryMarkdown(report);
+    assert.match(markdown, /FAIL_USABLE_OUTPUT_GATE/);
+    assert.match(markdown, /Source renderable \| 0 \(0\.00%\)/);
+    assert.match(markdown, /TAB artifact available \| 0 \(0\.00%\)/);
+    assert.match(markdown, /independent from the deterministic\/source-safety audit status/);
   } finally {
     fs.rmSync(corpus.directory, { recursive: true, force: true });
   }
