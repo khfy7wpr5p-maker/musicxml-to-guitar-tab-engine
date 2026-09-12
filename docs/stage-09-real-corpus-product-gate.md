@@ -1,10 +1,10 @@
 # Stage 09 — Real OMR/MusicXML Corpus + Product Gate
 
-Status: ⚠️ IN PROGRESS — Tier A minimum verified; authentic teacher-correction Tier B remains an evidence gap.
+Status: ⚠️ IN PROGRESS — Tier A identity/safety evidence is verified; authentic teacher-correction evidence and usable product output remain open gaps.
 
 ## Goal
 
-Stage 09 validates the already-approved Stage 08 production path with authentic external evidence. It is not a new TAB engine and must not widen solver or music semantics merely to improve corpus outcomes.
+Stage 09 validates the already-approved Stage 08 production path with authentic external evidence. It now reports identity/safety correctness and user-usable output as independent outcomes. It is not a new TAB engine and must not widen solver or music semantics merely to improve corpus outcomes.
 
 Target chain:
 
@@ -45,6 +45,22 @@ The audited PR head `540821912e4af58a6d2adec68092799cd778e0c2` and the protected
 
 Current Tier A: **20 / 20 minimum verified**. The product-gate script rejects evidence-set overlap instead of allowing duplicate identities to inflate this count.
 
+## R0 usable-output gate
+
+`Stage09AdditionalRealMusicXmlCorpusAudit 1.1.0` adds `Stage09UsableOutputProductGate 1.0.0`. This gate does not trust a route/status label or advertised capability by itself. For every safe, parseable eligible file it checks the actual renderer/TAB artifact together with the corresponding capability and reports:
+
+- source-renderable file count and rate;
+- TAB-artifact file count and rate;
+- canonical-artifact count;
+- teacher-editable file count and rate;
+- known source-note, assigned-note and explicit unassigned-note counts;
+- aggregate TAB coverage;
+- hard-block count and normalized reason.
+
+The safety audit keeps its existing independent `PASS_VERIFIED` meaning: exact identity, deterministic reruns, immutable bytes, correct route and bounded output semantics. The new product gate reports `PASS_USABLE_OUTPUT_GATE` only when every eligible file actually renders, has a TAB artifact and is teacher-editable. Otherwise it reports `FAIL_USABLE_OUTPUT_GATE` with exact gaps. The GitHub workflow publishes both outcomes in its artifact and writes the product result into the job summary.
+
+This separation is intentional during recovery: an honest product failure must be visible without weakening or disabling the security/determinism CI required to implement R1–R6.
+
 ## Tier B — authentic OMR → teacher correction → Stage 08
 
 Tier B requires real teacher-correction provenance. A counted case must carry exact original/corrected fingerprints, saved and revalidated revision identity, a non-empty patch ledger, `VALID` revalidation, two-run deterministic Stage 08 evidence, source immutability and a bounded Stage 08 outcome.
@@ -81,7 +97,9 @@ The gate reports `PASS_PRODUCT_GATE` only when every requirement is satisfied. M
 - real Stage 08 correction status coverage: **none yet**;
 - required real correction representation coverage: **not yet demonstrated**.
 
-Therefore **Stage 09 is not COMPLETE**. The remaining blocker is authentic teacher-correction evidence, not Tier-A corpus size and not missing product-gate code.
+On current main, the fresh eleven-file Tier-A run produces `0 PASS`, `6 REVIEW_REQUIRED`, `5 BLOCKED`, zero renderer/TAB artifacts and therefore `FAIL_USABLE_OUTPUT_GATE` with `0 / 11` source-renderable, TAB-artifact and teacher-editable files.
+
+Therefore **Stage 09 is not COMPLETE**. The independent blockers are authentic teacher-correction evidence and usable product output; Tier-A corpus identity/safety coverage alone does not prove either one.
 
 ## Safety invariants
 
@@ -96,7 +114,7 @@ Corpus work must not:
 - raise fixed resource ceilings as a corpus workaround;
 - count synthetic, no-correction or regression-only fixtures as real correction evidence.
 
-A legitimate `BLOCKED` result is evidence about the current product boundary, not a test failure that justifies weakening the boundary.
+A legitimate `BLOCKED` result remains valid safety evidence, but a recoverable safe/parseable file with no artifact is also a product-gate failure. That failure justifies an explicit provisional/partial result contract, not weakening the safety boundary.
 
 ## Verification files
 
@@ -107,8 +125,10 @@ A legitimate `BLOCKED` result is evidence about the current product boundary, no
 - `verification/stage09-real-teacher-correction-corpus.json`
 - `verification/stage09-teacher-correction-evidence-candidates.json`
 - `scripts/stage09-real-corpus-product-gate.js`
+- `scripts/stage09-additional-real-corpus-audit.js`
 - `scripts/stage09-teacher-correction-evidence-intake.js`
 - `tests/stage09RealCorpusProductGate.test.js`
+- `tests/stage09AdditionalRealCorpusAudit.test.js`
 - `tests/stage09TeacherCorrectionEvidenceIntake.test.js`
 
-The next Stage 09 work is exclusively genuine Tier-B evidence acquisition: obtain at least three authentic OMR cases where a teacher actually makes non-empty corrections, preserve exact original/corrected/revision provenance, and run them twice through Stage 08 to obtain `PASS`, `REVIEW_REQUIRED` and `BLOCKED` plus the required representation coverage.
+The next product-recovery work is R1 source-artifact retention: preserve a safely parsed source score independently from canonical TAB completion and make repeat/direction review cases renderable. Genuine Tier-B evidence acquisition remains required for Stage 09 closure, but no longer hides the more immediate usable-output gap.
