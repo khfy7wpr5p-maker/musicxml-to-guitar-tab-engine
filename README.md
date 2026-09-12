@@ -1,6 +1,6 @@
 # MusicXML to Guitar TAB Engine
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-12 -->
 
 A security-first, deterministic MusicXML → playable six-string guitar TAB engine. The repository contains a narrow package-root monophonic API plus separately gated application/internal polyphonic runtime paths. Source MusicXML is immutable source truth; compatibility code may normalize only proven representation differences and may not invent musical semantics.
 
@@ -44,6 +44,7 @@ See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;
 - [`docs/current-status.md`](docs/current-status.md) — current production status;
+- [`docs/tab-product-recovery-architecture.md`](docs/tab-product-recovery-architecture.md) — verified root cause, usable-output contract and piano-to-guitar arrangement recovery plan;
 - [`docs/musicxml-compatibility.md`](docs/musicxml-compatibility.md) — generic MusicXML compatibility contract;
 - [`docs/stage-03-source-guitar-configuration-closeout.md`](docs/stage-03-source-guitar-configuration-closeout.md) — Stage 03 tuning/capo and legacy TAB closeout;
 - [`docs/ps-sustain-tie-graph-contract.md`](docs/ps-sustain-tie-graph-contract.md) — PS-2 sustain/tie facts;
