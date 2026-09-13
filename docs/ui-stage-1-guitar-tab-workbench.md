@@ -1,6 +1,6 @@
 # UI Stage 1 — Guitar TAB Workbench
 
-Status: product-UI foundation through UI-06 is merged; UI-07 is the active protected POLY_V2 selection-hardening gate in PR #165.
+Status: product-UI foundation and POLY_V2 selection hardening are active; R7 adds backend-validated atomic tie-chain pitch editing.
 
 ## Product target
 
@@ -75,32 +75,33 @@ The monophonic runtime accepts bounded cumulative pitch revisions with exact `me
 
 ### POLY_V2
 
-The Workbench keeps `sourceTieEventIds` as read-only browser selection evidence. Before calling `/api/edit/poly-v2`, the runtime host adapter projects every browser command to the bounded `MusicXmlPolyphonicNoteEditRuntimeV2` schema:
+Before calling `/api/edit/poly-v2`, the runtime host adapter projects every browser command to the bounded `MusicXmlPolyphonicNoteEditRuntimeV2` schema:
 
 - `measureIndex`;
 - `sourceOrder`;
 - deterministic `sourceEventId`;
 - canonical `sourceGroupId` or `null`;
 - complete ordered `sourceGroupEventIds` acknowledgement;
+- complete ordered `sourceTieEventIds` acknowledgement (the selected event alone when untied);
 - requested pitch;
 - optional exact `selectedPosition { string, fret }` for an already assigned untied note.
 
-`sourceTieEventIds` is deliberately absent from the runtime command and cannot become edit authority accidentally. `processMusicXmlPolyphonicNoteEditV2` remains authoritative for source identity, group topology, immutable replay, playability and canonical regeneration.
+`sourceTieEventIds` is evidence, not browser authority. `processMusicXmlPolyphonicNoteEditV2` rebuilds the authoritative sustain graph from immutable source bytes and requires exact ordered equality. It remains authoritative for source identity, group/tie topology, immutable replay, playability and canonical regeneration.
 
 For a partial-arrangement `REVIEW_REQUIRED` result, the host uses the backend-created `ReviewEditableTabProjection` only as the legacy core's selection model. The authoritative result remains `REVIEW_REQUIRED`; an accepted edit either regenerates another provisional result or reaches an ordinary fully selected result while retaining any outstanding review issues.
 
-Retained POLY_V2 ties remain outside the supported deterministic final-selection boundary. Upload fails closed with `RETAINED_TIE_NOT_SUPPORTED` before an edit target can be authorized; supporting sustained sonorities requires a separately versioned selector and contract.
+Valid retained POLY_V2 ties use the sustained canonical selector. R7 permits pitch replacement only when the complete chain identity is acknowledged, and changes all segments atomically. Tied duration and explicit position edits remain disabled.
 
 Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar shape/fingering selection and the complete notation+TAB MusicXML document. A requested position filters backend candidates and must round-trip exactly. Silent movement, omission or octave displacement remains forbidden.
 
 ## Current limits
 
-- structured edits cover pitch replacement and exact string/fret override for an assigned untied POLY_V2 note;
+- structured edits cover pitch replacement, exact string/fret override for an assigned untied POLY_V2 note, untied duration, and atomic pitch replacement for a valid tied chain;
 - rest targets are rejected;
 - unplayable pitches fail closed; there is no automatic octave displacement;
 - finger-number editing and assigning a previously omitted note remain unavailable;
 - same-pitch POLY_V2 notes remain non-editable whenever voice/onset/chord/duplicate identity evidence is incomplete or inconsistent;
-- retained POLY_V2 ties remain blocked by deterministic final selection with `RETAINED_TIE_NOT_SUPPORTED`;
+- malformed tie topology and incomplete tie identity remain fail-closed; tied-chain duration and explicit position remain unavailable;
 - no production deployment server is introduced by this UI stage.
 
 ## CI evidence
@@ -114,7 +115,7 @@ Required gates for this line:
 - MONO_V1 Workbench upload/edit/regeneration smoke;
 - dedicated atomic MONO_V1 tie-chain browser smoke;
 - dedicated POLY_V2 browser smoke proving real PA-12 upload, exact source/group mapping, fail-closed ambiguous mapping, C4→E4 accepted regeneration, zero MONO edit calls, and a later unplayable C7 request preserving the accepted revision;
-- UI-07 static and real-Chromium gates proving voice/onset/chord/duplicate identity, distinct same-pitch source-event selection, read-only tie evidence, and v1 runtime-command projection;
+- UI-07/R7 static and real-Chromium gates proving voice/onset/chord/duplicate identity, distinct same-pitch source-event selection, complete tie identity transport and atomic tied-chain pitch regeneration;
 - static GitHub Pages preview build/smoke remains read-only and independent of runtime edit authority;
 - alphaTab synthesizer diagnostic remains non-authoritative for runner-specific audio readiness.
 

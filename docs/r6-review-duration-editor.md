@@ -23,7 +23,7 @@ The initial control intentionally uses exact MusicXML divisions instead of guess
 - zero, negative, non-integer and unsafe duration values are rejected at request normalization;
 - a duration extending past the measure fails source-model validation;
 - an unsafe same-voice overlap fails writer validation;
-- groups containing ties remain outside this edit gate;
+- tied-chain duration remains outside this edit gate; R7 separately enables atomic tied-chain pitch only;
 - failed regeneration does not append the revision or replace the visible accepted score.
 
 ## Voice adapter finding
@@ -32,4 +32,4 @@ The pinned ST Score Editor audit exposes bounded duration primitives, but no rev
 
 ## Verification
 
-The regression set covers provisional piano duration correction, invalid duration rejection, upload capability authority, framed HTTP transport and static browser wiring. The browser compatibility smoke additionally applies a second cumulative duration revision after a pitch edit and verifies that runtime-only command projection preserves `durationDivisions` while stripping browser-only tie metadata.
+The regression set covers provisional piano duration correction, invalid duration rejection, upload capability authority, framed HTTP transport and static browser wiring. The browser compatibility smoke additionally applies a second cumulative duration revision after a pitch edit and verifies that runtime command projection preserves `durationDivisions`. R7 subsequently promoted exact tie-chain identity into a backend-validated runtime field.

@@ -27,6 +27,9 @@ const workbenchScript = fs.readFileSync(
 const fixtureBytes = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison.musicxml'),
 );
+const tiedFixtureBytes = fs.readFileSync(
+  path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison-tie.musicxml'),
+);
 
 function resolveAlphaTabAsset(relativePath) {
   const filePath = path.resolve(alphaTabDist, decodeURIComponent(relativePath));
@@ -112,6 +115,7 @@ function pageHtml() {
       sourceEventId:command.sourceEventId,
       sourceGroupId:command.sourceGroupId,
       sourceGroupEventIds:[...command.sourceGroupEventIds],
+      sourceTieEventIds:[...command.sourceTieEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
       ...(command.durationDivisions === undefined ? {} : {durationDivisions:command.durationDivisions}),
     }));
@@ -176,6 +180,14 @@ const server = http.createServer((request, response) => {
       'content-length':fixtureBytes.length,
     });
     response.end(fixtureBytes);
+    return;
+  }
+  if (url.pathname === '/tied-fixture.musicxml') {
+    response.writeHead(200, {
+      'content-type':'application/vnd.recordare.musicxml+xml',
+      'content-length':tiedFixtureBytes.length,
+    });
+    response.end(tiedFixtureBytes);
     return;
   }
   if (url.pathname === '/workbench/workbench.js') {
@@ -371,10 +383,13 @@ try {
     edited.smoke.lastUiCommands[0].sourceTieEventIds,
     [targetIdentity.sourceEventId],
   );
-  assert.equal(Object.hasOwn(edited.smoke.lastRuntimeCommands[0], 'sourceTieEventIds'), false);
+  assert.deepEqual(
+    edited.smoke.lastRuntimeCommands[0].sourceTieEventIds,
+    [targetIdentity.sourceEventId],
+  );
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.2.0');
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.3.0');
   assert.equal(
     edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
@@ -413,6 +428,71 @@ try {
     ).durationDivisions,
     2,
   );
+
+  const tiedSelection = await page.evaluate(async () => {
+    const response = await fetch('/tied-fixture.musicxml');
+    const file = new File([await response.arrayBuffer()], 'ui07-poly-unison-tie.musicxml', {
+      type:'application/vnd.recordare.musicxml+xml',
+    });
+    if (!await window.__workbench.loadFile(file)) return {loaded:false};
+    const notation = window.__workbench.api.score.tracks[0].staves[0];
+    const notes = notation.bars[0].voices.flatMap(
+      voice => voice.beats.flatMap(beat => beat.notes || []),
+    );
+    for (const note of notes) {
+      if (!window.__workbench.selectNote(note)) continue;
+      const snapshot = window.__workbench.snapshot();
+      if (snapshot.selectedEvent?.sourceTieEventIds?.length === 2) {
+        return {
+          loaded:true,
+          selectedEvent:snapshot.selectedEvent,
+          pitchDisabled:document.querySelector('[data-role="apply-edit"]').disabled,
+          durationDisabled:document.querySelector('[data-role="apply-duration-edit"]').disabled,
+        };
+      }
+    }
+    return {loaded:true,selectedEvent:null};
+  });
+  assert.equal(tiedSelection.loaded, true);
+  assert.ok(tiedSelection.selectedEvent);
+  assert.equal(tiedSelection.pitchDisabled, false);
+  assert.equal(tiedSelection.durationDisabled, true);
+  assert.deepEqual(tiedSelection.selectedEvent.sourceTieEventIds, [
+    'P1:measure:0:note:0',
+    'P1:measure:1:note:0',
+  ]);
+
+  await page.select('[data-role="edit-step"]', 'E');
+  await page.select('[data-role="edit-alter"]', '0');
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '4'; });
+  await page.click('[data-role="apply-edit"]');
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().revisionNumber === 1
+      && window.__workbench?.snapshot().scoreLoaded === true,
+    {timeout:30000},
+  );
+  const tiedEdited = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    smoke:window.__ui07Smoke,
+  }));
+  const tieIds = tiedSelection.selectedEvent.sourceTieEventIds;
+  assert.equal(tiedEdited.smoke.uploadCalls, 2);
+  assert.equal(tiedEdited.smoke.polyEditCalls, 3);
+  assert.deepEqual(tiedEdited.smoke.lastRuntimeCommands[0].sourceTieEventIds, tieIds);
+  assert.equal(
+    tiedEdited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
+    'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH',
+  );
+  assert.deepEqual(
+    tiedEdited.snapshot.runtimeResult.canonicalTabResult.measures.flatMap(
+      measure => measure.events
+        .filter(event => tieIds.includes(event.sourceEventId))
+        .map(event => event.pitch.written),
+    ),
+    ['E4', 'E4'],
+  );
+  assert.match(tiedEdited.snapshot.runtimeResult.musicXml, /<tie type="start"\/>/);
+  assert.match(tiedEdited.snapshot.runtimeResult.musicXml, /<tie type="stop"\/>/);
   assert.deepEqual(errors, []);
 
   process.stdout.write(`${JSON.stringify({
@@ -420,7 +500,7 @@ try {
     route:edited.snapshot.runtimeResult.route,
     unisonVoices:selectedByVoice.map(entry => entry.snapshot.selectedEvent.voice),
     runtimeContract:durationEdited.snapshot.runtimeResult.contractVersion,
-    retainedTieAuthority:'BLOCKED_UPSTREAM',
+    retainedTieAuthority:'ATOMIC_PITCH_V1',
     monoEditCalls:edited.smoke.monoEditCalls,
   })}\n`);
 } finally {

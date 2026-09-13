@@ -14,6 +14,7 @@ const {
 const {
   createSimultaneousEventModel,
 } = require('../music/simultaneousEventModel');
+const { createSustainTieGraph } = require('../music/sustainTieGraph');
 const { pitchToMidi, validatePitchComponents } = require('../music/pitch');
 const { createCanonicalTabResultV2 } = require('../tab/canonicalTabResultV2');
 const {
@@ -37,7 +38,7 @@ const { createGuitarArrangementRegister } = require('../guitar/guitarArrangement
 const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
 const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
-const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.2.0';
+const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.3.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({
   PASS: 'PASS',
@@ -243,6 +244,7 @@ function normalizeCommand(command, revisionIndex) {
       'sourceEventId',
       'sourceGroupId',
       'sourceGroupEventIds',
+      'sourceTieEventIds',
       'pitch',
       'selectedPosition',
       'durationDivisions',
@@ -296,6 +298,12 @@ function normalizeCommand(command, revisionIndex) {
       descriptors.sourceGroupEventIds.value,
       `${field}.sourceGroupEventIds`,
     ),
+    ...(Object.hasOwn(descriptors, 'sourceTieEventIds') ? {
+      sourceTieEventIds: normalizeGroupEventIds(
+        descriptors.sourceTieEventIds.value,
+        `${field}.sourceTieEventIds`,
+      ),
+    } : {}),
     pitch: normalizePitch(descriptors.pitch.value, `${field}.pitch`),
     ...(Object.hasOwn(descriptors, 'selectedPosition') ? {
       selectedPosition: normalizeSelectedPosition(
@@ -522,6 +530,17 @@ function createGroupIdentityIndex(sourceModel, processing) {
   return bySourceEventId;
 }
 
+function createTieIdentityIndex(sourceModel, processing) {
+  const graph = createSustainTieGraph(sourceModel, processing);
+  const bySourceEventId = new Map();
+  for (const chain of graph.chains) {
+    for (const sourceEventId of chain.sourceEventIds) {
+      bySourceEventId.set(sourceEventId, chain);
+    }
+  }
+  return bySourceEventId;
+}
+
 function assertExactGroupIdentity(command, event, group, revisionIndex) {
   const expectedGroupId = group ? group.groupId : null;
   const expectedIds = group ? [...group.sourceEventIds] : [event.sourceEventId];
@@ -555,7 +574,7 @@ function assertExactGroupIdentity(command, event, group, revisionIndex) {
   }
 }
 
-function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
+function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionIndex) {
   const measure = revisedSource.measures[command.measureIndex];
   const event = measure?.events?.[command.sourceOrder];
   const details = {
@@ -594,6 +613,38 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
   const group = groupIndex.get(event.sourceEventId) || null;
   assertExactGroupIdentity(command, event, group, revisionIndex);
 
+  const tieChain = tieIndex.get(event.sourceEventId) || null;
+  const expectedTieEventIds = tieChain
+    ? [...tieChain.sourceEventIds]
+    : [event.sourceEventId];
+  const actualTieEventIds = command.sourceTieEventIds
+    ? [...command.sourceTieEventIds]
+    : [event.sourceEventId];
+  if (
+    actualTieEventIds.length !== expectedTieEventIds.length
+    || actualTieEventIds.some((value, index) => value !== expectedTieEventIds[index])
+  ) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'Edit command does not acknowledge the complete current sustain/tie chain.',
+      'EDIT_SOURCE_TIE_CHAIN_IDENTITY_MISMATCH',
+      {
+        ...details,
+        expectedSourceTieEventIds: expectedTieEventIds,
+        actualSourceTieEventIds: actualTieEventIds,
+      },
+    );
+  }
+  if (tieChain && (command.selectedPosition || command.durationDivisions !== undefined)) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'Position and duration edits are not enabled for sustain/tie chains.',
+      'EDIT_TIE_CHAIN_OPERATION_NOT_SUPPORTED',
+      {
+        ...details,
+        sourceTieEventIds: expectedTieEventIds,
+      },
+    );
+  }
+
   const acknowledgedIds = group ? group.sourceEventIds : [event.sourceEventId];
   const acknowledgedEvents = acknowledgedIds.map((sourceEventId) => {
     for (const candidateMeasure of revisedSource.measures) {
@@ -609,7 +660,7 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
       details,
     );
   }
-  if (acknowledgedEvents.some((member) => member.tieStart || member.tieStop)) {
+  if (!tieChain && acknowledgedEvents.some((member) => member.tieStart || member.tieStop)) {
     throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
       'Polyphonic editing of a simultaneous group containing tied notes is not enabled in this gate.',
       'EDIT_POLYPHONIC_GROUP_WITH_TIES_NOT_SUPPORTED',
@@ -623,7 +674,27 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
 
   const beforePitch = clonePlainData(event.pitch);
   const beforeDurationDivisions = event.durationDivisions;
-  event.pitch = clonePlainData(command.pitch);
+  const editedEvents = tieChain
+    ? expectedTieEventIds.map((sourceEventId) => {
+      for (const candidateMeasure of revisedSource.measures) {
+        const candidate = candidateMeasure.events.find(
+          (entry) => entry.sourceEventId === sourceEventId,
+        );
+        if (candidate) return candidate;
+      }
+      return null;
+    })
+    : [event];
+  if (editedEvents.some((member) => !member || member.type !== 'note')) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'Acknowledged sustain/tie-chain membership no longer resolves to pitched source events.',
+      'EDIT_SOURCE_TIE_CHAIN_IDENTITY_MISMATCH',
+      details,
+    );
+  }
+  for (const editedEvent of editedEvents) {
+    editedEvent.pitch = clonePlainData(command.pitch);
+  }
   if (command.durationDivisions !== undefined) {
     event.durationDivisions = command.durationDivisions;
   }
@@ -634,7 +705,9 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
     && beforeDurationDivisions !== command.durationDivisions;
   const durationRequested = command.durationDivisions !== undefined;
   let commandType = 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH';
-  if (command.selectedPosition && durationRequested) {
+  if (tieChain) {
+    commandType = 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH';
+  } else if (command.selectedPosition && durationRequested) {
     commandType = pitchChanged
       ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_DURATION_AND_POSITION'
       : 'SET_POLYPHONIC_SOURCE_EVENT_DURATION_AND_POSITION';
@@ -656,6 +729,8 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
     sourceEventId: event.sourceEventId,
     sourceGroupId: group?.groupId ?? null,
     sourceGroupEventIds: [...acknowledgedIds],
+    sourceTieEventIds: expectedTieEventIds,
+    affectedEventCount: editedEvents.length,
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
     beforeDurationDivisions,
@@ -846,11 +921,18 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
     processing.checkpoint('app-poly-note-edit:start', { revisionCount: normalized.commands.length });
     const projected = projectEditableSource(normalized.bytes, processing);
     const sourceGroupIndex = createGroupIdentityIndex(projected.sourceModel, processing);
+    const sourceTieIndex = createTieIdentityIndex(projected.sourceModel, processing);
     const revisedPlain = clonePlainData(projected.sourceModel);
     const appliedEdits = [];
     for (let index = 0; index < normalized.commands.length; index += 1) {
       processing.checkpoint('app-poly-note-edit:apply-command', { revisionIndex: index });
-      appliedEdits.push(applyCommand(revisedPlain, sourceGroupIndex, normalized.commands[index], index));
+      appliedEdits.push(applyCommand(
+        revisedPlain,
+        sourceGroupIndex,
+        sourceTieIndex,
+        normalized.commands[index],
+        index,
+      ));
     }
 
     processing.checkpoint('app-poly-note-edit:canonical:start', {

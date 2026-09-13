@@ -35,15 +35,15 @@ test('UI-07 browser mapping binds POLY_V2 selection to voice, onset, chord finge
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });
 
-test('UI-07 keeps browser tie identity as metadata and projects the bounded POLY_V2 command schema to runtime', () => {
+test('R7 forwards bounded tie-chain identity to the authoritative POLY_V2 runtime', () => {
   const host = read(hostAdaptersPath);
 
   assert.match(host, /polyV2RuntimeCommands/);
   assert.match(host, /sourceGroupEventIds:\s*\[\.\.\.command\.sourceGroupEventIds\]/);
+  assert.match(host, /sourceTieEventIds:\s*\[\.\.\.command\.sourceTieEventIds\]/);
   assert.match(host, /pitch:\s*\{/);
   assert.match(host, /selectedPosition/);
   assert.match(host, /durationDivisions/);
-  assert.doesNotMatch(host, /sourceTieEventIds/);
   assert.doesNotMatch(host, /innerHTML|outerHTML|insertAdjacentHTML/);
 });
 
@@ -88,14 +88,14 @@ test('R6 sends duration intent through the same immutable-source POLY_V2 revisio
   assert.match(source, /expectedInputSha256/);
 });
 
-test('UI-07 compatibility host projects browser metadata to the v1 runtime command schema', () => {
+test('R7 compatibility host forwards browser tie identity to the v1.3 runtime command schema', () => {
   const smoke = read(compatibilitySmokePath);
 
   assert.match(smoke, /runtimeCommands/);
   assert.match(smoke, /JSON\.stringify\(runtimeCommands\)/);
   assert.match(smoke, /sourceTieEventIds/);
-  assert.match(smoke, /Object\.hasOwn\([^)]*sourceTieEventIds/);
-  assert.match(smoke, /runtimeCommands\[0\][\s\S]*'sourceTieEventIds'\),\s*false/);
+  assert.match(smoke, /sourceTieEventIds:\[\.\.\.command\.sourceTieEventIds\]/);
+  assert.match(smoke, /runtimeCommands\[0\]\.sourceTieEventIds/);
   assert.doesNotMatch(smoke, /JSON\.stringify\(request\.commands\)/);
 });
 
@@ -107,6 +107,7 @@ test('UI-07 active Workbench documentation matches the hardened selection bounda
   assert.match(stage, /chord MIDI multiset/i);
   assert.match(stage, /duplicate same-MIDI ordinal/i);
   assert.match(stage, /sourceTieEventIds/);
-  assert.match(stage, /RETAINED_TIE_NOT_SUPPORTED/);
+  assert.match(stage, /changes all segments atomically/i);
+  assert.match(stage, /Tied duration and explicit position edits remain disabled/i);
   assert.doesNotMatch(stage, /ambiguous POLY_V2 unisons at one onset are intentionally non-editable/i);
 });

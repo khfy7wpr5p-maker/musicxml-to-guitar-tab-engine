@@ -15,6 +15,9 @@ const repositoryRoot = path.resolve(__dirname, '..');
 const polyFixture = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/pa12-polyphonic-e2e.musicxml'),
 );
+const tiedPolyFixture = fs.readFileSync(
+  path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison-tie.musicxml'),
+);
 
 function densePianoChord() {
   const pitches = [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]];
@@ -44,39 +47,52 @@ async function readJson(response) {
   return { response, payload: await response.json() };
 }
 
-test('runtime host keeps UI-07 browser tie metadata outside POLY_V2 edit authority', async (t) => {
+test('R7 runtime host authorizes and atomically edits an exact POLY_V2 tie chain', async (t) => {
   const origin = await startServer(t);
-  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=poly.musicxml`, {
+  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=tied-poly.musicxml`, {
     method: 'POST',
     headers: {'content-type': 'application/octet-stream'},
-    body: polyFixture,
+    body: tiedPolyFixture,
   }));
   assert.equal(upload.response.status, 200);
   assert.equal(upload.payload.status, 'PASS');
   assert.equal(upload.payload.route, 'POLY_V2');
 
+  const first = upload.payload.canonicalTabResult.measures[0].events.find(
+    (event) => event.sourceEventId === 'P1:measure:0:note:0',
+  );
+  const group = upload.payload.canonicalTabResult.simultaneousGroups.find(
+    (entry) => entry.sourceEventIds.includes(first.sourceEventId),
+  );
+  const sourceTieEventIds = ['P1:measure:0:note:0', 'P1:measure:1:note:0'];
   const commands = [{
     measureIndex: 0,
-    sourceOrder: 0,
-    sourceEventId: 'P1:measure:0:note:0',
-    sourceGroupId: 'P1:measure:0:simultaneous:0',
-    sourceGroupEventIds: ['P1:measure:0:note:0', 'P1:measure:0:note:4'],
-    sourceTieEventIds: ['P1:measure:0:note:0'],
-    pitch: {step: 'E', alter: 0, octave: 4},
+    sourceOrder: first.sourceOrder,
+    sourceEventId: first.sourceEventId,
+    sourceGroupId: group.groupId,
+    sourceGroupEventIds: group.sourceEventIds,
+    sourceTieEventIds,
+    pitch: {step: 'D', alter: 0, octave: 4},
   }];
 
   const edit = await readJson(await fetch(
-    `${origin}/api/edit/poly-v2?fileName=poly.musicxml&sha=${upload.payload.input.sha256}`,
+    `${origin}/api/edit/poly-v2?fileName=tied-poly.musicxml&sha=${upload.payload.input.sha256}`,
     {
       method: 'POST',
       headers: {'content-type': EDIT_CONTENT_TYPE},
-      body: editBody(commands, polyFixture),
+      body: editBody(commands, tiedPolyFixture),
     },
   ));
 
-  assert.equal(edit.response.status, 400);
-  assert.equal(edit.payload.code, 'INVALID_POLYPHONIC_EDIT_REQUEST');
-  assert.match(edit.payload.message, /unknown field/i);
+  assert.equal(edit.response.status, 200);
+  assert.equal(edit.payload.status, 'PASS');
+  assert.equal(edit.payload.contractVersion, '1.3.0');
+  assert.equal(edit.payload.revision.appliedEdits[0].commandType, 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH');
+  assert.deepEqual(edit.payload.revision.appliedEdits[0].sourceTieEventIds, sourceTieEventIds);
+  const editedSegments = edit.payload.canonicalTabResult.measures.flatMap(
+    (measure) => measure.events.filter((event) => sourceTieEventIds.includes(event.sourceEventId)),
+  );
+  assert.deepEqual(editedSegments.map((event) => event.pitch.written), ['D4', 'D4']);
 });
 
 test('runtime host edits and regenerates a REVIEW_REQUIRED provisional piano TAB', async (t) => {
