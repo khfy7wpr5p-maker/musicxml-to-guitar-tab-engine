@@ -25,20 +25,21 @@ function polyphonicScore(direction = '') {
 </score-partwise>`;
 }
 
-test('upload result schema 1.3 exposes additive capability and artifact authority', () => {
+test('upload result schema 1.4 exposes additive capability and artifact authority', () => {
   assert.equal(MUSICXML_UPLOAD_RUNTIME_VERSION, '1.0.0');
-  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.3.0');
+  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.4.0');
   const result = processMusicXmlUpload({
     fileName: 'capability-pass.musicxml',
     bytes: Buffer.from(polyphonicScore()),
   });
   assert.equal(result.status, 'PASS');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.3.0');
-  assert.equal(result.capabilityContractVersion, '1.1.0');
+  assert.equal(result.resultSchemaVersion, '1.4.0');
+  assert.equal(result.capabilityContractVersion, '1.2.0');
   assert.equal(result.scoreAvailable, true);
   assert.equal(result.capabilities.renderScore, true);
   assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.editRhythm, true);
   assert.equal(result.capabilities.playback, 'FULL');
   assert.equal(result.capabilities.export, true);
   assert.equal(result.artifacts.canonicalTabAvailable, true);
@@ -59,7 +60,7 @@ test('combined direction review retains only the safely parsed source score', ()
   assert.equal(first.status, 'REVIEW_REQUIRED');
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.contractVersion, '1.0.0');
-  assert.equal(first.resultSchemaVersion, '1.3.0');
+  assert.equal(first.resultSchemaVersion, '1.4.0');
   assert.equal(first.canonicalTabResult, null);
   assert.equal(first.musicXml, null);
   assert.equal(first.sourceArtifact.documentType, 'MusicXmlSourceArtifact');
@@ -115,7 +116,8 @@ test('timeline review keeps TAB capability when a provisional artifact exists', 
   });
 
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.3.0');
+  assert.equal(result.resultSchemaVersion, '1.4.0');
+  assert.equal(result.capabilities.editRhythm, true);
   assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.artifacts.provisionalTabAvailable, true);
@@ -155,7 +157,7 @@ test('hard block remains capability-closed', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.3.0');
+  assert.equal(result.resultSchemaVersion, '1.4.0');
   assert.equal(result.scoreAvailable, false);
   assert.equal(result.capabilities.renderScore, false);
   assert.equal(result.capabilities.generateTab, false);

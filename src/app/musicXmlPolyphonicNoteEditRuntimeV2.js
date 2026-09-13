@@ -37,7 +37,7 @@ const { createGuitarArrangementRegister } = require('../guitar/guitarArrangement
 const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
 const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
-const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.1.0';
+const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.2.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({
   PASS: 'PASS',
@@ -245,6 +245,7 @@ function normalizeCommand(command, revisionIndex) {
       'sourceGroupEventIds',
       'pitch',
       'selectedPosition',
+      'durationDivisions',
     ]),
     new Set([
       'measureIndex',
@@ -301,6 +302,18 @@ function normalizeCommand(command, revisionIndex) {
         descriptors.selectedPosition.value,
         `${field}.selectedPosition`,
       ),
+    } : {}),
+    ...(Object.hasOwn(descriptors, 'durationDivisions') ? {
+      durationDivisions: (() => {
+        const value = descriptors.durationDivisions.value;
+        if (!Number.isSafeInteger(value) || value <= 0) {
+          throw invalidRequest(`${field}.durationDivisions must be a positive safe integer.`, {
+            revisionIndex,
+            field: 'durationDivisions',
+          });
+        }
+        return value;
+      })(),
     } : {}),
   });
 }
@@ -609,17 +622,34 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
   }
 
   const beforePitch = clonePlainData(event.pitch);
+  const beforeDurationDivisions = event.durationDivisions;
   event.pitch = clonePlainData(command.pitch);
+  if (command.durationDivisions !== undefined) {
+    event.durationDivisions = command.durationDivisions;
+  }
   const pitchChanged = beforePitch.step !== command.pitch.step
     || beforePitch.alter !== command.pitch.alter
     || beforePitch.octave !== command.pitch.octave;
+  const durationChanged = command.durationDivisions !== undefined
+    && beforeDurationDivisions !== command.durationDivisions;
+  const durationRequested = command.durationDivisions !== undefined;
+  let commandType = 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH';
+  if (command.selectedPosition && durationRequested) {
+    commandType = pitchChanged
+      ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_DURATION_AND_POSITION'
+      : 'SET_POLYPHONIC_SOURCE_EVENT_DURATION_AND_POSITION';
+  } else if (command.selectedPosition) {
+    commandType = pitchChanged
+      ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_POSITION'
+      : 'SET_POLYPHONIC_SOURCE_EVENT_POSITION';
+  } else if (durationRequested) {
+    commandType = pitchChanged
+      ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_DURATION'
+      : 'SET_POLYPHONIC_SOURCE_EVENT_DURATION';
+  }
   return {
     revisionIndex,
-    commandType: command.selectedPosition
-      ? (pitchChanged
-        ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_POSITION'
-        : 'SET_POLYPHONIC_SOURCE_EVENT_POSITION')
-      : 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
+    commandType,
     measureIndex: command.measureIndex,
     measureNumber: measure.number,
     sourceOrder: command.sourceOrder,
@@ -628,7 +658,9 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
     sourceGroupEventIds: [...acknowledgedIds],
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
-    changed: pitchChanged || Boolean(command.selectedPosition),
+    beforeDurationDivisions,
+    afterDurationDivisions: event.durationDivisions,
+    changed: pitchChanged || durationChanged || Boolean(command.selectedPosition),
     ...(command.selectedPosition ? {
       selectedPosition: clonePlainData(command.selectedPosition),
     } : {}),

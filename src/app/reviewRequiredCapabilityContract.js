@@ -2,8 +2,8 @@
 
 const crypto = require('node:crypto');
 
-const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.1.0';
-const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.3.0';
+const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.2.0';
+const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.4.0';
 
 const PLAYBACK_CAPABILITY = Object.freeze({
   FULL: 'FULL',
@@ -315,7 +315,10 @@ function decorateUploadResultWithCapabilities(result) {
     // status alone.
     editPitch: (passed && Boolean(result.canonicalTabResult))
       || (reviewable && (Boolean(result.canonicalTabResult) || reviewEditableProjectionAvailable)),
-    editRhythm: false,
+    editRhythm: result.route === 'POLY_V2' && (
+      (passed && Boolean(result.canonicalTabResult))
+      || (reviewable && (Boolean(result.canonicalTabResult) || reviewEditableProjectionAvailable))
+    ),
     editVoice: false,
     editStructure: false,
     playback,

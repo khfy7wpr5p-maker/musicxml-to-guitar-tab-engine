@@ -49,8 +49,8 @@ function reviewResult(bytes, overrides = {}) {
   return {
     documentType: 'MusicXmlUploadRuntimeResult',
     contractVersion: '1.0.0',
-    resultSchemaVersion: '1.3.0',
-    capabilityContractVersion: '1.1.0',
+    resultSchemaVersion: '1.4.0',
+    capabilityContractVersion: '1.2.0',
     status: 'REVIEW_REQUIRED',
     route: 'POLY_V2',
     input: {

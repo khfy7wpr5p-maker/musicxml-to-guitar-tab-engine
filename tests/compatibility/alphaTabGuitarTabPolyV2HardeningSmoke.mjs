@@ -111,6 +111,7 @@ function pageHtml() {
       sourceGroupId:command.sourceGroupId,
       sourceGroupEventIds:[...command.sourceGroupEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+      ...(command.durationDivisions === undefined ? {} : {durationDivisions:command.durationDivisions}),
     }));
     smoke.lastRuntimeCommands = structuredClone(runtimeCommands);
     const response = await fetch(
@@ -371,7 +372,7 @@ try {
   assert.equal(Object.hasOwn(edited.smoke.lastRuntimeCommands[0], 'sourceTieEventIds'), false);
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.1.0');
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.2.0');
   assert.equal(
     edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
@@ -386,13 +387,37 @@ try {
   );
   assert.equal(target.pitch.written, 'D4');
   assert.equal(peer.pitch.written, 'C4');
+
+  await page.$eval('[data-role="edit-duration"]', element => { element.value = '2'; });
+  await page.click('[data-role="apply-duration-edit"]');
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().revisionNumber === 2
+      && window.__workbench?.snapshot().scoreLoaded === true,
+    {timeout:30000},
+  );
+  const durationEdited = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    smoke:window.__ui07Smoke,
+  }));
+  assert.equal(durationEdited.smoke.polyEditCalls, 2);
+  assert.equal(durationEdited.smoke.lastRuntimeCommands[1].durationDivisions, 2);
+  assert.equal(
+    durationEdited.snapshot.runtimeResult.revision.appliedEdits[1].commandType,
+    'SET_POLYPHONIC_SOURCE_EVENT_DURATION',
+  );
+  assert.equal(
+    durationEdited.snapshot.runtimeResult.canonicalTabResult.measures[0].events.find(
+      event => event.sourceEventId === targetIdentity.sourceEventId,
+    ).durationDivisions,
+    2,
+  );
   assert.deepEqual(errors, []);
 
   process.stdout.write(`${JSON.stringify({
     status:'PASS',
     route:edited.snapshot.runtimeResult.route,
     unisonVoices:selectedByVoice.map(entry => entry.snapshot.selectedEvent.voice),
-    runtimeContract:edited.snapshot.runtimeResult.contractVersion,
+    runtimeContract:durationEdited.snapshot.runtimeResult.contractVersion,
     retainedTieAuthority:'BLOCKED_UPSTREAM',
     monoEditCalls:edited.smoke.monoEditCalls,
   })}\n`);
