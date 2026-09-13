@@ -67,7 +67,9 @@ function pageHtml() {
         <select data-role="edit-step" disabled><option>A</option><option>B</option><option selected>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select>
         <select data-role="edit-alter" disabled><option value="-2">bb</option><option value="-1">b</option><option value="0" selected>natural</option><option value="1">#</option><option value="2">##</option></select>
         <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
+        <input data-role="edit-duration" type="number" min="1" step="1" value="1" disabled>
         <button data-role="apply-edit" type="button" disabled>Apply</button>
+        <button data-role="apply-duration-edit" type="button" disabled>Apply duration</button>
         <button data-role="cancel-edit" type="button" disabled>Clear</button>
       </section>
       <section><span data-role="issue-count"></span><ol data-role="issues"></ol></section>
