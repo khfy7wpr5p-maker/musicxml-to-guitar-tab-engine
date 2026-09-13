@@ -6,8 +6,8 @@ const { EngineError } = require('../errors/engineError');
 const { resolveProcessingRuntime } = require('../core/processingRuntime');
 const { parseParsedMusicXmlDocument } = require('../parser/parsedMusicXmlDocument');
 const {
-  projectParsedMusicXmlToPolyphonicSourceModel,
-} = require('../parser/polyphonicMusicXmlProjector');
+  projectParsedMusicXmlThroughPolyProductionCompatibilityChain,
+} = require('./polyProductionCompatibilityNormalizationChain');
 const {
   createPolyphonicSourceModel,
 } = require('../music/polyphonicSourceModel');
@@ -29,17 +29,21 @@ const {
   tryProjectExactTabStaffMirror,
 } = require('./exactTabStaffMirrorNormalizer');
 const {
-  tryProjectRuntimeGuitarNotation,
-} = require('./runtimeGuitarNotationNormalizer');
-const {
   extractBasicMusicXmlHarmony,
   resolveBasicMusicXmlHarmonyReferences,
 } = require('./basicMusicXmlHarmonyExtractor');
 const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
+const { createGuitarArrangementRegister } = require('../guitar/guitarArrangementRegister');
+const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
+const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.0.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
-const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({ PASS: 'PASS', BLOCKED: 'BLOCKED' });
+const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({
+  PASS: 'PASS',
+  REVIEW_REQUIRED: 'REVIEW_REQUIRED',
+  BLOCKED: 'BLOCKED',
+});
 const MAX_FILE_NAME_LENGTH = 255;
 const MAX_REVISION_COMMANDS = 128;
 const MAX_ACKNOWLEDGED_GROUP_EVENTS = 64;
@@ -421,16 +425,11 @@ function projectEditableSource(bytes, processing) {
   if (mirror) {
     sourceModel = mirror.sourceModel;
   } else {
-    try {
-      sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, processing);
-    } catch (projectionError) {
-      if (projectionError?.code !== 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE') {
-        throw projectionError;
-      }
-      runtimeProjection = tryProjectRuntimeGuitarNotation(parsedDocument, processing);
-      if (!runtimeProjection) throw projectionError;
-      sourceModel = runtimeProjection.sourceModel;
-    }
+    runtimeProjection = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
+      parsedDocument,
+      processing,
+    );
+    sourceModel = runtimeProjection.mainSourceModel;
   }
   processing.checkpoint('app-poly-note-edit:parse:complete', {
     measureCount: sourceModel.measureCount,
@@ -442,6 +441,7 @@ function projectEditableSource(bytes, processing) {
     sourceModel,
     tabStaffMirrorCollapsed: Boolean(mirror),
     notationContext: runtimeProjection?.notationContext ?? null,
+    graceOrnamentGroups: runtimeProjection?.graceOrnamentGroups ?? [],
     explicitHarmonyFacts: resolveBasicMusicXmlHarmonyReferences(
       harmonyExtraction.references,
       sourceModel,
@@ -606,6 +606,42 @@ function buildPreserveDecisions(sourceModel) {
   return Object.freeze(decisions);
 }
 
+function buildReviewArrangementDecisions(sourceModel) {
+  const register = createGuitarArrangementRegister();
+  const decisions = [];
+  for (const measure of sourceModel.measures) {
+    for (const event of measure.events) {
+      if (event.type !== 'note') continue;
+      const raisedMidi = event.pitch.midi + 12;
+      if (event.pitch.midi > register.maximumMidi || (
+        event.pitch.midi < register.minimumMidi
+        && (raisedMidi < register.minimumMidi || raisedMidi > register.maximumMidi)
+      )) {
+        throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+          'Edited source pitch is outside the bounded guitar arrangement register.',
+          'UNPLAYABLE_SOURCE_PITCH',
+          {
+            measureIndex: measure.index,
+            sourceOrder: event.sourceOrder,
+            sourceEventId: event.sourceEventId,
+            writtenPitch: event.pitch.written,
+            minimumMidi: register.minimumMidi,
+            maximumMidi: register.maximumMidi,
+          },
+        );
+      }
+      decisions.push(Object.freeze({
+        decisionType: event.pitch.midi < register.minimumMidi
+          ? 'OCTAVE_DISPLACED'
+          : 'PRESERVED',
+        sourceEventIds: Object.freeze([event.sourceEventId]),
+        sourceGroupId: null,
+      }));
+    }
+  }
+  return Object.freeze(decisions);
+}
+
 function assertNoSilentChange(sourceModel, canonicalTabResult) {
   const sourceNotes = sourceModel.measures.flatMap(
     (measure) => measure.events.filter((event) => event.type === 'note'),
@@ -688,6 +724,14 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
     bytes: normalized.bytes,
   }, { processing: processingOptions }, runtime);
   if (uploadResult.status !== MUSICXML_UPLOAD_STATUS.PASS) {
+    const reviewEditable = uploadResult.status === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED
+      && uploadResult.route === MUSICXML_UPLOAD_ROUTE.POLY_V2
+      && (uploadResult.canonicalTabResult || uploadResult.reviewEditableProjection)
+      && uploadResult.capabilities?.editPitch === true;
+    if (reviewEditable) {
+      // Continue below. The immutable source identity and command validation
+      // remain identical; only the regenerated result keeps review authority.
+    } else {
     return deepFreeze({
       documentType: MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE,
       contractVersion: MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION,
@@ -699,6 +743,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       canonicalTabResult: null,
       musicXml: null,
     });
+    }
   }
   if (uploadResult.route !== MUSICXML_UPLOAD_ROUTE.POLY_V2) {
     return blocked(inputIdentity, uploadResult.route, issue(
@@ -726,34 +771,60 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       revisionCount: normalized.commands.length,
     });
     const revisedSourceModel = createPolyphonicSourceModel(revisedPlain, processing);
-    const decisions = buildPreserveDecisions(revisedSourceModel);
-    const canonicalTabResult = createCanonicalTabResultV2(
-      revisedSourceModel,
-      decisions,
-      processing,
-    );
-    assertNoSilentChange(revisedSourceModel, canonicalTabResult);
+    const inputRequiresReview = uploadResult.status === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED;
+    const decisions = inputRequiresReview
+      ? buildReviewArrangementDecisions(revisedSourceModel)
+      : buildPreserveDecisions(revisedSourceModel);
     const chordLabels = createBasicChordLabelModel(
       revisedSourceModel,
       projected.explicitHarmonyFacts,
       processing,
     ).labels;
-    const musicXml = serializeCanonicalTabResultV2ToMusicXml(
-      canonicalTabResult,
-      {
-        ...(projected.notationContext ? { notationContext: projected.notationContext } : {}),
-        chordLabels,
-      },
-      processing,
-    );
+    const writerOptions = {
+      ...(projected.notationContext ? { notationContext: projected.notationContext } : {}),
+      chordLabels,
+    };
+    let canonicalTabResult;
+    let musicXml;
+    let recovery = null;
+    try {
+      canonicalTabResult = createCanonicalTabResultV2(
+        revisedSourceModel,
+        decisions,
+        processing,
+      );
+      if (!inputRequiresReview) assertNoSilentChange(revisedSourceModel, canonicalTabResult);
+      musicXml = serializeCanonicalTabResultV2ToMusicXml(
+        canonicalTabResult,
+        writerOptions,
+        processing,
+      );
+    } catch (arrangementError) {
+      recovery = recoverPartialGuitarArrangement({
+        sourceModel: revisedSourceModel,
+        arrangementDecisions: decisions,
+        processing,
+        writerOptions,
+        sourceUploadSha256: inputIdentity.sha256,
+        originalError: arrangementError,
+        graceOrnamentGroups: projected.graceOrnamentGroups,
+      });
+      if (!recovery) throw arrangementError;
+      canonicalTabResult = null;
+      musicXml = recovery.musicXml;
+    }
     processing.checkpoint('app-poly-note-edit:complete', {
       revisionCount: normalized.commands.length,
     });
 
-    return deepFreeze({
+    const remainsUnderReview = uploadResult.status === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED
+      || recovery !== null;
+    return decorateUploadResultWithCapabilities({
       documentType: MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE,
       contractVersion: MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION,
-      status: MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.PASS,
+      status: remainsUnderReview
+        ? MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.REVIEW_REQUIRED
+        : MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.PASS,
       route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
       input: inputIdentity,
       normalization: {
@@ -766,6 +837,10 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       },
       preflight: clonePlainData(uploadResult.preflight),
       canonicalTabResult,
+      ...(recovery ? {
+        arrangementArtifact: recovery.arrangementArtifact,
+        reviewEditableProjection: recovery.reviewEditableProjection,
+      } : {}),
       musicXml,
     });
   } catch (error) {

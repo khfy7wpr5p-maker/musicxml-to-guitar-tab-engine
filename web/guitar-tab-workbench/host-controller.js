@@ -73,6 +73,7 @@
         ...result,
         status: 'PASS',
         musicXml: reviewRendererMusicXml(result),
+        canonicalTabResult: result.canonicalTabResult || result.reviewEditableProjection || null,
       };
     }
 
@@ -94,7 +95,7 @@
         return clearAuthority(await adapter.edit(request));
       },
       async polyphonicEdit(request) {
-        return clearAuthority(await adapter.polyphonicEdit(request));
+        return present(await adapter.polyphonicEdit(request));
       },
       async transpose(request) {
         return clearAuthority(await adapter.transpose(request));

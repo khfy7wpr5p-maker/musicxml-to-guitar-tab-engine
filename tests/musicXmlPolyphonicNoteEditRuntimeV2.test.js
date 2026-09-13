@@ -62,6 +62,39 @@ function disposition(result, id) {
   return result.canonicalTabResult.noteDispositions.find((entry) => entry.sourceEventId === id);
 }
 
+function densePianoChord() {
+  const pitches = [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]];
+  return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+<part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}
+</measure></part></score-partwise>`);
+}
+
+test('REVIEW_REQUIRED piano TAB accepts a source-identified pitch edit and stays editable', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 0,
+    sourceEventId: sourceEventId(0, 0),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'D', alter: 0, octave: 3 },
+  }]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.revision.revisionNumber, 1);
+  assert.equal(result.revision.appliedEdits[0].beforePitch.written, 'C3');
+  assert.equal(result.revision.appliedEdits[0].afterPitch.written, 'D3');
+  assert.equal(result.capabilities.editPitch, true);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.reviewEditableProjection.measures[0].events[0].pitch.written, 'D3');
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+});
+
 test('POLY_V2 structured edit changes one acknowledged simultaneous-group member and regenerates TAB', () => {
   const bytes = fixture('pa12-polyphonic-e2e.musicxml');
   const edit = command({

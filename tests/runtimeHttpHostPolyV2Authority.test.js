@@ -16,6 +16,11 @@ const polyFixture = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/pa12-polyphonic-e2e.musicxml'),
 );
 
+function densePianoChord() {
+  const pitches = [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]];
+  return Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`);
+}
+
 function editBody(commands, sourceBytes) {
   const metadata = Buffer.from(JSON.stringify(commands), 'utf8');
   const header = Buffer.alloc(4);
@@ -72,6 +77,47 @@ test('runtime host keeps UI-07 browser tie metadata outside POLY_V2 edit authori
   assert.equal(edit.response.status, 400);
   assert.equal(edit.payload.code, 'INVALID_POLYPHONIC_EDIT_REQUEST');
   assert.match(edit.payload.message, /unknown field/i);
+});
+
+test('runtime host edits and regenerates a REVIEW_REQUIRED provisional piano TAB', async (t) => {
+  const origin = await startServer(t);
+  const sourceBytes = densePianoChord();
+  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=dense-piano.musicxml`, {
+    method: 'POST',
+    headers: {'content-type': 'application/octet-stream'},
+    body: sourceBytes,
+  }));
+  assert.equal(upload.response.status, 200);
+  assert.equal(upload.payload.status, 'REVIEW_REQUIRED');
+  assert.equal(upload.payload.capabilities.editPitch, true);
+  assert.equal(upload.payload.reviewEditableProjection.measures[0].events.length, 6);
+
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map(
+    (sourceOrder) => `P1:measure:0:note:${sourceOrder}`,
+  );
+  const commands = [{
+    measureIndex: 0,
+    sourceOrder: 0,
+    sourceEventId: sourceGroupEventIds[0],
+    sourceGroupId: 'P1:measure:0:simultaneous:0',
+    sourceGroupEventIds,
+    pitch: {step: 'D', alter: 0, octave: 3},
+  }];
+  const edit = await readJson(await fetch(
+    `${origin}/api/edit/poly-v2?fileName=dense-piano.musicxml&sha=${upload.payload.input.sha256}`,
+    {
+      method: 'POST',
+      headers: {'content-type': EDIT_CONTENT_TYPE},
+      body: editBody(commands, sourceBytes),
+    },
+  ));
+
+  assert.equal(edit.response.status, 200);
+  assert.equal(edit.payload.status, 'REVIEW_REQUIRED');
+  assert.equal(edit.payload.revision.revisionNumber, 1);
+  assert.equal(edit.payload.revision.appliedEdits[0].afterPitch.written, 'D3');
+  assert.equal(edit.payload.capabilities.editPitch, true);
+  assert.match(edit.payload.musicXml, /<sign>TAB<\/sign>/);
 });
 
 test('framed edit metadata budget covers the maximum bounded 128-command POLY_V2 schema shape', () => {

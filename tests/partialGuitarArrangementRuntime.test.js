@@ -43,11 +43,17 @@ test('dense piano input becomes an explicit provisional TAB instead of a solver 
   assert.match(first.musicXml, /<sign>TAB<\/sign>/);
   assert.equal(first.capabilities.renderScore, true);
   assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.editPitch, true);
   assert.equal(first.capabilities.playback, 'APPROXIMATE');
   assert.equal(first.capabilities.export, false);
   assert.equal(first.issues[0].affectsTab, true);
   assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.reviewEditableProjectionAvailable, true);
   assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.reviewEditableProjection.documentType, 'ReviewEditableTabProjection');
+  assert.equal(first.reviewEditableProjection.authority, 'PROVISIONAL_REVIEW_ONLY');
+  assert.equal(first.reviewEditableProjection.sourceUploadSha256, first.input.sha256);
+  assert.equal(first.reviewEditableProjection.measures[0].events.length, 6);
   assert.equal(Object.isFrozen(first), true);
   assert.deepEqual(first, second);
 });
