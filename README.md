@@ -1,6 +1,6 @@
 # MusicXML to Guitar TAB Engine
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
 
 A security-first, deterministic MusicXML → playable six-string guitar TAB engine. The repository contains a narrow package-root monophonic API plus separately gated application/internal polyphonic runtime paths. Source MusicXML is immutable source truth; compatibility code may normalize only proven representation differences and may not invent musical semantics.
 
@@ -40,6 +40,8 @@ The package-root API remains deliberately narrower: standard MONO output uses `C
 
 At the application upload boundary, fully validated explicit six-string source tuning/capo evidence can now become the bounded guitar configuration used by the internal conversion path. This does not broaden the package-root API. Genuine mid-score tuning/capo changes remain fail-closed.
 
+For the exact dense-piano PA-8 assignment-limit boundary, the application can now return `PartialGuitarTabArrangement 1.0.0`: a renderer-visible, non-exportable provisional TAB with `KEPT`, `OCTAVE_SHIFTED`, `UNASSIGNED`, or representation-only `OMITTED` recorded for every source note. It is review evidence, not `CanonicalTabResult` authority.
+
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;
@@ -49,6 +51,7 @@ See:
 - [`docs/ps-sustain-tie-graph-contract.md`](docs/ps-sustain-tie-graph-contract.md) — PS-2 sustain/tie facts;
 - [`docs/pa-8-left-hand-shape-contract.md`](docs/pa-8-left-hand-shape-contract.md) — PA-8 physical enumeration and fixed resource limits;
 - [`docs/pa-12-internal-polyphonic-e2e.md`](docs/pa-12-internal-polyphonic-e2e.md) — internal canonical-v2 end-to-end boundary.
+- [`docs/r2-partial-guitar-arrangement.md`](docs/r2-partial-guitar-arrangement.md) — dense-score provisional TAB recovery and evidence.
 
 ## Current compatibility baseline
 

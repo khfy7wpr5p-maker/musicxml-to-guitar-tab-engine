@@ -2,8 +2,8 @@
 
 const crypto = require('node:crypto');
 
-const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.0.0';
-const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.2.0';
+const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.1.0';
+const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.3.0';
 
 const PLAYBACK_CAPABILITY = Object.freeze({
   FULL: 'FULL',
@@ -109,9 +109,14 @@ function issueEffects(issue) {
   }
   if (
     code.includes('FINGER')
+    || code.includes('LEFT_HAND')
+    || code.includes('ASSIGNMENT')
     || code.includes('PHYSICAL_POINT')
     || feature.includes('fingering')
   ) effects.add('fingering');
+  if (issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement') {
+    effects.add('playback');
+  }
   if (
     code.includes('REPEAT')
     || code.includes('ENDING')
@@ -143,7 +148,12 @@ function issueAffectsTab(issue) {
     || feature.includes('barline-repeat')
     || feature.includes('barline-ending')
   ) return false;
-  return code.includes('PITCH') || code.includes('FINGER') || code.includes('PHYSICAL_POINT');
+  return code.includes('PITCH')
+    || code.includes('FINGER')
+    || code.includes('LEFT_HAND')
+    || code.includes('ASSIGNMENT')
+    || code.includes('PHYSICAL_POINT')
+    || issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement';
 }
 
 function enrichedIssues(result, tabVisible) {
@@ -194,6 +204,38 @@ function rendererMusicXml(result) {
   return sourceArtifactMusicXml(result);
 }
 
+function validPartialArrangementArtifact(result) {
+  const artifact = result?.arrangementArtifact;
+  const musicXml = typeof result?.musicXml === 'string' ? result.musicXml : null;
+  if (
+    !artifact
+    || artifact.documentType !== 'PartialGuitarTabArrangement'
+    || artifact.contractVersion !== '1.0.0'
+    || artifact.authority !== 'PROVISIONAL_REVIEW_ONLY'
+    || artifact.sourceUploadSha256 !== result?.input?.sha256
+    || !Array.isArray(artifact.noteDispositions)
+    || artifact.noteDispositions.length !== artifact.sourceNoteCount
+    || !Number.isSafeInteger(artifact.assignedNoteCount)
+    || !Number.isSafeInteger(artifact.unassignedNoteCount)
+    || !Number.isSafeInteger(artifact.omittedNoteCount)
+    || artifact.assignedNoteCount + artifact.unassignedNoteCount + artifact.omittedNoteCount
+      !== artifact.sourceNoteCount
+    || !musicXml
+    || artifact.renderer?.byteLength !== Buffer.byteLength(musicXml, 'utf8')
+    || artifact.renderer?.sha256 !== crypto.createHash('sha256').update(musicXml).digest('hex')
+  ) return false;
+
+  return artifact.noteDispositions.every((entry) => {
+    if (entry?.disposition === 'KEPT' || entry?.disposition === 'OCTAVE_SHIFTED') {
+      return Boolean(entry.targetPitch && entry.selectedPosition);
+    }
+    if (entry?.disposition === 'UNASSIGNED' || entry?.disposition === 'OMITTED') {
+      return entry.targetPitch === null && entry.selectedPosition === null;
+    }
+    return false;
+  });
+}
+
 function decorateUploadResultWithCapabilities(result) {
   if (!result || typeof result !== 'object') {
     throw new TypeError('Upload result must be an object.');
@@ -201,7 +243,8 @@ function decorateUploadResultWithCapabilities(result) {
 
   const rendererMusicXmlAvailable = rendererMusicXml(result) !== null;
   const renderScore = rendererMusicXmlAvailable && result.status !== 'BLOCKED';
-  const tabArtifactAvailable = Boolean(result.canonicalTabResult);
+  const partialArrangementAvailable = validPartialArrangementArtifact(result);
+  const tabArtifactAvailable = Boolean(result.canonicalTabResult) || partialArrangementAvailable;
   const sourceArtifactAvailable = sourceArtifactMusicXml(result) !== null;
   const reviewable = result.status === 'REVIEW_REQUIRED';
   const passed = result.status === 'PASS';
@@ -215,20 +258,23 @@ function decorateUploadResultWithCapabilities(result) {
     // Existing pitch-edit runtimes are PASS-only. REVIEW_REQUIRED editing is
     // exposed only after the teacher-revision host is connected; do not lie
     // about that capability merely to unlock a browser control.
-    editPitch: passed && tabArtifactAvailable,
+    editPitch: passed && Boolean(result.canonicalTabResult),
     editRhythm: false,
     editVoice: false,
     editStructure: false,
     playback,
-    export: passed && tabArtifactAvailable,
+    export: passed && Boolean(result.canonicalTabResult),
   };
 
   const artifacts = {
-    sourceScoreGraphAvailable: Boolean(result.canonicalTabResult?.source),
+    sourceScoreGraphAvailable: Boolean(
+      result.canonicalTabResult?.source
+      || (partialArrangementAvailable && result.arrangementArtifact.source),
+    ),
     sourceArtifactAvailable,
     rendererMusicXmlAvailable,
     provisionalTabAvailable: reviewable && tabArtifactAvailable,
-    canonicalTabAvailable: passed && tabArtifactAvailable,
+    canonicalTabAvailable: passed && Boolean(result.canonicalTabResult),
     playbackTimelineReliability: playback === PLAYBACK_CAPABILITY.FULL
       ? 'FULL'
       : playback === PLAYBACK_CAPABILITY.APPROXIMATE

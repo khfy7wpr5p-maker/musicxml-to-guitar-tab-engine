@@ -68,6 +68,9 @@ const {
   SOURCE_REVIEW_AVAILABILITY,
   buildScoreState,
 } = require('./reviewableScoreState');
+const {
+  recoverPartialGuitarArrangement,
+} = require('./partialGuitarArrangement');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -378,6 +381,67 @@ function measureOverflowReviewResult(identity, error, normalization, sourceArtif
     status: reviewState.status,
     reviewState,
     preflight: { ...base.preflight, status: reviewState.status, canOpenForReview: true },
+  });
+}
+
+function partialArrangementReviewResult(
+  identity,
+  error,
+  normalization,
+  sourceArtifact,
+  sourceModel,
+  recovery,
+) {
+  const issue = {
+    ...issueFromError(error),
+    category: 'semantic',
+    reviewDisposition: 'REVIEW_REQUIRED',
+    details: {
+      ...(error.details || {}),
+      originalCategory: categoryForError(error),
+      reviewDisposition: 'REVIEW_REQUIRED',
+      arrangementArtifact: recovery.arrangementArtifact.documentType,
+      assignedNoteCount: recovery.arrangementArtifact.assignedNoteCount,
+      unassignedNoteCount: recovery.arrangementArtifact.unassignedNoteCount,
+      coverageBasisPoints: recovery.arrangementArtifact.coverageBasisPoints,
+    },
+  };
+  const scoreState = buildScoreState({
+    route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
+    issues: [issue],
+    sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
+  });
+  if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
+    throw new MusicXmlUploadRuntimeError(
+      'Partial arrangement evidence produced an unexpected score state.',
+      'INVALID_PARTIAL_ARRANGEMENT_SCORE_STATE',
+      { status: scoreState.status },
+    );
+  }
+  return deepFreeze({
+    documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
+    contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
+    status: SCORE_STATUS.REVIEW_REQUIRED,
+    route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
+    input: identity,
+    preflight: {
+      status: 'REVIEW_REQUIRED',
+      canProcess: false,
+      canOpenForReview: true,
+      summary: {
+        format: sourceModel.source.format,
+        version: sourceModel.source.musicXmlVersion,
+        partId: sourceModel.source.partId,
+        measureCount: sourceModel.measureCount,
+        eventCount: sourceModel.eventCount,
+      },
+      issues: [issue],
+    },
+    normalization,
+    canonicalTabResult: null,
+    arrangementArtifact: recovery.arrangementArtifact,
+    musicXml: recovery.musicXml,
+    sourceArtifact,
   });
 }
 
@@ -1058,11 +1122,14 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
 
   let normalization = null;
   let graceProjection = null;
+  let sourceModel = null;
+  let decisions = null;
+  let writerOptions = null;
+  let guitarOptions = null;
   try {
     processing.checkpoint('app-upload:poly:start');
     const parsedDocument = harmonyExtraction.parsedDocument;
     let projectedMirror = tryProjectExactTabStaffMirror(parsedDocument, processing);
-    let sourceModel;
     let compatibilityProjection = null;
     if (projectedMirror) {
       sourceModel = projectedMirror.sourceModel;
@@ -1092,11 +1159,11 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     normalization = projectedMirror
       ? projectedMirror.normalization
       : noRepresentationNormalization();
-    const decisions = buildGuitarArrangementDecisions(
-    sourceModel,
-    normalization,
-    sourceGuitarConfiguration.guitar || {},
-  );
+    decisions = buildGuitarArrangementDecisions(
+      sourceModel,
+      normalization,
+      sourceGuitarConfiguration.guitar || {},
+    );
     const harmonyReferences = graceProjection
       ? rebaseHarmonyReferencesAfterGraceExtraction(
         harmonyExtraction.references,
@@ -1112,13 +1179,13 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       explicitHarmonyFacts,
       processing,
     ).labels;
-    const writerOptions = {
+    writerOptions = {
       ...(graceProjection
         ? { notationContext: graceProjection.notationContext }
         : {}),
       chordLabels,
     };
-    const guitarOptions = sourceGuitarConfiguration.guitar
+    guitarOptions = sourceGuitarConfiguration.guitar
       ? {
         tuning: sourceGuitarConfiguration.guitar.tuning,
         minimumFret: sourceGuitarConfiguration.guitar.minimumFret,
@@ -1191,6 +1258,44 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         normalization ? publicNormalization(normalization) : null,
         sourceArtifact,
       );
+    }
+    if (
+      sourceModel
+      && decisions
+      && writerOptions
+      && guitarOptions
+      && (!graceProjection || graceProjection.graceOrnamentGroups.length === 0)
+    ) {
+      let recovery;
+      try {
+        recovery = recoverPartialGuitarArrangement({
+          sourceModel,
+          arrangementDecisions: decisions,
+          processing,
+          writerOptions,
+          guitarOptions,
+          sourceUploadSha256: identity.sha256,
+          originalError: error,
+        });
+      } catch (recoveryError) {
+        return blockedResult(
+          identity,
+          MUSICXML_UPLOAD_ROUTE.POLY_V2,
+          issueFromError(recoveryError),
+          normalization ? publicNormalization(normalization) : null,
+          sourceArtifact,
+        );
+      }
+      if (recovery) {
+        return partialArrangementReviewResult(
+          identity,
+          error,
+          normalization ? publicNormalization(normalization) : null,
+          sourceArtifact,
+          sourceModel,
+          recovery,
+        );
+      }
     }
     return blockedResult(
       identity,

@@ -47,7 +47,7 @@ Current Tier A: **20 / 20 minimum verified**. The product-gate script rejects ev
 
 ## R0 usable-output gate
 
-`Stage09AdditionalRealMusicXmlCorpusAudit 1.1.0` adds `Stage09UsableOutputProductGate 1.0.0`. This gate does not trust a route/status label or advertised capability by itself. For every safe, parseable eligible file it checks the actual renderer/TAB artifact together with the corresponding capability and reports:
+`Stage09AdditionalRealMusicXmlCorpusAudit 1.2.0` includes `Stage09UsableOutputProductGate 1.0.0`. It recognizes both canonical TAB and the R2 hash-bound provisional arrangement artifact, without trusting a route/status label or advertised capability by itself. For every safe, parseable eligible file it checks the actual renderer/TAB artifact together with the corresponding capability and reports:
 
 - source-renderable file count and rate;
 - TAB-artifact file count and rate;

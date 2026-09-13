@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -16,6 +16,8 @@ A renderer is never semantic authority. Writers consume already-selected canonic
 The application score-state contract is also independent from route: `PASS`, `REVIEW_REQUIRED`, and `BLOCKED` describe processing/review eligibility, while `MONO_V1`, `POLY_V2`, and `UNRESOLVED` describe dispatch. See [`reviewable-score-state-contract.md`](reviewable-score-state-contract.md). The early routing rules are defined in [`poly-v2-routing-contract.md`](poly-v2-routing-contract.md).
 
 The application source-rendering artifact is independent from canonical TAB authority. After XML/MXL safety and bounded parsing succeed, `MusicXmlSourceArtifact 1.0.0` retains safety-normalized renderer MusicXML even when a later projection, arrangement or solver boundary stops conversion. It never grants TAB or export authority. See [`r1-source-artifact-retention.md`](r1-source-artifact-retention.md).
+
+Dense-score recovery has a second non-canonical boundary. `PartialGuitarTabArrangement 1.0.0` may turn the exact allow-listed PA-8 assignment-limit failure into a renderer-visible provisional TAB with one explicit disposition per source note. It never grants export authority and never replaces the immutable source or `CanonicalTabResult`. See [`r2-partial-guitar-arrangement.md`](r2-partial-guitar-arrangement.md).
 
 ## 2. Production pipeline
 
@@ -49,10 +51,13 @@ Canonical TAB Result
 MusicXML / TAB Writer
 ```
 
+When the complete path reaches the exact recoverable PA-8 assignment ceiling, R2 branches through deterministic melody/bass reduction, reuses the same physical pipeline with bounded 3→2→1 attempts, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. Other failures continue through the ordinary review or fail-closed paths.
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
+- partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
 - source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;

@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -38,10 +38,11 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 08 correction revalidation → production TAB | ✅ COMPLETE / INTERNAL — merged PR #314 at `051aae293244ead108079b4756810558e0a44891` |
 | Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections |
 | R1 safely parsed source-artifact retention | ✅ IMPLEMENTED — source rendering separated from TAB/export authority |
+| R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
-| Partial usable-result policy beyond review-state evidence | ⚠️ LATER GATE |
+| Partial usable-result policy beyond review-state evidence | ✅ FIRST BOUNDED VERTICAL SLICE — PA-8 assignment-limit recovery |
 | Public PA-13 polyphonic package API | 🔒 NOT IMPLEMENTED |
 
 Package metadata remains version `0.1.0`, `private: true`, Node.js >=18.
@@ -190,7 +191,7 @@ Real corpus is used to verify generic behavior:
 - expected fail-closed behavior;
 - no true-polyphony downgrade to `MONO_V1`;
 - evidence-bound Stage 08 approval for correction-path `PASS`;
-- no canonical/writer output for `REVIEW_REQUIRED` or `BLOCKED`;
+- no canonical output for `REVIEW_REQUIRED` or `BLOCKED`; review-only writer output requires a validated partial arrangement artifact;
 - required CI green.
 
 A newly exposed blocker must be classified on its semantics. Production code must never branch on corpus filename or SHA.
@@ -206,7 +207,7 @@ Renderer output and the R1 source artifact are presentation only. Writers serial
 ## Open architecture gates
 
 1. Stage 09 Tier-B evidence acquisition: add at least 3 authentic teacher-correction cases with `PASS`, `REVIEW_REQUIRED`, `BLOCKED` and required representation coverage.
-2. R2 partial arrangement result for safely parsed scores that cannot yet produce a complete canonical TAB, with explicit per-note disposition and no silent note loss.
+2. Extend provisional arrangement beyond the first PA-8 assignment-limit slice to reviewed repeat/direction and other safe projection boundaries.
 3. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
 4. Any broader public/package-root polyphonic API remains separately gated.
 5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
