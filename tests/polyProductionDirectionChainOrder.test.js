@@ -100,7 +100,6 @@ test('production chain still fails closed for structural playback directions', (
 test('production chain preserves stricter validation for offset and inner direction shapes', () => {
   for (const direction of [
     '<direction><offset>1</offset><direction-type><words>rit.</words></direction-type></direction>',
-    '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>',
     '<direction><direction-type><words><display-text>rit.</display-text></words></direction-type></direction>',
     '<direction><direction-type><words>Da Capo</words></direction-type></direction>',
     '<direction><direction-type><pedal type="unknown" line="yes"/></direction-type></direction>',

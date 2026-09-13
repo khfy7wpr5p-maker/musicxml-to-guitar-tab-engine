@@ -355,7 +355,7 @@ test('monophonic writer notation plus TAB output reaches the mirror normalizer',
   assert.equal(roundTrip.canonicalTabResult.noteDispositions.length, 1);
 });
 
-test('near-mirror notation and TAB staves fail closed instead of dropping changed music', () => {
+test('near-mirror notation and TAB staves remain distinct in explicit provisional review', () => {
   const first = processMusicXmlUpload({
     fileName: 'poly.xml',
     bytes: fixture('pa12-polyphonic-e2e.musicxml'),
@@ -374,11 +374,16 @@ test('near-mirror notation and TAB staves fail closed instead of dropping change
     bytes: Buffer.from(changed),
   });
 
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
   assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assert.ok(result.musicXml);
+  assert.ok(result.arrangementArtifact);
+  assert.equal(
+    result.arrangementArtifact.noteDispositions.length,
+    result.arrangementArtifact.sourceNoteCount,
+  );
 });
 
 test('TAB mirror partial-reset overflow requires review while unsupported technique remains blocked', () => {
@@ -413,7 +418,7 @@ test('TAB mirror partial-reset overflow requires review while unsupported techni
   }
 });
 
-test('TAB mirror normalization rejects late clef and transpose declarations', () => {
+test('TAB mirror normalization never grants collapse authority to late clef or transpose declarations', () => {
   const first = processMusicXmlUpload({
     fileName: 'poly.xml',
     bytes: fixture('pa12-polyphonic-e2e.musicxml'),
@@ -426,14 +431,18 @@ test('TAB mirror normalization rejects late clef and transpose declarations', ()
     .replace('<clef number="2"><sign>TAB</sign>', '<clef number="2"><sign>G</sign>')
     .replace('</note>', '</note><attributes><clef number="2"><sign>TAB</sign><line>5</line></clef></attributes>');
 
-  for (const [fileName, musicXml] of [
-    ['late-transpose.musicxml', lateTranspose],
-    ['late-tab-clef.musicxml', lateTabClef],
+  for (const [fileName, musicXml, expectedStatus] of [
+    ['late-transpose.musicxml', lateTranspose, MUSICXML_UPLOAD_STATUS.BLOCKED],
+    ['late-tab-clef.musicxml', lateTabClef, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED],
   ]) {
     const result = processMusicXmlUpload({ fileName, bytes: Buffer.from(musicXml) });
-    assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+    assert.equal(result.status, expectedStatus);
     assert.equal(result.normalization.tabStaffMirrorCollapsed, false);
     assert.equal(result.canonicalTabResult, null);
+    if (expectedStatus === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED) {
+      assert.ok(result.arrangementArtifact);
+      assert.ok(result.musicXml);
+    }
   }
 });
 

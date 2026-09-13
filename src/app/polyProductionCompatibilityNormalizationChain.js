@@ -5,8 +5,8 @@ const {
   extractPolyphonicGraceOrnaments,
 } = require('../parser/polyphonicGraceOrnamentExtractor');
 const {
-  projectParsedMusicXmlToPolyphonicSourceModel,
-} = require('../parser/polyphonicMusicXmlProjector');
+  projectParsedMusicXmlWithMeasureOverflowReview,
+} = require('../parser/polyphonicMeasureOverflowReviewProjector');
 const {
   normalizePolyphonicPerformanceMetadataPolicy,
 } = require('../parser/polyphonicPerformanceMetadataPolicy');
@@ -210,10 +210,11 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     graceAccidentalNormalization.parsedDocument,
     runtime,
   );
-  const sourceModel = projectParsedMusicXmlToPolyphonicSourceModel(
+  const overflowProjection = projectParsedMusicXmlWithMeasureOverflowReview(
     semanticNormalization.parsedMainDocument,
     runtime,
   );
+  const sourceModel = overflowProjection.sourceModel;
   const slurProvenance = bindPolyphonicSlurProvenance(
     slurNormalization,
     semanticNormalization.graceOrnamentGroups,
@@ -309,7 +310,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     contractVersion: POLY_PRODUCTION_COMPATIBILITY_NORMALIZATION_CHAIN_VERSION,
     sourceModel,
     mainSourceModel: sourceModel,
-    parsedMainDocument: semanticNormalization.parsedMainDocument,
+    parsedMainDocument: overflowProjection.parsedDocument,
     guitarTechniqueProvenance: techniqueNormalization.guitarTechniqueProvenance,
     slurProvenance,
     fingeringProvenance,
@@ -332,6 +333,11 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     repeatBarlines: repeatNormalization.repeatBarlines,
     endingBarlines: repeatNormalization.endingBarlines,
     repeatRegions: repeatNormalization.repeatRegions,
+    reviewIssues: Object.freeze([
+      ...performanceNormalization.reviewIssues,
+      ...repeatNormalization.reviewIssues,
+      ...overflowProjection.reviewIssues,
+    ]),
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
     ignoredDirectionCount,
     ignoredDirectionFeatureCounts,

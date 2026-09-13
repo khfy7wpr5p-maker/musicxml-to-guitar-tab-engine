@@ -49,6 +49,13 @@ const SAFE_ARTICULATION_CHILDREN = new Set([
   'staccato',
   'tenuto',
 ]);
+const SAFE_DYNAMIC_MARKS = new Set([
+  'ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff',
+]);
+const SAFE_WORDS_ATTRIBUTES = new Set([
+  'default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style',
+  'font-size', 'font-weight', 'color', 'halign', 'valign', 'enclosure',
+]);
 const SAFE_SLUR_ATTRIBUTES = new Set([
   'type',
   'number',
@@ -442,7 +449,7 @@ function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
   const mark = dynamics.children[0];
   if (!(
     mark.uri === dynamics.uri
-    && ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'].includes(mark.name)
+    && SAFE_DYNAMIC_MARKS.has(mark.name)
     && mark.attributes.length === 0
     && mark.children.length === 0
     && mark.text.trim().length === 0
@@ -453,7 +460,7 @@ function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
     && children.length === 1
     && soundNodes.length === 0
     && staffNodes.length === 0
-    && ['p', 'mf', 'f'].includes(mark.name)
+    && SAFE_DYNAMIC_MARKS.has(mark.name)
   );
   if (isLegacyExactDirection) return true;
 
@@ -482,6 +489,52 @@ function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
   return true;
 }
 
+// Free-form words are display-only when they have no timing, navigation,
+// sound, voice, staff, or extension semantics. They may be omitted from the
+// derived TAB without changing pitch/onset facts; the immutable source
+// artifact remains the authority for the original annotation.
+function safeDisplayWordsDirection(node) {
+  if (
+    node.text.trim().length !== 0
+    || node.children.length !== 1
+    || node.attributes.some((attribute) => (
+      attribute.uri.length !== 0
+      || attribute.name !== 'placement'
+      || !['above', 'below'].includes(attribute.value)
+    ))
+  ) return false;
+  const directionType = node.children[0];
+  if (
+    directionType.uri !== node.uri
+    || directionType.name !== 'direction-type'
+    || directionType.attributes.length !== 0
+    || directionType.text.trim().length !== 0
+    || directionType.children.length !== 1
+  ) return false;
+  const words = directionType.children[0];
+  const normalizedWords = words.text.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (
+    words.uri !== directionType.uri
+    || words.name !== 'words'
+    || words.children.length !== 0
+    || words.text.trim().length === 0
+    || words.text.length > 256
+    || /\b(?:da capo|dal segno|to coda|fine|segno|coda)\b/.test(normalizedWords)
+    || /\b(?:d\.?\s*c\.?|d\.?\s*s\.?)\b/.test(normalizedWords)
+  ) return false;
+  const seen = new Set();
+  for (const attribute of words.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || !SAFE_WORDS_ATTRIBUTES.has(attribute.name)
+      || seen.has(attribute.name)
+      || attribute.value.length > 256
+    ) return false;
+    seen.add(attribute.name);
+  }
+  return true;
+}
+
 // Display-only rehearsal labels are safe only in this exact, bounded shape.
 // Playback, timing, staff, voice, layout, and extension data remain unsupported.
 function safeDisplayRehearsalDirection(node) {
@@ -506,7 +559,6 @@ function safeDisplayRehearsalDirection(node) {
     && rehearsal.name === 'rehearsal'
     && rehearsal.attributes.length === 0
     && rehearsal.children.length === 0
-    && text.length > 0
     && text.length <= 256
   );
 }
@@ -1046,6 +1098,10 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         }
         if (safeDisplayRehearsalDirection(child)) {
           ignoredFeatures.add('measure:direction:rehearsal');
+          continue;
+        }
+        if (safeDisplayWordsDirection(child)) {
+          ignoredFeatures.add('measure:direction:words-display');
           continue;
         }
         const reviewDirection = reviewableBoundedDirection(child, effectiveStaffCount);

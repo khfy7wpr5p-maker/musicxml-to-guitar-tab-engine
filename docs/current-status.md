@@ -39,6 +39,9 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections |
 | R1 safely parsed source-artifact retention | ✅ IMPLEMENTED — source rendering separated from TAB/export authority |
 | R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
+| R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
+| Stage 09 additional corpus source + TAB availability | ✅ 11/11 LOCAL VERIFIED — 0 hard blocks; 2,794/6,631 notes assigned |
+| `REVIEW_REQUIRED` Workbench teacher editing | 🔒 NOT CONNECTED — Stage 06 contract exists; Workbench edit runtimes remain PASS-only |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -173,7 +176,7 @@ The committed Stage 03 reviewed audit contains the same nine file names and SHA-
 
 `verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` pins the successful workflow evidence. Together with the historical nine, Tier A is **20 unique / 20 verified**. Evidence-set overlap fails closed and cannot inflate this count.
 
-The R0 fresh run over the eleven additional cases produced `0 PASS`, `6 REVIEW_REQUIRED` and `5 BLOCKED`, with zero renderer/TAB artifacts. R1 now retains a source artifact after successful parsing; the updated artifact-backed real-corpus audit remains to be run in protected CI. These outcomes are product evidence about current compatibility/physical boundaries, not a reason to weaken solver policy or resource ceilings.
+The R0 fresh run over the eleven additional cases produced `0 PASS`, `6 REVIEW_REQUIRED` and `5 BLOCKED`, with zero renderer/TAB artifacts. R1 retained source artifacts and R2 added the first dense-score partial arrangements. The R3 local two-run audit now produces `0 PASS`, `11 REVIEW_REQUIRED`, `0 BLOCKED`, `11/11` source-renderable and `11/11` provisional-TAB files. It assigns 2,794 of 6,631 source notes (42.13%) and keeps 3,837 explicit unassigned notes for review. Protected-CI evidence remains required before these R3 numbers become merged-main evidence.
 
 ### Stage 09 teacher-correction evidence gap
 
@@ -207,8 +210,9 @@ Renderer output and the R1 source artifact are presentation only. Writers serial
 ## Open architecture gates
 
 1. Stage 09 Tier-B evidence acquisition: add at least 3 authentic teacher-correction cases with `PASS`, `REVIEW_REQUIRED`, `BLOCKED` and required representation coverage.
-2. Extend provisional arrangement beyond the first PA-8 assignment-limit slice to reviewed repeat/direction and other safe projection boundaries.
-3. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
-4. Any broader public/package-root polyphonic API remains separately gated.
-5. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
-6. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.
+2. Connect the Stage 06 teacher-revision editor to `REVIEW_REQUIRED` Workbench selection, patching and regeneration; do not unlock controls by capability flag alone.
+3. Extend timing/voice editing and independent Stage 08 revalidation for provisional arrangements.
+4. Wider producer-realistic real-corpus coverage and hardening beyond the Stage 09 minimum.
+5. Any broader public/package-root polyphonic API remains separately gated.
+6. Unsupported or ambiguous notation classes remain fail-closed until a generic evidence-backed contract is reviewed.
+7. Learned/runtime-shadow authority, hosting, authentication, persistence, PDF/playback and release/product gates remain separate from deterministic core semantics.

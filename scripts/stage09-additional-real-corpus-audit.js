@@ -106,6 +106,16 @@ function outputSemanticsValid(result) {
       && result.artifacts?.canonicalTabAvailable === false
     );
   }
+  if (result?.status === 'REVIEW_REQUIRED' && result?.canonicalTabResult) {
+    return Boolean(
+      typeof result.musicXml === 'string'
+      && result.musicXml.length > 0
+      && result.capabilities?.generateTab === true
+      && result.capabilities?.export === false
+      && result.artifacts?.provisionalTabAvailable === true
+      && result.artifacts?.canonicalTabAvailable === false
+    );
+  }
   return !result?.canonicalTabResult && !result?.arrangementArtifact && !result?.musicXml;
 }
 

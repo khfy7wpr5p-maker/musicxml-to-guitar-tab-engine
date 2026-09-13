@@ -19,6 +19,8 @@ The application source-rendering artifact is independent from canonical TAB auth
 
 Dense-score recovery has a second non-canonical boundary. `PartialGuitarTabArrangement 1.0.0` may turn the exact allow-listed PA-8 assignment-limit failure into a renderer-visible provisional TAB with one explicit disposition per source note. It never grants export authority and never replaces the immutable source or `CanonicalTabResult`. See [`r2-partial-guitar-arrangement.md`](r2-partial-guitar-arrangement.md).
 
+R3 broadens the same review-only boundary to exact, bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense physical-selection failures. The derived projection records every approximation and remains independent from the immutable source artifact. See [`r3-review-projection-continuation.md`](r3-review-projection-continuation.md).
+
 ## 2. Production pipeline
 
 ```text
@@ -51,15 +53,17 @@ Canonical TAB Result
 MusicXML / TAB Writer
 ```
 
-When the complete path reaches the exact recoverable PA-8 assignment ceiling, R2 branches through deterministic melody/bass reduction, reuses the same physical pipeline with bounded 3→2→1 attempts, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. Other failures continue through the ordinary review or fail-closed paths.
+When the complete path reaches an exact recoverable physical-selection boundary, the review branch applies deterministic sparse melody reduction, reuses the same bounded physical pipeline, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. Before projection, R3 may also isolate exact non-executable navigation/repeat uncertainty or clamp a repairable positive measure overflow in the derived document. Other failures continue through the ordinary review or fail-closed paths.
 
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
+- repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;
+- repeat/navigation review projection: `src/parser/polyphonicRepeatBarlineNormalizer.js`, `src/parser/polyphonicPerformanceDirectionNormalizer.js`;
 - source model: `src/parser/polyphonicMusicXmlProjector.js`, `src/music/polyphonicSourceModel.js`;
 - tie/sustain: `src/music/sustainTieGraph.js`, `src/music/activeSonorityModel.js`;
 - sustained physical state: `src/music/leftHandShapeModel.js`, `src/music/sustainedGuitarPositionStateModel.js`, `src/music/sustainedLeftHandPhysicalStateModel.js`;

@@ -58,3 +58,5 @@ The pinned 11-file AnimeTAB Stage 09 corpus at commit `18c0993cbe0a0948cbf0b7768
 | Assigned notes in recovered files | 0 | 1,267/2,090 (60.62%) |
 
 The remaining two hard blocks are projection-level performance-direction cases. Six repeat-bearing files render their source but do not yet have provisional TAB. Teacher-edit capability remains a separate host/editor bridge gate.
+
+R3 supersedes these product counts without changing this R2 artifact contract. See [`r3-review-projection-continuation.md`](r3-review-projection-continuation.md).

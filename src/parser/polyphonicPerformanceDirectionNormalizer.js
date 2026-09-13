@@ -364,6 +364,43 @@ function classifySafePerformanceDirection(directionNode) {
   });
 }
 
+function reviewableNavigationDirection(directionNode) {
+  if (
+    directionNode.attributes.length !== 0
+    || directionNode.text.trim().length !== 0
+    || directionNode.children.length !== 1
+  ) return null;
+  const child = directionNode.children[0];
+  if (child.uri !== directionNode.uri || child.text.trim().length !== 0) return null;
+
+  if (
+    child.name === 'direction-type'
+    && child.attributes.length === 0
+    && child.children.length === 1
+  ) {
+    const marker = child.children[0];
+    if (
+      marker.uri === child.uri
+      && ['segno', 'coda'].includes(marker.name)
+      && marker.attributes.length === 0
+      && marker.children.length === 0
+      && marker.text.trim().length === 0
+    ) return `${marker.name.toUpperCase()}_MARK`;
+  }
+
+  if (
+    child.name === 'sound'
+    && child.children.length === 0
+    && child.attributes.length === 1
+    && child.attributes[0].uri.length === 0
+    && ['dacapo', 'segno', 'dalsegno', 'coda', 'tocoda', 'fine']
+      .includes(child.attributes[0].name)
+    && /^[A-Za-z0-9_.:-]{1,64}$/.test(child.attributes[0].value)
+  ) return `SOUND_${child.attributes[0].name.toUpperCase()}`;
+
+  return null;
+}
+
 function cloneAttributes(attributes) {
   if (!Array.isArray(attributes)) throw invalid('Parsed node attributes must be an array.');
   return attributes.map((attribute) => ({ ...attribute }));
@@ -411,6 +448,20 @@ function sanitizeMeasure(
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:measure', { measureIndex });
   return cloneNode(measure, (child, childIndex) => {
     if (child.uri !== measure.uri || child.name !== 'direction') return cloneNode(child);
+    const navigationKind = reviewableNavigationDirection(child);
+    if (navigationKind !== null) {
+      provenance.navigationDirections.push(Object.freeze({
+        kind: navigationKind,
+        measureIndex,
+        measureNumber: measure.attributes.find((attribute) => (
+          attribute.uri.length === 0 && attribute.name === 'number'
+        ))?.value || String(measureIndex + 1),
+        measureChildIndex: childIndex,
+      }));
+      provenance.ignoredDirectionCount += 1;
+      addCount(provenance.counts, 'direction:navigation:segno');
+      return null;
+    }
     const classification = classifySafePerformanceDirection(child);
     const context = Object.freeze({
       effectiveStaffCount,
@@ -478,7 +529,12 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:start');
   const presentation = normalizePolyphonicPresentationMetadata(parsedDocument, runtime);
   const source = presentation.parsedDocument;
-  const provenance = { counts: new Map(), ignoredDirectionCount: 0, tempoDirections: [] };
+  const provenance = {
+    counts: new Map(),
+    ignoredDirectionCount: 0,
+    tempoDirections: [],
+    navigationDirections: [],
+  };
 
   const normalizedRoot = cloneNode(source.root, (child) => {
     if (child.uri === source.root.uri && child.name === 'part') {
@@ -501,6 +557,31 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
     contractVersion: source.contractVersion,
     root: deepFreezeNode(normalizedRoot),
   });
+  const firstNavigation = provenance.navigationDirections[0] || null;
+  const reviewIssues = firstNavigation === null
+    ? Object.freeze([])
+    : Object.freeze([Object.freeze({
+      severity: 'error',
+      category: 'semantic',
+      code: 'UNVERIFIED_NAVIGATION_DIRECTION_SINGLE_PASS',
+      message: 'Navigation directions were omitted from the provisional single-pass TAB.',
+      reviewDisposition: 'REVIEW_REQUIRED',
+      location: Object.freeze({
+        measure: firstNavigation.measureNumber,
+        measureIndex: firstNavigation.measureIndex,
+        eventIndex: null,
+        sourceEventId: null,
+      }),
+      details: Object.freeze({
+        feature: 'direction-navigation',
+        reason: 'SEGNO_PLAYBACK_NORMALIZED_TO_SINGLE_PASS',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        directionCount: provenance.navigationDirections.length,
+        kinds: Object.freeze([...new Set(
+          provenance.navigationDirections.map((record) => record.kind),
+        )].sort()),
+      }),
+    })]);
 
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:complete', {
     ignoredDirectionCount: provenance.ignoredDirectionCount,
@@ -513,6 +594,7 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
     ignoredDirectionCount: provenance.ignoredDirectionCount,
     ignoredDirectionFeatureCounts: directionFeatureCounts,
     tempoDirections: Object.freeze(provenance.tempoDirections),
+    reviewIssues,
   });
 }
 

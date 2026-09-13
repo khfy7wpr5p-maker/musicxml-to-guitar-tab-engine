@@ -152,16 +152,9 @@ function parseRepeat(node, location) {
   }
 
   const rawTimes = getUniqueAttribute(node, 'times');
-  if (direction === 'forward' && rawTimes !== undefined) {
-    throw unsupported('Repeat times is supported only on backward repeats.', {
-      ...location,
-      reason: 'FORWARD_REPEAT_TIMES_UNSUPPORTED',
-      times: rawTimes,
-    });
-  }
-
   let times = null;
   let playCount = direction === 'backward' ? DEFAULT_REPEAT_PLAY_COUNT : null;
+  let reviewIssue = null;
   if (rawTimes !== undefined) {
     if (!/^[1-9]\d*$/.test(rawTimes)) {
       throw unsupported('Repeat times must be a positive integer in the bounded V1 profile.', {
@@ -170,11 +163,11 @@ function parseRepeat(node, location) {
         times: rawTimes,
       });
     }
-    times = Number(rawTimes);
+    const parsedTimes = Number(rawTimes);
     if (
-      !Number.isSafeInteger(times)
-      || times < 2
-      || times > MAX_REPEAT_PLAY_COUNT
+      !Number.isSafeInteger(parsedTimes)
+      || parsedTimes < 2
+      || parsedTimes > MAX_REPEAT_PLAY_COUNT
     ) {
       throw unsupported('Repeat times exceeds the bounded V1 playback contract.', {
         ...location,
@@ -184,10 +177,37 @@ function parseRepeat(node, location) {
         maximum: MAX_REPEAT_PLAY_COUNT,
       });
     }
-    playCount = times;
+    if (direction === 'forward') {
+      // Some exporters put `times` on the opening repeat. MusicXML playback
+      // count belongs to the backward marker, so omit only that noncanonical
+      // attribute in the derived TAB and require review. The source artifact
+      // remains byte-for-byte unchanged.
+      reviewIssue = Object.freeze({
+        severity: 'error',
+        category: 'semantic',
+        code: 'NONCANONICAL_FORWARD_REPEAT_TIMES',
+        message: 'Forward repeat times was omitted from the provisional TAB playback plan.',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        location: Object.freeze({
+          measure: location.measureNumber ?? null,
+          measureIndex: location.measureIndex ?? null,
+          eventIndex: null,
+          sourceEventId: null,
+        }),
+        details: Object.freeze({
+          feature: 'barline-repeat',
+          reason: 'FORWARD_REPEAT_TIMES_NORMALIZED',
+          reviewDisposition: 'REVIEW_REQUIRED',
+          sourceTimes: rawTimes,
+        }),
+      });
+    } else {
+      times = parsedTimes;
+      playCount = parsedTimes;
+    }
   }
 
-  return Object.freeze({ direction, times, playCount });
+  return Object.freeze({ direction, times, playCount, reviewIssue });
 }
 
 function parseEnding(node, location) {
@@ -393,15 +413,27 @@ function buildFirstSecondEndingOccurrencePlan(measureCount, regions, endingSpans
 
 function normalizeSelectedPart(part, runtime) {
   const measures = directChildren(part, 'measure');
-  const admitEndingPairCandidate = measures.some((measure) => directChildren(measure, 'barline')
-    .some((barline) => (
-      directChildren(barline, 'ending').length === 1
-      && directChildren(barline, 'repeat').length === 1
-    )));
+  const hasRepeatElement = measures.some((measure) => directChildren(measure, 'barline')
+    .some((barline) => directChildren(barline, 'repeat').length > 0));
+  // Ending-only notation remains under the established runtime review
+  // classifier. This normalizer gains playback authority only when an actual
+  // repeat marker supplies a bounded traversal context.
+  if (!hasRepeatElement) {
+    return Object.freeze({
+      parsedPart: cloneNode(part),
+      measureCount: measures.length,
+      repeatBarlines: Object.freeze([]),
+      repeatRegions: Object.freeze([]),
+      endingBarlines: Object.freeze([]),
+      measureOccurrencePlan: buildMeasureOccurrencePlan(measures.length, []),
+      reviewIssues: Object.freeze([]),
+    });
+  }
   const repeatBarlines = [];
   const endingBarlines = [];
   const endingSpans = [];
   const regions = [];
+  const reviewIssues = [];
   let openRepeatStart = null;
   let openEnding = null;
 
@@ -417,9 +449,6 @@ function normalizeSelectedPart(part, runtime) {
     let repeatMarkerCount = 0;
     return cloneNode(measure, (measureChild, measureChildIndex) => {
       if (measureChild.uri !== measure.uri || measureChild.name !== 'barline') {
-        return cloneNode(measureChild);
-      }
-      if (!admitEndingPairCandidate && directChildren(measureChild, 'ending').length > 0) {
         return cloneNode(measureChild);
       }
       const location = {
@@ -449,6 +478,9 @@ function normalizeSelectedPart(part, runtime) {
           playCount: parsed.repeat.playCount,
         });
         repeatBarlines.push(marker);
+        if (parsed.repeat.reviewIssue !== null) {
+          reviewIssues.push(parsed.repeat.reviewIssue);
+        }
       }
 
       if (parsed.repeat?.direction === 'forward') {
@@ -530,17 +562,57 @@ function normalizeSelectedPart(part, runtime) {
     });
   }
 
-  const measureOccurrencePlan = endingBarlines.length === 0
-    ? buildMeasureOccurrencePlan(measures.length, regions)
-    : buildFirstSecondEndingOccurrencePlan(measures.length, regions, endingSpans);
+  let measureOccurrencePlan;
+  let outputRepeatBarlines = repeatBarlines;
+  let outputEndingBarlines = endingBarlines;
+  if (endingBarlines.length === 0) {
+    measureOccurrencePlan = buildMeasureOccurrencePlan(measures.length, regions);
+  } else {
+    try {
+      measureOccurrencePlan = buildFirstSecondEndingOccurrencePlan(
+        measures.length,
+        regions,
+        endingSpans,
+      );
+    } catch (error) {
+      if (!(error instanceof PolyphonicRepeatBarlineNormalizerError)
+        || error.code !== 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE') throw error;
+      measureOccurrencePlan = buildMeasureOccurrencePlan(measures.length, []);
+      outputRepeatBarlines = [];
+      outputEndingBarlines = [];
+      const first = endingBarlines[0];
+      reviewIssues.push(Object.freeze({
+        severity: 'error',
+        category: 'semantic',
+        code: 'AMBIGUOUS_REPEAT_ENDING_SINGLE_PASS',
+        message: 'Ambiguous repeat endings were omitted from the provisional single-pass TAB.',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        location: Object.freeze({
+          measure: first.measureNumber,
+          measureIndex: first.measureIndex,
+          eventIndex: null,
+          sourceEventId: null,
+        }),
+        details: Object.freeze({
+          feature: 'barline-ending',
+          reason: 'ENDING_PLAYBACK_NORMALIZED_TO_SINGLE_PASS',
+          originalReason: error.details?.reason || null,
+          reviewDisposition: 'REVIEW_REQUIRED',
+          sourceRepeatBarlineCount: repeatBarlines.length,
+          sourceEndingBarlineCount: endingBarlines.length,
+        }),
+      }));
+    }
+  }
 
   return Object.freeze({
     parsedPart: normalizedPart,
     measureCount: measures.length,
-    repeatBarlines: Object.freeze(repeatBarlines),
+    repeatBarlines: Object.freeze(outputRepeatBarlines),
     repeatRegions: Object.freeze(regions),
-    endingBarlines: Object.freeze(endingBarlines),
+    endingBarlines: Object.freeze(outputEndingBarlines),
     measureOccurrencePlan,
+    reviewIssues: Object.freeze(reviewIssues),
   });
 }
 
@@ -567,6 +639,7 @@ function normalizePolyphonicRepeatBarlines(parsedDocument, runtime = null) {
       endingBarlines: Object.freeze([]),
       repeatRegions: Object.freeze([]),
       measureOccurrencePlan: Object.freeze([]),
+      reviewIssues: Object.freeze([]),
     });
   }
 
@@ -604,6 +677,7 @@ function normalizePolyphonicRepeatBarlines(parsedDocument, runtime = null) {
     endingBarlines: partNormalization.endingBarlines,
     repeatRegions: partNormalization.repeatRegions,
     measureOccurrencePlan: partNormalization.measureOccurrencePlan,
+    reviewIssues: partNormalization.reviewIssues,
   });
 }
 

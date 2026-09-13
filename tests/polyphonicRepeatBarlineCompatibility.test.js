@@ -177,6 +177,28 @@ test('orphan backward repeat requires review without output at a stable source m
   assert.equal(result.preflight.issues[0].location.measureIndex, 0);
 });
 
+test('noncanonical forward repeat times yields deterministic review-only TAB without changing source bytes', () => {
+  const bytes = Buffer.from(repeatScore().replace(
+    '<repeat direction="forward"/>',
+    '<repeat direction="forward" times="2"/>',
+  ));
+  const before = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'forward-times-review.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'forward-times-review.musicxml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(first.preflight.issues[0].code, 'NONCANONICAL_FORWARD_REPEAT_TIMES');
+  assert.equal(first.preflight.issues[0].details.sourceTimes, '2');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.ok(first.canonicalTabResult);
+  assert.match(first.musicXml, /<repeat direction="forward"\/>/);
+  assert.doesNotMatch(first.musicXml, /<repeat direction="forward" times=/);
+  assert.deepEqual(first, second);
+  assert.deepEqual(bytes, before);
+});
+
 test('nested repeat structure requires review without traversal or output', () => {
   const xml = repeatScore().replace(
     '    <measure number="2">',
@@ -218,7 +240,7 @@ test('valid first and second endings preserve volta marks and continue TAB produ
   assert.equal(inputHash(bytes), before);
 });
 
-test('first ending without a complete second ending remains review-required', () => {
+test('first ending without a complete second ending yields review-only single-pass TAB', () => {
   const xml = firstAndSecondEndingScore().replace(
     /\s*<barline location="left"><ending number="2" type="start"\/><\/barline>/,
     '',
@@ -227,7 +249,11 @@ test('first ending without a complete second ending remains review-required', ()
     '',
   );
   const result = processMusicXmlUpload({ fileName: 'incomplete-endings.musicxml', bytes: Buffer.from(xml) });
-  assertReviewWithoutOutput(result);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
+  assert.equal(result.preflight.issues[0].code, 'AMBIGUOUS_REPEAT_ENDING_SINGLE_PASS');
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.ok(result.musicXml);
+  assert.doesNotMatch(result.musicXml, /<ending /);
 });

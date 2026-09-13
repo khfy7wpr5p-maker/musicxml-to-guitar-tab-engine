@@ -672,7 +672,8 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
     let chordAnchorEvent = null;
     const events = [];
 
-    for (const child of measureNode.children) {
+    for (let measureChildIndex = 0; measureChildIndex < measureNode.children.length; measureChildIndex += 1) {
+      const child = measureNode.children[measureChildIndex];
       if (child.uri !== measureNode.uri) {
         continue;
       }
@@ -696,7 +697,10 @@ function projectParsedMusicXmlToPolyphonicSourceModel(parsedDocument, runtime = 
           operation: child.name,
           cursor,
         });
-        cursor = applyCursorOperation(child, cursor, expectedDuration, location);
+        cursor = applyCursorOperation(child, cursor, expectedDuration, {
+          ...location,
+          measureChildIndex,
+        });
         chordAnchorEvent = null;
         continue;
       }

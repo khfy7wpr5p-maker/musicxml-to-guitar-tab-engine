@@ -391,6 +391,7 @@ function partialArrangementReviewResult(
   sourceArtifact,
   sourceModel,
   recovery,
+  additionalReviewIssues = [],
 ) {
   const issue = {
     ...issueFromError(error),
@@ -406,9 +407,10 @@ function partialArrangementReviewResult(
       coverageBasisPoints: recovery.arrangementArtifact.coverageBasisPoints,
     },
   };
+  const issues = [...additionalReviewIssues, ...(recovery.reviewIssues || []), issue];
   const scoreState = buildScoreState({
     route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
-    issues: [issue],
+    issues,
     sourceReviewAvailability: SOURCE_REVIEW_AVAILABILITY.SAFE_TO_OPEN,
   });
   if (scoreState.status !== SCORE_STATUS.REVIEW_REQUIRED) {
@@ -435,7 +437,7 @@ function partialArrangementReviewResult(
         measureCount: sourceModel.measureCount,
         eventCount: sourceModel.eventCount,
       },
-      issues: [issue],
+      issues,
     },
     normalization,
     canonicalTabResult: null,
@@ -1223,15 +1225,22 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       && (graceProjection.pitchOctaveShift !== 0 || graceProjection.ignoredFeatures.length > 0)
       ? [runtimeCompatibilityIssue(graceProjection)]
       : [];
+    const semanticReviewIssues = graceProjection?.reviewIssues || [];
+    const requiresReview = semanticReviewIssues.length > 0;
     return deepFreeze({
       documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
       contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
-      status: MUSICXML_UPLOAD_STATUS.PASS,
+      status: requiresReview
+        ? MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED
+        : MUSICXML_UPLOAD_STATUS.PASS,
       route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
       input: identity,
       preflight: {
-        status: compatibilityIssues.length > 0 ? 'WARNING' : 'PASS',
-        canProcess: true,
+        status: requiresReview
+          ? 'REVIEW_REQUIRED'
+          : compatibilityIssues.length > 0 ? 'WARNING' : 'PASS',
+        canProcess: !requiresReview,
+        ...(requiresReview ? { canOpenForReview: true } : {}),
         summary: {
           format: sourceModel.source.format,
           version: sourceModel.source.musicXmlVersion,
@@ -1239,7 +1248,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           measureCount: sourceModel.measureCount,
           eventCount: sourceModel.eventCount,
         },
-        issues: compatibilityIssues,
+        issues: [...semanticReviewIssues, ...compatibilityIssues],
       },
       normalization: publicNormalization(normalization),
       canonicalTabResult: conversion.canonicalTabResult,
@@ -1264,7 +1273,6 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       && decisions
       && writerOptions
       && guitarOptions
-      && (!graceProjection || graceProjection.graceOrnamentGroups.length === 0)
     ) {
       let recovery;
       try {
@@ -1276,6 +1284,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           guitarOptions,
           sourceUploadSha256: identity.sha256,
           originalError: error,
+          graceOrnamentGroups: graceProjection?.graceOrnamentGroups || [],
         });
       } catch (recoveryError) {
         return blockedResult(
@@ -1294,6 +1303,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           sourceArtifact,
           sourceModel,
           recovery,
+          graceProjection?.reviewIssues || [],
         );
       }
     }
