@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const { createPolyphonicSourceModel } = require('../music/polyphonicSourceModel');
 const { createDeterministicReductionPlan } = require('../music/deterministicReductionPlan');
 const { createSustainTieGraph } = require('../music/sustainTieGraph');
+const { createSimultaneousEventModel } = require('../music/simultaneousEventModel');
 const { createCanonicalTabResultV2 } = require('../tab/canonicalTabResultV2');
 const {
   serializeCanonicalTabResultV2ToMusicXml,
@@ -14,6 +15,8 @@ const PARTIAL_GUITAR_ARRANGEMENT_VERSION = '1.0.0';
 const PARTIAL_GUITAR_ARRANGEMENT_DOCUMENT_TYPE = 'PartialGuitarTabArrangement';
 const PARTIAL_GUITAR_ARRANGEMENT_AUTHORITY = 'PROVISIONAL_REVIEW_ONLY';
 const PARTIAL_GUITAR_ARRANGEMENT_POLICY = 'MELODY_BASS_BOUNDED_REDUCTION_1.0';
+const REVIEW_EDITABLE_PROJECTION_VERSION = '1.0.0';
+const REVIEW_EDITABLE_PROJECTION_DOCUMENT_TYPE = 'ReviewEditableTabProjection';
 const RETAINED_NOTE_CAPS = Object.freeze([3, 2, 1]);
 
 function isRecoverableArrangementFailure(error) {
@@ -364,6 +367,40 @@ function buildArtifact({
   });
 }
 
+function buildReviewEditableProjection(sourceModel, arrangementArtifact, runtime) {
+  const dispositionById = new Map(
+    arrangementArtifact.noteDispositions.map((entry) => [entry.sourceEventId, entry]),
+  );
+  const grouping = createSimultaneousEventModel(sourceModel, runtime);
+  const noteDispositions = [];
+  for (const measure of sourceModel.measures) {
+    for (const event of measure.events) {
+      if (event.type !== 'note') continue;
+      const disposition = dispositionById.get(event.sourceEventId);
+      if (!disposition) throw new TypeError('Review projection lost source-note provenance.');
+      noteDispositions.push(Object.freeze({
+        sourceEventId: event.sourceEventId,
+        disposition: disposition.disposition === 'KEPT' || disposition.disposition === 'OCTAVE_SHIFTED'
+          ? 'KEEP'
+          : 'OMIT',
+        octaveShiftSemitones: disposition.octaveShiftSemitones,
+        targetPitch: disposition.targetPitch,
+        selectedPosition: disposition.selectedPosition,
+      }));
+    }
+  }
+  return Object.freeze({
+    documentType: REVIEW_EDITABLE_PROJECTION_DOCUMENT_TYPE,
+    contractVersion: REVIEW_EDITABLE_PROJECTION_VERSION,
+    authority: PARTIAL_GUITAR_ARRANGEMENT_AUTHORITY,
+    sourceUploadSha256: arrangementArtifact.sourceUploadSha256,
+    source: sourceModel.source,
+    measures: sourceModel.measures,
+    simultaneousGroups: Object.freeze(grouping.measures.flatMap((measure) => measure.groups)),
+    noteDispositions: Object.freeze(noteDispositions),
+  });
+}
+
 function isProcessingStop(error) {
   return error?.code === 'PROCESSING_ABORTED'
     || error?.code === 'PROCESSING_DEADLINE_EXCEEDED';
@@ -450,6 +487,16 @@ function recoverPartialGuitarArrangement({
         graceOrnamentGroups,
         tiesNormalizedForReview: tieGraph === null,
       });
+      let reviewEditableProjection;
+      try {
+        reviewEditableProjection = buildReviewEditableProjection(
+          sourceModel,
+          arrangementArtifact,
+          processing,
+        );
+      } catch (projectionError) {
+        throw new TypeError(`Review projection failed: ${projectionError.message}`);
+      }
       checkpoint(processing, 'partial-arrangement:complete', {
         retainedNoteCap,
         assignedNoteCount: arrangementArtifact.assignedNoteCount,
@@ -457,11 +504,13 @@ function recoverPartialGuitarArrangement({
       });
       return Object.freeze({
         arrangementArtifact,
+        reviewEditableProjection,
         musicXml,
         reviewIssues: Object.freeze(recoveryReviewIssues),
       });
     } catch (error) {
       if (isProcessingStop(error)) throw error;
+      if (error instanceof TypeError && /Review projection/.test(error.message)) throw error;
       checkpoint(processing, 'partial-arrangement:retry', {
         retainedNoteCap,
         errorCode: error?.code || 'UNCLASSIFIED_ERROR',
@@ -476,5 +525,7 @@ module.exports = {
   PARTIAL_GUITAR_ARRANGEMENT_DOCUMENT_TYPE,
   PARTIAL_GUITAR_ARRANGEMENT_AUTHORITY,
   PARTIAL_GUITAR_ARRANGEMENT_POLICY,
+  REVIEW_EDITABLE_PROJECTION_VERSION,
+  REVIEW_EDITABLE_PROJECTION_DOCUMENT_TYPE,
   recoverPartialGuitarArrangement,
 };

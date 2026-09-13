@@ -67,6 +67,33 @@ test('product bridge renders only backend-authorized REVIEW_REQUIRED artifacts',
   assert.equal(bridge.currentResult().status, 'REVIEW_REQUIRED');
 });
 
+test('product bridge supplies only the authorized review projection to the legacy core', async () => {
+  const api = hostApi();
+  const projection = { documentType: 'ReviewEditableTabProjection', measures: [] };
+  const authoritative = reviewResult({
+    canonicalTabResult: null,
+    reviewEditableProjection: projection,
+    capabilities: { ...reviewResult().capabilities, editPitch: true },
+  });
+  const revised = { ...authoritative, revision: { revisionNumber: 1 } };
+  const bridge = api.createCapabilityBridge({
+    upload: async () => authoritative,
+    edit: async () => ({ status: 'PASS' }),
+    polyphonicEdit: async () => revised,
+    transpose: async () => ({ status: 'PASS' }),
+    loadPreview: null,
+  });
+
+  const presented = await bridge.adapter.upload({}, new Uint8Array());
+  assert.equal(presented.status, 'PASS');
+  assert.equal(presented.canonicalTabResult, projection);
+  const presentedRevision = await bridge.adapter.polyphonicEdit({});
+  assert.equal(presentedRevision.status, 'PASS');
+  assert.equal(presentedRevision.canonicalTabResult, projection);
+  assert.equal(bridge.currentResult(), revised);
+  assert.equal(bridge.currentResult().status, 'REVIEW_REQUIRED');
+});
+
 test('product bridge cannot invent review renderability without capabilities and artifacts', async () => {
   const api = hostApi();
   const authoritative = reviewResult({
@@ -180,7 +207,7 @@ test('preview controller feeds raw REVIEW_REQUIRED result through the bridge exa
   assert.doesNotMatch(source, /document: createDocumentController\(workbench, capabilityBridge\.adapter\)/);
 });
 
-test('legacy PASS behavior is unchanged and non-upload operations clear review authority', async () => {
+test('legacy PASS behavior is unchanged and non-review operations clear review authority', async () => {
   const api = hostApi();
   const pass = { status: 'PASS', musicXml: '<score-partwise/>', canonicalTabResult: {} };
   const bridge = api.createCapabilityBridge({

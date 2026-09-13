@@ -55,11 +55,14 @@ MusicXML / TAB Writer
 
 When the complete path reaches an exact recoverable physical-selection boundary, the review branch applies deterministic sparse melody reduction, reuses the same bounded physical pipeline, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. Before projection, R3 may also isolate exact non-executable navigation/repeat uncertainty or clamp a repairable positive measure overflow in the derived document. Other failures continue through the ordinary review or fail-closed paths.
 
+R4 adds no canonical authority. A successful partial recovery also emits `ReviewEditableTabProjection 1.0.0`, bound to the immutable upload SHA and containing the original measure/event/group identities plus explicit `KEEP`/`OMIT` renderer dispositions. The Workbench host may present that model to its legacy PASS-gated selection core, but retains the authoritative `REVIEW_REQUIRED` result. An accepted pitch command is validated against source SHA, event location and complete simultaneous-group membership, replayed cumulatively from the original bytes, then sent through the same bounded arrangement/writer path. If full selection remains impossible, the result stays provisional and non-exportable.
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
+- provisional review selection and pitch regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `web/guitar-tab-workbench/host-controller.js`;
 - repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;

@@ -58,8 +58,8 @@ R3 still blocks unsafe/unparseable XML, entity/DOCTYPE input, invalid scalar dat
 
 An extreme synthetic overflow test remains source-reviewable without claiming a TAB artifact. This is a deliberate proof that the fallback has a boundary rather than an “accept everything” switch.
 
-## Remaining product gate
+## R4 continuation
 
-The upload result exposes provisional TAB and approximate playback, but the Guitar TAB Workbench pitch-edit endpoints are still PASS-only. The Stage 06 review-editor session contract exists and is tested; it is not yet connected to the Workbench's partial-arrangement source identities and regeneration path. Therefore the Stage 09 usable-output gate correctly remains `FAIL_USABLE_OUTPUT_GATE` solely for `TEACHER_EDITABLE_FILES_0_OF_11`.
+R4 connects a bounded first correction path for assigned provisional notes. It supplies a source-SHA-bound review projection to the Workbench, preserves authoritative `REVIEW_REQUIRED` state in the host, accepts guarded POLY_V2 pitch commands and regenerates provisional TAB from immutable source plus the cumulative command chain.
 
-The next implementation stage must connect selection, pitch/rhythm/voice patching, immutable revision history and revalidation for `REVIEW_REQUIRED` results. Merely setting `editPitch: true` would be a false capability claim and is prohibited.
+This supersedes the R3 PASS-only pitch limitation but does not make the complete Stage 06 editor available. Rhythm, voice, structure, tied-note and direct string/fret correction still require separately validated primitives. A fresh Stage 09 product audit must observe the browser editing session before changing the historical `TEACHER_EDITABLE_FILES_0_OF_11` evidence.

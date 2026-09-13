@@ -75,7 +75,7 @@ The monophonic runtime accepts bounded cumulative pitch revisions with exact `me
 
 ### POLY_V2
 
-The Workbench keeps `sourceTieEventIds` only as read-only browser selection evidence. Before calling `/api/edit/poly-v2`, the runtime host adapter projects every browser command to the existing `MusicXmlPolyphonicNoteEditRuntimeV2` `1.0.0` schema:
+The Workbench keeps `sourceTieEventIds` as read-only browser selection evidence. Before calling `/api/edit/poly-v2`, the runtime host adapter projects every browser command to the bounded `MusicXmlPolyphonicNoteEditRuntimeV2` schema:
 
 - `measureIndex`;
 - `sourceOrder`;
@@ -85,6 +85,8 @@ The Workbench keeps `sourceTieEventIds` only as read-only browser selection evid
 - requested pitch.
 
 `sourceTieEventIds` is deliberately absent from the runtime command and cannot become edit authority accidentally. `processMusicXmlPolyphonicNoteEditV2` remains authoritative for source identity, group topology, immutable replay, playability and canonical regeneration.
+
+For a partial-arrangement `REVIEW_REQUIRED` result, the host uses the backend-created `ReviewEditableTabProjection` only as the legacy core's selection model. The authoritative result remains `REVIEW_REQUIRED`; an accepted edit either regenerates another provisional result or reaches an ordinary fully selected result while retaining any outstanding review issues.
 
 Retained POLY_V2 ties remain outside the supported deterministic final-selection boundary. Upload fails closed with `RETAINED_TIE_NOT_SUPPORTED` before an edit target can be authorized; supporting sustained sonorities requires a separately versioned selector and contract.
 

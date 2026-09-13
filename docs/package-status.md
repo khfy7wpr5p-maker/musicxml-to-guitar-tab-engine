@@ -74,7 +74,7 @@ The application/internal path may use validated source guitar configuration with
 | PartialGuitarTabArrangement 1.0.0 | ✅ APPLICATION / REVIEW-ONLY / NON-CANONICAL |
 | R3 bounded repeat/navigation/timing review projection | ✅ APPLICATION / REVIEW-ONLY / SOURCE-IMMUTABLE |
 | Stage 09 additional-corpus provisional TAB | ✅ 11/11 LOCAL VERIFIED / 0 HARD BLOCKS |
-| REVIEW_REQUIRED Workbench edit regeneration | 🔒 NOT CONNECTED / PASS-ONLY EDIT ENDPOINTS |
+| REVIEW_REQUIRED Workbench edit regeneration | 🟡 POLY_V2 PITCH CONNECTED / PROVISIONAL ASSIGNED NOTES |
 | GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
 | Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
 | Hosted persistence / multi-user state / export service | 🔒 NOT IMPLEMENTED |

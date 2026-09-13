@@ -442,6 +442,7 @@ function partialArrangementReviewResult(
     normalization,
     canonicalTabResult: null,
     arrangementArtifact: recovery.arrangementArtifact,
+    reviewEditableProjection: recovery.reviewEditableProjection,
     musicXml: recovery.musicXml,
     sourceArtifact,
   });

@@ -236,6 +236,60 @@ function validPartialArrangementArtifact(result) {
   });
 }
 
+function validReviewEditableProjection(result) {
+  const projection = result?.reviewEditableProjection;
+  const artifact = result?.arrangementArtifact;
+  const shapeValid = Boolean(
+    validPartialArrangementArtifact(result)
+    && projection?.documentType === 'ReviewEditableTabProjection'
+    && projection?.contractVersion === '1.0.0'
+    && projection?.authority === 'PROVISIONAL_REVIEW_ONLY'
+    && projection?.sourceUploadSha256 === result?.input?.sha256
+    && projection?.sourceUploadSha256 === artifact?.sourceUploadSha256
+    && Array.isArray(projection.measures)
+    && Array.isArray(projection.simultaneousGroups)
+    && Array.isArray(projection.noteDispositions)
+    && projection.noteDispositions.length
+      === artifact.noteDispositions.filter((entry) => !String(entry.sourceEventId).includes(':grace:')).length
+  );
+  if (!shapeValid) return false;
+
+  const artifactById = new Map(
+    artifact.noteDispositions
+      .filter((entry) => !String(entry.sourceEventId).includes(':grace:'))
+      .map((entry) => [entry.sourceEventId, entry]),
+  );
+  const projectionIds = new Set();
+  for (const entry of projection.noteDispositions) {
+    const source = artifactById.get(entry?.sourceEventId);
+    const expectedDisposition = source?.disposition === 'KEPT' || source?.disposition === 'OCTAVE_SHIFTED'
+      ? 'KEEP'
+      : 'OMIT';
+    if (
+      !source
+      || projectionIds.has(entry.sourceEventId)
+      || entry.disposition !== expectedDisposition
+      || entry.targetPitch !== source.targetPitch
+      || entry.selectedPosition !== source.selectedPosition
+    ) return false;
+    projectionIds.add(entry.sourceEventId);
+  }
+  const eventIds = projection.measures.flatMap((measure) => measure?.events || [])
+    .filter((event) => event?.type === 'note')
+    .map((event) => event.sourceEventId);
+  if (
+    eventIds.length !== artifactById.size
+    || new Set(eventIds).size !== eventIds.length
+    || eventIds.some((sourceEventId) => !projectionIds.has(sourceEventId))
+  ) return false;
+  return projection.simultaneousGroups.every((group) => (
+    typeof group?.groupId === 'string'
+    && Array.isArray(group.sourceEventIds)
+    && group.sourceEventIds.length > 1
+    && group.sourceEventIds.every((sourceEventId) => projectionIds.has(sourceEventId))
+  ));
+}
+
 function decorateUploadResultWithCapabilities(result) {
   if (!result || typeof result !== 'object') {
     throw new TypeError('Upload result must be an object.');
@@ -244,6 +298,7 @@ function decorateUploadResultWithCapabilities(result) {
   const rendererMusicXmlAvailable = rendererMusicXml(result) !== null;
   const renderScore = rendererMusicXmlAvailable && result.status !== 'BLOCKED';
   const partialArrangementAvailable = validPartialArrangementArtifact(result);
+  const reviewEditableProjectionAvailable = validReviewEditableProjection(result);
   const tabArtifactAvailable = Boolean(result.canonicalTabResult) || partialArrangementAvailable;
   const sourceArtifactAvailable = sourceArtifactMusicXml(result) !== null;
   const reviewable = result.status === 'REVIEW_REQUIRED';
@@ -255,10 +310,11 @@ function decorateUploadResultWithCapabilities(result) {
   const capabilities = {
     renderScore,
     generateTab: tabArtifactAvailable,
-    // Existing pitch-edit runtimes are PASS-only. REVIEW_REQUIRED editing is
-    // exposed only after the teacher-revision host is connected; do not lie
-    // about that capability merely to unlock a browser control.
-    editPitch: passed && Boolean(result.canonicalTabResult),
+    // REVIEW_REQUIRED pitch editing is exposed only when a backend-created,
+    // source-bound selection model exists; never unlock a browser control by
+    // status alone.
+    editPitch: (passed && Boolean(result.canonicalTabResult))
+      || (reviewable && (Boolean(result.canonicalTabResult) || reviewEditableProjectionAvailable)),
     editRhythm: false,
     editVoice: false,
     editStructure: false,
@@ -274,6 +330,7 @@ function decorateUploadResultWithCapabilities(result) {
     sourceArtifactAvailable,
     rendererMusicXmlAvailable,
     provisionalTabAvailable: reviewable && tabArtifactAvailable,
+    reviewEditableProjectionAvailable,
     canonicalTabAvailable: passed && Boolean(result.canonicalTabResult),
     playbackTimelineReliability: playback === PLAYBACK_CAPABILITY.FULL
       ? 'FULL'
