@@ -133,4 +133,4 @@ A legitimate `BLOCKED` result remains valid safety evidence, but a recoverable s
 - `tests/stage09AdditionalRealCorpusAudit.test.js`
 - `tests/stage09TeacherCorrectionEvidenceIntake.test.js`
 
-R1 source-artifact retention is now implemented on its recovery branch: a safely parsed source score is preserved independently from canonical TAB completion, and allow-listed repeat/direction review cases can be rendered without granting TAB or export authority. The next product-recovery work is R2 partial arrangement output with explicit note dispositions. Genuine Tier-B evidence acquisition remains required for Stage 09 closure.
+R1 source-artifact retention and R2 partial arrangement are now followed by the R3 bounded review projection. The local R3 two-run audit of the pinned eleven-file corpus produces 11/11 renderer artifacts, 11/11 provisional TAB artifacts and 0 hard-blocked files, with 2,794/6,631 notes assigned. The usable-output product gate still fails only because no observed Workbench teacher-edit session is connected for those `REVIEW_REQUIRED` results. Protected-CI evidence and genuine Tier-B acquisition remain required for Stage 09 closure.

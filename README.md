@@ -42,6 +42,8 @@ At the application upload boundary, fully validated explicit six-string source t
 
 For the exact dense-piano PA-8 assignment-limit boundary, the application can now return `PartialGuitarTabArrangement 1.0.0`: a renderer-visible, non-exportable provisional TAB with `KEPT`, `OCTAVE_SHIFTED`, `UNASSIGNED`, or representation-only `OMITTED` recorded for every source note. It is review evidence, not `CanonicalTabResult` authority.
 
+R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus the current branch produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. Teacher editing of these `REVIEW_REQUIRED` artifacts remains a separate, still-open Workbench integration gate.
+
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;
@@ -52,6 +54,7 @@ See:
 - [`docs/pa-8-left-hand-shape-contract.md`](docs/pa-8-left-hand-shape-contract.md) — PA-8 physical enumeration and fixed resource limits;
 - [`docs/pa-12-internal-polyphonic-e2e.md`](docs/pa-12-internal-polyphonic-e2e.md) — internal canonical-v2 end-to-end boundary.
 - [`docs/r2-partial-guitar-arrangement.md`](docs/r2-partial-guitar-arrangement.md) — dense-score provisional TAB recovery and evidence.
+- [`docs/r3-review-projection-continuation.md`](docs/r3-review-projection-continuation.md) — repeat/direction/timing recovery, real-corpus result and remaining editor boundary.
 
 ## Current compatibility baseline
 

@@ -303,7 +303,7 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['offset', '<direction><offset>1</offset><direction-type><dynamics><mf/></dynamics></direction-type></direction>'],
     ['octave-shift', '<direction><direction-type><octave-shift type="up" size="8"/></direction-type></direction>'],
     ['navigation-sound', '<direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dacapo="yes"/></direction>'],
-    ['unbounded-dynamic', '<direction><direction-type><dynamics><pp/></dynamics></direction-type></direction>'],
+    ['unsupported-dynamic', '<direction><direction-type><dynamics><other-dynamics>custom</other-dynamics></dynamics></direction-type></direction>'],
     ['invalid-layout', '<direction directive="yes"><direction-type><metronome parentheses="maybe" default-y="40"><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome></direction-type><sound tempo="80"/></direction>'],
     ['staff-out-of-profile', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>3</staff><sound dynamics="17.78"/></direction>'],
     ['staff-not-declared', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>2</staff><sound dynamics="17.78"/></direction>'],
@@ -335,6 +335,24 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     assert.equal(result.canonicalTabResult, null, name);
     assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
   }
+});
+
+test('bounded display words and all standard dynamic marks do not block pitch/TAB projection', () => {
+  const xml = withDirection(
+    runtimeFixture(),
+    '<direction placement="above"><direction-type><words>Teacher fingering note</words></direction-type></direction>\n'
+      + '<direction><direction-type><dynamics><ff/></dynamics></direction-type></direction>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'display-words-and-ff.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assert.notEqual(result.status, 'BLOCKED');
+  assert.ok(result.musicXml);
+  assert.equal(result.capabilities.generateTab, true);
+  const ignored = result.preflight.issues.flatMap((issue) => issue.details?.ignoredFeatures || []);
+  assert.ok(ignored.includes('measure:direction:words-display'));
+  assert.ok(ignored.includes('measure:direction:dynamics'));
 });
 
 test('POLY production chain accepts the combined producer profile without losing notes or timing', () => {

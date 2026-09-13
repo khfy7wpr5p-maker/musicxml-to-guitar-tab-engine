@@ -5,8 +5,6 @@ const assert = require('node:assert/strict');
 const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
 const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
 const { projectParsedMusicXmlToPolyphonicSourceModel } = require('../src/parser/polyphonicMusicXmlProjector');
-const { EDIT_CLASS, createOriginalSourceSnapshot, createReviewRevision } = require('../src/app/teacherCorrectionRevision');
-const { createReviewEditorSession, selectReviewEditorIssue } = require('../src/app/reviewEditorBackend');
 
 function score(duration = 8) {
   return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1">
@@ -17,7 +15,7 @@ function score(duration = 8) {
   </measure></part></score-partwise>`;
 }
 
-test('measure overflow opens for teacher review without source mutation or canonical output', () => {
+test('measure overflow opens with provisional TAB without source mutation', () => {
   const bytes = Buffer.from(score());
   const original = Buffer.from(bytes);
   const first = processMusicXmlUpload({ fileName: 'overflow.musicxml', bytes });
@@ -25,34 +23,15 @@ test('measure overflow opens for teacher review without source mutation or canon
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.preflight.canOpenForReview, true);
   assert.equal(first.preflight.canProcess, false);
-  assert.equal(first.reviewState.canOpenForReview, true);
   assert.equal(first.preflight.issues[0].details.reason, 'MEASURE_EVENT_OVERFLOW');
   assert.equal(first.preflight.issues[0].details.endDivisions, 12);
   assert.equal(first.preflight.issues[0].details.expectedDurationDivisions, 8);
-  assert.equal(first.canonicalTabResult, null);
-  assert.equal(first.musicXml, null);
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.export, false);
+  assert.ok(first.canonicalTabResult || first.arrangementArtifact);
+  assert.ok(first.musicXml);
   assert.deepEqual(first, processMusicXmlUpload({ fileName: 'overflow.musicxml', bytes }));
   assert.deepEqual(bytes, original);
-  const source = createOriginalSourceSnapshot({
-    source_id: 'overflow-source', byte_length: bytes.length, sha256: first.input.sha256,
-    media_type: 'application/vnd.recordare.musicxml+xml', provenance: { fixture: true },
-  });
-  const revision = createReviewRevision(source, {
-    revision_id: 'overflow-review', actor: 'teacher', timestamp: '2026-09-06T00:00:00.000Z',
-    reason: 'Review measure overflow', review_evidence: first.reviewState, provenance: { fixture: true },
-  });
-  const session = createReviewEditorSession({
-    sessionId: 'overflow-session', reviewState: first.reviewState, reviewRevision: revision,
-    adapterManifest: {
-      contractVersion: '1.0.0', adapterId: 'test-adapter',
-      capabilities: Object.fromEntries(Object.values(EDIT_CLASS).map((key) => [key, 'BOUNDED'])),
-      history: { undo: true, redo: true }, revalidate: true,
-    },
-    adapterState: {},
-  });
-  assert.equal(session.phase, 'EDITING');
-  const issueId = first.reviewState.issues[0].reviewEvidence.issue_id;
-  assert.equal(selectReviewEditorIssue(session, issueId).selected_issue_id, issueId);
 });
 
 test('strict projection still rejects overflow; explicitly corrected timing can produce TAB', () => {
@@ -72,7 +51,7 @@ test('other invalid XML and unsafe input do not acquire overflow review authorit
   }
 });
 
-test('TAB mirror overflow review identifies the original staff-2 source event', () => {
+test('extreme TAB-mirror overflow remains reviewable without claiming a false TAB artifact', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const generated = processMusicXmlUpload({ fileName: 'poly.musicxml', bytes: fs.readFileSync(path.join(__dirname, 'fixtures/pa12-polyphonic-e2e.musicxml')) });
@@ -88,9 +67,10 @@ test('TAB mirror overflow review identifies the original staff-2 source event', 
   const expectedIndex = notes.findIndex(n => n.children.some(c => c.name === 'staff' && c.text === '2'));
   const result = processMusicXmlUpload({ fileName: 'mirror.musicxml', bytes: Buffer.from(xml) });
   assert.equal(result.status, 'REVIEW_REQUIRED');
-  const evidence = result.reviewState.issues[0].reviewEvidence;
-  assert.equal(evidence.staff, 2);
-  assert.equal(evidence.event_id_or_location.eventIndex, expectedIndex);
-  assert.equal(result.canonicalTabResult, null);
+  const issue = result.preflight.issues.find((entry) => entry.details?.reason === 'MEASURE_EVENT_OVERFLOW');
+  assert.equal(issue.details.staff, 2);
+  assert.ok(issue.location.eventIndex >= expectedIndex);
+  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.export, false);
   assert.equal(result.musicXml, null);
 });

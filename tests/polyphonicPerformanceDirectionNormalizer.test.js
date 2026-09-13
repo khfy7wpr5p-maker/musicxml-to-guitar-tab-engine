@@ -11,6 +11,7 @@ const {
 const {
   POLYPHONIC_PERFORMANCE_DIRECTION_NORMALIZER_VERSION,
   POLYPHONIC_PERFORMANCE_DIRECTION_NORMALIZER_AUTHORITY,
+  normalizeDeferredPolyphonicPerformanceDirections,
   normalizePolyphonicPerformanceDirections,
   projectParsedMusicXmlWithPerformanceDirectionCompatibility,
 } = require('../src/parser/polyphonicPerformanceDirectionNormalizer');
@@ -166,6 +167,20 @@ test('PS-6B2A retains unknown direction types, extra children, and unbounded sou
       'measure-child:direction',
     );
   }
+});
+
+test('exact segno directions are isolated as explicit single-pass review evidence', () => {
+  const parsed = parseParsedMusicXmlDocument(score(`
+    <direction><direction-type><segno/></direction-type></direction>
+    <direction><sound segno="1"/></direction>
+  `));
+  const normalized = normalizeDeferredPolyphonicPerformanceDirections(parsed);
+
+  assert.equal(normalized.reviewIssues.length, 1);
+  assert.equal(normalized.reviewIssues[0].code, 'UNVERIFIED_NAVIGATION_DIRECTION_SINGLE_PASS');
+  assert.equal(normalized.reviewIssues[0].details.directionCount, 2);
+  assert.deepEqual(normalized.reviewIssues[0].details.kinds, ['SEGNO_MARK', 'SOUND_SEGNO']);
+  assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), false);
 });
 
 test('PS-6B2A output is deeply isolated and provenance is immutable', () => {

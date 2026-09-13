@@ -14,8 +14,17 @@ const PARTIAL_GUITAR_ARRANGEMENT_VERSION = '1.0.0';
 const PARTIAL_GUITAR_ARRANGEMENT_DOCUMENT_TYPE = 'PartialGuitarTabArrangement';
 const PARTIAL_GUITAR_ARRANGEMENT_AUTHORITY = 'PROVISIONAL_REVIEW_ONLY';
 const PARTIAL_GUITAR_ARRANGEMENT_POLICY = 'MELODY_BASS_BOUNDED_REDUCTION_1.0';
-const RECOVERABLE_CODES = new Set(['LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED']);
 const RETAINED_NOTE_CAPS = Object.freeze([3, 2, 1]);
+
+function isRecoverableArrangementFailure(error) {
+  if (error?.code === 'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED') return true;
+  if (
+    error?.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
+    && error?.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
+  ) return true;
+  return error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
+    && error?.details?.reason === 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE';
+}
 
 function checkpoint(runtime, phase, details = {}) {
   if (runtime) runtime.checkpoint(phase, details);
@@ -27,7 +36,11 @@ function sourceNotes(sourceModel) {
   );
 }
 
-function selectOuterRegisterNotes(sourceModel, reduction, cap, runtime) {
+function graceNotes(graceOrnamentGroups) {
+  return (graceOrnamentGroups || []).flatMap((group) => group.notes);
+}
+
+function selectOuterRegisterNotes(sourceModel, reduction, cap, runtime, tieGraph) {
   const instructionById = new Map(
     reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
   );
@@ -79,8 +92,7 @@ function selectOuterRegisterNotes(sourceModel, reduction, cap, runtime) {
 
   // A tied logical note is indivisible. If any segment was reduced, reduce the
   // complete chain rather than emitting a broken or pitch-changing tie.
-  const tieGraph = createSustainTieGraph(sourceModel, runtime);
-  for (const chain of tieGraph.chains) {
+  for (const chain of tieGraph?.chains || []) {
     if (chain.segments.some((segment) => !selected.has(segment.sourceEventId))) {
       for (const segment of chain.segments) selected.delete(segment.sourceEventId);
     }
@@ -88,7 +100,53 @@ function selectOuterRegisterNotes(sourceModel, reduction, cap, runtime) {
   return selected;
 }
 
-function reducedSourceModel(sourceModel, selected, runtime) {
+function selectMonophonicMelodyNotes(sourceModel, reduction, runtime, tieGraph) {
+  const instructionById = new Map(
+    reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
+  );
+  const selected = new Set();
+
+  for (let measureIndex = 0; measureIndex < sourceModel.measures.length; measureIndex += 1) {
+    const measure = sourceModel.measures[measureIndex];
+    const byOnset = new Map();
+    for (const event of measure.events) {
+      if (event.type !== 'note') continue;
+      const instruction = instructionById.get(event.sourceEventId);
+      if (!instruction || instruction.disposition !== 'KEEP') continue;
+      const entries = byOnset.get(event.onsetDivisions) || [];
+      entries.push({ event, instruction });
+      byOnset.set(event.onsetDivisions, entries);
+    }
+
+    let activeUntil = 0;
+    for (const [onsetDivisions, entries] of [...byOnset].sort((left, right) => left[0] - right[0])) {
+      checkpoint(runtime, 'partial-arrangement:select-monophonic-group', {
+        measureIndex,
+        onsetDivisions,
+        sourceNoteCount: entries.length,
+      });
+      if (onsetDivisions < activeUntil) continue;
+      const chosen = [...entries].sort((left, right) => (
+        right.instruction.targetMidi - left.instruction.targetMidi
+        || left.event.sourceOrder - right.event.sourceOrder
+      ))[0];
+      selected.add(chosen.event.sourceEventId);
+      activeUntil = onsetDivisions + chosen.event.durationDivisions;
+    }
+  }
+
+  // Keep tie chains as all-or-nothing provenance units, matching the chord
+  // reduction path. Removing an incomplete chain is safer than inventing a
+  // detached note in the provisional melody line.
+  for (const chain of tieGraph?.chains || []) {
+    if (chain.segments.some((segment) => !selected.has(segment.sourceEventId))) {
+      for (const segment of chain.segments) selected.delete(segment.sourceEventId);
+    }
+  }
+  return selected;
+}
+
+function reducedSourceModel(sourceModel, selected, runtime, preserveTies) {
   const originalByReducedId = new Map();
   let eventCount = 0;
   const measures = sourceModel.measures.map((measure) => {
@@ -120,8 +178,8 @@ function reducedSourceModel(sourceModel, selected, runtime) {
         onsetDivisions: event.onsetDivisions,
         durationDivisions: event.durationDivisions,
         ...(event.type === 'note' ? { pitch: { ...event.pitch } } : {}),
-        tieStart: event.tieStart,
-        tieStop: event.tieStop,
+        tieStart: preserveTies ? event.tieStart : false,
+        tieStop: preserveTies ? event.tieStop : false,
         source: {
           partId: sourceModel.source.partId,
           measureIndex: measure.index,
@@ -199,6 +257,8 @@ function buildArtifact({
   musicXml,
   retainedNoteCap,
   originalError,
+  graceOrnamentGroups = [],
+  tiesNormalizedForReview = false,
 }) {
   const instructionById = new Map(
     reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
@@ -212,7 +272,7 @@ function buildArtifact({
     selectionByOriginalId.set(original.sourceEventId, disposition);
   }
 
-  const noteDispositions = sourceNotes(sourceModel).map((event) => {
+  const mainNoteDispositions = sourceNotes(sourceModel).map((event) => {
     const instruction = instructionById.get(event.sourceEventId);
     if (!instruction) throw new TypeError('Partial arrangement lost source-note provenance.');
     const selectedDisposition = selectionByOriginalId.get(event.sourceEventId);
@@ -249,6 +309,16 @@ function buildArtifact({
       reasonCode: octaveShifted ? 'OCTAVE_NEAREST_IN_REGISTER' : 'PRESERVE_IN_REGISTER',
     });
   });
+  const graceNoteDispositions = graceNotes(graceOrnamentGroups).map((event) => Object.freeze({
+    sourceEventId: event.graceEventId,
+    sourcePitch: pitchSnapshot(event.pitch),
+    disposition: 'UNASSIGNED',
+    targetPitch: null,
+    octaveShiftSemitones: null,
+    selectedPosition: null,
+    reasonCode: 'GRACE_TIMING_REQUIRES_REVIEW',
+  }));
+  const noteDispositions = [...mainNoteDispositions, ...graceNoteDispositions];
   const assignedNoteCount = noteDispositions.filter((entry) => (
     entry.disposition === 'KEPT' || entry.disposition === 'OCTAVE_SHIFTED'
   )).length;
@@ -275,6 +345,8 @@ function buildArtifact({
       originalErrorCode: originalError.code,
       originalSourceGroupId: originalError.details?.sourceGroupId || null,
       retainedNoteCap,
+      unassignedGraceNoteCount: graceNoteDispositions.length,
+      tiesNormalizedForReview,
     }),
     sourceNoteCount: noteDispositions.length,
     assignedNoteCount,
@@ -305,9 +377,35 @@ function recoverPartialGuitarArrangement({
   guitarOptions = {},
   sourceUploadSha256,
   originalError,
+  graceOrnamentGroups = [],
 }) {
-  if (!RECOVERABLE_CODES.has(originalError?.code)) return null;
+  if (!isRecoverableArrangementFailure(originalError)) return null;
   checkpoint(processing, 'partial-arrangement:start', { originalErrorCode: originalError.code });
+  let tieGraph = null;
+  const recoveryReviewIssues = [];
+  try {
+    tieGraph = createSustainTieGraph(sourceModel, processing);
+  } catch (error) {
+    if (error?.code !== 'INVALID_SUSTAIN_TIE_GRAPH') throw error;
+    recoveryReviewIssues.push(Object.freeze({
+      severity: 'error',
+      category: 'semantic',
+      code: 'INVALID_TIE_CHAIN_OMITTED_FOR_REVIEW',
+      message: 'Invalid tie markers were omitted only from the provisional TAB.',
+      reviewDisposition: 'REVIEW_REQUIRED',
+      location: Object.freeze({
+        measure: null,
+        measureIndex: error.details?.measureIndex ?? null,
+        eventIndex: null,
+        sourceEventId: error.details?.sourceEventId ?? null,
+      }),
+      details: Object.freeze({
+        feature: 'tie',
+        reason: error.details?.reason || 'INVALID_SUSTAIN_TIE_GRAPH',
+        reviewDisposition: 'REVIEW_REQUIRED',
+      }),
+    }));
+  }
   const reduction = createDeterministicReductionPlan(
     sourceModel,
     arrangementDecisions,
@@ -320,13 +418,10 @@ function recoverPartialGuitarArrangement({
 
   for (const retainedNoteCap of RETAINED_NOTE_CAPS) {
     try {
-      const selected = selectOuterRegisterNotes(
-        sourceModel,
-        reduction,
-        retainedNoteCap,
-        processing,
-      );
-      const reduced = reducedSourceModel(sourceModel, selected, processing);
+      const selected = retainedNoteCap === 1
+        ? selectMonophonicMelodyNotes(sourceModel, reduction, processing, tieGraph)
+        : selectOuterRegisterNotes(sourceModel, reduction, retainedNoteCap, processing, tieGraph);
+      const reduced = reducedSourceModel(sourceModel, selected, processing, tieGraph !== null);
       const decisions = reducedDecisions(reduced.model, reduced.originalByReducedId, instructionById);
       const canonicalTabResult = createCanonicalTabResultV2(
         reduced.model,
@@ -352,13 +447,19 @@ function recoverPartialGuitarArrangement({
         musicXml,
         retainedNoteCap,
         originalError,
+        graceOrnamentGroups,
+        tiesNormalizedForReview: tieGraph === null,
       });
       checkpoint(processing, 'partial-arrangement:complete', {
         retainedNoteCap,
         assignedNoteCount: arrangementArtifact.assignedNoteCount,
         unassignedNoteCount: arrangementArtifact.unassignedNoteCount,
       });
-      return Object.freeze({ arrangementArtifact, musicXml });
+      return Object.freeze({
+        arrangementArtifact,
+        musicXml,
+        reviewIssues: Object.freeze(recoveryReviewIssues),
+      });
     } catch (error) {
       if (isProcessingStop(error)) throw error;
       checkpoint(processing, 'partial-arrangement:retry', {
