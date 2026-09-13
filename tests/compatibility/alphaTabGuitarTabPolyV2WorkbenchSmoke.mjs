@@ -108,6 +108,7 @@ function pageHtml() {
       sourceEventId:command.sourceEventId,
       sourceGroupId:command.sourceGroupId,
       sourceGroupEventIds:[...command.sourceGroupEventIds],
+      sourceTieEventIds:[...command.sourceTieEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
     }));
     smoke.lastPolyRequest = {
@@ -406,9 +407,9 @@ try {
     edited.lastPolyRequest.commands[0].sourceTieEventIds,
     ['P1:measure:0:note:0'],
   );
-  assert.equal(
-    Object.hasOwn(edited.lastPolyRequest.runtimeCommands[0], 'sourceTieEventIds'),
-    false,
+  assert.deepEqual(
+    edited.lastPolyRequest.runtimeCommands[0].sourceTieEventIds,
+    ['P1:measure:0:note:0'],
   );
   assert.ok(edited.svgCount > 0);
 

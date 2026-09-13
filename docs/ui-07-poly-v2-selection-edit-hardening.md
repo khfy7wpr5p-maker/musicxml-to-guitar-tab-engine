@@ -1,6 +1,6 @@
 # UI-07 — POLY_V2 Selection & Edit Hardening
 
-Status: active PR #165 gate; completion still requires the exact PR head to reach `main` through the protected Node and browser CI gates.
+Status: historical UI-07 selection gate, extended by R7 atomic tie-chain pitch editing. Current authority is documented in [`r7-poly-v2-tie-chain-editor.md`](r7-poly-v2-tie-chain-editor.md).
 
 ## Scope
 
@@ -9,7 +9,7 @@ UI-07 hardens the already-guarded POLY_V2 Workbench edit seam without giving the
 The accepted new capability is narrow:
 
 1. same-pitch notes at one onset may be distinguished only when stable renderer/source voice, onset and chord evidence proves an exact source event;
-2. retained POLY_V2 ties remain outside this gate and continue to fail closed in deterministic final selection.
+2. retained POLY_V2 ties were outside the original UI-07 edit gate; R7 later added a separately versioned atomic pitch operation.
 
 When identity cannot be proven exactly, selection or editing fails closed.
 
@@ -29,7 +29,7 @@ A POLY_V2 renderer note is accepted only after the Workbench proves all applicab
 
 The duplicate ordinal is used only after voice, onset and chord fingerprint evidence agree. A renderer/source mismatch leaves no selected event.
 
-## Retained-tie boundary
+## Retained-tie boundary at UI-07
 
 UI-07 does **not** add POLY_V2 retained-tie edit authority.
 
@@ -41,7 +41,7 @@ The authoritative upload/final-selection path continues to return `BLOCKED` for 
 
 The authoritative `MusicXmlPolyphonicNoteEditRuntimeV2` contract therefore remains version `1.0.0`. Its existing fail-closed group-with-ties gate is unchanged.
 
-The Workbench may derive `sourceTieEventIds` as read-only renderer/source identity evidence. The runtime host adapter deliberately projects browser POLY_V2 commands back to the existing v1 command schema before `/edit/poly-v2`; `sourceTieEventIds` is not sent as edit authority.
+This was the UI-07 boundary. R7 supersedes only this part: the host now forwards bounded `sourceTieEventIds`, and runtime v1.3.0 independently validates them against a source-derived `SustainTieGraph`. Browser evidence still cannot create authority.
 
 ## Regeneration authority
 

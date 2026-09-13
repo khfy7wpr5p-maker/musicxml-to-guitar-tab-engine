@@ -80,6 +80,7 @@
     return commands.map((command) => {
       assert(command && typeof command === 'object', 'POLY_V2 command must be an object.');
       assert(Array.isArray(command.sourceGroupEventIds), 'POLY_V2 command requires sourceGroupEventIds.');
+      assert(Array.isArray(command.sourceTieEventIds), 'POLY_V2 command requires sourceTieEventIds.');
       assert(command.pitch && typeof command.pitch === 'object', 'POLY_V2 command requires pitch.');
       return {
         measureIndex: command.measureIndex,
@@ -87,6 +88,7 @@
         sourceEventId: command.sourceEventId,
         sourceGroupId: command.sourceGroupId,
         sourceGroupEventIds: [...command.sourceGroupEventIds],
+        sourceTieEventIds: [...command.sourceTieEventIds],
         pitch: {
           step: command.pitch.step,
           alter: command.pitch.alter,
