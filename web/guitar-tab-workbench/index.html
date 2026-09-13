@@ -148,7 +148,7 @@
           <section class="workbench-inspector-card workbench-inspector-panel" id="inspector-panel-fingering" role="tabpanel" aria-labelledby="inspector-tab-fingering" data-inspector-panel="fingering" hidden>
             <div class="workbench-inspector-card__heading">
               <h2>Fingering</h2>
-              <span>Read-only engine result + source identity</span>
+              <span>Engine position + guarded override</span>
             </div>
             <dl class="workbench-facts">
               <div><dt>Pitch</dt><dd data-role="fingering-pitch">—</dd></div>
@@ -161,6 +161,29 @@
               <div class="workbench-facts__wide"><dt>Group</dt><dd class="workbench-fact-mono" data-role="fingering-group">—</dd></div>
               <div class="workbench-facts__wide"><dt>Context</dt><dd data-role="fingering-context">Select a note to inspect the current TAB placement.</dd></div>
             </dl>
+            <div class="workbench-fingering-editor" aria-label="TAB string and fret editor">
+              <div class="workbench-editor__controls workbench-editor__controls--fingering">
+                <label>
+                  <span>String</span>
+                  <select data-role="edit-string" disabled>
+                    <option value="1">1 (high E)</option>
+                    <option value="2">2 (B)</option>
+                    <option value="3">3 (G)</option>
+                    <option value="4">4 (D)</option>
+                    <option value="5">5 (A)</option>
+                    <option value="6">6 (low E)</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Fret</span>
+                  <input data-role="edit-fret" type="number" min="0" max="20" step="1" value="0" disabled>
+                </label>
+              </div>
+              <div class="workbench-editor__actions">
+                <button data-role="apply-position-edit" type="button" disabled>Apply position & regenerate TAB</button>
+              </div>
+              <p class="workbench-editor__status" data-role="position-edit-status">Select an assigned POLY_V2 note to change its TAB position.</p>
+            </div>
           </section>
 
           <section class="workbench-issues workbench-inspector-panel" id="inspector-panel-issues" role="tabpanel" aria-labelledby="inspector-tab-issues" data-inspector-panel="issues" aria-label="MusicXML issues" hidden>

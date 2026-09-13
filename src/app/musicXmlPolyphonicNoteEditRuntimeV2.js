@@ -37,7 +37,7 @@ const { createGuitarArrangementRegister } = require('../guitar/guitarArrangement
 const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
 const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
-const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.0.0';
+const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.1.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({
   PASS: 'PASS',
@@ -171,6 +171,27 @@ function normalizePitch(pitch, field) {
   }
 }
 
+function normalizeSelectedPosition(position, field) {
+  const descriptors = ownDataProperties(
+    position,
+    field,
+    new Set(['string', 'fret']),
+  );
+  const string = descriptors.string.value;
+  const fret = descriptors.fret.value;
+  if (!Number.isSafeInteger(string) || string < 1 || string > 6) {
+    throw invalidRequest(`${field}.string must be an integer from 1 through 6.`, {
+      field: `${field}.string`,
+    });
+  }
+  if (!Number.isSafeInteger(fret) || fret < 0 || fret > 20) {
+    throw invalidRequest(`${field}.fret must be an integer from 0 through 20.`, {
+      field: `${field}.fret`,
+    });
+  }
+  return Object.freeze({ string, fret });
+}
+
 function normalizeGroupEventIds(value, field) {
   if (!Array.isArray(value) || isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype) {
     throw invalidRequest(`${field} must be a non-proxy ordinary array.`, { field });
@@ -223,6 +244,15 @@ function normalizeCommand(command, revisionIndex) {
       'sourceGroupId',
       'sourceGroupEventIds',
       'pitch',
+      'selectedPosition',
+    ]),
+    new Set([
+      'measureIndex',
+      'sourceOrder',
+      'sourceEventId',
+      'sourceGroupId',
+      'sourceGroupEventIds',
+      'pitch',
     ]),
   );
   const measureIndex = descriptors.measureIndex.value;
@@ -266,6 +296,12 @@ function normalizeCommand(command, revisionIndex) {
       `${field}.sourceGroupEventIds`,
     ),
     pitch: normalizePitch(descriptors.pitch.value, `${field}.pitch`),
+    ...(Object.hasOwn(descriptors, 'selectedPosition') ? {
+      selectedPosition: normalizeSelectedPosition(
+        descriptors.selectedPosition.value,
+        `${field}.selectedPosition`,
+      ),
+    } : {}),
   });
 }
 
@@ -574,9 +610,16 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
 
   const beforePitch = clonePlainData(event.pitch);
   event.pitch = clonePlainData(command.pitch);
+  const pitchChanged = beforePitch.step !== command.pitch.step
+    || beforePitch.alter !== command.pitch.alter
+    || beforePitch.octave !== command.pitch.octave;
   return {
     revisionIndex,
-    commandType: 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
+    commandType: command.selectedPosition
+      ? (pitchChanged
+        ? 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_POSITION'
+        : 'SET_POLYPHONIC_SOURCE_EVENT_POSITION')
+      : 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
     measureIndex: command.measureIndex,
     measureNumber: measure.number,
     sourceOrder: command.sourceOrder,
@@ -585,10 +628,21 @@ function applyCommand(revisedSource, groupIndex, command, revisionIndex) {
     sourceGroupEventIds: [...acknowledgedIds],
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
-    changed: beforePitch.step !== command.pitch.step
-      || beforePitch.alter !== command.pitch.alter
-      || beforePitch.octave !== command.pitch.octave,
+    changed: pitchChanged || Boolean(command.selectedPosition),
+    ...(command.selectedPosition ? {
+      selectedPosition: clonePlainData(command.selectedPosition),
+    } : {}),
   };
+}
+
+function positionOverridesFromCommands(commands) {
+  const overrides = Object.create(null);
+  for (const command of commands) {
+    if (command.selectedPosition) {
+      overrides[command.sourceEventId] = clonePlainData(command.selectedPosition);
+    }
+  }
+  return Object.freeze(overrides);
 }
 
 function buildPreserveDecisions(sourceModel) {
@@ -771,6 +825,9 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
       revisionCount: normalized.commands.length,
     });
     const revisedSourceModel = createPolyphonicSourceModel(revisedPlain, processing);
+    const guitarOptions = Object.freeze({
+      positionOverrides: positionOverridesFromCommands(normalized.commands),
+    });
     const inputRequiresReview = uploadResult.status === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED;
     const decisions = inputRequiresReview
       ? buildReviewArrangementDecisions(revisedSourceModel)
@@ -792,6 +849,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         revisedSourceModel,
         decisions,
         processing,
+        guitarOptions,
       );
       if (!inputRequiresReview) assertNoSilentChange(revisedSourceModel, canonicalTabResult);
       musicXml = serializeCanonicalTabResultV2ToMusicXml(
@@ -807,6 +865,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         writerOptions,
         sourceUploadSha256: inputIdentity.sha256,
         originalError: arrangementError,
+        guitarOptions,
         graceOrnamentGroups: projected.graceOrnamentGroups,
       });
       if (!recovery) throw arrangementError;

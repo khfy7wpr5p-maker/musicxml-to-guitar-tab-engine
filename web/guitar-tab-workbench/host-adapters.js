@@ -92,6 +92,12 @@
           alter: command.pitch.alter,
           octave: command.pitch.octave,
         },
+        ...(command.selectedPosition ? {
+          selectedPosition: {
+            string: command.selectedPosition.string,
+            fret: command.selectedPosition.fret,
+          },
+        } : {}),
       };
     });
   }

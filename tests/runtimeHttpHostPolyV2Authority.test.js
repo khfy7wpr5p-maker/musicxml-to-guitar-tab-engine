@@ -120,6 +120,46 @@ test('runtime host edits and regenerates a REVIEW_REQUIRED provisional piano TAB
   assert.match(edit.payload.musicXml, /<sign>TAB<\/sign>/);
 });
 
+test('runtime host accepts a guarded TAB position override and returns that exact placement', async (t) => {
+  const origin = await startServer(t);
+  const sourceBytes = densePianoChord();
+  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=dense-piano.musicxml`, {
+    method: 'POST',
+    headers: {'content-type': 'application/octet-stream'},
+    body: sourceBytes,
+  }));
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map(
+    (sourceOrder) => `P1:measure:0:note:${sourceOrder}`,
+  );
+  const commands = [{
+    measureIndex: 0,
+    sourceOrder: 4,
+    sourceEventId: sourceGroupEventIds[4],
+    sourceGroupId: 'P1:measure:0:simultaneous:0',
+    sourceGroupEventIds,
+    pitch: {step: 'G', alter: 0, octave: 4},
+    selectedPosition: {string: 3, fret: 12},
+  }];
+  const edit = await readJson(await fetch(
+    `${origin}/api/edit/poly-v2?fileName=dense-piano.musicxml&sha=${upload.payload.input.sha256}`,
+    {
+      method: 'POST',
+      headers: {'content-type': EDIT_CONTENT_TYPE},
+      body: editBody(commands, sourceBytes),
+    },
+  ));
+
+  assert.equal(edit.response.status, 200);
+  assert.equal(edit.payload.status, 'REVIEW_REQUIRED');
+  assert.deepEqual(
+    edit.payload.reviewEditableProjection.noteDispositions.find(
+      (entry) => entry.sourceEventId === sourceGroupEventIds[4],
+    ).selectedPosition,
+    {string: 3, fret: 12},
+  );
+  assert.match(edit.payload.musicXml, /<string>3<\/string>[\s\S]*<fret>12<\/fret>/);
+});
+
 test('framed edit metadata budget covers the maximum bounded 128-command POLY_V2 schema shape', () => {
   function boundedId(commandIndex, groupIndex) {
     const suffix = `${commandIndex.toString().padStart(3, '0')}-${groupIndex.toString().padStart(2, '0')}`;

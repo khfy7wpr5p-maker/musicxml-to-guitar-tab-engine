@@ -120,6 +120,9 @@
     const editAlter = root.querySelector('[data-role="edit-alter"]');
     const editOctave = root.querySelector('[data-role="edit-octave"]');
     const applyEditButton = root.querySelector('[data-role="apply-edit"]');
+    const editString = root.querySelector('[data-role="edit-string"]');
+    const editFret = root.querySelector('[data-role="edit-fret"]');
+    const applyPositionEditButton = root.querySelector('[data-role="apply-position-edit"]');
     const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
     const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
     const transposeDownButton = root.querySelector('[data-role="transpose-down"]');
@@ -174,6 +177,9 @@
         if (editAlter) editAlter.disabled = true;
         if (editOctave) editOctave.disabled = true;
         if (applyEditButton) applyEditButton.disabled = true;
+        if (editString) editString.disabled = true;
+        if (editFret) editFret.disabled = true;
+        if (applyPositionEditButton) applyPositionEditButton.disabled = true;
       }
 
       // Document transposition is not a teacher-review operation. Keep it off

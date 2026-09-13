@@ -35,12 +35,13 @@ test('UI-07 browser mapping binds POLY_V2 selection to voice, onset, chord finge
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });
 
-test('UI-07 keeps browser tie identity as metadata and projects only the v1 POLY_V2 command schema to runtime', () => {
+test('UI-07 keeps browser tie identity as metadata and projects the bounded POLY_V2 command schema to runtime', () => {
   const host = read(hostAdaptersPath);
 
   assert.match(host, /polyV2RuntimeCommands/);
   assert.match(host, /sourceGroupEventIds:\s*\[\.\.\.command\.sourceGroupEventIds\]/);
   assert.match(host, /pitch:\s*\{/);
+  assert.match(host, /selectedPosition/);
   assert.doesNotMatch(host, /sourceTieEventIds/);
   assert.doesNotMatch(host, /innerHTML|outerHTML|insertAdjacentHTML/);
 });
@@ -63,14 +64,16 @@ test('UI-07 inspector exposes source, group, voice and tie evidence as read-only
   assert.doesNotMatch(ux, /innerHTML|outerHTML|insertAdjacentHTML/);
 });
 
-test('UI-07 leaves authoritative TAB regeneration on the existing bounded edit host', () => {
+test('UI-07 sends position intent to the bounded host and loads only regenerated MusicXML', () => {
   const source = read(workbenchPath);
 
   assert.match(source, /polyphonicEdit/);
   assert.match(source, /expectedInputSha256/);
   assert.match(source, /pendingCommands/);
   assert.match(source, /api\.load\(new TextEncoder\(\)\.encode\(result\.musicXml\)\)/);
-  assert.doesNotMatch(source, /selectedPosition\s*=|\.fret\s*=|\.string\s*=/);
+  assert.match(source, /function applySelectedPositionEdit/);
+  assert.match(source, /selectedPosition/);
+  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML/);
 });
 
 test('UI-07 compatibility host projects browser metadata to the v1 runtime command schema', () => {

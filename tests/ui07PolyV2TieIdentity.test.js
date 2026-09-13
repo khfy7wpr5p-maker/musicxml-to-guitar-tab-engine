@@ -78,7 +78,7 @@ test('UI-07 untied unison keeps exact source identity and edits only the acknowl
   assert.equal(result.status, 'PASS');
   assert.equal(result.route, 'POLY_V2');
   assert.equal(result.contractVersion, MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION);
-  assert.equal(result.contractVersion, '1.0.0');
+  assert.equal(result.contractVersion, '1.1.0');
   assert.equal(result.revision.revisionNumber, 1);
   assert.equal(result.revision.appliedEdits[0].commandType, 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH');
 

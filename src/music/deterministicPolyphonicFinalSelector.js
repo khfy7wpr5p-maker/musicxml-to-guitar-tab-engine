@@ -262,6 +262,30 @@ function candidatesFromGroup(unit, handoff) {
   return candidates;
 }
 
+function positionOverrideFor(sourceEventId, guitarOptions) {
+  const overrides = guitarOptions?.positionOverrides;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return null;
+  const position = overrides[sourceEventId];
+  return position
+    && Number.isInteger(position.string)
+    && Number.isInteger(position.fret)
+    ? position
+    : null;
+}
+
+function candidateMatchesPositionOverrides(candidate, sourceEventIds, guitarOptions) {
+  return sourceEventIds.every((sourceEventId) => {
+    const override = positionOverrideFor(sourceEventId, guitarOptions);
+    if (!override) return true;
+    const position = candidate.positions.find((entry) => entry.sourceEventId === sourceEventId);
+    return Boolean(
+      position
+      && position.string === override.string
+      && position.fret === override.fret,
+    );
+  });
+}
+
 function buildIndexes(source, grouping, reduction) {
   const noteLocationById = new Map();
   for (const measure of source.measures) {
@@ -417,12 +441,31 @@ function assertNoUnsupportedSustainedOverlap(units, indexes) {
 }
 
 function buildUnitCandidates(unit, handoff, guitarOptions) {
-  const candidates = unit.kind === 'GROUP'
+  const unfilteredCandidates = unit.kind === 'GROUP'
     ? candidatesFromGroup(unit, handoff)
     : getPositionCandidates(unit.targetMidi, guitarOptions)
       .map((position) => candidateFromSingleton(unit, position, guitarOptions));
+  const overrides = unit.sourceEventIds
+    .map((sourceEventId) => positionOverrideFor(sourceEventId, guitarOptions))
+    .filter(Boolean);
+  const candidates = unfilteredCandidates.filter(
+    (candidate) => candidateMatchesPositionOverrides(candidate, unit.sourceEventIds, guitarOptions),
+  );
 
   if (candidates.length === 0) {
+    if (overrides.length > 0) {
+      throw unsupported(
+        'The requested string/fret position does not produce a physically playable selection.',
+        'POSITION_OVERRIDE_NOT_PLAYABLE',
+        {
+          kind: unit.kind,
+          measureIndex: unit.measureIndex,
+          onsetDivisions: unit.onsetDivisions,
+          sourceGroupId: unit.sourceGroupId || null,
+          requestedPositions: overrides.map((position) => ({ ...position })),
+        },
+      );
+    }
     throw unsupported(
       'No physically valid deterministic candidate exists for a retained selection unit.',
       'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE',

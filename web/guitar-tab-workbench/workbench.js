@@ -52,6 +52,12 @@
           alter: command.pitch.alter,
           octave: command.pitch.octave,
         },
+        ...(command.selectedPosition ? {
+          selectedPosition: {
+            string: command.selectedPosition.string,
+            fret: command.selectedPosition.fret,
+          },
+        } : {}),
       };
     }
     return {
@@ -104,6 +110,10 @@
     const editOctave = root.querySelector('[data-role="edit-octave"]');
     const applyEditButton = root.querySelector('[data-role="apply-edit"]');
     const cancelEditButton = root.querySelector('[data-role="cancel-edit"]');
+    const editString = root.querySelector('[data-role="edit-string"]');
+    const editFret = root.querySelector('[data-role="edit-fret"]');
+    const applyPositionEditButton = root.querySelector('[data-role="apply-position-edit"]');
+    const positionEditStatus = root.querySelector('[data-role="position-edit-status"]');
     const transposeStatus = root.querySelector('[data-role="transpose-status"]');
     const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
     const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
@@ -191,6 +201,9 @@
       editStep.value = 'C';
       editAlter.value = '0';
       editOctave.value = '4';
+      if (editString) editString.value = '1';
+      if (editFret) editFret.value = '0';
+      setText(positionEditStatus, 'Select an assigned POLY_V2 note to change its TAB position.');
     }
 
     function clearSession() {
@@ -246,6 +259,14 @@
       );
     }
 
+    function canEditPosition() {
+      return canEdit()
+        && editString && editFret && applyPositionEditButton
+        && state.selectedEvent?.route === 'POLY_V2'
+        && state.selectedEvent?.selectedPosition
+        && !state.selectedEvent?.groupContainsTies;
+    }
+
     function updateControls() {
       const busy = state.loading || state.editing || state.transposing;
       const playbackReady = !busy
@@ -260,6 +281,9 @@
       editStep.disabled = busy || !state.selectedEvent;
       editAlter.disabled = busy || !state.selectedEvent;
       editOctave.disabled = busy || !state.selectedEvent;
+      if (editString) editString.disabled = !canEditPosition();
+      if (editFret) editFret.disabled = !canEditPosition();
+      if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
       if (transposeSpelling) transposeSpelling.disabled = !canTranspose();
       if (transposeTargetKey) transposeTargetKey.disabled = !canTranspose();
       if (transposeDownButton) transposeDownButton.disabled = !canTranspose();
@@ -656,7 +680,7 @@
         updateControls();
         return false;
       }
-      const { events } = polyphonicIndexes();
+      const { events, dispositions } = polyphonicIndexes();
       const groupMembers = identity.sourceGroupEventIds.map((sourceEventId) => events.get(sourceEventId));
       if (groupMembers.some((member) => !member || member.type !== 'note')) {
         clearSelection('The selected polyphonic group could not be resolved safely.');
@@ -681,6 +705,7 @@
         return false;
       }
       const groupContainsTies = groupMembers.some((member) => member.tieStart || member.tieStop);
+      const position = dispositions.get(event.sourceEventId)?.selectedPosition || null;
       const number = visibleMeasureNumber(measure);
       state.selectedEvent = {
         route: 'POLY_V2',
@@ -707,6 +732,7 @@
         },
         tied: sourceTieEventIds.length > 1,
         groupContainsTies,
+        selectedPosition: position ? { string: position.string, fret: position.fret } : null,
       };
       setText(
         selectedNote,
@@ -715,6 +741,13 @@
       editStep.value = event.pitch.step;
       editAlter.value = String(event.pitch.alter);
       editOctave.value = String(event.pitch.octave);
+      if (position) {
+        if (editString) editString.value = String(position.string);
+        if (editFret) editFret.value = String(position.fret);
+        setText(positionEditStatus, `Current TAB position · string ${position.string}, fret ${position.fret}`);
+      } else {
+        setText(positionEditStatus, 'This note is not assigned in the provisional TAB.');
+      }
       const tieText = sourceTieEventIds.length > 1
         ? ` · tie chain ${sourceTieEventIds.length} acknowledged`
         : '';
@@ -961,7 +994,7 @@
       return { step, alter, octave };
     }
 
-    function commandForSelection(pitch) {
+    function commandForSelection(pitch, selectedPosition = null) {
       if (state.selectedEvent?.route === 'POLY_V2') {
         return {
           measureIndex: state.selectedEvent.measureIndex,
@@ -971,6 +1004,7 @@
           sourceGroupEventIds: [...state.selectedEvent.sourceGroupEventIds],
           sourceTieEventIds: [...state.selectedEvent.sourceTieEventIds],
           pitch,
+          ...(selectedPosition ? { selectedPosition } : {}),
         };
       }
       return {
@@ -1001,7 +1035,7 @@
       };
     }
 
-    async function applySelectedEdit() {
+    async function applySelectedEdit(selectedPosition = null) {
       if (!canEdit()) return false;
 
       let pitch;
@@ -1013,7 +1047,7 @@
       }
 
       const route = state.runtimeResult.route;
-      const command = commandForSelection(pitch);
+      const command = commandForSelection(pitch, selectedPosition);
       const pendingCommands = [...session.commands.map(cloneCommand), cloneCommand(command)];
       if (pendingCommands.length > MAX_REVISION_COMMANDS) {
         setText(editStatus, 'Revision limit reached. Reload the source before continuing.');
@@ -1086,6 +1120,33 @@
         state.editing = false;
         updateControls();
       }
+    }
+
+    function requestedPosition() {
+      const string = Number.parseInt(editString.value, 10);
+      const fret = Number.parseInt(editFret.value, 10);
+      if (!Number.isSafeInteger(string) || string < 1 || string > 6) {
+        throw new Error('String must be between 1 and 6.');
+      }
+      if (!Number.isSafeInteger(fret) || fret < 0 || fret > 20) {
+        throw new Error('Fret must be between 0 and 20.');
+      }
+      return { string, fret };
+    }
+
+    async function applySelectedPositionEdit() {
+      if (!canEditPosition()) return false;
+      let position;
+      try {
+        position = requestedPosition();
+      } catch (error) {
+        setText(positionEditStatus, error.message);
+        return false;
+      }
+      setText(positionEditStatus, 'Validating position and regenerating TAB…');
+      const applied = await applySelectedEdit(position);
+      if (!applied && state.lastError) setText(positionEditStatus, state.lastError);
+      return applied;
     }
 
     async function applyDocumentTransposition(operation) {
@@ -1168,6 +1229,11 @@
     applyEditButton.addEventListener('click', async () => {
       await applySelectedEdit();
     });
+    if (applyPositionEditButton) {
+      applyPositionEditButton.addEventListener('click', async () => {
+        await applySelectedPositionEdit();
+      });
+    }
     cancelEditButton.addEventListener('click', () => {
       clearSelection();
       updateControls();
@@ -1241,6 +1307,7 @@
       selectNote,
       selectEvent: selectEventByIdentity,
       applySelectedEdit,
+      applySelectedPositionEdit,
       applyDocumentTransposition,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
@@ -1256,6 +1323,9 @@
                 ? Object.freeze([...state.selectedEvent.sourceTieEventIds])
                 : undefined,
               pitch: Object.freeze({ ...state.selectedEvent.pitch }),
+              selectedPosition: state.selectedEvent.selectedPosition
+                ? Object.freeze({ ...state.selectedEvent.selectedPosition })
+                : null,
             })
             : null,
           sourceFileName: session.sourceFileName,
