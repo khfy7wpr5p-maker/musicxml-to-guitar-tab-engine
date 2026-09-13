@@ -96,8 +96,8 @@ function usableReview(bytes, fileName = 'review.musicxml') {
   return {
     status: 'REVIEW_REQUIRED',
     route: 'POLY_V2',
-    resultSchemaVersion: '1.2.0',
-    capabilityContractVersion: '1.0.0',
+    resultSchemaVersion: '1.3.0',
+    capabilityContractVersion: '1.1.0',
     input: {
       fileName,
       byteLength: bytes.length,
@@ -190,7 +190,7 @@ test('additional corpus audit verifies identity, deterministic reruns and source
     });
     assert.equal(report.status, 'PASS_VERIFIED');
     assert.equal(report.contractVersion, AUDIT_CONTRACT_VERSION);
-    assert.equal(report.contractVersion, '1.1.0');
+    assert.equal(report.contractVersion, '1.2.0');
     assert.equal(report.summary.requiredFiles, 11);
     assert.equal(report.summary.identityVerifiedFiles, 11);
     assert.equal(report.summary.deterministicFiles, 11);

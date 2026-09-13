@@ -1,6 +1,6 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
 
 This is the live package-boundary view. Historical PR numbers, commit SHAs, corpus first-blocker reports, and sealed evidence remain revision-specific records and do not override current source/tests.
 
@@ -71,6 +71,7 @@ The application/internal path may use validated source guitar configuration with
 | GuitarSet v2 runtime shadow connection | ✅ INTERNAL DEFAULT-OFF — `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1` |
 | Runtime learned selection authority | 🔒 CLOSED |
 | Guitar TAB Workbench browser UI | ✅ IMPLEMENTED / GUARDED MONO_V1 + POLY_V2 HOST SEAMS |
+| PartialGuitarTabArrangement 1.0.0 | ✅ APPLICATION / REVIEW-ONLY / NON-CANONICAL |
 | GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
 | Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
 | Hosted persistence / multi-user state / export service | 🔒 NOT IMPLEMENTED |

@@ -1,6 +1,6 @@
 # AI Context — Read This First
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-01 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
 
 This is the active read-first context for coding agents and reviewers. Historical versioned contracts, closure records, corpus audits, PR numbers, commit SHAs, and sealed scientific evidence remain historical records; they are not current architecture authority merely because they are retained in the repository.
 
@@ -82,6 +82,7 @@ The two authority boundaries must not be conflated.
 - PS-4C sustained PA-8/PA-9 physical enumeration: ✅ active
 - sustained canonical final selection: ✅ active for the exact recognized fallback boundary
 - internal configuration-aware `CanonicalTabResult 2.1.0`: ✅ active where admitted
+- application-only `PartialGuitarTabArrangement 1.0.0`: ✅ review-only recovery for the exact PA-8 assignment-limit boundary; never canonical/export authority
 - PA-13 public polyphonic API: 🔒 not implemented
 
 The sustained PA-8 enforcement window is per PS-4A sonority point, not a whole-score aggregate budget. Fixed ceilings and enumeration/ranking rules are unchanged.

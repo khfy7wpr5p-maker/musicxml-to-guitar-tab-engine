@@ -20,7 +20,7 @@ const {
 const manifestDefault = require('../verification/stage09-additional-real-musicxml-corpus.json');
 
 const SHA1 = /^[a-f0-9]{40}$/;
-const AUDIT_CONTRACT_VERSION = '1.1.0';
+const AUDIT_CONTRACT_VERSION = '1.2.0';
 const USABLE_OUTPUT_GATE_CONTRACT_VERSION = '1.0.0';
 const USABLE_OUTPUT_GATE_STATUS = Object.freeze({
   PASS: 'PASS_USABLE_OUTPUT_GATE',
@@ -95,7 +95,18 @@ function outputSemanticsValid(result) {
       && result.musicXml.length > 0
     );
   }
-  return !result?.canonicalTabResult && !result?.musicXml;
+  if (result?.status === 'REVIEW_REQUIRED' && result?.arrangementArtifact) {
+    return Boolean(
+      !result.canonicalTabResult
+      && typeof result.musicXml === 'string'
+      && result.musicXml.length > 0
+      && result.capabilities?.generateTab === true
+      && result.capabilities?.export === false
+      && result.artifacts?.provisionalTabAvailable === true
+      && result.artifacts?.canonicalTabAvailable === false
+    );
+  }
+  return !result?.canonicalTabResult && !result?.arrangementArtifact && !result?.musicXml;
 }
 
 function basisPoints(numerator, denominator) {
@@ -104,12 +115,10 @@ function basisPoints(numerator, denominator) {
 }
 
 function actualRendererMusicXml(result) {
+  if (typeof result?.musicXml === 'string' && result.musicXml.length > 0) return result.musicXml;
   const sourceArtifactMusicXml = result?.sourceArtifact?.rendererMusicXml;
-  if (typeof sourceArtifactMusicXml === 'string' && sourceArtifactMusicXml.length > 0) {
-    return sourceArtifactMusicXml;
-  }
-  return typeof result?.musicXml === 'string' && result.musicXml.length > 0
-    ? result.musicXml
+  return typeof sourceArtifactMusicXml === 'string' && sourceArtifactMusicXml.length > 0
+    ? sourceArtifactMusicXml
     : null;
 }
 
@@ -123,7 +132,7 @@ function tabDispositionCounts(result) {
   if (dispositions) {
     const assigned = dispositions.filter((entry) => (
       entry?.selectedPosition
-      && (entry.disposition === 'KEEP' || entry.disposition === 'KEPT')
+      && ['KEEP', 'KEPT', 'OCTAVE_SHIFTED'].includes(entry.disposition)
     )).length;
     const unassigned = dispositions.filter((entry) => entry?.disposition === 'UNASSIGNED').length;
     return {
@@ -184,7 +193,9 @@ function buildUsableOutputRecord(result, {
   const tabArtifactAvailable = Boolean(
     usableOutputEligible
     && capabilities.generateTab === true
-    && tabArtifact,
+    && tabArtifact
+    && typeof result?.musicXml === 'string'
+    && result.musicXml.length > 0
   );
   const canonicalAvailable = Boolean(
     tabArtifactAvailable
