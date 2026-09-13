@@ -59,12 +59,14 @@ R4 adds no canonical authority. A successful partial recovery also emits `Review
 
 R5 versions the POLY_V2 edit result contract to `1.1.0` and permits an optional exact `selectedPosition { string, fret }` on the same cumulative command. The browser never rewrites rendered MusicXML. The backend filters singleton or simultaneous-group physical candidates by the requested position, reruns selection and writing, and returns the exact position or blocks the revision. Partial recovery remaps the original source-event override into its reduced model and is forbidden to omit the overridden note silently. This is position authority for an already assigned, untied note only; it is not pitch inference, finger-number authority or a general notation structure editor.
 
+R6 versions the POLY_V2 edit result contract to `1.2.0` and adds one optional positive integer `durationDivisions` value to the same immutable-source command. The Workbench exposes this only for an exactly selected, untied POLY_V2 source note and only when upload-result capability contract `1.2.0` grants `editRhythm`. The backend revalidates the revised `PolyphonicSourceModel`, physical arrangement and writer output; measure overflow or unsafe same-voice overlap blocks the revision. Voice reassignment remains disabled because the pinned editor adapter has no reviewed canonical voice-mutation primitive. See [`r6-review-duration-editor.md`](r6-review-duration-editor.md).
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
-- provisional review selection, pitch/position regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
+- provisional review selection, pitch/position/duration regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
 - repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;

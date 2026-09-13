@@ -42,6 +42,7 @@ test('UI-07 keeps browser tie identity as metadata and projects the bounded POLY
   assert.match(host, /sourceGroupEventIds:\s*\[\.\.\.command\.sourceGroupEventIds\]/);
   assert.match(host, /pitch:\s*\{/);
   assert.match(host, /selectedPosition/);
+  assert.match(host, /durationDivisions/);
   assert.doesNotMatch(host, /sourceTieEventIds/);
   assert.doesNotMatch(host, /innerHTML|outerHTML|insertAdjacentHTML/);
 });
@@ -74,6 +75,17 @@ test('UI-07 sends position intent to the bounded host and loads only regenerated
   assert.match(source, /function applySelectedPositionEdit/);
   assert.match(source, /selectedPosition/);
   assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML/);
+});
+
+test('R6 sends duration intent through the same immutable-source POLY_V2 revision path', () => {
+  const source = read(workbenchPath);
+  const html = read(indexPath);
+
+  assert.match(html, /data-role="edit-duration"/);
+  assert.match(html, /data-role="apply-duration-edit"/);
+  assert.match(source, /function applySelectedDurationEdit/);
+  assert.match(source, /durationDivisions/);
+  assert.match(source, /expectedInputSha256/);
 });
 
 test('UI-07 compatibility host projects browser metadata to the v1 runtime command schema', () => {

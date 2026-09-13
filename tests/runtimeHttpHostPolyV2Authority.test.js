@@ -160,6 +160,42 @@ test('runtime host accepts a guarded TAB position override and returns that exac
   assert.match(edit.payload.musicXml, /<string>3<\/string>[\s\S]*<fret>12<\/fret>/);
 });
 
+test('runtime host applies a guarded duration edit to provisional piano TAB', async (t) => {
+  const origin = await startServer(t);
+  const sourceBytes = densePianoChord();
+  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=dense-piano.musicxml`, {
+    method: 'POST',
+    headers: {'content-type': 'application/octet-stream'},
+    body: sourceBytes,
+  }));
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map(
+    (sourceOrder) => `P1:measure:0:note:${sourceOrder}`,
+  );
+  const commands = [{
+    measureIndex: 0,
+    sourceOrder: 0,
+    sourceEventId: sourceGroupEventIds[0],
+    sourceGroupId: 'P1:measure:0:simultaneous:0',
+    sourceGroupEventIds,
+    pitch: {step: 'C', alter: 0, octave: 3},
+    durationDivisions: 2,
+  }];
+  const edit = await readJson(await fetch(
+    `${origin}/api/edit/poly-v2?fileName=dense-piano.musicxml&sha=${upload.payload.input.sha256}`,
+    {
+      method: 'POST',
+      headers: {'content-type': EDIT_CONTENT_TYPE},
+      body: editBody(commands, sourceBytes),
+    },
+  ));
+
+  assert.equal(edit.response.status, 200);
+  assert.equal(edit.payload.status, 'REVIEW_REQUIRED');
+  assert.equal(edit.payload.capabilities.editRhythm, true);
+  assert.equal(edit.payload.reviewEditableProjection.measures[0].events[0].durationDivisions, 2);
+  assert.match(edit.payload.musicXml, /<pitch><step>C<\/step><octave>4<\/octave><\/pitch><duration>2<\/duration>/);
+});
+
 test('framed edit metadata budget covers the maximum bounded 128-command POLY_V2 schema shape', () => {
   function boundedId(commandIndex, groupIndex) {
     const suffix = `${commandIndex.toString().padStart(3, '0')}-${groupIndex.toString().padStart(2, '0')}`;

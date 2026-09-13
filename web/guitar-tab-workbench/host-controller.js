@@ -120,6 +120,8 @@
     const editAlter = root.querySelector('[data-role="edit-alter"]');
     const editOctave = root.querySelector('[data-role="edit-octave"]');
     const applyEditButton = root.querySelector('[data-role="apply-edit"]');
+    const editDuration = root.querySelector('[data-role="edit-duration"]');
+    const applyDurationEditButton = root.querySelector('[data-role="apply-duration-edit"]');
     const editString = root.querySelector('[data-role="edit-string"]');
     const editFret = root.querySelector('[data-role="edit-fret"]');
     const applyPositionEditButton = root.querySelector('[data-role="apply-position-edit"]');
@@ -180,6 +182,10 @@
         if (editString) editString.disabled = true;
         if (editFret) editFret.disabled = true;
         if (applyPositionEditButton) applyPositionEditButton.disabled = true;
+      }
+      if (result.capabilities.editRhythm !== true) {
+        if (editDuration) editDuration.disabled = true;
+        if (applyDurationEditButton) applyDurationEditButton.disabled = true;
       }
 
       // Document transposition is not a teacher-review operation. Keep it off
@@ -257,6 +263,19 @@
           syncMonoEditor();
           const applied = await coreWorkbench.applySelectedEdit();
           syncMonoEditor();
+          syncCapabilityUi();
+          return applied;
+        },
+      },
+      applySelectedDurationEdit: {
+        enumerable: true,
+        async value() {
+          const result = authoritativeRuntimeResult(coreWorkbench.snapshot());
+          if (result?.status === 'REVIEW_REQUIRED' && result?.capabilities?.editRhythm !== true) {
+            syncCapabilityUi();
+            return false;
+          }
+          const applied = await coreWorkbench.applySelectedDurationEdit();
           syncCapabilityUi();
           return applied;
         },

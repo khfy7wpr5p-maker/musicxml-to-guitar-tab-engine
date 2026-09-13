@@ -58,6 +58,9 @@
             fret: command.selectedPosition.fret,
           },
         } : {}),
+        ...(command.durationDivisions === undefined ? {} : {
+          durationDivisions: command.durationDivisions,
+        }),
       };
     }
     return {
@@ -109,6 +112,8 @@
     const editAlter = root.querySelector('[data-role="edit-alter"]');
     const editOctave = root.querySelector('[data-role="edit-octave"]');
     const applyEditButton = root.querySelector('[data-role="apply-edit"]');
+    const editDuration = root.querySelector('[data-role="edit-duration"]');
+    const applyDurationEditButton = root.querySelector('[data-role="apply-duration-edit"]');
     const cancelEditButton = root.querySelector('[data-role="cancel-edit"]');
     const editString = root.querySelector('[data-role="edit-string"]');
     const editFret = root.querySelector('[data-role="edit-fret"]');
@@ -201,6 +206,7 @@
       editStep.value = 'C';
       editAlter.value = '0';
       editOctave.value = '4';
+      if (editDuration) editDuration.value = '1';
       if (editString) editString.value = '1';
       if (editFret) editFret.value = '0';
       setText(positionEditStatus, 'Select an assigned POLY_V2 note to change its TAB position.');
@@ -267,6 +273,14 @@
         && !state.selectedEvent?.groupContainsTies;
     }
 
+    function canEditDuration() {
+      return canEdit()
+        && editDuration && applyDurationEditButton
+        && state.selectedEvent?.route === 'POLY_V2'
+        && Number.isSafeInteger(state.selectedEvent?.durationDivisions)
+        && !state.selectedEvent?.groupContainsTies;
+    }
+
     function updateControls() {
       const busy = state.loading || state.editing || state.transposing;
       const playbackReady = !busy
@@ -281,6 +295,8 @@
       editStep.disabled = busy || !state.selectedEvent;
       editAlter.disabled = busy || !state.selectedEvent;
       editOctave.disabled = busy || !state.selectedEvent;
+      if (editDuration) editDuration.disabled = !canEditDuration();
+      if (applyDurationEditButton) applyDurationEditButton.disabled = !canEditDuration();
       if (editString) editString.disabled = !canEditPosition();
       if (editFret) editFret.disabled = !canEditPosition();
       if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
@@ -733,6 +749,8 @@
         tied: sourceTieEventIds.length > 1,
         groupContainsTies,
         selectedPosition: position ? { string: position.string, fret: position.fret } : null,
+        durationDivisions: event.durationDivisions,
+        measureDivisions: measure.divisions,
       };
       setText(
         selectedNote,
@@ -741,6 +759,7 @@
       editStep.value = event.pitch.step;
       editAlter.value = String(event.pitch.alter);
       editOctave.value = String(event.pitch.octave);
+      if (editDuration) editDuration.value = String(event.durationDivisions);
       if (position) {
         if (editString) editString.value = String(position.string);
         if (editFret) editFret.value = String(position.fret);
@@ -994,7 +1013,7 @@
       return { step, alter, octave };
     }
 
-    function commandForSelection(pitch, selectedPosition = null) {
+    function commandForSelection(pitch, editOptions = {}) {
       if (state.selectedEvent?.route === 'POLY_V2') {
         return {
           measureIndex: state.selectedEvent.measureIndex,
@@ -1004,7 +1023,10 @@
           sourceGroupEventIds: [...state.selectedEvent.sourceGroupEventIds],
           sourceTieEventIds: [...state.selectedEvent.sourceTieEventIds],
           pitch,
-          ...(selectedPosition ? { selectedPosition } : {}),
+          ...(editOptions.selectedPosition ? { selectedPosition: editOptions.selectedPosition } : {}),
+          ...(editOptions.durationDivisions === undefined
+            ? {}
+            : { durationDivisions: editOptions.durationDivisions }),
         };
       }
       return {
@@ -1035,7 +1057,7 @@
       };
     }
 
-    async function applySelectedEdit(selectedPosition = null) {
+    async function applySelectedEdit(editOptions = {}) {
       if (!canEdit()) return false;
 
       let pitch;
@@ -1047,7 +1069,7 @@
       }
 
       const route = state.runtimeResult.route;
-      const command = commandForSelection(pitch, selectedPosition);
+      const command = commandForSelection(pitch, editOptions);
       const pendingCommands = [...session.commands.map(cloneCommand), cloneCommand(command)];
       if (pendingCommands.length > MAX_REVISION_COMMANDS) {
         setText(editStatus, 'Revision limit reached. Reload the source before continuing.');
@@ -1144,9 +1166,30 @@
         return false;
       }
       setText(positionEditStatus, 'Validating position and regenerating TAB…');
-      const applied = await applySelectedEdit(position);
+      const applied = await applySelectedEdit({ selectedPosition: position });
       if (!applied && state.lastError) setText(positionEditStatus, state.lastError);
       return applied;
+    }
+
+    function requestedDuration() {
+      const durationDivisions = Number(editDuration.value);
+      if (!Number.isSafeInteger(durationDivisions) || durationDivisions <= 0) {
+        throw new Error('Duration divisions must be a positive whole number.');
+      }
+      return durationDivisions;
+    }
+
+    async function applySelectedDurationEdit() {
+      if (!canEditDuration()) return false;
+      let durationDivisions;
+      try {
+        durationDivisions = requestedDuration();
+      } catch (error) {
+        setText(editStatus, error.message);
+        return false;
+      }
+      setText(editStatus, 'Validating duration and regenerating TAB…');
+      return applySelectedEdit({ durationDivisions });
     }
 
     async function applyDocumentTransposition(operation) {
@@ -1234,6 +1277,11 @@
         await applySelectedPositionEdit();
       });
     }
+    if (applyDurationEditButton) {
+      applyDurationEditButton.addEventListener('click', async () => {
+        await applySelectedDurationEdit();
+      });
+    }
     cancelEditButton.addEventListener('click', () => {
       clearSelection();
       updateControls();
@@ -1308,6 +1356,7 @@
       selectEvent: selectEventByIdentity,
       applySelectedEdit,
       applySelectedPositionEdit,
+      applySelectedDurationEdit,
       applyDocumentTransposition,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;

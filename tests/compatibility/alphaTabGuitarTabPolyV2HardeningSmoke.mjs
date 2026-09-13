@@ -67,7 +67,9 @@ function pageHtml() {
         <select data-role="edit-step" disabled><option>A</option><option>B</option><option selected>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select>
         <select data-role="edit-alter" disabled><option value="-2">bb</option><option value="-1">b</option><option value="0" selected>natural</option><option value="1">#</option><option value="2">##</option></select>
         <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
+        <input data-role="edit-duration" type="number" min="1" step="1" value="1" disabled>
         <button data-role="apply-edit" type="button" disabled>Apply</button>
+        <button data-role="apply-duration-edit" type="button" disabled>Apply duration</button>
         <button data-role="cancel-edit" type="button" disabled>Clear</button>
       </section>
       <section><span data-role="issue-count"></span><ol data-role="issues"></ol></section>
@@ -111,6 +113,7 @@ function pageHtml() {
       sourceGroupId:command.sourceGroupId,
       sourceGroupEventIds:[...command.sourceGroupEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+      ...(command.durationDivisions === undefined ? {} : {durationDivisions:command.durationDivisions}),
     }));
     smoke.lastRuntimeCommands = structuredClone(runtimeCommands);
     const response = await fetch(
@@ -371,7 +374,7 @@ try {
   assert.equal(Object.hasOwn(edited.smoke.lastRuntimeCommands[0], 'sourceTieEventIds'), false);
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.1.0');
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.2.0');
   assert.equal(
     edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
@@ -386,13 +389,37 @@ try {
   );
   assert.equal(target.pitch.written, 'D4');
   assert.equal(peer.pitch.written, 'C4');
+
+  await page.$eval('[data-role="edit-duration"]', element => { element.value = '2'; });
+  await page.click('[data-role="apply-duration-edit"]');
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().revisionNumber === 2
+      && window.__workbench?.snapshot().scoreLoaded === true,
+    {timeout:30000},
+  );
+  const durationEdited = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    smoke:window.__ui07Smoke,
+  }));
+  assert.equal(durationEdited.smoke.polyEditCalls, 2);
+  assert.equal(durationEdited.smoke.lastRuntimeCommands[1].durationDivisions, 2);
+  assert.equal(
+    durationEdited.snapshot.runtimeResult.revision.appliedEdits[1].commandType,
+    'SET_POLYPHONIC_SOURCE_EVENT_DURATION',
+  );
+  assert.equal(
+    durationEdited.snapshot.runtimeResult.canonicalTabResult.measures[0].events.find(
+      event => event.sourceEventId === targetIdentity.sourceEventId,
+    ).durationDivisions,
+    2,
+  );
   assert.deepEqual(errors, []);
 
   process.stdout.write(`${JSON.stringify({
     status:'PASS',
     route:edited.snapshot.runtimeResult.route,
     unisonVoices:selectedByVoice.map(entry => entry.snapshot.selectedEvent.voice),
-    runtimeContract:edited.snapshot.runtimeResult.contractVersion,
+    runtimeContract:durationEdited.snapshot.runtimeResult.contractVersion,
     retainedTieAuthority:'BLOCKED_UPSTREAM',
     monoEditCalls:edited.smoke.monoEditCalls,
   })}\n`);

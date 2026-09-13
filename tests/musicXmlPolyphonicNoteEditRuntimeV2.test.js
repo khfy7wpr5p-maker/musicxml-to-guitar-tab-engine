@@ -37,6 +37,7 @@ function command({
   step,
   alter = 0,
   octave,
+  durationDivisions,
 }) {
   return {
     measureIndex,
@@ -45,6 +46,7 @@ function command({
     sourceGroupId: groupSourceOrders.length > 1 ? groupId(measureIndex, onsetDivisions) : null,
     sourceGroupEventIds: groupSourceOrders.map((order) => sourceEventId(measureIndex, order)),
     pitch: { step, alter, octave },
+    ...(durationDivisions === undefined ? {} : { durationDivisions }),
   };
 }
 
@@ -120,6 +122,80 @@ test('REVIEW_REQUIRED piano TAB binds a requested playable string/fret position'
     { string: 3, fret: 12 },
   );
   assert.match(result.musicXml, /<string>3<\/string>[\s\S]*<fret>12<\/fret>/);
+});
+
+test('REVIEW_REQUIRED piano TAB applies a source-identified duration edit and stays editable', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 0,
+    sourceEventId: sourceEventId(0, 0),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'C', alter: 0, octave: 3 },
+    durationDivisions: 2,
+  }]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.revision.appliedEdits[0].commandType, 'SET_POLYPHONIC_SOURCE_EVENT_DURATION');
+  assert.equal(result.revision.appliedEdits[0].beforeDurationDivisions, 4);
+  assert.equal(result.revision.appliedEdits[0].afterDurationDivisions, 2);
+  assert.equal(result.capabilities.editRhythm, true);
+  assert.equal(result.reviewEditableProjection.measures[0].events[0].durationDivisions, 2);
+  assert.match(result.musicXml, /<pitch><step>C<\/step><octave>4<\/octave><\/pitch><duration>2<\/duration>/);
+});
+
+test('duration edit rejects non-positive division values at the request boundary', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  assert.throws(() => processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 0,
+    sourceEventId: sourceEventId(0, 0),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'C', alter: 0, octave: 3 },
+    durationDivisions: 0,
+  }])), MusicXmlPolyphonicNoteEditRuntimeV2Error);
+});
+
+test('duration edit blocks a value that extends the selected source event beyond its measure', () => {
+  const bytes = fixture('pa12-polyphonic-e2e.musicxml');
+  const edit = command({
+    sourceOrder: 0,
+    onsetDivisions: 0,
+    groupSourceOrders: [0, 4],
+    step: 'C',
+    octave: 4,
+    durationDivisions: 20,
+  });
+
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [edit]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.BLOCKED);
+  assert.match(result.preflight.issues[0].message, /beyond the measure boundary/i);
+});
+
+test('duration edit blocks an unsafe same-voice overlap instead of moving later notes', () => {
+  const bytes = fixture('pa12-polyphonic-e2e.musicxml');
+  const edit = command({
+    sourceOrder: 0,
+    onsetDivisions: 0,
+    groupSourceOrders: [0, 4],
+    step: 'C',
+    octave: 4,
+    durationDivisions: 8,
+  });
+
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [edit]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.BLOCKED);
+  assert.match(result.preflight.issues[0].message, /overlap|overlapping/i);
 });
 
 test('string/fret override blocks instead of silently omitting or moving the edited note', () => {

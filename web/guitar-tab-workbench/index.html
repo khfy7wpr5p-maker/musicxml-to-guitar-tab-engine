@@ -138,9 +138,14 @@
                 <span>Octave</span>
                 <input data-role="edit-octave" type="number" min="-1" max="9" step="1" value="4" disabled>
               </label>
+              <label>
+                <span>Duration (divisions)</span>
+                <input data-role="edit-duration" type="number" min="1" step="1" value="1" disabled>
+              </label>
             </div>
             <div class="workbench-editor__actions">
               <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
+              <button data-role="apply-duration-edit" type="button" disabled>Apply duration & regenerate TAB</button>
               <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
             </div>
           </section>

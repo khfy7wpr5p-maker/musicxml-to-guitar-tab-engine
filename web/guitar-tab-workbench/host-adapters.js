@@ -98,6 +98,9 @@
             fret: command.selectedPosition.fret,
           },
         } : {}),
+        ...(command.durationDivisions === undefined ? {} : {
+          durationDivisions: command.durationDivisions,
+        }),
       };
     });
   }
