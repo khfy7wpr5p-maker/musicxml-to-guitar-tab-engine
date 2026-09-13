@@ -36,6 +36,10 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'edit-octave',
     'apply-edit',
     'cancel-edit',
+    'edit-string',
+    'edit-fret',
+    'apply-position-edit',
+    'position-edit-status',
     'mode-badge',
     'mode-description',
     'runtime-upload-action',
@@ -101,6 +105,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /expectedInputSha256/);
   assert.match(script, /commands:\s*pendingCommands\.map/);
   assert.match(script, /function applyDocumentTransposition/);
+  assert.match(script, /function applySelectedPositionEdit/);
+  assert.match(script, /selectedPosition/);
   assert.match(script, /session\.commands\.length === 0/);
   assert.match(script, /api\.load\(new TextEncoder\(\)\.encode\(result\.musicXml\)\)/);
   assert.match(script, /api\.play\(\)/);

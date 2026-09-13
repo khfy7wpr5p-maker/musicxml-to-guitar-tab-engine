@@ -371,7 +371,7 @@ try {
   assert.equal(Object.hasOwn(edited.smoke.lastRuntimeCommands[0], 'sourceTieEventIds'), false);
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.0.0');
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.1.0');
   assert.equal(
     edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',

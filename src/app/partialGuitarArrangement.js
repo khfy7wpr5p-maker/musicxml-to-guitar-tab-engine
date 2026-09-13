@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 
+const { EngineError } = require('../errors/engineError');
 const { createPolyphonicSourceModel } = require('../music/polyphonicSourceModel');
 const { createDeterministicReductionPlan } = require('../music/deterministicReductionPlan');
 const { createSustainTieGraph } = require('../music/sustainTieGraph');
@@ -240,6 +241,31 @@ function reducedDecisions(model, originalByReducedId, instructionById) {
   return Object.freeze(decisions);
 }
 
+function reducedGuitarOptions(guitarOptions, originalByReducedId) {
+  const sourceOverrides = guitarOptions?.positionOverrides;
+  if (!sourceOverrides || typeof sourceOverrides !== 'object') return guitarOptions;
+  const positionOverrides = Object.create(null);
+  for (const [reducedId, original] of originalByReducedId) {
+    const override = sourceOverrides[original.sourceEventId];
+    if (override) positionOverrides[reducedId] = { ...override };
+  }
+  return { ...guitarOptions, positionOverrides };
+}
+
+function assertPositionOverridesRetained(selected, guitarOptions) {
+  const overrides = guitarOptions?.positionOverrides;
+  if (!overrides || typeof overrides !== 'object') return;
+  const missingSourceEventIds = Object.keys(overrides).filter((sourceEventId) => !selected.has(sourceEventId));
+  if (missingSourceEventIds.length > 0) {
+    throw new EngineError(
+      'The requested string/fret note could not be retained by the provisional arrangement.',
+      'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION',
+      Object.freeze({ reason: 'POSITION_OVERRIDE_NOT_RETAINED', missingSourceEventIds }),
+      'PartialGuitarArrangementError',
+    );
+  }
+}
+
 function pitchSnapshot(pitch) {
   return Object.freeze({
     step: pitch.step,
@@ -452,19 +478,21 @@ function recoverPartialGuitarArrangement({
   const instructionById = new Map(
     reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
   );
+  let positionOverrideError = null;
 
   for (const retainedNoteCap of RETAINED_NOTE_CAPS) {
     try {
       const selected = retainedNoteCap === 1
         ? selectMonophonicMelodyNotes(sourceModel, reduction, processing, tieGraph)
         : selectOuterRegisterNotes(sourceModel, reduction, retainedNoteCap, processing, tieGraph);
+      assertPositionOverridesRetained(selected, guitarOptions);
       const reduced = reducedSourceModel(sourceModel, selected, processing, tieGraph !== null);
       const decisions = reducedDecisions(reduced.model, reduced.originalByReducedId, instructionById);
       const canonicalTabResult = createCanonicalTabResultV2(
         reduced.model,
         decisions,
         processing,
-        guitarOptions,
+        reducedGuitarOptions(guitarOptions, reduced.originalByReducedId),
       );
       const partialWriterOptions = Array.isArray(writerOptions.chordLabels)
         ? { chordLabels: writerOptions.chordLabels }
@@ -511,12 +539,18 @@ function recoverPartialGuitarArrangement({
     } catch (error) {
       if (isProcessingStop(error)) throw error;
       if (error instanceof TypeError && /Review projection/.test(error.message)) throw error;
+      if (
+        error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
+        && (error?.details?.reason === 'POSITION_OVERRIDE_NOT_PLAYABLE'
+          || error?.details?.reason === 'POSITION_OVERRIDE_NOT_RETAINED')
+      ) positionOverrideError = error;
       checkpoint(processing, 'partial-arrangement:retry', {
         retainedNoteCap,
         errorCode: error?.code || 'UNCLASSIFIED_ERROR',
       });
     }
   }
+  if (positionOverrideError) throw positionOverrideError;
   return null;
 }
 

@@ -41,7 +41,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
 | R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
 | Stage 09 additional corpus source + TAB availability | ✅ 11/11 LOCAL VERIFIED — 0 hard blocks; 2,794/6,631 notes assigned |
-| `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH SLICE CONNECTED — provisional assigned notes only; rhythm/voice/structure/TAB fingering remain closed |
+| `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH + EXACT TAB POSITION CONNECTED — assigned untied provisional notes only; rhythm/voice/structure remain closed |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -76,7 +76,7 @@ Stage 09 has a dedicated evidence gate and now meets the Tier-A minimum with 20 
 
 Tier B remains intentionally open. A cross-repository audit found two teacher-verified references, including one authentic teacher-approved Audiveris chain, but neither supplies a non-empty real teacher-correction patch ledger that can be revalidated through Stage 08. The product gate therefore remains `HOLD_EVIDENCE_GAP` at 0/3 eligible teacher-correction cases and still lacks required real `PASS` / `REVIEW_REQUIRED` / `BLOCKED` plus representation coverage. Synthetic, no-correction and regression-only OMR material cannot satisfy Tier B. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
 
-The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.0.0` maps only proven source-note identities to the provisional score/TAB renderer. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 pitch commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. This is not the complete Stage 06/ST Score Editor surface: rhythm, voice, structure, tied-note and direct string/fret editing remain unavailable.
+The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.0.0` maps only proven source-note identities to the provisional score/TAB renderer. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 `1.1.0` pitch commands may also carry one exact string/fret position. Commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. An impossible position blocks instead of being moved or omitted. This is not the complete Stage 06/ST Score Editor surface: rhythm, voice, structure, tied-note editing and assigning previously omitted notes remain unavailable.
 
 ## Current production/application path
 

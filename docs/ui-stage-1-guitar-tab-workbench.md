@@ -82,7 +82,8 @@ The Workbench keeps `sourceTieEventIds` as read-only browser selection evidence.
 - deterministic `sourceEventId`;
 - canonical `sourceGroupId` or `null`;
 - complete ordered `sourceGroupEventIds` acknowledgement;
-- requested pitch.
+- requested pitch;
+- optional exact `selectedPosition { string, fret }` for an already assigned untied note.
 
 `sourceTieEventIds` is deliberately absent from the runtime command and cannot become edit authority accidentally. `processMusicXmlPolyphonicNoteEditV2` remains authoritative for source identity, group topology, immutable replay, playability and canonical regeneration.
 
@@ -90,14 +91,14 @@ For a partial-arrangement `REVIEW_REQUIRED` result, the host uses the backend-cr
 
 Retained POLY_V2 ties remain outside the supported deterministic final-selection boundary. Upload fails closed with `RETAINED_TIE_NOT_SUPPORTED` before an edit target can be authorized; supporting sustained sonorities requires a separately versioned selector and contract.
 
-Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar shape/fingering selection and the complete notation+TAB MusicXML document. Silent note omission or octave displacement remains forbidden.
+Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar shape/fingering selection and the complete notation+TAB MusicXML document. A requested position filters backend candidates and must round-trip exactly. Silent movement, omission or octave displacement remains forbidden.
 
 ## Current limits
 
-- structured edits are pitch replacement only;
+- structured edits cover pitch replacement and exact string/fret override for an assigned untied POLY_V2 note;
 - rest targets are rejected;
 - unplayable pitches fail closed; there is no automatic octave displacement;
-- independent TAB editing is forbidden;
+- finger-number editing and assigning a previously omitted note remain unavailable;
 - same-pitch POLY_V2 notes remain non-editable whenever voice/onset/chord/duplicate identity evidence is incomplete or inconsistent;
 - retained POLY_V2 ties remain blocked by deterministic final selection with `RETAINED_TIE_NOT_SUPPORTED`;
 - no production deployment server is introduced by this UI stage.

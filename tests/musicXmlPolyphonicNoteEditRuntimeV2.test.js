@@ -95,6 +95,69 @@ test('REVIEW_REQUIRED piano TAB accepts a source-identified pitch edit and stays
   assert.match(result.musicXml, /<sign>TAB<\/sign>/);
 });
 
+test('REVIEW_REQUIRED piano TAB binds a requested playable string/fret position', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 4,
+    sourceEventId: sourceEventId(0, 4),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'G', alter: 0, octave: 4 },
+    selectedPosition: { string: 3, fret: 12 },
+  }]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.revision.appliedEdits[0].commandType, 'SET_POLYPHONIC_SOURCE_EVENT_POSITION');
+  assert.deepEqual(result.revision.appliedEdits[0].selectedPosition, { string: 3, fret: 12 });
+  assert.deepEqual(
+    result.reviewEditableProjection.noteDispositions.find(
+      (entry) => entry.sourceEventId === sourceEventId(0, 4),
+    ).selectedPosition,
+    { string: 3, fret: 12 },
+  );
+  assert.match(result.musicXml, /<string>3<\/string>[\s\S]*<fret>12<\/fret>/);
+});
+
+test('string/fret override blocks instead of silently omitting or moving the edited note', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  const result = processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 4,
+    sourceEventId: sourceEventId(0, 4),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'G', alter: 0, octave: 4 },
+    selectedPosition: { string: 1, fret: 2 },
+  }]));
+
+  assert.equal(result.status, MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION');
+  assert.match(result.preflight.issues[0].message, /requested string\/fret/i);
+});
+
+test('string/fret override rejects positions outside the bounded six-string fretboard', () => {
+  const bytes = densePianoChord();
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map((sourceOrder) => (
+    sourceEventId(0, sourceOrder)
+  ));
+  assert.throws(() => processMusicXmlPolyphonicNoteEditV2(request(bytes, [{
+    measureIndex: 0,
+    sourceOrder: 4,
+    sourceEventId: sourceEventId(0, 4),
+    sourceGroupId: groupId(0, 0),
+    sourceGroupEventIds,
+    pitch: { step: 'G', alter: 0, octave: 4 },
+    selectedPosition: { string: 7, fret: 12 },
+  }])), MusicXmlPolyphonicNoteEditRuntimeV2Error);
+});
+
 test('POLY_V2 structured edit changes one acknowledged simultaneous-group member and regenerates TAB', () => {
   const bytes = fixture('pa12-polyphonic-e2e.musicxml');
   const edit = command({
