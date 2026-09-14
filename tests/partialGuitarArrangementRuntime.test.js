@@ -44,6 +44,7 @@ test('dense piano input becomes an explicit provisional TAB instead of a solver 
   assert.equal(first.capabilities.renderScore, true);
   assert.equal(first.capabilities.generateTab, true);
   assert.equal(first.capabilities.editPitch, true);
+  assert.equal(first.capabilities.assignTabPosition, true);
   assert.equal(first.capabilities.playback, 'APPROXIMATE');
   assert.equal(first.capabilities.export, false);
   assert.equal(first.issues[0].affectsTab, true);
@@ -51,9 +52,16 @@ test('dense piano input becomes an explicit provisional TAB instead of a solver 
   assert.equal(first.artifacts.reviewEditableProjectionAvailable, true);
   assert.equal(first.artifacts.canonicalTabAvailable, false);
   assert.equal(first.reviewEditableProjection.documentType, 'ReviewEditableTabProjection');
+  assert.equal(first.reviewEditableProjection.contractVersion, '1.1.0');
   assert.equal(first.reviewEditableProjection.authority, 'PROVISIONAL_REVIEW_ONLY');
   assert.equal(first.reviewEditableProjection.sourceUploadSha256, first.input.sha256);
   assert.equal(first.reviewEditableProjection.measures[0].events.length, 6);
+  assert.equal(
+    first.reviewEditableProjection.noteDispositions.filter(
+      (entry) => entry.assignmentEligible === true,
+    ).length,
+    first.arrangementArtifact.unassignedNoteCount,
+  );
   assert.equal(Object.isFrozen(first), true);
   assert.deepEqual(first, second);
 });
@@ -107,4 +115,10 @@ test('partial recovery keeps extracted grace notes explicit as unassigned review
   assert.ok(grace);
   assert.match(grace.sourceEventId, /:grace:/);
   assert.equal(grace.disposition, 'UNASSIGNED');
+  assert.equal(
+    result.reviewEditableProjection.noteDispositions.some(
+      (entry) => entry.sourceEventId === grace.sourceEventId,
+    ),
+    false,
+  );
 });

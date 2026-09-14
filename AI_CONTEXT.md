@@ -1,6 +1,6 @@
 # AI Context — Read This First
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
 
 This is the active read-first context for coding agents and reviewers. Historical versioned contracts, closure records, corpus audits, PR numbers, commit SHAs, and sealed scientific evidence remain historical records; they are not current architecture authority merely because they are retained in the repository.
 

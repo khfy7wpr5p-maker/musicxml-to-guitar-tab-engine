@@ -167,6 +167,18 @@
               <div class="workbench-facts__wide"><dt>Context</dt><dd data-role="fingering-context">Select a note to inspect the current TAB placement.</dd></div>
             </dl>
             <div class="workbench-fingering-editor" aria-label="TAB string and fret editor">
+              <div class="workbench-omitted-editor" aria-label="Unassigned piano notes">
+                <div class="workbench-editor__heading">
+                  <h3>Unassigned notes</h3>
+                  <strong><span data-role="omitted-note-count">0</span> available</strong>
+                </div>
+                <label>
+                  <span>Source note</span>
+                  <select data-role="omitted-note-list" size="4" disabled></select>
+                </label>
+                <button data-role="select-omitted-note" type="button" disabled>Select for TAB assignment</button>
+                <p class="workbench-editor__status" data-role="omitted-note-status">No reduction-unassigned note is available for assignment.</p>
+              </div>
               <div class="workbench-editor__controls workbench-editor__controls--fingering">
                 <label>
                   <span>String</span>

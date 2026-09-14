@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -41,7 +41,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
 | R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
 | Stage 09 additional corpus source + TAB availability | ✅ 11/11 LOCAL VERIFIED — 0 hard blocks; 2,794/6,631 notes assigned |
-| `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH + EXACT TAB POSITION + DURATION CONNECTED — tied-chain pitch is atomic; voice/structure and omitted-note assignment remain closed |
+| `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH + EXACT TAB POSITION + DURATION + REDUCTION-UNASSIGNED NOTE ASSIGNMENT CONNECTED — tied-chain pitch is atomic; semantic omissions and voice/structure remain closed |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -76,7 +76,7 @@ Stage 09 has a dedicated evidence gate and now meets the Tier-A minimum with 20 
 
 Tier B remains intentionally open. A cross-repository audit found two teacher-verified references, including one authentic teacher-approved Audiveris chain, but neither supplies a non-empty real teacher-correction patch ledger that can be revalidated through Stage 08. The product gate therefore remains `HOLD_EVIDENCE_GAP` at 0/3 eligible teacher-correction cases and still lacks required real `PASS` / `REVIEW_REQUIRED` / `BLOCKED` plus representation coverage. Synthetic, no-correction and regression-only OMR material cannot satisfy Tier B. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
 
-The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.0.0` maps only proven source-note identities to the provisional score/TAB renderer. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 `1.3.0` commands may carry pitch, one exact string/fret position, one positive integer duration in source divisions, and complete ordered tie-chain identity. Commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. A tied pitch revision changes every validated chain segment atomically; incomplete chain identity blocks. Impossible positions, measure overflow and unsafe same-voice overlaps block instead of being guessed, moved or omitted. Tied-chain duration/position, voice/structure and assigning previously omitted notes remain unavailable; the pinned editor adapter still has no reviewed canonical voice-reassignment primitive.
+The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.1.0` maps only proven source-note identities to the provisional score/TAB renderer and distinguishes reduction-unassigned notes from semantic omissions. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 `1.4.0` commands may carry pitch, one exact string/fret position, one positive integer duration in source divisions, complete ordered tie-chain identity, and explicit `ASSIGN_OMITTED` intent for one eligible unassigned note. Commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. A tied pitch revision changes every validated chain segment atomically; incomplete chain identity blocks. An assignment retains the requested source note and preserves every prior assigned position. Impossible/colliding positions, over-capacity shapes, measure overflow and unsafe same-voice overlaps block instead of being guessed, moved or omitted. Tied-chain duration/position, semantic `OMITTED` or grace-note assignment, voice/structure and note creation/deletion remain unavailable; the pinned editor adapter still has no reviewed canonical voice-reassignment primitive.
 
 ## Current production/application path
 

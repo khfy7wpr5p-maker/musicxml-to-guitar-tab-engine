@@ -2,8 +2,8 @@
 
 const crypto = require('node:crypto');
 
-const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.2.0';
-const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.4.0';
+const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.3.0';
+const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.5.0';
 
 const PLAYBACK_CAPABILITY = Object.freeze({
   FULL: 'FULL',
@@ -242,7 +242,7 @@ function validReviewEditableProjection(result) {
   const shapeValid = Boolean(
     validPartialArrangementArtifact(result)
     && projection?.documentType === 'ReviewEditableTabProjection'
-    && projection?.contractVersion === '1.0.0'
+    && projection?.contractVersion === '1.1.0'
     && projection?.authority === 'PROVISIONAL_REVIEW_ONLY'
     && projection?.sourceUploadSha256 === result?.input?.sha256
     && projection?.sourceUploadSha256 === artifact?.sourceUploadSha256
@@ -260,15 +260,37 @@ function validReviewEditableProjection(result) {
       .map((entry) => [entry.sourceEventId, entry]),
   );
   const projectionIds = new Set();
+  const eventById = new Map(
+    projection.measures.flatMap((measure) => measure?.events || [])
+      .filter((event) => event?.type === 'note')
+      .map((event) => [event.sourceEventId, event]),
+  );
+  const tiedGroupEventIds = new Set();
+  for (const group of projection.simultaneousGroups) {
+    if (group?.sourceEventIds?.some((sourceEventId) => {
+      const member = eventById.get(sourceEventId);
+      return member?.tieStart || member?.tieStop;
+    })) {
+      for (const sourceEventId of group.sourceEventIds) tiedGroupEventIds.add(sourceEventId);
+    }
+  }
   for (const entry of projection.noteDispositions) {
     const source = artifactById.get(entry?.sourceEventId);
+    const event = eventById.get(entry?.sourceEventId);
     const expectedDisposition = source?.disposition === 'KEPT' || source?.disposition === 'OCTAVE_SHIFTED'
       ? 'KEEP'
       : 'OMIT';
+    const expectedAssignmentEligible = source?.disposition === 'UNASSIGNED'
+      && event?.tieStart === false
+      && event?.tieStop === false
+      && !tiedGroupEventIds.has(entry?.sourceEventId);
     if (
       !source
+      || !event
       || projectionIds.has(entry.sourceEventId)
       || entry.disposition !== expectedDisposition
+      || entry.reasonCode !== source.reasonCode
+      || entry.assignmentEligible !== expectedAssignmentEligible
       || entry.targetPitch !== source.targetPitch
       || entry.selectedPosition !== source.selectedPosition
     ) return false;
@@ -319,6 +341,11 @@ function decorateUploadResultWithCapabilities(result) {
       (passed && Boolean(result.canonicalTabResult))
       || (reviewable && (Boolean(result.canonicalTabResult) || reviewEditableProjectionAvailable))
     ),
+    assignTabPosition: reviewable
+      && reviewEditableProjectionAvailable
+      && result.reviewEditableProjection.noteDispositions.some(
+        (entry) => entry.assignmentEligible === true,
+      ),
     editVoice: false,
     editStructure: false,
     playback,

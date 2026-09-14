@@ -1,6 +1,6 @@
 # UI Stage 1 — Guitar TAB Workbench
 
-Status: product-UI foundation and POLY_V2 selection hardening are active; R7 adds backend-validated atomic tie-chain pitch editing.
+Status: product-UI foundation and POLY_V2 selection hardening are active; R8 adds backend-validated exact placement for eligible reduction-unassigned notes.
 
 ## Product target
 
@@ -94,9 +94,11 @@ Valid retained POLY_V2 ties use the sustained canonical selector. R7 permits pit
 
 Accepted POLY_V2 edits rebuild every PRESERVED source-note disposition, guitar shape/fingering selection and the complete notation+TAB MusicXML document. A requested position filters backend candidates and must round-trip exactly. Silent movement, omission or octave displacement remains forbidden.
 
+R8 adds an “Unassigned notes” list to the existing Fingering panel. Its entries come only from backend-validated `assignmentEligible` projection facts; the browser does not infer eligibility from a missing TAB glyph. Selecting an entry and submitting string/fret adds explicit `ASSIGN_OMITTED` intent. The backend preserves all prior assigned positions, retains the target if the whole shape is physically valid, and regenerates provisional notation+TAB. Semantic omissions, tied groups and grace notes never enter this list.
+
 ## Current limits
 
-- structured edits cover pitch replacement, exact string/fret override for an assigned untied POLY_V2 note, untied duration, and atomic pitch replacement for a valid tied chain;
+- structured edits cover pitch replacement, exact string/fret override for an assigned untied POLY_V2 note, explicit placement of an eligible reduction-unassigned note, untied duration, and atomic pitch replacement for a valid tied chain;
 - rest targets are rejected;
 - unplayable pitches fail closed; there is no automatic octave displacement;
 - finger-number editing and assigning a previously omitted note remain unavailable;

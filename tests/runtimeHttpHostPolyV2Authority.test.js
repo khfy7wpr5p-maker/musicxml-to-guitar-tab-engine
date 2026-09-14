@@ -86,7 +86,7 @@ test('R7 runtime host authorizes and atomically edits an exact POLY_V2 tie chain
 
   assert.equal(edit.response.status, 200);
   assert.equal(edit.payload.status, 'PASS');
-  assert.equal(edit.payload.contractVersion, '1.3.0');
+  assert.equal(edit.payload.contractVersion, '1.4.0');
   assert.equal(edit.payload.revision.appliedEdits[0].commandType, 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH');
   assert.deepEqual(edit.payload.revision.appliedEdits[0].sourceTieEventIds, sourceTieEventIds);
   const editedSegments = edit.payload.canonicalTabResult.measures.flatMap(
@@ -174,6 +174,64 @@ test('runtime host accepts a guarded TAB position override and returns that exac
     {string: 3, fret: 12},
   );
   assert.match(edit.payload.musicXml, /<string>3<\/string>[\s\S]*<fret>12<\/fret>/);
+});
+
+test('R8 runtime host assigns a reduction-unassigned piano note without displacing retained notes', async (t) => {
+  const origin = await startServer(t);
+  const sourceBytes = densePianoChord();
+  const upload = await readJson(await fetch(`${origin}/api/upload?fileName=dense-piano.musicxml`, {
+    method: 'POST',
+    headers: {'content-type': 'application/octet-stream'},
+    body: sourceBytes,
+  }));
+  assert.equal(upload.response.status, 200);
+  assert.equal(upload.payload.status, 'REVIEW_REQUIRED');
+  assert.equal(upload.payload.capabilities.assignTabPosition, true);
+
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map(
+    (sourceOrder) => `P1:measure:0:note:${sourceOrder}`,
+  );
+  const sourceEventId = sourceGroupEventIds[1];
+  const commands = [{
+    measureIndex: 0,
+    sourceOrder: 1,
+    sourceEventId,
+    sourceGroupId: 'P1:measure:0:simultaneous:0',
+    sourceGroupEventIds,
+    sourceTieEventIds: [sourceEventId],
+    pitch: {step: 'G', alter: 0, octave: 3},
+    selectedPosition: {string: 5, fret: 10},
+    assignmentMode: 'ASSIGN_OMITTED',
+  }];
+  const edit = await readJson(await fetch(
+    `${origin}/api/edit/poly-v2?fileName=dense-piano.musicxml&sha=${upload.payload.input.sha256}`,
+    {
+      method: 'POST',
+      headers: {'content-type': EDIT_CONTENT_TYPE},
+      body: editBody(commands, sourceBytes),
+    },
+  ));
+
+  assert.equal(edit.response.status, 200);
+  assert.equal(edit.payload.status, 'REVIEW_REQUIRED');
+  assert.equal(edit.payload.contractVersion, '1.4.0');
+  const assigned = edit.payload.reviewEditableProjection.noteDispositions.find(
+    (entry) => entry.sourceEventId === sourceEventId,
+  );
+  assert.equal(assigned.disposition, 'KEEP');
+  assert.equal(assigned.assignmentEligible, false);
+  assert.deepEqual(assigned.selectedPosition, {string: 5, fret: 10});
+  assert.equal(edit.payload.arrangementArtifact.assignedNoteCount, 4);
+  assert.equal(edit.payload.arrangementArtifact.unassignedNoteCount, 2);
+  for (const previous of upload.payload.arrangementArtifact.noteDispositions.filter(
+    (entry) => entry.disposition === 'KEPT' || entry.disposition === 'OCTAVE_SHIFTED',
+  )) {
+    const current = edit.payload.arrangementArtifact.noteDispositions.find(
+      (entry) => entry.sourceEventId === previous.sourceEventId,
+    );
+    assert.notEqual(current.disposition, 'UNASSIGNED');
+    assert.deepEqual(current.selectedPosition, previous.selectedPosition);
+  }
 });
 
 test('runtime host applies a guarded duration edit to provisional piano TAB', async (t) => {
