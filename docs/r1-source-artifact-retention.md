@@ -36,7 +36,7 @@ For `.xml` and `.musicxml`, `rendererMusicXml` contains the safety-normalized di
 | `sha256` | SHA-256 of the safety-normalized renderer bytes |
 | `rendererMusicXml` | Immutable safety-normalized source score |
 
-R1 introduced upload result schema `1.2.0`. R2 advanced the additive result schema to `1.3.0` for the provisional arrangement artifact. R6 advances it to `1.4.0` and the capability contract to `1.2.0` for explicitly authorized POLY_V2 duration editing. The established upload runtime `contractVersion: 1.0.0` remains unchanged.
+R1 introduced upload result schema `1.2.0`. R2 advanced the additive result schema to `1.3.0` for the provisional arrangement artifact. R6 advanced it to `1.4.0` and capability contract `1.2.0` for explicitly authorized POLY_V2 duration editing. R8 advances the additive result schema to `1.5.0` and capability contract to `1.3.0` for backend-validated reduction-unassigned-note TAB placement. The established upload runtime `contractVersion: 1.0.0` remains unchanged.
 
 ## Status and authority matrix
 

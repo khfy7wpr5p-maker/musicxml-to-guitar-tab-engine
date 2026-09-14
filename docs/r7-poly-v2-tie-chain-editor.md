@@ -40,4 +40,4 @@ R7 adds focused backend tests for successful two-measure atomic replacement, inc
 
 ## Remaining correction work
 
-This slice does not yet assign a string/fret to a previously `OMIT`-disposition note, change canonical voice/staff, add/delete notes, repair malformed ties, or edit tied duration/position. The next highest-value slice is explicit omitted-note assignment: it needs a selectable review-list surface, a retained assignment decision in partial recovery, and backend proof that the requested position survives regeneration without silently omitting another source note.
+R8 delivers the next slice for the narrower `UNASSIGNED / BOUNDED_GUITAR_REDUCTION` subset: a same-page source-note list plus explicit exact string/fret assignment. Semantic `OMITTED`, tie/grace, voice/staff, note creation/deletion, malformed-tie repair and tied duration/position remain outside that contract.

@@ -30,6 +30,13 @@ const fixtureBytes = fs.readFileSync(
 const tiedFixtureBytes = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/ui07-poly-unison-tie.musicxml'),
 );
+const densePianoBytes = Buffer.from(
+  '<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>'
+  + [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]].map(
+    ([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`,
+  ).join('')
+  + '</measure></part></score-partwise>',
+);
 
 function resolveAlphaTabAsset(relativePath) {
   const filePath = path.resolve(alphaTabDist, decodeURIComponent(relativePath));
@@ -71,8 +78,16 @@ function pageHtml() {
         <select data-role="edit-alter" disabled><option value="-2">bb</option><option value="-1">b</option><option value="0" selected>natural</option><option value="1">#</option><option value="2">##</option></select>
         <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
         <input data-role="edit-duration" type="number" min="1" step="1" value="1" disabled>
+        <span data-role="omitted-note-count">0</span>
+        <select data-role="omitted-note-list" size="4" disabled></select>
+        <button data-role="select-omitted-note" type="button" disabled>Select omitted</button>
+        <p data-role="omitted-note-status"></p>
+        <select data-role="edit-string" disabled><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+        <input data-role="edit-fret" type="number" min="0" max="20" value="0" disabled>
         <button data-role="apply-edit" type="button" disabled>Apply</button>
         <button data-role="apply-duration-edit" type="button" disabled>Apply duration</button>
+        <button data-role="apply-position-edit" type="button" disabled>Apply position</button>
+        <p data-role="position-edit-status"></p>
         <button data-role="cancel-edit" type="button" disabled>Clear</button>
       </section>
       <section><span data-role="issue-count"></span><ol data-role="issues"></ol></section>
@@ -91,7 +106,13 @@ function pageHtml() {
     lastUiCommands:null,
     lastRuntimeCommands:null,
     lastUploadResult:null,
+    lastAuthoritativeEditResult:null,
   };
+  const present = payload => payload?.status === 'REVIEW_REQUIRED'
+    && payload?.capabilities?.renderScore === true
+    && typeof payload?.musicXml === 'string'
+    ? {...payload,status:'PASS',canonicalTabResult:payload.canonicalTabResult || payload.reviewEditableProjection}
+    : payload;
   const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
@@ -100,7 +121,7 @@ function pageHtml() {
     const payload = await response.json();
     smoke.lastUploadResult = structuredClone(payload);
     if(!response.ok) throw new Error(payload?.message || 'upload failed');
-    return payload;
+    return present(payload);
   };
   const edit = async () => {
     smoke.monoEditCalls += 1;
@@ -117,7 +138,9 @@ function pageHtml() {
       sourceGroupEventIds:[...command.sourceGroupEventIds],
       sourceTieEventIds:[...command.sourceTieEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+      ...(command.selectedPosition ? {selectedPosition:{...command.selectedPosition}} : {}),
       ...(command.durationDivisions === undefined ? {} : {durationDivisions:command.durationDivisions}),
+      ...(command.assignmentMode ? {assignmentMode:command.assignmentMode} : {}),
     }));
     smoke.lastRuntimeCommands = structuredClone(runtimeCommands);
     const response = await fetch(
@@ -130,8 +153,9 @@ function pageHtml() {
       },
     );
     const payload = await response.json();
+    smoke.lastAuthoritativeEditResult = structuredClone(payload);
     if(!response.ok) throw new Error(payload?.message || 'poly edit failed');
-    return payload;
+    return present(payload);
   };
   try {
     window.__workbench = GuitarTabWorkbench.mount({
@@ -188,6 +212,14 @@ const server = http.createServer((request, response) => {
       'content-length':tiedFixtureBytes.length,
     });
     response.end(tiedFixtureBytes);
+    return;
+  }
+  if (url.pathname === '/dense-fixture.musicxml') {
+    response.writeHead(200, {
+      'content-type':'application/vnd.recordare.musicxml+xml',
+      'content-length':densePianoBytes.length,
+    });
+    response.end(densePianoBytes);
     return;
   }
   if (url.pathname === '/workbench/workbench.js') {
@@ -389,7 +421,7 @@ try {
   );
   assert.equal(edited.snapshot.runtimeResult.status, 'PASS');
   assert.equal(edited.snapshot.runtimeResult.route, 'POLY_V2');
-  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.3.0');
+  assert.equal(edited.snapshot.runtimeResult.contractVersion, '1.4.0');
   assert.equal(
     edited.snapshot.runtimeResult.revision.appliedEdits[0].commandType,
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
@@ -493,6 +525,59 @@ try {
   );
   assert.match(tiedEdited.snapshot.runtimeResult.musicXml, /<tie type="start"\/>/);
   assert.match(tiedEdited.snapshot.runtimeResult.musicXml, /<tie type="stop"\/>/);
+
+  const denseLoaded = await page.evaluate(async () => {
+    const response = await fetch('/dense-fixture.musicxml');
+    const file = new File([await response.arrayBuffer()], 'dense-piano.musicxml', {
+      type:'application/vnd.recordare.musicxml+xml',
+    });
+    return window.__workbench.loadFile(file);
+  });
+  assert.equal(denseLoaded, true);
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().scoreLoaded === true
+      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 3,
+    {timeout:30000},
+  );
+  const omittedSelected = await page.evaluate(() => {
+    const list = document.querySelector('[data-role="omitted-note-list"]');
+    list.value = 'P1:measure:0:note:1';
+    const selected = window.__workbench.selectOmittedNote();
+    return {
+      selected,
+      selectedEvent:window.__workbench.snapshot().selectedEvent,
+      count:document.querySelector('[data-role="omitted-note-count"]').textContent,
+      positionDisabled:document.querySelector('[data-role="apply-position-edit"]').disabled,
+    };
+  });
+  assert.equal(omittedSelected.selected, true);
+  assert.equal(omittedSelected.selectedEvent.sourceEventId, 'P1:measure:0:note:1');
+  assert.equal(omittedSelected.selectedEvent.assignmentEligible, true);
+  assert.equal(omittedSelected.count, '3');
+  assert.equal(omittedSelected.positionDisabled, false);
+
+  await page.select('[data-role="edit-string"]', '5');
+  await page.$eval('[data-role="edit-fret"]', element => { element.value = '10'; });
+  await page.click('[data-role="apply-position-edit"]');
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().revisionNumber === 1
+      && window.__workbench?.snapshot().scoreLoaded === true
+      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 2,
+    {timeout:30000},
+  );
+  const assigned = await page.evaluate(() => ({
+    snapshot:window.__workbench.snapshot(),
+    smoke:window.__ui07Smoke,
+    remaining:document.querySelector('[data-role="omitted-note-list"]').options.length,
+  }));
+  assert.equal(assigned.smoke.uploadCalls, 3);
+  assert.equal(assigned.smoke.polyEditCalls, 4);
+  assert.equal(assigned.smoke.lastRuntimeCommands[0].assignmentMode, 'ASSIGN_OMITTED');
+  assert.deepEqual(assigned.smoke.lastRuntimeCommands[0].selectedPosition, {string:5,fret:10});
+  assert.equal(assigned.smoke.lastAuthoritativeEditResult.status, 'REVIEW_REQUIRED');
+  assert.equal(assigned.smoke.lastAuthoritativeEditResult.arrangementArtifact.assignedNoteCount, 4);
+  assert.equal(assigned.smoke.lastAuthoritativeEditResult.arrangementArtifact.unassignedNoteCount, 2);
+  assert.equal(assigned.remaining, 2);
   assert.deepEqual(errors, []);
 
   process.stdout.write(`${JSON.stringify({
@@ -501,6 +586,7 @@ try {
     unisonVoices:selectedByVoice.map(entry => entry.snapshot.selectedEvent.voice),
     runtimeContract:durationEdited.snapshot.runtimeResult.contractVersion,
     retainedTieAuthority:'ATOMIC_PITCH_V1',
+    omittedAssignmentAuthority:'EXPLICIT_TEACHER_STRING_FRET_V1',
     monoEditCalls:edited.smoke.monoEditCalls,
   })}\n`);
 } finally {

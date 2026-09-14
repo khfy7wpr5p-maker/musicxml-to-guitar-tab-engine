@@ -38,7 +38,7 @@ const { createGuitarArrangementRegister } = require('../guitar/guitarArrangement
 const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
 const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
-const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.3.0';
+const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.4.0';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_DOCUMENT_TYPE = 'MusicXmlPolyphonicNoteEditRuntimeV2Result';
 const MUSICXML_POLYPHONIC_NOTE_EDIT_STATUS = Object.freeze({
   PASS: 'PASS',
@@ -248,6 +248,7 @@ function normalizeCommand(command, revisionIndex) {
       'pitch',
       'selectedPosition',
       'durationDivisions',
+      'assignmentMode',
     ]),
     new Set([
       'measureIndex',
@@ -289,6 +290,21 @@ function normalizeCommand(command, revisionIndex) {
       field: 'sourceGroupId',
     });
   }
+  const assignmentMode = Object.hasOwn(descriptors, 'assignmentMode')
+    ? descriptors.assignmentMode.value
+    : null;
+  if (assignmentMode !== null && assignmentMode !== 'ASSIGN_OMITTED') {
+    throw invalidRequest(`${field}.assignmentMode is not supported.`, {
+      revisionIndex,
+      field: 'assignmentMode',
+    });
+  }
+  if (assignmentMode && !Object.hasOwn(descriptors, 'selectedPosition')) {
+    throw invalidRequest(`${field}.assignmentMode requires selectedPosition.`, {
+      revisionIndex,
+      field: 'assignmentMode',
+    });
+  }
   return Object.freeze({
     measureIndex,
     sourceOrder,
@@ -305,6 +321,7 @@ function normalizeCommand(command, revisionIndex) {
       ),
     } : {}),
     pitch: normalizePitch(descriptors.pitch.value, `${field}.pitch`),
+    ...(assignmentMode ? { assignmentMode } : {}),
     ...(Object.hasOwn(descriptors, 'selectedPosition') ? {
       selectedPosition: normalizeSelectedPosition(
         descriptors.selectedPosition.value,
@@ -574,7 +591,15 @@ function assertExactGroupIdentity(command, event, group, revisionIndex) {
   }
 }
 
-function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionIndex) {
+function applyCommand(
+  revisedSource,
+  groupIndex,
+  tieIndex,
+  assignmentEligibleIds,
+  assignedByRevisionIds,
+  command,
+  revisionIndex,
+) {
   const measure = revisedSource.measures[command.measureIndex];
   const event = measure?.events?.[command.sourceOrder];
   const details = {
@@ -645,6 +670,38 @@ function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionInde
     );
   }
 
+  const assignmentRequested = command.assignmentMode === 'ASSIGN_OMITTED';
+  const assignmentEligible = assignmentEligibleIds.has(event.sourceEventId)
+    && !assignedByRevisionIds.has(event.sourceEventId);
+  if (assignmentRequested && !assignmentEligible) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'The selected source event is not eligible for omitted-note TAB assignment.',
+      'EDIT_SOURCE_EVENT_NOT_ASSIGNMENT_ELIGIBLE',
+      details,
+    );
+  }
+  if (!assignmentRequested && assignmentEligible && command.selectedPosition) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'An unassigned review note requires explicit omitted-note assignment intent.',
+      'EDIT_ASSIGNMENT_MODE_REQUIRED',
+      details,
+    );
+  }
+  if (
+    assignmentRequested
+    && (
+      event.pitch.step !== command.pitch.step
+      || event.pitch.alter !== command.pitch.alter
+      || event.pitch.octave !== command.pitch.octave
+    )
+  ) {
+    throw new MusicXmlPolyphonicNoteEditRuntimeV2Error(
+      'Omitted-note assignment cannot change pitch in the same command.',
+      'EDIT_ASSIGNMENT_PITCH_CHANGE_NOT_SUPPORTED',
+      details,
+    );
+  }
+
   const acknowledgedIds = group ? group.sourceEventIds : [event.sourceEventId];
   const acknowledgedEvents = acknowledgedIds.map((sourceEventId) => {
     for (const candidateMeasure of revisedSource.measures) {
@@ -704,8 +761,11 @@ function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionInde
   const durationChanged = command.durationDivisions !== undefined
     && beforeDurationDivisions !== command.durationDivisions;
   const durationRequested = command.durationDivisions !== undefined;
+  if (assignmentRequested) assignedByRevisionIds.add(event.sourceEventId);
   let commandType = 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH';
-  if (tieChain) {
+  if (assignmentRequested) {
+    commandType = 'ASSIGN_OMITTED_POLYPHONIC_SOURCE_EVENT_POSITION';
+  } else if (tieChain) {
     commandType = 'REPLACE_POLYPHONIC_TIE_CHAIN_PITCH';
   } else if (command.selectedPosition && durationRequested) {
     commandType = pitchChanged
@@ -731,6 +791,7 @@ function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionInde
     sourceGroupEventIds: [...acknowledgedIds],
     sourceTieEventIds: expectedTieEventIds,
     affectedEventCount: editedEvents.length,
+    ...(assignmentRequested ? { assignmentMode: command.assignmentMode } : {}),
     beforePitch,
     afterPitch: clonePlainData(command.pitch),
     beforeDurationDivisions,
@@ -742,8 +803,21 @@ function applyCommand(revisedSource, groupIndex, tieIndex, command, revisionInde
   };
 }
 
-function positionOverridesFromCommands(commands) {
+function positionOverridesFromCommands(commands, uploadResult) {
   const overrides = Object.create(null);
+  const assignmentRequested = commands.some(
+    (command) => command.assignmentMode === 'ASSIGN_OMITTED',
+  );
+  if (assignmentRequested) {
+    for (const entry of uploadResult.arrangementArtifact?.noteDispositions || []) {
+      if (
+        (entry.disposition === 'KEPT' || entry.disposition === 'OCTAVE_SHIFTED')
+        && entry.selectedPosition
+      ) {
+        overrides[entry.sourceEventId] = clonePlainData(entry.selectedPosition);
+      }
+    }
+  }
   for (const command of commands) {
     if (command.selectedPosition) {
       overrides[command.sourceEventId] = clonePlainData(command.selectedPosition);
@@ -922,6 +996,12 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
     const projected = projectEditableSource(normalized.bytes, processing);
     const sourceGroupIndex = createGroupIdentityIndex(projected.sourceModel, processing);
     const sourceTieIndex = createTieIdentityIndex(projected.sourceModel, processing);
+    const assignmentEligibleIds = new Set(
+      (uploadResult.reviewEditableProjection?.noteDispositions || [])
+        .filter((entry) => entry.assignmentEligible === true)
+        .map((entry) => entry.sourceEventId),
+    );
+    const assignedByRevisionIds = new Set();
     const revisedPlain = clonePlainData(projected.sourceModel);
     const appliedEdits = [];
     for (let index = 0; index < normalized.commands.length; index += 1) {
@@ -930,6 +1010,8 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         revisedPlain,
         sourceGroupIndex,
         sourceTieIndex,
+        assignmentEligibleIds,
+        assignedByRevisionIds,
         normalized.commands[index],
         index,
       ));
@@ -940,7 +1022,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
     });
     const revisedSourceModel = createPolyphonicSourceModel(revisedPlain, processing);
     const guitarOptions = Object.freeze({
-      positionOverrides: positionOverridesFromCommands(normalized.commands),
+      positionOverrides: positionOverridesFromCommands(normalized.commands, uploadResult),
     });
     const inputRequiresReview = uploadResult.status === MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED;
     const decisions = inputRequiresReview

@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-13 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -63,12 +63,14 @@ R6 versions the POLY_V2 edit result contract to `1.2.0` and adds one optional po
 
 R7 versions the POLY_V2 edit result contract to `1.3.0` and makes a valid retained sustain/tie chain an atomic pitch-edit target. The Workbench supplies the complete ordered `sourceTieEventIds`; the host preserves this bounded evidence; the backend independently rebuilds `SustainTieGraph` from the immutable source and requires an exact match before changing every segment. A missing, incomplete or reordered acknowledgement blocks. Duration and explicit string/fret edits on tied chains remain closed, so one segment cannot diverge from the chain. See [`r7-poly-v2-tie-chain-editor.md`](r7-poly-v2-tie-chain-editor.md).
 
+R8 versions the POLY_V2 edit result contract to `1.4.0`, `ReviewEditableTabProjection` to `1.1.0`, the additive upload-result schema to `1.5.0`, and the capability contract to `1.3.0`. A partial arrangement now marks only untied `UNASSIGNED / BOUNDED_GUITAR_REDUCTION` source notes as `assignmentEligible`. The same-page Fingering panel lists those source identities even though they are absent from renderer TAB. An exact teacher-selected string/fret is accepted only with explicit `assignmentMode: ASSIGN_OMITTED`; regeneration preserves every prior assigned position and must retain the requested note. Semantic `OMITTED` notes, grace/tie cases, pitch-plus-assignment, impossible positions and over-capacity shapes remain closed. See [`r8-omitted-note-assignment.md`](r8-omitted-note-assignment.md).
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
-- provisional review selection and pitch/position/duration/tie-chain regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
+- provisional review selection and pitch/position/duration/tie-chain/explicit-unassigned-note regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
 - repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;
 - representation compatibility: `src/app/runtimeGuitarNotationNormalizer.js`, `src/parser/polyphonicTripletDisplayNormalizer.js`, `src/app/exactTabStaffMirrorNormalizer.js`, `src/parser/polyphonicGraceOrnamentExtractor.js`;

@@ -40,6 +40,10 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'edit-fret',
     'apply-position-edit',
     'position-edit-status',
+    'omitted-note-list',
+    'omitted-note-count',
+    'select-omitted-note',
+    'omitted-note-status',
     'mode-badge',
     'mode-description',
     'runtime-upload-action',
@@ -75,6 +79,7 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostAdapters, /DataView/);
   assert.match(hostAdapters, /expectedInputSha256/);
   assert.match(hostAdapters, /function polyV2RuntimeCommands/);
+  assert.match(hostAdapters, /assignmentMode/);
   assert.match(hostAdapters, /polyV2RuntimeCommands\(request\?\.commands\)/);
   assert.match(hostAdapters, /function transpositionQuery/);
   assert.match(hostAdapters, /createRuntimeApiAdapter/);
@@ -106,6 +111,11 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /commands:\s*pendingCommands\.map/);
   assert.match(script, /function applyDocumentTransposition/);
   assert.match(script, /function applySelectedPositionEdit/);
+  assert.match(script, /function renderOmittedNoteAssignments/);
+  assert.match(script, /function selectOmittedNote/);
+  assert.match(script, /ASSIGN_OMITTED/);
+  assert.match(script, /assignmentEligible/);
+  assert.match(script, /createElement\(documentRef, 'option'/);
   assert.match(script, /selectedPosition/);
   assert.match(script, /session\.commands\.length === 0/);
   assert.match(script, /api\.load\(new TextEncoder\(\)\.encode\(result\.musicXml\)\)/);

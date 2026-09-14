@@ -61,6 +61,9 @@
         ...(command.durationDivisions === undefined ? {} : {
           durationDivisions: command.durationDivisions,
         }),
+        ...(command.assignmentMode ? {
+          assignmentMode: command.assignmentMode,
+        } : {}),
       };
     }
     return {
@@ -119,6 +122,10 @@
     const editFret = root.querySelector('[data-role="edit-fret"]');
     const applyPositionEditButton = root.querySelector('[data-role="apply-position-edit"]');
     const positionEditStatus = root.querySelector('[data-role="position-edit-status"]');
+    const omittedNoteList = root.querySelector('[data-role="omitted-note-list"]');
+    const omittedNoteCount = root.querySelector('[data-role="omitted-note-count"]');
+    const selectOmittedNoteButton = root.querySelector('[data-role="select-omitted-note"]');
+    const omittedNoteStatus = root.querySelector('[data-role="omitted-note-status"]');
     const transposeStatus = root.querySelector('[data-role="transpose-status"]');
     const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
     const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
@@ -139,6 +146,11 @@
         'Workbench transposition markup is incomplete.',
       );
     }
+    assert(
+      (!omittedNoteList && !omittedNoteCount && !selectOmittedNoteButton && !omittedNoteStatus)
+      || (omittedNoteList && omittedNoteCount && selectOmittedNoteButton && omittedNoteStatus),
+      'Workbench omitted-note assignment markup is incomplete.',
+    );
 
     const state = {
       destroyed: false,
@@ -212,6 +224,43 @@
       setText(positionEditStatus, 'Select an assigned POLY_V2 note to change its TAB position.');
     }
 
+    function renderOmittedNoteAssignments() {
+      if (!omittedNoteList) return;
+      while (omittedNoteList.firstChild) omittedNoteList.removeChild(omittedNoteList.firstChild);
+      const canonical = state.runtimeResult?.canonicalTabResult;
+      const enabled = state.runtimeResult?.route === 'POLY_V2'
+        && state.runtimeResult?.capabilities?.assignTabPosition === true;
+      const dispositionById = new Map(
+        (canonical?.noteDispositions || []).map((entry) => [entry.sourceEventId, entry]),
+      );
+      const candidates = [];
+      for (let measureIndex = 0; measureIndex < (canonical?.measures?.length || 0); measureIndex += 1) {
+        const measure = canonical.measures[measureIndex];
+        for (const event of measure.events || []) {
+          const disposition = dispositionById.get(event?.sourceEventId);
+          if (event?.type !== 'note' || disposition?.assignmentEligible !== true) continue;
+          candidates.push({ measureIndex, measure, event });
+        }
+      }
+      for (const candidate of candidates) {
+        const option = createElement(documentRef, 'option', null,
+          `Measure ${visibleMeasureNumber(candidate.measure)} · ${candidate.event.pitch.written} · voice ${candidate.event.voice}`);
+        option.value = candidate.event.sourceEventId;
+        option.dataset.measureIndex = String(candidate.measureIndex);
+        option.dataset.sourceOrder = String(candidate.event.sourceOrder);
+        omittedNoteList.appendChild(option);
+      }
+      omittedNoteList.disabled = !enabled || candidates.length === 0;
+      selectOmittedNoteButton.disabled = !enabled || candidates.length === 0;
+      setText(omittedNoteCount, String(candidates.length));
+      setText(
+        omittedNoteStatus,
+        candidates.length > 0
+          ? 'Select a note, then choose its exact string and fret.'
+          : 'No reduction-unassigned note is available for assignment.',
+      );
+    }
+
     function clearSession() {
       session.sourceFileName = null;
       session.sourceBytes = null;
@@ -269,7 +318,9 @@
       return canEdit()
         && editString && editFret && applyPositionEditButton
         && state.selectedEvent?.route === 'POLY_V2'
-        && state.selectedEvent?.selectedPosition
+        && (state.selectedEvent?.selectedPosition || state.selectedEvent?.assignmentEligible)
+        && (!state.selectedEvent?.assignmentEligible
+          || state.runtimeResult?.capabilities?.assignTabPosition === true)
         && !state.selectedEvent?.groupContainsTies;
     }
 
@@ -300,6 +351,13 @@
       if (editString) editString.disabled = !canEditPosition();
       if (editFret) editFret.disabled = !canEditPosition();
       if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
+      const omittedAssignmentReady = state.runtimeResult?.route === 'POLY_V2'
+        && state.runtimeResult?.capabilities?.assignTabPosition === true
+        && (omittedNoteList?.options.length || 0) > 0;
+      if (omittedNoteList) omittedNoteList.disabled = busy || !omittedAssignmentReady;
+      if (selectOmittedNoteButton) {
+        selectOmittedNoteButton.disabled = busy || !omittedAssignmentReady;
+      }
       if (transposeSpelling) transposeSpelling.disabled = !canTranspose();
       if (transposeTargetKey) transposeTargetKey.disabled = !canTranspose();
       if (transposeDownButton) transposeDownButton.disabled = !canTranspose();
@@ -722,6 +780,7 @@
       }
       const groupContainsTies = groupMembers.some((member) => member.tieStart || member.tieStop);
       const position = dispositions.get(event.sourceEventId)?.selectedPosition || null;
+      const assignmentEligible = dispositions.get(event.sourceEventId)?.assignmentEligible === true;
       const number = visibleMeasureNumber(measure);
       state.selectedEvent = {
         route: 'POLY_V2',
@@ -749,6 +808,7 @@
         tied: sourceTieEventIds.length > 1,
         groupContainsTies,
         selectedPosition: position ? { string: position.string, fret: position.fret } : null,
+        assignmentEligible,
         durationDivisions: event.durationDivisions,
         measureDivisions: measure.divisions,
       };
@@ -765,7 +825,9 @@
         if (editFret) editFret.value = String(position.fret);
         setText(positionEditStatus, `Current TAB position · string ${position.string}, fret ${position.fret}`);
       } else {
-        setText(positionEditStatus, 'This note is not assigned in the provisional TAB.');
+        setText(positionEditStatus, assignmentEligible
+          ? 'Ready to assign: choose the exact string and fret.'
+          : 'This note is not assigned in the provisional TAB.');
       }
       const tieText = sourceTieEventIds.length > 1
         ? ` · tie chain ${sourceTieEventIds.length} acknowledged`
@@ -911,6 +973,7 @@
       assert(result && typeof result === 'object', 'Upload result is invalid.');
       assert(UPLOAD_RESULT_STATUSES.has(result.status), 'Upload result status is invalid.');
       state.runtimeResult = result;
+      renderOmittedNoteAssignments();
       state.lastError = null;
       setText(documentStatus, result.status);
       setText(routeStatus, result.route || 'UNRESOLVED');
@@ -1027,6 +1090,9 @@
           ...(editOptions.durationDivisions === undefined
             ? {}
             : { durationDivisions: editOptions.durationDivisions }),
+          ...(state.selectedEvent.assignmentEligible && editOptions.selectedPosition
+            ? { assignmentMode: 'ASSIGN_OMITTED' }
+            : {}),
         };
       }
       return {
@@ -1120,6 +1186,7 @@
         state.revisionNumber = pendingCommands.length;
         session.pendingFocus = selectionIdentity;
         state.runtimeResult = result;
+        renderOmittedNoteAssignments();
         setText(documentStatus, 'PASS');
         setText(routeStatus, result.route);
         renderIssues(result.preflight?.issues || []);
@@ -1190,6 +1257,22 @@
       }
       setText(editStatus, 'Validating duration and regenerating TAB…');
       return applySelectedEdit({ durationDivisions });
+    }
+
+    function selectOmittedNote() {
+      if (!omittedNoteList || omittedNoteList.disabled) return false;
+      const option = omittedNoteList.selectedOptions?.[0];
+      if (!option) return false;
+      const measureIndex = Number(option.dataset.measureIndex);
+      const sourceOrder = Number(option.dataset.sourceOrder);
+      if (!Number.isSafeInteger(measureIndex) || !Number.isSafeInteger(sourceOrder)) return false;
+      const selected = selectEventByIdentity({
+        measureIndex,
+        sourceOrder,
+        sourceEventId: option.value,
+      });
+      if (selected) setText(omittedNoteStatus, 'Selected. Choose string/fret and apply the position.');
+      return selected;
     }
 
     async function applyDocumentTransposition(operation) {
@@ -1282,6 +1365,11 @@
         await applySelectedDurationEdit();
       });
     }
+    if (selectOmittedNoteButton) {
+      selectOmittedNoteButton.addEventListener('click', () => {
+        selectOmittedNote();
+      });
+    }
     cancelEditButton.addEventListener('click', () => {
       clearSelection();
       updateControls();
@@ -1343,6 +1431,7 @@
     clearActiveScoreState();
     clearSession();
     renderIssues([]);
+    renderOmittedNoteAssignments();
     setText(documentStatus, 'EMPTY');
     setText(routeStatus, 'UNRESOLVED');
     updateControls();
@@ -1357,6 +1446,7 @@
       applySelectedEdit,
       applySelectedPositionEdit,
       applySelectedDurationEdit,
+      selectOmittedNote,
       applyDocumentTransposition,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;

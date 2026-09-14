@@ -161,6 +161,38 @@ a:focus-visible {
   padding-top: 14px;
   border-top: 1px solid var(--gt-color-border);
 }
+.workbench-omitted-editor {
+  display: grid;
+  gap: var(--gt-space-2);
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--gt-color-border);
+}
+.workbench-omitted-editor label {
+  display: grid;
+  gap: 5px;
+  color: var(--gt-color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.workbench-omitted-editor select {
+  width: 100%;
+  min-height: 88px;
+  border: 1px solid var(--gt-color-border-strong);
+  border-radius: var(--gt-radius-sm);
+  background: var(--gt-color-surface);
+  padding: 6px;
+  color: var(--gt-color-text);
+}
+.workbench-omitted-editor button {
+  justify-self: start;
+  border: 1px solid var(--gt-color-border-strong);
+  border-radius: var(--gt-radius-sm);
+  background: var(--gt-color-surface);
+  padding: 8px 10px;
+  color: var(--gt-color-text);
+  font-weight: 650;
+}
 .workbench-editor__controls label {
   display: flex;
   flex-direction: column;

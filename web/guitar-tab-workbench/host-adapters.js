@@ -103,6 +103,9 @@
         ...(command.durationDivisions === undefined ? {} : {
           durationDivisions: command.durationDivisions,
         }),
+        ...(command.assignmentMode ? {
+          assignmentMode: command.assignmentMode,
+        } : {}),
       };
     });
   }
