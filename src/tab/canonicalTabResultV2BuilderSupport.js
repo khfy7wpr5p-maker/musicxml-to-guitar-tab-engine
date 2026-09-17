@@ -59,6 +59,7 @@ function cloneEvent(event) {
     durationDivisions: event.durationDivisions,
     tieStart: event.tieStart,
     tieStop: event.tieStop,
+    ...(Object.hasOwn(event, 'letRing') ? { letRing: event.letRing } : {}),
     source: {
       partId: event.source.partId,
       measureIndex: event.source.measureIndex,
