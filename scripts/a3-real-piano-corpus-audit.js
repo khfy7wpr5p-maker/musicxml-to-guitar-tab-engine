@@ -177,6 +177,36 @@ function runAudit({
     const deterministic = isDeepStrictEqual(firstResult, secondResult);
     const semantics = outputSemantics(firstResult);
     const blocker = firstResult?.status === 'BLOCKED' ? blockerSnapshot(firstResult) : null;
+    const issues = Array.isArray(firstResult?.preflight?.issues)
+      ? firstResult.preflight.issues
+      : [];
+    const artifact = firstResult?.arrangementArtifact || null;
+    const sourceNoteCoverage = artifact && Number.isSafeInteger(artifact.sourceNoteCount)
+      ? Object.freeze({
+        sourceNoteCount: artifact.sourceNoteCount,
+        assignedNoteCount: Number.isSafeInteger(artifact.assignedNoteCount)
+          ? artifact.assignedNoteCount
+          : null,
+        unassignedNoteCount: Number.isSafeInteger(artifact.unassignedNoteCount)
+          ? artifact.unassignedNoteCount
+          : null,
+        omittedNoteCount: Number.isSafeInteger(artifact.omittedNoteCount)
+          ? artifact.omittedNoteCount
+          : null,
+        coverageBasisPoints: Number.isSafeInteger(artifact.coverageBasisPoints)
+          ? artifact.coverageBasisPoints
+          : null,
+      })
+      : null;
+    const arrangementArtifact = artifact
+      ? Object.freeze({
+        documentType: artifact.documentType || null,
+        contractVersion: artifact.contractVersion || null,
+        authority: artifact.authority || null,
+        policy: artifact.policy || null,
+        transform: artifact.recovery?.transform || null,
+      })
+      : null;
 
     records.push(Object.freeze({
       caseId: entry.caseId,
@@ -191,7 +221,23 @@ function runAudit({
       sourceByteImmutable,
       status: firstResult?.status || null,
       route: firstResult?.route || null,
-      arrangementArtifactType: firstResult?.arrangementArtifact?.documentType || null,
+      arrangementArtifactType: artifact?.documentType || null,
+      arrangementArtifact,
+      sourceNoteCoverage,
+      generateTab: firstResult?.capabilities?.generateTab === true,
+      provisionalTabAvailable: firstResult?.artifacts?.provisionalTabAvailable === true,
+      canonicalTabAvailable: firstResult?.artifacts?.canonicalTabAvailable === true,
+      playback: firstResult?.capabilities?.playback || null,
+      export: firstResult?.capabilities?.export === true,
+      issueCodes: Object.freeze(
+        issues.map((issue) => issue?.code).filter((code) => typeof code === 'string'),
+      ),
+      errorCodes: Object.freeze(
+        issues
+          .filter((issue) => issue?.severity === 'error')
+          .map((issue) => issue?.code)
+          .filter((code) => typeof code === 'string'),
+      ),
       blocker,
       ...semantics,
       resultSha256: sha256(Buffer.from(JSON.stringify(firstResult))),
