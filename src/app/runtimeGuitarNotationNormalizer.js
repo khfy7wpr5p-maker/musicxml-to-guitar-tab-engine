@@ -1014,6 +1014,30 @@ function derivedDocument(parsedDocument, partList, scorePart, part, measures) {
   };
 }
 
+function boundedDirectionShape(directionNode) {
+  const direct = directChildren(directionNode);
+  const directionTypes = direct.filter((child) => child.name === 'direction-type');
+  const typeNames = [];
+  for (const directionType of directionTypes) {
+    for (const child of directChildren(directionType)) typeNames.push(child.name);
+  }
+  const soundAttributes = direct
+    .filter((child) => child.name === 'sound')
+    .flatMap((sound) => sound.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => attribute.name));
+  return Object.freeze({
+    attributes: Object.freeze(directionNode.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => attribute.name)
+      .sort()),
+    childNames: Object.freeze(direct.map((child) => child.name)),
+    typeNames: Object.freeze(typeNames.sort()),
+    staffCount: direct.filter((child) => child.name === 'staff').length,
+    soundAttributes: Object.freeze([...new Set(soundAttributes)].sort()),
+  });
+}
+
 function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
   if (
     !parsedDocument
@@ -1119,6 +1143,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
           measureIndex,
           measureNumber: getAttribute(measure, 'number') ?? null,
           measureChildIndex: measure.children.indexOf(child),
+          directionShape: boundedDirectionShape(child),
         });
       }
       if (child.name === 'barline') {
