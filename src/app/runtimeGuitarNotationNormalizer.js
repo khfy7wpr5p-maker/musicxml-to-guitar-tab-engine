@@ -501,26 +501,26 @@ function safeDisplayWordsDirection(node, effectiveStaffCount) {
       || attribute.name !== 'placement'
       || !['above', 'below'].includes(attribute.value)
     ))
+    || node.children.some((child) => child.uri !== node.uri)
   ) return false;
+
   const children = node.children.filter((child) => child.uri === node.uri);
-  if (
-    children.length !== node.children.length
-    || children.some((child) => !['direction-type', 'staff'].includes(child.name))
-  ) return false;
   const directionTypes = directChildren(node, 'direction-type');
   const staffNodes = directChildren(node, 'staff');
   if (
     directionTypes.length !== 1
     || staffNodes.length > 1
+    || children.some((child) => !['direction-type', 'staff'].includes(child.name))
+    || !hasExactChildSequence(
+      children,
+      staffNodes.length === 1 ? ['direction-type', 'staff'] : ['direction-type'],
+    )
     || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return false;
-  const expected = staffNodes.length === 1 ? ['direction-type', 'staff'] : ['direction-type'];
-  if (!hasExactChildSequence(children, expected)) return false;
+
   const directionType = directionTypes[0];
   if (
-    directionType.uri !== node.uri
-    || directionType.name !== 'direction-type'
-    || directionType.attributes.length !== 0
+    directionType.attributes.length !== 0
     || directionType.text.trim().length !== 0
     || directionType.children.length !== 1
   ) return false;
@@ -534,6 +534,7 @@ function safeDisplayWordsDirection(node, effectiveStaffCount) {
     || words.text.length > 256
     || /\b(?:da capo|dal segno|to coda|fine|segno|coda)\b/.test(normalizedWords)
     || /\b(?:d\.?\s*c\.?|d\.?\s*s\.?)\b/.test(normalizedWords)
+    || /\b(?:8va|8vb|15ma|15mb|ottava)\b/.test(normalizedWords)
   ) return false;
   const seen = new Set();
   for (const attribute of words.attributes) {
@@ -598,6 +599,9 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   ) return null;
 
   const typeNames = [];
+  let metronome = null;
+  let wordsSeen = false;
+  let dynamicMark = null;
   for (const directionType of directionTypes) {
     if (
       directionType.attributes.length !== 0
@@ -607,21 +611,22 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
       || directionType.children.some((child) => child.uri !== directionType.uri)
     ) return null;
     for (const child of directionType.children) {
-      if (!['words', 'metronome'].includes(child.name)) return null;
       typeNames.push(child.name);
       if (child.name === 'words') {
         if (
-          child.children.length !== 0
+          wordsSeen
+          || child.children.length !== 0
           || child.text.trim().length === 0
           || child.text.length > 256
           || child.attributes.some((attribute) => (
             attribute.uri.length !== 0
-            || !['default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style', 'font-size', 'font-weight', 'color', 'halign', 'valign', 'enclosure'].includes(attribute.name)
+            || !SAFE_WORDS_ATTRIBUTES.has(attribute.name)
             || attribute.value.length > 256
           ))
         ) return null;
-      }
-      if (child.name === 'metronome') {
+        wordsSeen = true;
+      } else if (child.name === 'metronome') {
+        if (metronome !== null) return null;
         const metronomeChildren = child.children.filter((item) => item.uri === child.uri);
         if (
           !hasSafeMetronomeLayoutAttributes(child)
@@ -631,32 +636,85 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
           || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(metronomeChildren[0].text.trim())
           || metronomeChildren[0].attributes.length !== 0
           || metronomeChildren[0].children.length !== 0
-          || positiveTempo(metronomeChildren[1]) === null
         ) return null;
+        const perMinute = positiveTempo(metronomeChildren[1]);
+        if (perMinute === null) return null;
+        metronome = Object.freeze({
+          beatUnit: metronomeChildren[0].text.trim(),
+          perMinute,
+        });
+      } else if (child.name === 'dynamics') {
+        if (
+          dynamicMark !== null
+          || child.attributes.length !== 0
+          || child.text.trim().length !== 0
+          || child.children.length !== 1
+        ) return null;
+        const mark = child.children[0];
+        if (
+          mark.uri !== child.uri
+          || !SAFE_DYNAMIC_MARKS.has(mark.name)
+          || mark.attributes.length !== 0
+          || mark.children.length !== 0
+          || mark.text.trim().length !== 0
+        ) return null;
+        dynamicMark = mark.name;
+      } else {
+        return null;
       }
     }
   }
 
-  const exactTypeProfile = typeNames.length === 1 && typeNames[0] === 'words'
-    || typeNames.length === 2 && typeNames[0] === 'words' && typeNames[1] === 'metronome';
-  if (!exactTypeProfile || staffNodes.length !== 1 || soundNodes.length !== 1) return null;
-
+  if (staffNodes.length !== 1 || soundNodes.length !== 1) return null;
   const sound = soundNodes[0];
   if (
     sound.children.length !== 0
     || sound.text.trim().length !== 0
     || sound.attributes.length !== 1
     || sound.attributes[0].uri.length !== 0
-    || sound.attributes[0].name !== 'tempo'
-    || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
   ) return null;
 
+  if (typeNames.length === 1 && typeNames[0] === 'dynamics' && dynamicMark !== null) {
+    if (
+      sound.attributes[0].name !== 'dynamics'
+      || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
+    ) return null;
+    return Object.freeze({
+      kind: 'DYNAMICS_PLAYBACK_REVIEW',
+      typeNames: Object.freeze(typeNames),
+      hasStaff: true,
+      dynamicMark,
+      soundAttributes: Object.freeze(['dynamics']),
+    });
+  }
+
+  const tempoProfile = (
+    (typeNames.length === 1 && typeNames[0] === 'metronome')
+    || (typeNames.length === 1 && typeNames[0] === 'words')
+    || (typeNames.length === 2 && typeNames[0] === 'words' && typeNames[1] === 'metronome')
+  );
+  if (!tempoProfile || sound.attributes[0].name !== 'tempo') return null;
+  const soundTempo = canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000);
+  if (soundTempo === null || soundTempo === '0') return null;
+
+  if (metronome !== null) {
+    const multiplier = {
+      whole: 4,
+      half: 2,
+      quarter: 1,
+      eighth: 0.5,
+      '16th': 0.25,
+      '32nd': 0.125,
+    }[metronome.beatUnit];
+    const expectedQuarterTempo = Number(metronome.perMinute) * multiplier;
+    if (Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001) return null;
+  }
+
   return Object.freeze({
+    kind: 'TEMPO_PLAYBACK_REVIEW',
     typeNames: Object.freeze(typeNames),
-    hasStaff: staffNodes.length === 1,
-    soundAttributes: Object.freeze(soundNodes.length === 0
-      ? []
-      : soundNodes[0].attributes.map((attribute) => attribute.name)),
+    hasStaff: true,
+    soundAttributes: Object.freeze(['tempo']),
   });
 }
 
@@ -1103,6 +1161,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
 
   const measures = [];
   const keySignatures = [];
+  const reviewIssues = [];
   let effectiveStaffCount = 1;
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
     const measure = measureNodes[measureIndex];
@@ -1145,14 +1204,29 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
         }
         const reviewDirection = reviewableBoundedDirection(child, effectiveStaffCount);
         if (reviewDirection) {
-          throw unsupported('direction-review', {
+          const measureNumber = getAttribute(measure, 'number') ?? String(measureIndex + 1);
+          const measureChildIndex = measure.children.indexOf(child);
+          ignoredFeatures.add('measure:direction:review-required');
+          reviewIssues.push(Object.freeze({
+            severity: 'error',
+            category: 'semantic',
+            code: 'PERFORMANCE_DIRECTION_REVIEW_REQUIRED',
+            message: 'Playback-only direction metadata was omitted from provisional TAB timing and requires review.',
             reviewDisposition: 'REVIEW_REQUIRED',
-            reason: 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW',
-            measureIndex,
-            measureNumber: getAttribute(measure, 'number') ?? null,
-            measureChildIndex: measure.children.indexOf(child),
-            direction: reviewDirection,
-          });
+            location: Object.freeze({
+              measure: measureNumber,
+              measureIndex,
+              eventIndex: measureChildIndex,
+              sourceEventId: null,
+            }),
+            details: Object.freeze({
+              feature: 'direction-review',
+              reason: 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW',
+              reviewDisposition: 'REVIEW_REQUIRED',
+              direction: reviewDirection,
+            }),
+          }));
+          continue;
         }
         throw unsupported('direction', {
           measureIndex,
@@ -1201,6 +1275,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
     pitchOctaveShift,
     notationContext: Object.freeze({ keySignatures: Object.freeze(keySignatures) }),
     ignoredFeatures: Object.freeze([...ignoredFeatures].sort()),
+    reviewIssues: Object.freeze(reviewIssues),
   });
 }
 
