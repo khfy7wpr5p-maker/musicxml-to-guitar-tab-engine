@@ -71,6 +71,9 @@ const {
 const {
   recoverPartialGuitarArrangement,
 } = require('./partialGuitarArrangement');
+const {
+  recoverNoLossArpeggiationReviewArrangement,
+} = require('./noLossArpeggiationReviewRecovery');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -1277,7 +1280,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     ) {
       let recovery;
       try {
-        recovery = recoverPartialGuitarArrangement({
+        recovery = recoverNoLossArpeggiationReviewArrangement({
           sourceModel,
           arrangementDecisions: decisions,
           processing,
@@ -1287,6 +1290,18 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           originalError: error,
           graceOrnamentGroups: graceProjection?.graceOrnamentGroups || [],
         });
+        if (!recovery) {
+          recovery = recoverPartialGuitarArrangement({
+            sourceModel,
+            arrangementDecisions: decisions,
+            processing,
+            writerOptions,
+            guitarOptions,
+            sourceUploadSha256: identity.sha256,
+            originalError: error,
+            graceOrnamentGroups: graceProjection?.graceOrnamentGroups || [],
+          });
+        }
       } catch (recoveryError) {
         return blockedResult(
           identity,
