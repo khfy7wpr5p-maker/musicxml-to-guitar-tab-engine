@@ -72,7 +72,7 @@ test('Stage 09 surfaces ambiguous backward repeat as REVIEW_REQUIRED without can
   assert.equal(result.preflight.issues[0].reviewDisposition, 'REVIEW_REQUIRED');
   assert.ok(result.canonicalTabResult);
   assert.equal(typeof result.musicXml, 'string');
-  assert.match(result.musicXml, /<sign>TAB<\\/sign>/);
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
   assert.equal(result.sourceArtifact.rendererMusicXml, xml);
   assert.equal(result.capabilities.renderScore, true);
   assert.equal(result.capabilities.generateTab, true);
