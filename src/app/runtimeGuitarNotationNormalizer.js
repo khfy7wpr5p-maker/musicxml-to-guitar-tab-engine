@@ -1089,9 +1089,21 @@ function boundedDirectionShape(directionNode) {
   const direct = directionNode.children.filter((child) => child.uri === directionNode.uri);
   const directionTypes = direct.filter((child) => child.name === 'direction-type');
   const typeNames = [];
+  const typeProfiles = [];
   for (const directionType of directionTypes) {
     for (const child of directionType.children.filter((item) => item.uri === directionType.uri)) {
       typeNames.push(child.name);
+      typeProfiles.push(Object.freeze({
+        name: child.name,
+        attributes: Object.freeze(child.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => attribute.name)
+          .sort()),
+        childNames: Object.freeze(child.children
+          .filter((item) => item.uri === child.uri)
+          .map((item) => item.name)),
+        textPresent: child.text.trim().length > 0,
+      }));
     }
   }
   const soundAttributes = direct
@@ -1106,6 +1118,7 @@ function boundedDirectionShape(directionNode) {
       .sort()),
     childNames: Object.freeze(direct.map((child) => child.name)),
     typeNames: Object.freeze(typeNames.sort()),
+    typeProfiles: Object.freeze(typeProfiles),
     staffCount: direct.filter((child) => child.name === 'staff').length,
     soundAttributes: Object.freeze([...new Set(soundAttributes)].sort()),
   });
