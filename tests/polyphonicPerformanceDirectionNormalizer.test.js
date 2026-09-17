@@ -105,6 +105,33 @@ test('PS-6B2A removes only allowlisted performance directions and preserves pitc
   assert.equal(result.sourceModel.measures[0].events[0].pitch.written, 'E3');
 });
 
+test('PS-6B2A removes bounded producer layout attributes on wedge and pedal directions', () => {
+  const sourceDocument = parsed(score(`
+    <direction placement="above"><direction-type><wedge type="crescendo" number="1" default-y="-65.74"/></direction-type><staff>1</staff></direction>
+    <direction placement="below"><direction-type><pedal type="start" line="yes" default-y="-80.00"/></direction-type><staff>2</staff></direction>
+  `).replace('<staves>1</staves>', '<staves>2</staves>'));
+
+  const normalized = normalizePolyphonicPerformanceDirections(sourceDocument);
+
+  assert.equal(normalized.ignoredDirectionCount, 2);
+  assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), false);
+  assert.equal(normalized.ignoredDirectionFeatureCounts['direction:wedge'], 1);
+  assert.equal(normalized.ignoredDirectionFeatureCounts['direction:pedal'], 1);
+});
+
+test('PS-6B2A keeps malformed or unbounded deferred layout attributes fail-closed', () => {
+  for (const direction of [
+    '<direction placement="above"><direction-type><wedge type="crescendo" number="1" default-y="1000001"/></direction-type><staff>1</staff></direction>',
+    '<direction placement="below"><direction-type><pedal type="start" line="yes" relative-y="NaN"/></direction-type><staff>1</staff></direction>',
+    '<direction placement="above"><direction-type><wedge type="crescendo" number="1" mystery="x"/></direction-type><staff>1</staff></direction>',
+  ]) {
+    const sourceDocument = parsed(score(direction));
+    const normalized = normalizePolyphonicPerformanceDirections(sourceDocument);
+    assert.equal(normalized.ignoredDirectionCount, 0, direction);
+    assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), true, direction);
+  }
+});
+
 test('PS-6B2A keeps octave-shift fail-closed for the dedicated pitch semantic stage', () => {
   const sourceDocument = parsed(score(`
     <direction placement="above">
