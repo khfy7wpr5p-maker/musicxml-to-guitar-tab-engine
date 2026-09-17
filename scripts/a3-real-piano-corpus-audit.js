@@ -81,8 +81,13 @@ function outputSemantics(result) {
   const statusSupported = result?.status === 'PASS' || result?.status === 'REVIEW_REQUIRED';
   const musicXmlAvailable = typeof result?.musicXml === 'string' && result.musicXml.length > 0;
   const renderable = result?.capabilities?.renderScore === true;
+  const tabAuthorityAvailable = result?.status === 'PASS'
+    ? result?.artifacts?.canonicalTabAvailable === true
+    : result?.status === 'REVIEW_REQUIRED'
+      ? result?.artifacts?.provisionalTabAvailable === true
+      : false;
   const tabAvailable = result?.capabilities?.generateTab === true
-    && result?.artifacts?.provisionalTabAvailable !== false
+    && tabAuthorityAvailable
     && Boolean(result?.canonicalTabResult || result?.arrangementArtifact)
     && musicXmlAvailable;
   const teacherEditable = Boolean(
