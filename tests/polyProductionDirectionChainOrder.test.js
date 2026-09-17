@@ -92,6 +92,13 @@ test('production chain still fails closed for structural playback directions', (
     (error) => {
       assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
       assert.equal(error.details.feature, 'direction');
+      assert.deepEqual(error.details.directionShape, {
+        attributes: [],
+        childNames: ['direction-type', 'sound'],
+        typeNames: ['words'],
+        staffCount: 0,
+        soundAttributes: ['dacapo'],
+      });
       return true;
     },
   );
