@@ -1015,11 +1015,13 @@ function derivedDocument(parsedDocument, partList, scorePart, part, measures) {
 }
 
 function boundedDirectionShape(directionNode) {
-  const direct = directChildren(directionNode);
+  const direct = directionNode.children.filter((child) => child.uri === directionNode.uri);
   const directionTypes = direct.filter((child) => child.name === 'direction-type');
   const typeNames = [];
   for (const directionType of directionTypes) {
-    for (const child of directChildren(directionType)) typeNames.push(child.name);
+    for (const child of directionType.children.filter((item) => item.uri === directionType.uri)) {
+      typeNames.push(child.name);
+    }
   }
   const soundAttributes = direct
     .filter((child) => child.name === 'sound')
