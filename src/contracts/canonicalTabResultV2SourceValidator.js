@@ -71,9 +71,13 @@ function validateMeasures(result) {
     array(measure.events, `${path}.events`).forEach((event, eventIndex) => {
       const eventPath = `${path}.events[${eventIndex}]`;
       if (!event || (event.type !== 'note' && event.type !== 'rest')) fail(`${eventPath}.type`, 'EVENT_TYPE');
-      exact(event, event.type === 'note'
+      const eventKeys = event.type === 'note'
         ? ['sourceEventId', 'sourceOrder', 'type', 'voice', 'staff', 'onsetDivisions', 'durationDivisions', 'pitch', 'tieStart', 'tieStop', 'source']
-        : ['sourceEventId', 'sourceOrder', 'type', 'voice', 'staff', 'onsetDivisions', 'durationDivisions', 'tieStart', 'tieStop', 'source'], eventPath);
+        : ['sourceEventId', 'sourceOrder', 'type', 'voice', 'staff', 'onsetDivisions', 'durationDivisions', 'tieStart', 'tieStop', 'source'];
+      if (event.type === 'note' && Object.hasOwn(event, 'letRing')) {
+        eventKeys.splice(eventKeys.length - 1, 0, 'letRing');
+      }
+      exact(event, eventKeys, eventPath);
       equal(event.sourceOrder, eventIndex, `${eventPath}.sourceOrder`, 'SOURCE_ORDER_MISMATCH');
       equal(
         event.sourceEventId,
@@ -90,6 +94,7 @@ function validateMeasures(result) {
       }
       boolean(event.tieStart, `${eventPath}.tieStart`);
       boolean(event.tieStop, `${eventPath}.tieStop`);
+      if (Object.hasOwn(event, 'letRing')) boolean(event.letRing, `${eventPath}.letRing`);
       if (event.type === 'rest' && (event.tieStart || event.tieStop)) fail(eventPath, 'REST_TIE_NOT_ALLOWED');
       validateSourceLocation(event.source, `${eventPath}.source`, {
         partId: result.source.partId,
