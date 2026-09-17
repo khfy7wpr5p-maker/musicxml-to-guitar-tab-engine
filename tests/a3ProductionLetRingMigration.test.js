@@ -12,6 +12,9 @@ const {
 const {
   projectParsedMusicXmlToPolyphonicSourceModel,
 } = require('../src/parser/polyphonicMusicXmlProjector');
+const {
+  createCanonicalTabResultV2,
+} = require('../src/tab/canonicalTabResultV2');
 
 function project(xml) {
   const runtime = createMusicXmlProcessingRuntime();
@@ -50,6 +53,21 @@ function scoreWithLetRing() {
 test('A3 production migration preserves let-ring as non-continuity notation evidence', () => {
   const projected = project(scoreWithLetRing());
   const event = projected.measures[0].events[0];
+
+  assert.equal(event.tieStart, false);
+  assert.equal(event.tieStop, false);
+  assert.equal(event.letRing, true);
+});
+
+test('A3 canonical TAB result preserves let-ring source evidence without inventing tie continuity', () => {
+  const projected = project(scoreWithLetRing());
+  const sourceEventId = projected.measures[0].events[0].sourceEventId;
+  const canonical = createCanonicalTabResultV2(projected, [{
+    decisionType: 'PRESERVED',
+    sourceEventIds: [sourceEventId],
+    sourceGroupId: null,
+  }]);
+  const event = canonical.measures[0].events[0];
 
   assert.equal(event.tieStart, false);
   assert.equal(event.tieStop, false);
