@@ -259,7 +259,7 @@ function rejectConditionalTie(tieNode, location) {
 }
 
 function parseTieState(noteNode, isRest, location) {
-  const state = { tieStart: false, tieStop: false };
+  const state = { tieStart: false, tieStop: false, letRing: false };
   const directTies = directChildren(noteNode, 'tie');
   const tiedNodes = [];
   for (const notations of directChildren(noteNode, 'notations')) {
@@ -284,7 +284,12 @@ function parseTieState(noteNode, isRest, location) {
   }
   for (const tied of tiedNodes) {
     rejectConditionalTie(tied, location);
-    applyTieType(state, getAttribute(tied, 'type'), location);
+    const tiedType = getAttribute(tied, 'type');
+    if (tiedType === 'let-ring') {
+      state.letRing = true;
+      continue;
+    }
+    applyTieType(state, tiedType, location);
   }
   return state;
 }
@@ -453,6 +458,7 @@ function parseBasicNote(noteNode, context) {
     durationDivisions,
     tieStart: tieState.tieStart,
     tieStop: tieState.tieStop,
+    ...(tieState.letRing ? { letRing: true } : {}),
     source: {
       partId,
       measureIndex,
