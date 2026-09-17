@@ -74,6 +74,9 @@ function blockerSnapshot(result) {
     category: blocker.category || null,
     feature: blocker?.details?.feature || null,
     reason: blocker?.details?.reason || null,
+    details: blocker?.details && typeof blocker.details === 'object'
+      ? JSON.parse(JSON.stringify(blocker.details))
+      : null,
   }) : null;
 }
 
@@ -229,6 +232,14 @@ function runAudit({
       canonicalTabAvailable: firstResult?.artifacts?.canonicalTabAvailable === true,
       playback: firstResult?.capabilities?.playback || null,
       export: firstResult?.capabilities?.export === true,
+      issueEvidence: Object.freeze(issues.map((issue) => Object.freeze({
+        severity: issue?.severity || null,
+        category: issue?.category || null,
+        code: issue?.code || null,
+        details: issue?.details && typeof issue.details === 'object'
+          ? JSON.parse(JSON.stringify(issue.details))
+          : null,
+      }))),
       issueCodes: Object.freeze(
         issues.map((issue) => issue?.code).filter((code) => typeof code === 'string'),
       ),
