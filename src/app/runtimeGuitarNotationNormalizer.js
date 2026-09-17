@@ -50,7 +50,10 @@ const SAFE_ARTICULATION_CHILDREN = new Set([
   'tenuto',
 ]);
 const SAFE_DYNAMIC_MARKS = new Set([
-  'ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff',
+  'pppppp', 'ppppp', 'pppp', 'ppp', 'pp', 'p',
+  'mp', 'mf',
+  'f', 'ff', 'fff', 'ffff', 'fffff', 'ffffff',
+  'sf', 'sfp', 'sfpp', 'fp', 'rf', 'rfz', 'sfz', 'sffz', 'fz', 'n', 'pf', 'sfzp',
 ]);
 const SAFE_WORDS_ATTRIBUTES = new Set([
   'default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style',
@@ -311,15 +314,19 @@ function hasSafeMetronomeDirectionAttributes(node) {
 
 function hasSafeMetronomeLayoutAttributes(node) {
   const seen = new Set();
+  const numericLayout = new Set(['default-x', 'default-y', 'relative-x', 'relative-y']);
   for (const attribute of node.attributes) {
-    if (attribute.uri.length !== 0 || !['parentheses', 'default-y'].includes(attribute.name)) {
+    if (
+      attribute.uri.length !== 0
+      || (attribute.name !== 'parentheses' && !numericLayout.has(attribute.name))
+    ) {
       return false;
     }
     if (seen.has(attribute.name)) return false;
     seen.add(attribute.name);
     if (attribute.name === 'parentheses' && !['yes', 'no'].includes(attribute.value)) return false;
     if (
-      attribute.name === 'default-y'
+      numericLayout.has(attribute.name)
       && (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(attribute.value)
         || !Number.isFinite(Number(attribute.value))
         || Math.abs(Number(attribute.value)) > 1_000_000)
