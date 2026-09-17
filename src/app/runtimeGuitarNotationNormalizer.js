@@ -493,17 +493,30 @@ function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
 // sound, voice, staff, or extension semantics. They may be omitted from the
 // derived TAB without changing pitch/onset facts; the immutable source
 // artifact remains the authority for the original annotation.
-function safeDisplayWordsDirection(node) {
+function safeDisplayWordsDirection(node, effectiveStaffCount) {
   if (
     node.text.trim().length !== 0
-    || node.children.length !== 1
     || node.attributes.some((attribute) => (
       attribute.uri.length !== 0
       || attribute.name !== 'placement'
       || !['above', 'below'].includes(attribute.value)
     ))
   ) return false;
-  const directionType = node.children[0];
+  const children = node.children.filter((child) => child.uri === node.uri);
+  if (
+    children.length !== node.children.length
+    || children.some((child) => !['direction-type', 'staff'].includes(child.name))
+  ) return false;
+  const directionTypes = directChildren(node, 'direction-type');
+  const staffNodes = directChildren(node, 'staff');
+  if (
+    directionTypes.length !== 1
+    || staffNodes.length > 1
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
+  ) return false;
+  const expected = staffNodes.length === 1 ? ['direction-type', 'staff'] : ['direction-type'];
+  if (!hasExactChildSequence(children, expected)) return false;
+  const directionType = directionTypes[0];
   if (
     directionType.uri !== node.uri
     || directionType.name !== 'direction-type'
@@ -1126,7 +1139,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
           ignoredFeatures.add('measure:direction:rehearsal');
           continue;
         }
-        if (safeDisplayWordsDirection(child)) {
+        if (safeDisplayWordsDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:words-display');
           continue;
         }
