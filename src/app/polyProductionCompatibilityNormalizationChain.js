@@ -336,6 +336,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     reviewIssues: Object.freeze([
       ...performanceNormalization.reviewIssues,
       ...repeatNormalization.reviewIssues,
+      ...(runtimeNormalization?.reviewIssues || []),
       ...overflowProjection.reviewIssues,
     ]),
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
