@@ -319,7 +319,7 @@ function baseResult(source, candidate, status) {
   };
 }
 
-function validateNoLossArpeggiationTimingCandidatePhysically(
+function createNoLossArpeggiationPhysicalValidationBundle(
   sourceModel,
   candidate,
   runtime = null,
@@ -340,13 +340,19 @@ function validateNoLossArpeggiationTimingCandidatePhysically(
     );
   } catch (error) {
     if (!isRecoverablePhysicalFailure(error)) throw error;
-    return Object.freeze({
+    const validation = Object.freeze({
       ...baseResult(source, candidate, 'INFEASIBLE'),
       noteSelections: Object.freeze([]),
       failure: Object.freeze({
         code: error.code,
         reason: error.details?.reason ?? null,
       }),
+    });
+    return Object.freeze({
+      validation,
+      validationTargetModel,
+      validationCanonicalTabResult: null,
+      validationDecisions,
     });
   }
 
@@ -380,17 +386,38 @@ function validateNoLossArpeggiationTimingCandidatePhysically(
     );
   }
 
-  return Object.freeze({
+  const validation = Object.freeze({
     ...baseResult(source, candidate, 'FEASIBLE'),
     noteSelections: Object.freeze(noteSelections),
     selectedShapeCount: canonical.selectedShapes.length,
     failure: null,
   });
+  return Object.freeze({
+    validation,
+    validationTargetModel,
+    validationCanonicalTabResult: canonical,
+    validationDecisions,
+  });
+}
+
+function validateNoLossArpeggiationTimingCandidatePhysically(
+  sourceModel,
+  candidate,
+  runtime = null,
+  guitarOptions = {},
+) {
+  return createNoLossArpeggiationPhysicalValidationBundle(
+    sourceModel,
+    candidate,
+    runtime,
+    guitarOptions,
+  ).validation;
 }
 
 module.exports = {
   NO_LOSS_ARPEGGIATION_PHYSICAL_VALIDATION_VERSION,
   NO_LOSS_ARPEGGIATION_PHYSICAL_VALIDATION_DOCUMENT_TYPE,
   NoLossArpeggiationPhysicalValidationError,
+  createNoLossArpeggiationPhysicalValidationBundle,
   validateNoLossArpeggiationTimingCandidatePhysically,
 };
