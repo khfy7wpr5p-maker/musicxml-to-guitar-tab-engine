@@ -744,6 +744,63 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   });
 }
 
+function boundedDirectionValues(directionNode) {
+  const boundedText = (value) => (
+    typeof value === 'string' && value.length <= 64 ? value.trim() : null
+  );
+  const typeValues = [];
+  for (const directionType of directChildren(directionNode, 'direction-type')) {
+    for (const child of directionType.children.filter((item) => item.uri === directionType.uri)) {
+      if (child.name === 'metronome') {
+        typeValues.push(Object.freeze({
+          name: 'metronome',
+          attributes: Object.freeze(child.attributes
+            .filter((attribute) => attribute.uri.length === 0)
+            .map((attribute) => Object.freeze({
+              name: attribute.name,
+              value: boundedText(attribute.value),
+            }))),
+          children: Object.freeze(child.children
+            .filter((item) => item.uri === child.uri)
+            .map((item) => Object.freeze({
+              name: item.name,
+              text: boundedText(item.text),
+            }))),
+        }));
+      } else if (child.name === 'dynamics') {
+        typeValues.push(Object.freeze({
+          name: 'dynamics',
+          marks: Object.freeze(child.children
+            .filter((item) => item.uri === child.uri)
+            .map((item) => item.name)),
+        }));
+      } else if (child.name === 'pedal' || child.name === 'wedge') {
+        typeValues.push(Object.freeze({
+          name: child.name,
+          attributes: Object.freeze(child.attributes
+            .filter((attribute) => attribute.uri.length === 0)
+            .map((attribute) => Object.freeze({
+              name: attribute.name,
+              value: boundedText(attribute.value),
+            }))),
+        }));
+      }
+    }
+  }
+  const staff = directChildren(directionNode, 'staff')[0] || null;
+  const sound = directChildren(directionNode, 'sound')[0] || null;
+  return Object.freeze({
+    staff: staff ? boundedText(staff.text) : null,
+    sound: Object.freeze((sound?.attributes || [])
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+    typeValues: Object.freeze(typeValues),
+  });
+}
+
 function safeSimpleBarline(node) {
   if (!hasOnlyUnqualifiedAttributes(node, new Set(['location']))) return false;
   const location = getAttribute(node, 'location');
@@ -1272,6 +1329,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
           measureNumber: getAttribute(measure, 'number') ?? null,
           measureChildIndex: measure.children.indexOf(child),
           directionShape: boundedDirectionShape(child),
+          directionValues: boundedDirectionValues(child),
         });
       }
       if (child.name === 'barline') {
