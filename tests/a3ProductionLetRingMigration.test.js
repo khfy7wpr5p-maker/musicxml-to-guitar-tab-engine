@@ -46,6 +46,7 @@ function scoreWithLetRing() {
 </score-partwise>`;
 }
 
+// Red-first contract: let-ring is notation evidence, never sustain-tie continuity.
 test('A3 production migration preserves let-ring as non-continuity notation evidence', () => {
   const projected = project(scoreWithLetRing());
   const event = projected.measures[0].events[0];
