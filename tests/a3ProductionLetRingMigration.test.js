@@ -49,6 +49,13 @@ function scoreWithLetRing() {
 </score-partwise>`;
 }
 
+function scoreWithDirectTieLetRing() {
+  return scoreWithLetRing().replace(
+    '<notations><tied type="let-ring"/></notations>',
+    '<tie type="let-ring"/>',
+  );
+}
+
 // Red-first contract: let-ring is notation evidence, never sustain-tie continuity.
 test('A3 production migration preserves let-ring as non-continuity notation evidence', () => {
   const projected = project(scoreWithLetRing());
@@ -72,4 +79,15 @@ test('A3 canonical TAB result preserves let-ring source evidence without inventi
   assert.equal(event.tieStart, false);
   assert.equal(event.tieStop, false);
   assert.equal(event.letRing, true);
+});
+
+test('A3 migration does not reinterpret direct tie type let-ring as notation evidence', () => {
+  assert.throws(
+    () => project(scoreWithDirectTieLetRing()),
+    (error) => {
+      assert.equal(error.code, 'INVALID_MUSICXML');
+      assert.equal(error.details.type, 'let-ring');
+      return true;
+    },
+  );
 });
