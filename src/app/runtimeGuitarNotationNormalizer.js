@@ -632,23 +632,41 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
           !hasSafeMetronomeLayoutAttributes(child)
           || child.text.trim().length !== 0
           || metronomeChildren.length !== child.children.length
-          || !hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])
+          || !(
+            hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])
+            || hasExactChildSequence(metronomeChildren, ['beat-unit', 'beat-unit-dot', 'per-minute'])
+          )
           || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(metronomeChildren[0].text.trim())
           || metronomeChildren[0].attributes.length !== 0
           || metronomeChildren[0].children.length !== 0
         ) return null;
-        const perMinute = positiveTempo(metronomeChildren[1]);
+        const dotted = metronomeChildren.length === 3;
+        if (dotted) {
+          const dot = metronomeChildren[1];
+          if (dot.attributes.length !== 0 || dot.children.length !== 0 || dot.text.trim().length !== 0) {
+            return null;
+          }
+        }
+        const perMinuteNode = metronomeChildren[dotted ? 2 : 1];
+        const perMinute = positiveTempo(perMinuteNode);
         if (perMinute === null) return null;
         metronome = Object.freeze({
           beatUnit: metronomeChildren[0].text.trim(),
+          dotted,
           perMinute,
         });
       } else if (child.name === 'dynamics') {
         if (
           dynamicMark !== null
-          || child.attributes.length !== 0
           || child.text.trim().length !== 0
           || child.children.length !== 1
+          || child.attributes.some((attribute) => {
+            if (attribute.uri.length !== 0) return true;
+            if (!['default-x', 'default-y', 'relative-x', 'relative-y'].includes(attribute.name)) return true;
+            if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(attribute.value)) return true;
+            const numeric = Number(attribute.value);
+            return !Number.isFinite(numeric) || Math.abs(numeric) > 1_000_000;
+          })
         ) return null;
         const mark = child.children[0];
         if (
@@ -677,6 +695,7 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   if (typeNames.length === 1 && typeNames[0] === 'dynamics' && dynamicMark !== null) {
     if (
       sound.attributes[0].name !== 'dynamics'
+      || !/^\+?(?:\d+(?:\.\d{0,6})?|\.\d{1,6})$/.test(sound.attributes[0].value)
       || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
     ) return null;
     return Object.freeze({
@@ -706,7 +725,7 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
       '16th': 0.25,
       '32nd': 0.125,
     }[metronome.beatUnit];
-    const expectedQuarterTempo = Number(metronome.perMinute) * multiplier;
+    const expectedQuarterTempo = Number(metronome.perMinute) * multiplier * (metronome.dotted ? 1.5 : 1);
     if (Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001) return null;
   }
 
