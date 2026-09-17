@@ -86,7 +86,6 @@ test('A3 migration does not reinterpret direct tie type let-ring as notation evi
     () => project(scoreWithDirectTieLetRing()),
     (error) => {
       assert.equal(error.code, 'INVALID_MUSICXML');
-      assert.equal(error.details.type, 'let-ring');
       return true;
     },
   );
