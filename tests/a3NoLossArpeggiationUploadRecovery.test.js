@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   processMusicXmlUpload,
-} = require('../src/app/musicXmlUploadRuntimeBase');
+} = require('../src/app/musicXmlUploadRuntime');
 
 function recoverableSevenNoteChord() {
   const notes = Array.from({ length: 7 }, (_, index) => `
