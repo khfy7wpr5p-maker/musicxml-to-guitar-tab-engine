@@ -112,6 +112,12 @@ test('production chain still fails closed for structural playback directions', (
         attributes: [],
         childNames: ['direction-type', 'sound'],
         typeNames: ['words'],
+        typeProfiles: [{
+          name: 'words',
+          attributes: [],
+          childNames: [],
+          textPresent: true,
+        }],
         staffCount: 0,
         soundAttributes: ['dacapo'],
       });
