@@ -85,7 +85,7 @@ function assertScalarLeaf(node, allowedTexts, field, location) {
     || node.attributes.length !== 0
     || node.children.length !== 0
   ) {
-    throw unsupported(`${field} is outside the bounded 3:2/6:4 tuplet profile.`, {
+    throw unsupported(`${field} is outside the bounded 3:2/6:4/11:6 tuplet profile.`, {
       ...location,
       field,
       observedText,
@@ -100,7 +100,7 @@ function parseExactTripletTimeModification(node, location) {
     || node.attributes.length !== 0
     || node.children.some((child) => child.uri !== node.uri)
   ) {
-    throw unsupported('time-modification must use the exact attribute-free 3:2 shape.', location);
+    throw unsupported('time-modification must use an exact attribute-free bounded tuplet shape.', location);
   }
 
   const children = node.children.filter((child) => child.uri === node.uri);
@@ -109,16 +109,15 @@ function parseExactTripletTimeModification(node, location) {
     || children[0].name !== 'actual-notes'
     || children[1].name !== 'normal-notes'
   ) {
-    throw unsupported('Only a simple actual-notes/normal-notes 3:2 time-modification is supported.', {
+    throw unsupported('Only a simple actual-notes/normal-notes bounded time-modification is supported.', {
       ...location,
       observedChildren: children.map((child) => child.name),
     });
   }
 
-  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6']), 'actual-notes', location);
-  const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4']), 'normal-notes', location);
-  if (!((actualNotes === 3 && normalNotes === 2) || (actualNotes === 6 && normalNotes === 4))) {
-    throw unsupported('Only exact 3:2 triplet and 6:4 sextuplet relations are supported.', {
+  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '11']), 'actual-notes', location);
+  const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4', '6']), 'normal-notes', location);
+  if (!(\n    (actualNotes === 3 && normalNotes === 2)\n    || (actualNotes === 6 && normalNotes === 4)\n    || (actualNotes === 11 && normalNotes === 6)\n  )) {\n    throw unsupported('Only exact 3:2, 6:4, and pinned 11:6 tuplet relations are supported.', {
       ...location,
       actualNotes,
       normalNotes,
@@ -126,7 +125,7 @@ function parseExactTripletTimeModification(node, location) {
   }
 
   return Object.freeze({
-    kind: actualNotes === 3 ? 'triplet-time-modification' : 'sextuplet-time-modification',
+    kind: actualNotes === 3\n      ? 'triplet-time-modification'\n      : actualNotes === 6\n        ? 'sextuplet-time-modification'\n        : 'eleven-in-six-time-modification',
     actualNotes,
     normalNotes,
   });
