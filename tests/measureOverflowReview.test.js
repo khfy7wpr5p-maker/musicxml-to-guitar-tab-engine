@@ -44,7 +44,12 @@ function consensusOverfullScore() {
 
 test('consensus overflow projector derives a bounded 7/4 review model and restores 6/4 afterward', () => {
   const parsed = parseParsedMusicXmlDocument(consensusOverfullScore());
-  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  let projection;
+  try {
+    projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  } catch (error) {
+    assert.fail(`consensus projector failed: ${error.code || error.name} ${JSON.stringify(error.details || {})}`);
+  }
 
   assert.equal(projection.reviewIssues.length, 1);
   assert.equal(
