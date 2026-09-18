@@ -117,7 +117,12 @@ function parseExactTripletTimeModification(node, location) {
 
   const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '11']), 'actual-notes', location);
   const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4', '6']), 'normal-notes', location);
-  if (!(\n    (actualNotes === 3 && normalNotes === 2)\n    || (actualNotes === 6 && normalNotes === 4)\n    || (actualNotes === 11 && normalNotes === 6)\n  )) {\n    throw unsupported('Only exact 3:2, 6:4, and pinned 11:6 tuplet relations are supported.', {
+  if (!(
+    (actualNotes === 3 && normalNotes === 2)
+    || (actualNotes === 6 && normalNotes === 4)
+    || (actualNotes === 11 && normalNotes === 6)
+  )) {
+    throw unsupported('Only exact 3:2, 6:4, and pinned 11:6 tuplet relations are supported.', {
       ...location,
       actualNotes,
       normalNotes,
@@ -125,7 +130,11 @@ function parseExactTripletTimeModification(node, location) {
   }
 
   return Object.freeze({
-    kind: actualNotes === 3\n      ? 'triplet-time-modification'\n      : actualNotes === 6\n        ? 'sextuplet-time-modification'\n        : 'eleven-in-six-time-modification',
+    kind: actualNotes === 3
+      ? 'triplet-time-modification'
+      : actualNotes === 6
+        ? 'sextuplet-time-modification'
+        : 'eleven-in-six-time-modification',
     actualNotes,
     normalNotes,
   });
