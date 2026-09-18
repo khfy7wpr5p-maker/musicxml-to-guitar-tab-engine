@@ -165,15 +165,23 @@ test('grace chord keeps main TAB provisional and leaves grace members unassigned
 
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.arrangementArtifact.documentType, 'PartialGuitarTabArrangement');
-  assert.equal(result.arrangementArtifact.recovery.originalErrorCode, 'UNPLAYABLE_GRACE_PHYSICAL_TRANSITION');
-  assert.equal(result.arrangementArtifact.recovery.unassignedGraceNoteCount, 2);
-  assert.equal(result.arrangementArtifact.omittedNoteCount, 0);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(result.arrangementArtifact, undefined);
+  const graceIssue = result.preflight.issues.find(
+    (issue) => issue.code === 'GRACE_CHORD_REQUIRES_REVIEW',
+  );
+  assert.ok(graceIssue);
+  assert.equal(graceIssue.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(
+    graceIssue.details.reason,
+    'SIMULTANEOUS_GRACE_CHORD_NO_AUTOMATIC_TIMING_OR_POSITION_AUTHORITY',
+  );
   assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.export, false);
   assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
   assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.doesNotMatch(result.musicXml, /<chord\/>/);
   assert.match(result.sourceArtifact.rendererMusicXml, /<chord\/>/);
 });
 
