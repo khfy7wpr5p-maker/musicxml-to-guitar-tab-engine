@@ -236,6 +236,7 @@ function runAudit({
         severity: issue?.severity || null,
         category: issue?.category || null,
         code: issue?.code || null,
+        message: typeof issue?.message === 'string' ? issue.message : null,
         details: issue?.details && typeof issue.details === 'object'
           ? JSON.parse(JSON.stringify(issue.details))
           : null,
