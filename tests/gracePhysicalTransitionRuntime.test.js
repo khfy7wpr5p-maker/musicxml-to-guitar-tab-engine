@@ -150,6 +150,33 @@ test('production accepts exact grace notehead=normal as display-only metadata', 
   assert.equal(accepted.musicXml, baseline.musicXml);
 });
 
+test('grace chord keeps main TAB provisional and leaves grace members unassigned for teacher review', () => {
+  const source = fixture().toString('utf8')
+    .replace('        <beam number="1">begin</beam>\n', '')
+    .replace(
+      '        <grace slash="yes"/>\n        <pitch><step>G</step><octave>4</octave></pitch>',
+      '        <grace slash="yes"/>\n        <chord/>\n        <pitch><step>G</step><octave>4</octave></pitch>',
+    )
+    .replace('        <beam number="1">end</beam>\n', '');
+  const result = processMusicXmlUpload({
+    fileName: 'grace-chord-review.musicxml',
+    bytes: Buffer.from(source),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.canonicalTabResult, null);
+  assert.equal(result.arrangementArtifact.documentType, 'PartialGuitarTabArrangement');
+  assert.equal(result.arrangementArtifact.recovery.originalErrorCode, 'UNPLAYABLE_GRACE_PHYSICAL_TRANSITION');
+  assert.equal(result.arrangementArtifact.recovery.unassignedGraceNoteCount, 2);
+  assert.equal(result.arrangementArtifact.omittedNoteCount, 0);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.match(result.sourceArtifact.rendererMusicXml, /<chord\/>/);
+});
+
 test('PS-6B6B fails closed when a grace pitch has no exact standard-guitar position', () => {
   const source = fixture().toString('utf8');
   const unplayable = source.replace(
