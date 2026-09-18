@@ -15,6 +15,61 @@ function score(duration = 8) {
   </measure></part></score-partwise>`;
 }
 
+
+function consensusOverfullScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="1">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><rest/><duration>28</duration><voice>1</voice><staff>1</staff></note>
+    <backup><duration>28</duration></backup>
+    <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>F</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>G</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>A</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>B</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <backup><duration>28</duration></backup>
+    <note><rest/><duration>28</duration><voice>6</voice><staff>2</staff></note>
+  </measure>
+  <measure number="2">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+
+test('consensus overfull measure opens review-only provisional TAB without inventing source authority', () => {
+  const bytes = Buffer.from(consensusOverfullScore());
+  const original = Buffer.from(bytes);
+  const result = processMusicXmlUpload({ fileName: 'consensus-overflow.musicxml', bytes });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(result.route, 'POLY_V2');
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  assert.equal(result.capabilities.export, false);
+  assert.ok(result.musicXml);
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  const issue = result.preflight.issues.find(
+    (entry) => entry.details?.policy === 'CONSENSUS_OVERFULL_MEASURE_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(issue.details.reason, 'MEASURE_EVENT_OVERFLOW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 24);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 28);
+  assert.equal(issue.details.provisionalTimeSignature.beats, 7);
+  assert.equal(issue.details.provisionalTimeSignature.beatType, 4);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(
+    result,
+    processMusicXmlUpload({ fileName: 'consensus-overflow.musicxml', bytes }),
+  );
+});
+
 test('measure overflow opens with provisional TAB without source mutation', () => {
   const bytes = Buffer.from(score());
   const original = Buffer.from(bytes);
