@@ -85,7 +85,7 @@ function assertScalarLeaf(node, allowedTexts, field, location) {
     || node.attributes.length !== 0
     || node.children.length !== 0
   ) {
-    throw unsupported(`${field} is outside the bounded 3:2/6:4/11:6/22:12 tuplet profile.`, {
+    throw unsupported(`${field} is outside the bounded 3:2/6:4/7:6/11:6/22:12 tuplet profile.`, {
       ...location,
       field,
       observedText,
@@ -115,15 +115,16 @@ function parseExactTripletTimeModification(node, location) {
     });
   }
 
-  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '11', '22']), 'actual-notes', location);
+  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '7', '11', '22']), 'actual-notes', location);
   const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4', '6', '12']), 'normal-notes', location);
   if (!(
     (actualNotes === 3 && normalNotes === 2)
     || (actualNotes === 6 && normalNotes === 4)
+    || (actualNotes === 7 && normalNotes === 6)
     || (actualNotes === 11 && normalNotes === 6)
     || (actualNotes === 22 && normalNotes === 12)
   )) {
-    throw unsupported('Only exact 3:2, 6:4, pinned 11:6, and pinned 22:12 tuplet relations are supported.', {
+    throw unsupported('Only exact 3:2, 6:4, pinned 7:6, pinned 11:6, and pinned 22:12 tuplet relations are supported.', {
       ...location,
       actualNotes,
       normalNotes,
@@ -135,9 +136,11 @@ function parseExactTripletTimeModification(node, location) {
       ? 'triplet-time-modification'
       : actualNotes === 6
         ? 'sextuplet-time-modification'
-        : actualNotes === 11
-          ? 'eleven-in-six-time-modification'
-          : 'twenty-two-in-twelve-time-modification',
+        : actualNotes === 7
+          ? 'seven-in-six-time-modification'
+          : actualNotes === 11
+            ? 'eleven-in-six-time-modification'
+            : 'twenty-two-in-twelve-time-modification',
     actualNotes,
     normalNotes,
   });
