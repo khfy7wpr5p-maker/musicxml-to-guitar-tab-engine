@@ -172,6 +172,27 @@ test('PA-2.3 projects basic note/rest source facts into an immutable PA-1 model'
   assert.ok(Object.isFrozen(parsed.root));
 });
 
+test('PA-2.3 projects positioned rest display metadata without inventing pitch', () => {
+  const xml = BASIC_XML.replace(
+    '<note><rest/><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+    '<note><rest><display-step>B</display-step><display-octave>2</display-octave></rest><duration>4</duration><voice>1</voice><staff>1</staff></note>',
+  );
+  const runtime = createMusicXmlProcessingRuntime();
+  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
+  const before = JSON.stringify(parsed);
+
+  const projected = projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+  const rest = projected.measures[0].events[1];
+
+  assert.equal(rest.type, 'rest');
+  assert.equal(rest.onsetDivisions, 4);
+  assert.equal(rest.durationDivisions, 4);
+  assert.equal(Object.hasOwn(rest, 'pitch'), false);
+  assert.equal(rest.voice, '1');
+  assert.equal(rest.staff, 1);
+  assert.equal(JSON.stringify(parsed), before);
+});
+
 test('PA-2.3 rejects unsupported notation semantics instead of discarding them', () => {
   const xml = BASIC_XML.replace(
     '<notations><tied type="start"/></notations>',
