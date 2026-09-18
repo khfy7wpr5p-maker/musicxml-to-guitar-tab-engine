@@ -111,7 +111,7 @@ test('PS-6B2A removes bounded producer layout attributes on wedge and pedal dire
     <direction placement="below"><direction-type><pedal type="start" line="yes" default-y="-80.00"/></direction-type><staff>2</staff></direction>
   `).replace('<staves>1</staves>', '<staves>2</staves>'));
 
-  const normalized = normalizePolyphonicPerformanceDirections(sourceDocument);
+  const normalized = normalizeDeferredPolyphonicPerformanceDirections(sourceDocument);
 
   assert.equal(normalized.ignoredDirectionCount, 2);
   assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), false);
@@ -126,7 +126,7 @@ test('PS-6B2A keeps malformed or unbounded deferred layout attributes fail-close
     '<direction placement="above"><direction-type><wedge type="crescendo" number="1" mystery="x"/></direction-type><staff>1</staff></direction>',
   ]) {
     const sourceDocument = parsed(score(direction));
-    const normalized = normalizePolyphonicPerformanceDirections(sourceDocument);
+    const normalized = normalizeDeferredPolyphonicPerformanceDirections(sourceDocument);
     assert.equal(normalized.ignoredDirectionCount, 0, direction);
     assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), true, direction);
   }
