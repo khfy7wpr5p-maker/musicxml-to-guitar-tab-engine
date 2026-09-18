@@ -789,8 +789,18 @@ function boundedDirectionValues(directionNode) {
   }
   const staff = directChildren(directionNode, 'staff')[0] || null;
   const sound = directChildren(directionNode, 'sound')[0] || null;
+  const offsets = directChildren(directionNode, 'offset').map((offset) => Object.freeze({
+    text: boundedText(offset.text),
+    attributes: Object.freeze(offset.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+  }));
   return Object.freeze({
     staff: staff ? boundedText(staff.text) : null,
+    offsets: Object.freeze(offsets),
     sound: Object.freeze((sound?.attributes || [])
       .filter((attribute) => attribute.uri.length === 0)
       .map((attribute) => Object.freeze({
@@ -999,6 +1009,37 @@ function parseKeySignature(node, measureIndex) {
   return Object.freeze({ measureIndex, fifths, mode });
 }
 
+function boundedNodeShape(node) {
+  const boundedText = (value) => (
+    typeof value === 'string' && value.length <= 64 ? value.trim() : null
+  );
+  return Object.freeze({
+    name: node.name,
+    attributes: Object.freeze(node.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+    text: boundedText(node.text),
+    children: Object.freeze(node.children
+      .filter((child) => child.uri === node.uri)
+      .map((child) => Object.freeze({
+        name: child.name,
+        attributes: Object.freeze(child.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => Object.freeze({
+            name: attribute.name,
+            value: boundedText(attribute.value),
+          }))),
+        text: boundedText(child.text),
+        childNames: Object.freeze(child.children
+          .filter((grandchild) => grandchild.uri === child.uri)
+          .map((grandchild) => grandchild.name)),
+      }))),
+  });
+}
+
 function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) {
   const children = [];
   for (const child of node.children) {
@@ -1045,7 +1086,9 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       ignoredFeatures.add(`attributes:${child.name}`);
       continue;
     }
-    throw unsupported(`attributes-child:${child.name}`);
+    throw unsupported(`attributes-child:${child.name}`, {
+      attributeChildShape: boundedNodeShape(child),
+    });
   }
   return cloneNode(node, { children });
 }
@@ -1092,7 +1135,9 @@ function sanitizeNotations(node, ignoredFeatures) {
       }
       continue;
     }
-    throw unsupported(`notation:${child.name}`);
+    throw unsupported(`notation:${child.name}`, {
+      notationShape: boundedNodeShape(child),
+    });
   }
   return children.length === 0 ? null : cloneNode(node, { children });
 }
