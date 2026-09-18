@@ -85,15 +85,18 @@ test('non-leading tempo direction remains review-required instead of moving to m
     bytes: Buffer.from(xml),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
-  // No bounded TAB-writer artifact exists for this exact mid-measure placement
-  // yet. The independent source artifact still makes the original score
-  // renderable without moving the tempo event or inventing TAB.
-  assert.equal(result.musicXml, null);
+  // The source tempo placement remains review-only, while the note material
+  // still gets a provisional TAB artifact for teacher editing.
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
   assert.equal(result.sourceArtifact.rendererMusicXml, xml);
   assert.equal(result.capabilities.renderScore, true);
-  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
 
 test('unknown direction semantics remain fail-closed', () => {
@@ -107,22 +110,21 @@ test('unknown direction semantics remain fail-closed', () => {
   assert.equal(result.capabilities.generateTab, false);
 });
 
-test('combined conflicting direction remains review-required without inventing a provisional TAB', () => {
+test('combined conflicting direction remains review-required with provisional TAB', () => {
   const result = processMusicXmlUpload({
     fileName: 'conflicting-combined-tempo.musicxml',
     bytes: Buffer.from(score('<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>')),
   });
   assert.equal(result.status, 'REVIEW_REQUIRED');
   assert.equal(result.route, 'POLY_V2');
-  // This source is stopped before a writer-safe TAB projection exists. The
-  // safely parsed source remains renderable, but no TAB or timing is invented.
-  assert.equal(result.canonicalTabResult, null);
-  assert.equal(result.musicXml, null);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
   assert.match(result.sourceArtifact.rendererMusicXml, /<sound tempo="80"\/>/);
   assert.equal(result.capabilities.renderScore, true);
-  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.playback, 'APPROXIMATE');
   assert.equal(result.capabilities.export, false);
-  assert.equal(result.artifacts.provisionalTabAvailable, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
   assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
