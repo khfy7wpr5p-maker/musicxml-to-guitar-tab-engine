@@ -400,7 +400,16 @@ function parseGraceNote(note, location, expectedBeamText) {
   const stem = parseOptionalStem(note, location);
   validateOptionalNormalNotehead(note, location);
   if (slash === 'no' && !isUnslashed16thPair) {
-    throw unsupported('Unslashed grace is supported only as an exact two-note 16th sequence.', location);
+    throw unsupported('Unslashed grace is supported only as an exact two-note 16th sequence.', {
+      ...location,
+      reason: 'UNSLASHED_GRACE_OUTSIDE_BOUNDED_PAIR_PROFILE',
+      nominalType,
+      expectedBeamText,
+      observedBeamCount: directChildren(note, 'beam').length,
+      graceAttributeNames: grace.attributes
+        .filter((attribute) => attribute.uri.length === 0)
+        .map((attribute) => attribute.name),
+    });
   }
   const beam = isUnslashed16thPair
     ? parseUnslashed16thPairBeams(note, location, expectedBeamText)
