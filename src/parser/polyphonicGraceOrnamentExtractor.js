@@ -246,7 +246,7 @@ function parseOptionalStem(note, location) {
   if (stems.length === 0) return null;
   requireExactLeaf(stems[0], 'stem', location);
   const value = stems[0].text.trim();
-  if (value !== 'up' && value !== 'down') {
+  if (value !== 'up' && value !== 'down' && value !== 'none') {
     throw unsupported('Grace stem has an unsupported value.', {
       ...location,
       field: 'stem',
