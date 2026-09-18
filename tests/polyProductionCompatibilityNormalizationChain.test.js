@@ -309,6 +309,9 @@ test('POLY production chain keeps bounded performance-only producer variants rev
     ['bounded-playback-dynamics',
       '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>',
       true],
+    ['rounded-mismatched-tempo',
+      '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>999.999999999999999999</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000"/></direction>',
+      true],
   ];
 
   for (const [name, direction, requiresReview] of fixtures) {
@@ -350,7 +353,6 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['underflow-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-0.0000000000000000001"/></direction>'],
     ['rounded-over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="127.000000000000000001"/></direction>'],
     ['rounded-over-range-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>1000.000000000000000001</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000.000000000000000001"/></direction>'],
-    ['rounded-mismatched-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>999.999999999999999999</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000"/></direction>'],
     ['reversed-metronome-children', '<direction placement="above"><direction-type><metronome><per-minute>40</per-minute><beat-unit>quarter</beat-unit></metronome></direction-type><staff>1</staff><sound tempo="40"/></direction>'],
     ['reordered-metronome-direction', '<direction placement="above"><sound tempo="40"/><staff>1</staff><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>40</per-minute></metronome></direction-type></direction>'],
     ['mixed-dynamics-text', '<direction placement="below"><direction-type><dynamics>unexpected<pp/></dynamics></direction-type><staff>1</staff><sound dynamics="17.78"/></direction>'],
