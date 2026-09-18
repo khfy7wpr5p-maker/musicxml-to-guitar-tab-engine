@@ -141,6 +141,25 @@ function chopinTwentyInSixScore() {
 </score-partwise>`;
 }
 
+function chopinTripletWithNormalTypeScore() {
+  const timeModification =
+    '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type></time-modification>';
+  const note = (duration, type, tuplet = '') => (
+    `<note><pitch><step>C</step><octave>5</octave></pitch><duration>${duration}</duration><voice>1</voice><type>${type}</type>${timeModification}<staff>1</staff>${tuplet}</note>`
+  );
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1"><measure number="76">
+    <attributes><divisions>480</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves><clef><sign>G</sign><line>2</line></clef></attributes>
+    ${note(160, 'eighth', '<notations><tuplet type="start" bracket="no"/></notations>')}
+    ${note(240, 'eighth')}
+    ${note(80, '16th', '<notations><tuplet type="stop"/></notations>')}
+  </measure></part>
+</score-partwise>`;
+}
+
 function parsed(xml) {
   return parseParsedMusicXmlDocument(xml);
 }
@@ -390,6 +409,73 @@ test('accepts the pinned Chopin 20:6 tuplet profile with exact authoritative dur
       { type: 'start', bracket: false, sourceOrder: 0 },
       { type: 'stop', bracket: null, sourceOrder: 19 },
     ],
+  );
+});
+
+test('accepts pinned Chopin 3:2 normal-type provenance without changing authoritative duration', () => {
+  const source = parsed(chopinTripletWithNormalTypeScore());
+  const sourcePart = source.root.children.find((child) => child.name === 'part');
+  const sourceMeasure = sourcePart.children.find((child) => child.name === 'measure');
+  const sourceFirstNote = sourceMeasure.children.find((child) => child.name === 'note');
+
+  const result = projectParsedMusicXmlWithTripletDisplayCompatibility(source);
+  const events = result.sourceModel.measures[0].events;
+
+  assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
+  assert.deepEqual(events.map((event) => event.durationDivisions), [160, 240, 80]);
+  assert.deepEqual(events.map((event) => event.onsetDivisions), [0, 160, 400]);
+  assert.deepEqual(
+    result.tripletTimeModificationMarkers.map((marker) => ({
+      kind: marker.kind,
+      actualNotes: marker.actualNotes,
+      normalNotes: marker.normalNotes,
+      normalType: marker.normalType,
+      sourceOrder: marker.sourceOrder,
+    })),
+    [
+      {
+        kind: 'triplet-time-modification',
+        actualNotes: 3,
+        normalNotes: 2,
+        normalType: 'eighth',
+        sourceOrder: 0,
+      },
+      {
+        kind: 'triplet-time-modification',
+        actualNotes: 3,
+        normalNotes: 2,
+        normalType: 'eighth',
+        sourceOrder: 1,
+      },
+      {
+        kind: 'triplet-time-modification',
+        actualNotes: 3,
+        normalNotes: 2,
+        normalType: 'eighth',
+        sourceOrder: 2,
+      },
+    ],
+  );
+  assert.deepEqual(
+    result.tripletDisplayMarkers.map((marker) => ({
+      type: marker.type,
+      bracket: marker.bracket,
+      sourceOrder: marker.sourceOrder,
+    })),
+    [
+      { type: 'start', bracket: false, sourceOrder: 0 },
+      { type: 'stop', bracket: null, sourceOrder: 2 },
+    ],
+  );
+
+  const sourceTimeModification = sourceFirstNote.children.find(
+    (child) => child.name === 'time-modification',
+  );
+  assert.equal(
+    sourceTimeModification.children.some(
+      (child) => child.name === 'normal-type' && child.text.trim() === 'eighth',
+    ),
+    true,
   );
 });
 
