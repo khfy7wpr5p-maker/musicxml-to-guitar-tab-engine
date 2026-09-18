@@ -77,6 +77,32 @@ function exactDownBowTechnical(technical) {
   return validPlacement(getAttribute(downBow, 'placement'));
 }
 
+function exactTrillMarkOrnament(ornaments) {
+  if (ornaments.attributes.length !== 0 || ornaments.text.trim().length !== 0) return false;
+  const children = ornaments.children.filter((child) => child.uri === ornaments.uri);
+  if (children.length !== ornaments.children.length || children.length !== 1) return false;
+  const trill = children[0];
+  return trill.name === 'trill-mark'
+    && trill.attributes.length === 0
+    && trill.children.length === 0
+    && trill.text.trim().length === 0;
+}
+
+function boundedArpeggiateNotation(arpeggiate) {
+  if (arpeggiate.children.length !== 0 || arpeggiate.text.trim().length !== 0) return false;
+  const seen = new Set();
+  for (const attribute of arpeggiate.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || !LAYOUT_ATTRIBUTES.has(attribute.name)
+      || seen.has(attribute.name)
+      || !boundedLayoutNumber(attribute.value)
+    ) return false;
+    seen.add(attribute.name);
+  }
+  return true;
+}
+
 function issue(code, message, feature, measureNumber, measureIndex, noteIndex) {
   return Object.freeze({
     severity: 'error',
@@ -157,6 +183,30 @@ function normalizeNotations(notations, context) {
         'NON_GUITAR_SOURCE_TECHNIQUE_REVIEW_REQUIRED',
         'Source down-bow technique has no automatic guitar-TAB semantic mapping and requires teacher review.',
         'notation:technical:down-bow',
+        context.measureNumber,
+        context.measureIndex,
+        context.noteIndex,
+      ));
+      continue;
+    }
+    if (child.uri === notations.uri && child.name === 'ornaments' && exactTrillMarkOrnament(child)) {
+      context.ignoredFeatures.add('notation:ornaments:trill-mark:review-required');
+      context.issues.push(issue(
+        'SOURCE_ORNAMENT_REVIEW_REQUIRED',
+        'Source trill ornament is preserved as teacher-review evidence while provisional guitar TAB keeps the written anchor note.',
+        'notation:ornaments:trill-mark',
+        context.measureNumber,
+        context.measureIndex,
+        context.noteIndex,
+      ));
+      continue;
+    }
+    if (child.uri === notations.uri && child.name === 'arpeggiate' && boundedArpeggiateNotation(child)) {
+      context.ignoredFeatures.add('notation:arpeggiate:review-required');
+      context.issues.push(issue(
+        'SOURCE_ARPEGGIATE_REVIEW_REQUIRED',
+        'Source arpeggiation notation requires teacher review; written source notes remain unchanged for provisional guitar TAB.',
+        'notation:arpeggiate',
         context.measureNumber,
         context.measureIndex,
         context.noteIndex,
