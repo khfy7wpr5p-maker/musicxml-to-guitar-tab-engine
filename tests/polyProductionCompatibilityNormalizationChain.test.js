@@ -456,6 +456,16 @@ test('POLY production chain treats full-measure rest and multiple-rest style as 
       <backup><duration>16</duration></backup>
       <note><rest measure="yes"/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
     </measure>
+    <measure number="3">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><pitch><step>E</step><octave>3</octave></pitch><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    </measure>
   </part>
 </score-partwise>`;
   const bytes = Buffer.from(xml);
