@@ -395,10 +395,16 @@ function parseGraceNote(note, location, expectedBeamText) {
     && expectedBeamText === null
     && directChildren(note, 'beam').length === 0
     && grace.attributes.length === 0;
+  const isUnslashedEighthPair = slash === 'no'
+    && nominalType === 'eighth'
+    && expectedBeamText !== null
+    && directChildren(note, 'beam').length === 1
+    && grace.attributes.length === 0;
   if (
     !SAFE_GRACE_NOMINAL_TYPES.has(nominalType)
     && !isUnslashed16thPair
     && !isUnslashedSingleEighth
+    && !isUnslashedEighthPair
   ) {
     throw unsupported('Grace type has an unsupported nominal value.', {
       ...location,
@@ -408,7 +414,12 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
   const stem = parseOptionalStem(note, location);
   validateOptionalNormalNotehead(note, location);
-  if (slash === 'no' && !isUnslashed16thPair && !isUnslashedSingleEighth) {
+  if (
+    slash === 'no'
+    && !isUnslashed16thPair
+    && !isUnslashedSingleEighth
+    && !isUnslashedEighthPair
+  ) {
     throw unsupported('Unslashed grace is outside the bounded producer profile.', {
       ...location,
       reason: 'UNSLASHED_GRACE_OUTSIDE_BOUNDED_PAIR_PROFILE',
@@ -582,7 +593,9 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
       kind: first.slash === 'no'
         ? (run.length === 1
           ? 'unslashed-single-eighth-grace'
-          : 'unslashed-two-note-16th-grace-sequence')
+          : (first.nominalType === 'eighth'
+            ? 'unslashed-two-note-eighth-grace-sequence'
+            : 'unslashed-two-note-16th-grace-sequence'))
         : (run.length === 1
           ? 'slashed-single-eighth-grace'
           : 'slashed-two-note-eighth-grace-sequence'),
