@@ -558,6 +558,30 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
       );
     });
 
+    const hasGraceChord = parsedRun.some((event) => event.chordWithPrevious);
+    if (hasGraceChord) {
+      const exactReviewGraceChord = parsedRun.length === 2
+        && parsedRun[0].chordWithPrevious === false
+        && parsedRun[1].chordWithPrevious === true
+        && parsedRun.every((event) => (
+          event.slash === 'yes'
+          && event.nominalType === 'eighth'
+          && event.beam === null
+        ));
+      if (!exactReviewGraceChord) {
+        throw unsupported('Grace chord membership is outside the bounded review profile.', {
+          ...context,
+          startSourceOrder: startOrder,
+          reason: 'GRACE_CHORD_MEMBER_OUTSIDE_REVIEW_PROFILE',
+          graceCount: parsedRun.length,
+          chordProfile: parsedRun.map((event) => event.chordWithPrevious),
+          slashProfile: parsedRun.map((event) => event.slash),
+          nominalTypeProfile: parsedRun.map((event) => event.nominalType),
+          beamProfile: parsedRun.map((event) => event.beam),
+        });
+      }
+    }
+
     const first = parsedRun[0];
     for (let index = 1; index < parsedRun.length; index += 1) {
       if (parsedRun[index].voice !== first.voice || parsedRun[index].staff !== first.staff) {
@@ -618,11 +642,10 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
       });
     });
     removedBefore += run.length;
-    const hasGraceChord = parsedRun.some((event) => event.chordWithPrevious);
     groups.push(freezeGraceGroup({
       graceGroupId,
       kind: hasGraceChord
-        ? 'grace-chord-review'
+        ? 'slashed-two-note-eighth-grace-chord-review'
         : first.slash === 'no'
           ? (run.length === 1
             ? 'unslashed-single-eighth-grace'
@@ -633,8 +656,11 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
             ? 'slashed-single-eighth-grace'
             : 'slashed-two-note-eighth-grace-sequence'),
       timingAuthority: hasGraceChord
-        ? 'SOURCE_ORDER_AND_CHORD_MEMBERSHIP_NO_NUMERIC_TIMING'
+        ? 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY'
         : 'ORDER_ONLY_BEFORE_ANCHOR',
+      physicalIntegration: hasGraceChord
+        ? 'REVIEW_REQUIRED_UNASSIGNED'
+        : 'EXACT_ORDER_ONLY_PHYSICAL_TRANSITION',
       measureIndex: context.measureIndex,
       measureNumber: context.measureNumber,
       voice: first.voice,
@@ -732,6 +758,29 @@ function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
   });
   const upstream = normalizePolyphonicTripletDisplay(graceFreeDocument, runtime);
   const frozenGroups = Object.freeze(groups);
+  const reviewIssues = Object.freeze(
+    frozenGroups
+      .filter((group) => group.physicalIntegration === 'REVIEW_REQUIRED_UNASSIGNED')
+      .map((group) => Object.freeze({
+        severity: 'error',
+        category: 'semantic',
+        code: 'GRACE_CHORD_REQUIRES_REVIEW',
+        message: 'Grace chord is preserved as source provenance but left unassigned in provisional guitar TAB.',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        location: Object.freeze({
+          measure: group.measureNumber,
+          measureIndex: group.measureIndex,
+          eventIndex: group.notes[0]?.originalSourceOrder ?? null,
+          sourceEventId: null,
+        }),
+        details: Object.freeze({
+          feature: 'grace-chord',
+          reason: 'SIMULTANEOUS_GRACE_CHORD_NO_AUTOMATIC_TIMING_OR_POSITION_AUTHORITY',
+          reviewDisposition: 'REVIEW_REQUIRED',
+          graceGroupId: group.graceGroupId,
+        }),
+      })),
+  );
   const extractedFeatures = Object.freeze(
     frozenGroups.length === 0 ? [] : ['grace-note:order-only-ornament'],
   );
@@ -751,6 +800,7 @@ function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
       : POLYPHONIC_GRACE_SOLVER_STATUS.BLOCKED_PENDING_PHYSICAL_INTEGRATION,
     parsedMainDocument,
     graceOrnamentGroups: frozenGroups,
+    reviewIssues,
     extractedGraceEventCount: counters.graceEvents,
     originalNoteElementCount: accounting.originalNoteElementCount,
     extractedFeatures,
@@ -797,6 +847,7 @@ function projectParsedMusicXmlWithGraceOrnamentExtraction(parsedDocument, runtim
     solverCompatibility: extraction.solverCompatibility,
     mainSourceModel,
     graceOrnamentGroups: extraction.graceOrnamentGroups,
+    reviewIssues: extraction.reviewIssues,
     extractedFeatures: extraction.extractedFeatures,
     musicalMaterialAccounting,
     ignoredFeatures: extraction.ignoredFeatures,
