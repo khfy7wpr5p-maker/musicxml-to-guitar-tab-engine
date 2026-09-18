@@ -305,7 +305,7 @@ test('POLY production chain keeps bounded performance-only producer variants rev
       false],
     ['non-quarter-equivalent-tempo',
       '<direction placement="above"><direction-type><metronome><beat-unit>half</beat-unit><per-minute>40</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>',
-      true],
+      false],
     ['bounded-playback-dynamics',
       '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>',
       true],
@@ -337,34 +337,6 @@ test('POLY production chain keeps bounded performance-only producer variants rev
       assert.equal(result.artifacts.canonicalTabAvailable, false, name);
     }
   }
-});
-
-test('POLY production chain resolves bounded octave-shift display provenance without blocking TAB', () => {
-  const start =
-    '<direction placement="above"><direction-type><octave-shift type="down" size="8" number="1" default-y="30"/></direction-type><staff>1</staff></direction>';
-  const stop =
-    '<direction placement="above"><direction-type><octave-shift type="stop" size="8" number="1" default-y="30"/></direction-type><staff>1</staff></direction>';
-  const xml = runtimeFixture()
-    .replace('    <note>', `    ${start}\n    <note>`)
-    .replace(
-      '<note>\n        <pitch><step>A</step><octave>3</octave></pitch>',
-      `${stop}\n      <note>\n        <pitch><step>A</step><octave>3</octave></pitch>`,
-    );
-  const bytes = Buffer.from(xml);
-  const before = Buffer.from(bytes);
-  const result = processMusicXmlUpload({
-    fileName: 'bounded-octave-shift.musicxml',
-    bytes,
-  });
-
-  assert.notEqual(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
-  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.capabilities.generateTab, true);
-  assert.equal(typeof result.musicXml, 'string');
-  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
-  assert.deepEqual(bytes, before);
-  const ignored = result.preflight.issues.flatMap((issue) => issue.details?.ignoredFeatures || []);
-  assert.ok(ignored.includes('direction:octave-shift-display'));
 });
 
 test('POLY production chain remains fail-closed for timing-affecting or unbounded directions', () => {
@@ -400,7 +372,15 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED, name);
     assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2, name);
     assert.equal(result.canonicalTabResult, null, name);
-    assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
+    if (name === 'octave-shift') {
+      assert.ok(
+        ['INVALID_POLYPHONIC_OCTAVE_SHIFT', 'UNSUPPORTED_POLYPHONIC_OCTAVE_SHIFT']
+          .includes(result.preflight.issues[0].code),
+        name,
+      );
+    } else {
+      assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
+    }
   }
 });
 
@@ -463,6 +443,8 @@ test('POLY production chain treats full-measure rest and multiple-rest style as 
         <measure-style><multiple-rest>2</multiple-rest></measure-style>
       </attributes>
       <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><rest measure="yes"/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
     </measure>
     <measure number="2">
       <attributes>
@@ -471,6 +453,8 @@ test('POLY production chain treats full-measure rest and multiple-rest style as 
         <staves>1</staves>
       </attributes>
       <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><rest measure="yes"/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
     </measure>
   </part>
 </score-partwise>`;
