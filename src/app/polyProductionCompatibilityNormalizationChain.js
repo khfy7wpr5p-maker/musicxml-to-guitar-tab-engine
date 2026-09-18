@@ -17,7 +17,7 @@ const {
   normalizePolyphonicRepeatBarlines,
 } = require('../parser/polyphonicRepeatBarlineNormalizer');
 const {
-  normalizePolyphonicOctaveShifts,
+  normalizePreNormalizedPolyphonicOctaveShifts,
 } = require('../parser/polyphonicOctaveShiftResolver');
 const {
   bindPolyphonicFingeringProvenance,
@@ -200,7 +200,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     performanceNormalization.parsedDocument,
     runtime,
   );
-  const octaveShiftNormalization = normalizePolyphonicOctaveShifts(
+  const octaveShiftNormalization = normalizePreNormalizedPolyphonicOctaveShifts(
     repeatNormalization.parsedDocument,
     runtime,
   );
