@@ -357,7 +357,23 @@ function parseGraceNote(note, location, expectedBeamText) {
     throw unsupported('Grace rests are outside the PS-6B6A extraction scope.', location);
   }
   if (directChildren(note, 'chord').length !== 0) {
-    throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', location);
+    const graceNode = directChildren(note, 'grace')[0] || null;
+    const typeNode = directChildren(note, 'type')[0] || null;
+    throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', {
+      ...location,
+      reason: 'GRACE_CHORD_MEMBER_OUTSIDE_SEQUENCE_PROFILE',
+      expectedBeamText,
+      nominalType: typeNode && typeNode.text.length <= 64 ? typeNode.text.trim() : null,
+      observedBeamCount: directChildren(note, 'beam').length,
+      graceAttributeNames: graceNode
+        ? graceNode.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => attribute.name)
+        : [],
+      childNames: note.children
+        .filter((child) => child.uri === note.uri)
+        .map((child) => child.name),
+    });
   }
 
   const allowedChildren = new Set([
