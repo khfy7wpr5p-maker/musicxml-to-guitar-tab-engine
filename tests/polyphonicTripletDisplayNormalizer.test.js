@@ -45,6 +45,31 @@ function score({
 </score-partwise>`;
 }
 
+function chopinElevenInSixScore() {
+  const timeModification =
+    '<time-modification><actual-notes>11</actual-notes><normal-notes>6</normal-notes></time-modification>';
+  const notes = Array.from({ length: 11 }, (_, index) => {
+    const tuplet = index === 0
+      ? '<notations><tuplet type="start" bracket="no"/></notations>'
+      : index === 10
+        ? '<notations><tuplet type="stop"/></notations>'
+        : '';
+    return `<note><pitch><step>C</step><octave>5</octave></pitch><duration>130</duration><voice>1</voice><type>eighth</type>${timeModification}<staff>1</staff>${tuplet}</note>`;
+  }).join('');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1"><measure number="3">
+    <attributes><divisions>480</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>1</staves><clef><sign>G</sign><line>2</line></clef></attributes>
+    <note><pitch><step>D</step><octave>5</octave></pitch><duration>960</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+    <note><pitch><step>B</step><octave>4</octave></pitch><duration>480</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+    ${notes}
+    <forward><duration>10</duration></forward>
+  </measure></part>
+</score-partwise>`;
+}
+
 function parsed(xml) {
   return parseParsedMusicXmlDocument(xml);
 }
@@ -138,6 +163,55 @@ test('records a bounded bracketed tuplet whose ratio is backed by time-modificat
     { type: 'start', bracket: true },
     { type: 'stop', bracket: null },
   ]);
+});
+
+test('accepts the pinned Chopin 11:6 tuplet profile without rescaling authoritative MusicXML duration', () => {
+  const source = parsed(chopinElevenInSixScore());
+  const sourcePart = source.root.children.find((child) => child.name === 'part');
+  const sourceMeasure = sourcePart.children.find((child) => child.name === 'measure');
+  const sourceNotes = sourceMeasure.children.filter((child) => child.name === 'note');
+  const firstTupletSourceNote = sourceNotes[2];
+
+  const result = projectParsedMusicXmlWithTripletDisplayCompatibility(source);
+  const events = result.sourceModel.measures[0].events;
+
+  assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
+  assert.deepEqual(
+    events.map((event) => event.durationDivisions),
+    [960, 480, ...new Array(11).fill(130)],
+  );
+  assert.deepEqual(
+    events.slice(2).map((event) => event.onsetDivisions),
+    [1440, 1570, 1700, 1830, 1960, 2090, 2220, 2350, 2480, 2610, 2740],
+  );
+  assert.equal(result.tripletTimeModificationMarkers.length, 11);
+  assert.deepEqual(result.tripletTimeModificationMarkers[0], {
+    kind: 'eleven-in-six-time-modification',
+    actualNotes: 11,
+    normalNotes: 6,
+    measureIndex: 0,
+    measureNumber: '3',
+    sourceOrder: 2,
+    noteChildIndex: 4,
+  });
+  assert.deepEqual(
+    result.tripletDisplayMarkers.map((marker) => ({
+      type: marker.type,
+      bracket: marker.bracket,
+      sourceOrder: marker.sourceOrder,
+    })),
+    [
+      { type: 'start', bracket: false, sourceOrder: 2 },
+      { type: 'stop', bracket: null, sourceOrder: 12 },
+    ],
+  );
+
+  assert.equal(
+    firstTupletSourceNote.children.some((child) => child.name === 'time-modification'),
+    true,
+  );
+  const sourceNotations = firstTupletSourceNote.children.find((child) => child.name === 'notations');
+  assert.equal(sourceNotations.children.some((child) => child.name === 'tuplet'), true);
 });
 
 test('PS-6B5B requires same-note validated 3:2 time-modification provenance', () => {
