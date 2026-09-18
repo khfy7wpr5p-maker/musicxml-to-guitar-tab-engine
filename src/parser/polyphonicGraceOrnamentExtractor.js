@@ -345,7 +345,7 @@ function parseUnslashed16thPairBeams(note, location, expectedBeamText) {
   return expectedBeamText;
 }
 
-function parseGraceNote(note, location, expectedBeamText) {
+function parseGraceNote(note, location, expectedBeamText, allowChordMember = false) {
   if (note.text.trim().length !== 0) {
     throw unsupported('Extracted grace notes must have no note-level text.', location);
   }
@@ -356,14 +356,16 @@ function parseGraceNote(note, location, expectedBeamText) {
   if (directChildren(note, 'rest').length !== 0) {
     throw unsupported('Grace rests are outside the PS-6B6A extraction scope.', location);
   }
-  if (directChildren(note, 'chord').length !== 0) {
+  const chordNodes = directChildren(note, 'chord');
+  if (chordNodes.length > 1 || (chordNodes.length === 1 && !allowChordMember)) {
     const graceNode = directChildren(note, 'grace')[0] || null;
     const typeNode = directChildren(note, 'type')[0] || null;
-    throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', {
+    throw unsupported('Grace chord membership is outside the bounded review profile.', {
       ...location,
-      reason: 'GRACE_CHORD_MEMBER_OUTSIDE_SEQUENCE_PROFILE',
+      reason: 'GRACE_CHORD_MEMBER_OUTSIDE_REVIEW_PROFILE',
       expectedBeamText,
       nominalType: typeNode && typeNode.text.length <= 64 ? typeNode.text.trim() : null,
+      observedChordCount: chordNodes.length,
       observedBeamCount: directChildren(note, 'beam').length,
       graceAttributeNames: graceNode
         ? graceNode.attributes
@@ -375,9 +377,13 @@ function parseGraceNote(note, location, expectedBeamText) {
         .map((child) => child.name),
     });
   }
+  const chordWithPrevious = chordNodes.length === 1;
+  if (chordWithPrevious) {
+    requireExactLeaf(chordNodes[0], 'chord', location, { text: '', attributes: {} });
+  }
 
   const allowedChildren = new Set([
-    'grace', 'pitch', 'voice', 'type', 'stem', 'notehead', 'staff', 'beam',
+    'grace', 'chord', 'pitch', 'voice', 'type', 'stem', 'notehead', 'staff', 'beam',
   ]);
   for (const child of note.children) {
     if (child.uri !== note.uri || !allowedChildren.has(child.name)) {
@@ -464,6 +470,7 @@ function parseGraceNote(note, location, expectedBeamText) {
     slash,
     stem,
     beam,
+    chordWithPrevious,
   });
 }
 
@@ -547,6 +554,7 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
         entry.note,
         { ...context, sourceOrder: entry.sourceOrder },
         beamExpectations[index],
+        index > 0,
       );
     });
 
@@ -600,6 +608,7 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
         slash: parsed.slash,
         stem: parsed.stem,
         beam: parsed.beam,
+        chordWithPrevious: parsed.chordWithPrevious,
         source: {
           partId,
           measureIndex: context.measureIndex,
@@ -609,18 +618,23 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
       });
     });
     removedBefore += run.length;
+    const hasGraceChord = parsedRun.some((event) => event.chordWithPrevious);
     groups.push(freezeGraceGroup({
       graceGroupId,
-      kind: first.slash === 'no'
-        ? (run.length === 1
-          ? 'unslashed-single-eighth-grace'
-          : (first.nominalType === 'eighth'
-            ? 'unslashed-two-note-eighth-grace-sequence'
-            : 'unslashed-two-note-16th-grace-sequence'))
-        : (run.length === 1
-          ? 'slashed-single-eighth-grace'
-          : 'slashed-two-note-eighth-grace-sequence'),
-      timingAuthority: 'ORDER_ONLY_BEFORE_ANCHOR',
+      kind: hasGraceChord
+        ? 'grace-chord-review'
+        : first.slash === 'no'
+          ? (run.length === 1
+            ? 'unslashed-single-eighth-grace'
+            : (first.nominalType === 'eighth'
+              ? 'unslashed-two-note-eighth-grace-sequence'
+              : 'unslashed-two-note-16th-grace-sequence'))
+          : (run.length === 1
+            ? 'slashed-single-eighth-grace'
+            : 'slashed-two-note-eighth-grace-sequence'),
+      timingAuthority: hasGraceChord
+        ? 'SOURCE_ORDER_AND_CHORD_MEMBERSHIP_NO_NUMERIC_TIMING'
+        : 'ORDER_ONLY_BEFORE_ANCHOR',
       measureIndex: context.measureIndex,
       measureNumber: context.measureNumber,
       voice: first.voice,
