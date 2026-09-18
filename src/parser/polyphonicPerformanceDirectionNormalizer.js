@@ -223,7 +223,10 @@ function safeTempoMetronome(node) {
     || node.children.some((child) => child.uri !== node.uri)
     || !hasExactUnqualifiedAttributes(node, {
       parentheses: (value) => value === 'yes' || value === 'no',
+      'default-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
       'default-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+      'relative-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+      'relative-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
     })
   ) return null;
   if (
@@ -308,8 +311,87 @@ function safeBoundedTempoDirection(
   });
 }
 
+function safeDeferredOffsetTempoDirection(
+  directionNode,
+  classification,
+  { effectiveStaffCount = null } = {},
+) {
+  if (
+    !classification.hasOffset
+    || classification.soundAttributes.join(',') !== 'tempo'
+    || classification.typeNames.length !== 1
+    || classification.typeNames[0] !== 'metronome'
+    || directionNode.text.trim().length !== 0
+  ) return null;
+
+  const children = sameNamespaceChildren(directionNode);
+  const directionTypes = children.filter((child) => child.name === 'direction-type');
+  const offsets = children.filter((child) => child.name === 'offset');
+  const staffs = children.filter((child) => child.name === 'staff');
+  const sounds = children.filter((child) => child.name === 'sound');
+  if (
+    directionTypes.length !== 1
+    || offsets.length !== 1
+    || staffs.length > 1
+    || sounds.length !== 1
+  ) return null;
+
+  const expectedNames = [
+    'direction-type',
+    'offset',
+    ...(staffs.length === 1 ? ['staff'] : []),
+    'sound',
+  ];
+  if (
+    children.length !== expectedNames.length
+    || children.some((child, index) => child.name !== expectedNames[index])
+  ) return null;
+
+  const directionType = directionTypes[0];
+  if (
+    directionType.attributes.length !== 0
+    || directionType.text.trim().length !== 0
+    || directionType.children.length !== 1
+  ) return null;
+  const metronomeNode = directionType.children[0];
+  if (metronomeNode.uri !== directionType.uri || metronomeNode.name !== 'metronome') return null;
+  const metronome = safeTempoMetronome(metronomeNode);
+  if (metronome === null) return null;
+
+  const offset = offsets[0];
+  if (!isSafeOffset(offset)) return null;
+  const offsetDivisions = Number(offset.text.trim());
+  if (!Number.isSafeInteger(offsetDivisions) || Math.abs(offsetDivisions) > 1_000_000) return null;
+
+  let staff = null;
+  if (staffs.length === 1) {
+    if (!isSafeStaff(staffs[0])) return null;
+    staff = Number(staffs[0].text.trim());
+    if (effectiveStaffCount === null || staff > effectiveStaffCount) return null;
+  }
+
+  const sound = sounds[0];
+  if (
+    sound.children.length !== 0
+    || sound.text.trim().length !== 0
+    || sound.attributes.length !== 1
+    || sound.attributes[0].uri.length !== 0
+    || sound.attributes[0].name !== 'tempo'
+    || !isBoundedNumber(sound.attributes[0].value, { minimum: Number.MIN_VALUE, maximum: 1000 })
+  ) return null;
+
+  return Object.freeze({
+    offsetDivisions,
+    staff,
+    beatUnit: metronome.beatUnit,
+    rawPerMinute: metronome.perMinute,
+    rawSoundTempo: sound.attributes[0].value,
+  });
+}
+
 function isSafeDeferredProductionDirection(directionNode, classification, context) {
   if (safeBoundedTempoDirection(directionNode, classification, context) !== null) return true;
+  if (safeDeferredOffsetTempoDirection(directionNode, classification, context) !== null) return true;
   if (classification.hasOffset || classification.soundAttributes.length !== 0) return false;
   if (classification.typeNames.some((name) => !DEFERRED_PRODUCTION_DIRECTION_TYPES.has(name))) {
     return false;
@@ -481,14 +563,24 @@ function sanitizeMeasure(
       return cloneNode(child);
     }
 
+    const measureNumber = measure.attributes.find((attribute) => (
+      attribute.uri.length === 0 && attribute.name === 'number'
+    ))?.value || String(measureIndex + 1);
     const tempoDirection = safeBoundedTempoDirection(child, classification, context);
     if (tempoDirection !== null) {
       provenance.tempoDirections.push(Object.freeze({
         measureIndex,
-        measureNumber: measure.attributes.find((attribute) => (
-          attribute.uri.length === 0 && attribute.name === 'number'
-        ))?.value || String(measureIndex + 1),
+        measureNumber,
         ...tempoDirection,
+      }));
+    }
+    const offsetTempoDirection = safeDeferredOffsetTempoDirection(child, classification, context);
+    if (offsetTempoDirection !== null) {
+      provenance.offsetTempoDirections.push(Object.freeze({
+        measureIndex,
+        measureNumber,
+        measureChildIndex: childIndex,
+        ...offsetTempoDirection,
       }));
     }
 
@@ -542,6 +634,7 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
     ignoredDirectionCount: 0,
     tempoDirections: [],
     navigationDirections: [],
+    offsetTempoDirections: [],
   };
 
   const normalizedRoot = cloneNode(source.root, (child) => {
@@ -565,10 +658,10 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
     contractVersion: source.contractVersion,
     root: deepFreezeNode(normalizedRoot),
   });
+  const reviewIssueList = [];
   const firstNavigation = provenance.navigationDirections[0] || null;
-  const reviewIssues = firstNavigation === null
-    ? Object.freeze([])
-    : Object.freeze([Object.freeze({
+  if (firstNavigation !== null) {
+    reviewIssueList.push(Object.freeze({
       severity: 'error',
       category: 'semantic',
       code: 'UNVERIFIED_NAVIGATION_DIRECTION_SINGLE_PASS',
@@ -589,7 +682,34 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
           provenance.navigationDirections.map((record) => record.kind),
         )].sort()),
       }),
-    })]);
+    }));
+  }
+  for (const record of provenance.offsetTempoDirections) {
+    reviewIssueList.push(Object.freeze({
+      severity: 'error',
+      category: 'semantic',
+      code: 'OFFSET_PERFORMANCE_DIRECTION_SINGLE_PASS',
+      message: 'Offset tempo metadata was omitted from provisional single-pass playback timing and requires review.',
+      reviewDisposition: 'REVIEW_REQUIRED',
+      location: Object.freeze({
+        measure: record.measureNumber,
+        measureIndex: record.measureIndex,
+        eventIndex: record.measureChildIndex,
+        sourceEventId: null,
+      }),
+      details: Object.freeze({
+        feature: 'direction-offset-tempo',
+        reason: 'OFFSET_TEMPO_PLAYBACK_NORMALIZED_TO_SINGLE_PASS',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        offsetDivisions: record.offsetDivisions,
+        staff: record.staff,
+        beatUnit: record.beatUnit,
+        rawPerMinute: record.rawPerMinute,
+        rawSoundTempo: record.rawSoundTempo,
+      }),
+    }));
+  }
+  const reviewIssues = Object.freeze(reviewIssueList);
 
   checkpoint(runtime, 'polyphonic-performance-direction-normalizer:complete', {
     ignoredDirectionCount: provenance.ignoredDirectionCount,
@@ -602,6 +722,7 @@ function normalizePolyphonicPerformanceDirectionsWithSelector(
     ignoredDirectionCount: provenance.ignoredDirectionCount,
     ignoredDirectionFeatureCounts: directionFeatureCounts,
     tempoDirections: Object.freeze(provenance.tempoDirections),
+    offsetTempoDirections: Object.freeze(provenance.offsetTempoDirections),
     reviewIssues,
   });
 }
