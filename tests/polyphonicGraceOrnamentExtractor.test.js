@@ -155,6 +155,31 @@ test('PS-6B6A preserves the exact BWV-shaped F4 -> G4 ordered pair and following
   });
 });
 
+test('extracts the bounded producer-shaped unslashed single eighth grace without inventing timing', () => {
+  const source = parsed(singleGraceScore({
+    grace: {
+      graceMarkup: '<grace/>',
+      type: 'eighth',
+      beam: null,
+    },
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(result.graceOrnamentGroups.length, 1);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-single-eighth-grace');
+  assert.equal(group.notes.length, 1);
+  assert.equal(group.notes[0].slash, 'no');
+  assert.equal(group.notes[0].nominalType, 'eighth');
+  assert.equal(group.notes[0].beam, null);
+  assert.equal(Object.hasOwn(group.notes[0], 'duration'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'durationDivisions'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'onsetDivisions'), false);
+  assert.equal(result.extractedGraceEventCount, 1);
+});
+
 test('extracts a bounded unslashed two-note 16th grace pair with layout-only note attributes', () => {
   const first = graceNote({
     step: 'F',
