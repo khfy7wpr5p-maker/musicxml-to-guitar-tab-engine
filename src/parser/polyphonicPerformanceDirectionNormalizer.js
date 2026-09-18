@@ -154,6 +154,10 @@ function isSafeDeferredPedal(node) {
     line: (value) => value === 'yes' || value === 'no',
     sign: (value) => value === 'yes' || value === 'no',
     number: (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 16,
+    'default-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'default-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'relative-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'relative-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
   })) return false;
   return node.attributes.some((attribute) => attribute.name === 'type');
 }
@@ -164,6 +168,10 @@ function isSafeDeferredWedge(node) {
   if (!hasExactUnqualifiedAttributes(node, {
     type: (value) => ['crescendo', 'diminuendo', 'stop', 'continue'].includes(value),
     number: (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 16,
+    'default-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'default-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'relative-x': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
+    'relative-y': (value) => isBoundedNumber(value, { minimum: -1_000_000, maximum: 1_000_000 }),
   })) return false;
   return node.attributes.some((attribute) => attribute.name === 'type');
 }
