@@ -450,6 +450,47 @@ test('POLY production chain accepts the combined producer profile without losing
   ]) assert.ok(ignored.includes(feature), feature);
 });
 
+test('POLY production chain treats full-measure rest and multiple-rest style as bounded notation provenance', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+        <measure-style><multiple-rest>2</multiple-rest></measure-style>
+      </attributes>
+      <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+    <measure number="2">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  const bytes = Buffer.from(xml);
+  const before = Buffer.from(bytes);
+  const result = processMusicXmlUpload({
+    fileName: 'multiple-rest-provenance.musicxml',
+    bytes,
+  });
+
+  assert.notEqual(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.deepEqual(bytes, before);
+  const ignored = result.preflight.issues.flatMap((issue) => issue.details?.ignoredFeatures || []);
+  assert.ok(ignored.includes('attributes:measure-style:multiple-rest-display'));
+  assert.ok(ignored.includes('note:rest:full-measure-provenance'));
+});
+
 test('POLY production chain remains fail-closed for unsupported ratio and malformed timing', () => {
   const unsupportedRatio = withExactDisplayedTriplet(runtimeFixture())
     .replaceAll('<normal-notes>2</normal-notes>', '<normal-notes>4</normal-notes>');
