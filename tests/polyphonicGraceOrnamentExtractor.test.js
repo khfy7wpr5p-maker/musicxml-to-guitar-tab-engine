@@ -316,6 +316,25 @@ test('extracts an exact unslashed two-note eighth grace pair with one beam level
   assert.equal(JSON.stringify(source), before);
 });
 
+test('extracts a bounded two-note grace chord as review-only source provenance', () => {
+  const first = '<note><grace slash="yes"/><pitch><step>F</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const second = '<note><grace slash="yes"/><chord/><pitch><step>A</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'grace-chord-review');
+  assert.equal(group.timingAuthority, 'SOURCE_ORDER_AND_CHORD_MEMBERSHIP_NO_NUMERIC_TIMING');
+  assert.deepEqual(group.notes.map((note) => note.chordWithPrevious), [false, true]);
+  assert.deepEqual(group.notes.map((note) => note.pitch.written), ['F4', 'A4']);
+  assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
 test('extracts a bounded unslashed two-note 16th grace pair with layout-only note attributes', () => {
   const first = graceNote({
     step: 'F',
