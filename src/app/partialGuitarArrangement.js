@@ -26,6 +26,10 @@ function isRecoverableArrangementFailure(error) {
     error?.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
     && error?.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
   ) return true;
+  if (
+    error?.code === 'UNPLAYABLE_GRACE_PHYSICAL_TRANSITION'
+    && error?.details?.reason === 'GRACE_CHORD_REQUIRES_REVIEW'
+  ) return true;
   return error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
     && error?.details?.reason === 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE';
 }
