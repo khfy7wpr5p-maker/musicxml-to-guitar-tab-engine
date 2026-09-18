@@ -237,6 +237,39 @@ test('PS-6B5B fails closed on unsupported tuplet display shapes', () => {
   }
 });
 
+test('accepts pinned Chopin unbracketed tuplet display with show-number none provenance', () => {
+  const source = parsed(score({
+    firstTuplet: '<tuplet type="start" bracket="no" show-number="none"/>',
+    thirdTuplet: '<tuplet type="stop"/>',
+  }));
+  const result = normalizePolyphonicTripletDisplay(source);
+
+  assert.deepEqual(
+    result.tripletDisplayMarkers.map((marker) => ({
+      type: marker.type,
+      bracket: marker.bracket,
+      showNumber: marker.showNumber,
+      sourceOrder: marker.sourceOrder,
+    })),
+    [
+      { type: 'start', bracket: false, showNumber: 'none', sourceOrder: 0 },
+      { type: 'stop', bracket: null, showNumber: undefined, sourceOrder: 2 },
+    ],
+  );
+
+  const part = source.root.children.find((child) => child.name === 'part');
+  const measure = part.children.find((child) => child.name === 'measure');
+  const firstNote = measure.children.find((child) => child.name === 'note');
+  const notations = firstNote.children.find((child) => child.name === 'notations');
+  const sourceTuplet = notations.children.find((child) => child.name === 'tuplet');
+  assert.equal(
+    sourceTuplet.attributes.some(
+      (attribute) => attribute.name === 'show-number' && attribute.value === 'none',
+    ),
+    true,
+  );
+});
+
 test('records a bounded bracketed tuplet whose ratio is backed by time-modification', () => {
   const sextuplet = '<time-modification><actual-notes>6</actual-notes><normal-notes>4</normal-notes></time-modification>';
   const result = normalizePolyphonicTripletDisplay(parsed(score({
