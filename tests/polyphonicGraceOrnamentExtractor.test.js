@@ -233,6 +233,34 @@ test('extracts the bounded producer-shaped unslashed two-note eighth grace pair'
   assert.equal(result.extractedGraceEventCount, 2);
 });
 
+test('extracts an exact unslashed two-note eighth grace pair with one beam level', () => {
+  const first = graceNote({
+    step: 'F',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'begin',
+  });
+  const second = graceNote({
+    step: 'G',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'end',
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-two-note-eighth-grace-sequence');
+  assert.equal(group.timingAuthority, 'ORDER_ONLY_BEFORE_ANCHOR');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['no', 'no']);
+  assert.deepEqual(group.notes.map((note) => note.nominalType), ['eighth', 'eighth']);
+  assert.deepEqual(group.notes.map((note) => note.beam), ['begin', 'end']);
+  assert.equal(JSON.stringify(source), before);
+});
+
 test('extracts a bounded unslashed two-note 16th grace pair with layout-only note attributes', () => {
   const first = graceNote({
     step: 'F',
