@@ -729,6 +729,7 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   const soundTempo = canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000);
   if (soundTempo === null || soundTempo === '0') return null;
 
+  let conflictingTempo = false;
   if (metronome !== null) {
     const multiplier = {
       whole: 4,
@@ -739,13 +740,14 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
       '32nd': 0.125,
     }[metronome.beatUnit];
     const expectedQuarterTempo = Number(metronome.perMinute) * multiplier * (metronome.dotted ? 1.5 : 1);
-    if (Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001) return null;
+    conflictingTempo = Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001;
   }
 
   return Object.freeze({
     kind: 'TEMPO_PLAYBACK_REVIEW',
     typeNames: Object.freeze(typeNames),
     hasStaff: true,
+    conflictingTempo,
     soundAttributes: Object.freeze(['tempo']),
   });
 }
