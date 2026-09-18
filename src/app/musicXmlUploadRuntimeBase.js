@@ -919,10 +919,13 @@ function convertGraceProjectionToCanonicalTab(
     processing,
     guitarOptions,
   );
+  const physicallyIntegratedGraceGroups = graceProjection.graceOrnamentGroups.filter(
+    (group) => group.physicalIntegration !== 'REVIEW_REQUIRED_UNASSIGNED',
+  );
   const physicalGrace = createGracePhysicalTransitionModel(
     graceProjection.mainSourceModel,
     canonicalTabResult,
-    graceProjection.graceOrnamentGroups,
+    physicallyIntegratedGraceGroups,
     processing,
     guitarOptions,
   );
@@ -937,6 +940,8 @@ function convertGraceProjectionToCanonicalTab(
   processing.checkpoint('app-upload:grace-canonical:complete', {
     graceGroupCount: physicalGrace.graceGroupCount,
     graceEventCount: physicalGrace.graceEventCount,
+    reviewOnlyGraceGroupCount: graceProjection.graceOrnamentGroups.length
+      - physicallyIntegratedGraceGroups.length,
   });
   return { canonicalTabResult, musicXml };
 }
