@@ -205,6 +205,33 @@ test('extracts an exact standalone unslashed eighth grace note without inventing
   assert.equal(JSON.stringify(source), before);
 });
 
+test('extracts a bounded slashed two-note grace sequence even when producer omits display beams', () => {
+  const first = graceNote({
+    step: 'F',
+    graceMarkup: '<grace slash="yes"/>',
+    type: 'eighth',
+    beam: null,
+  });
+  const second = graceNote({
+    step: 'G',
+    graceMarkup: '<grace slash="yes"/>',
+    type: 'eighth',
+    beam: null,
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-sequence');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['yes', 'yes']);
+  assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
 test('extracts the bounded producer-shaped unslashed two-note eighth grace pair', () => {
   const first = graceNote({
     step: 'F',
