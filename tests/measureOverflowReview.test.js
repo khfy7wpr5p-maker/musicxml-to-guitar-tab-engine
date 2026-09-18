@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
 const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
 const { projectParsedMusicXmlToPolyphonicSourceModel } = require('../src/parser/polyphonicMusicXmlProjector');
+const {
+  projectParsedMusicXmlWithMeasureOverflowReview,
+} = require('../src/parser/polyphonicMeasureOverflowReviewProjector');
 
 function score(duration = 8) {
   return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1">
@@ -38,6 +41,27 @@ function consensusOverfullScore() {
   </part></score-partwise>`;
 }
 
+
+test('consensus overflow projector derives a bounded 7/4 review model and restores 6/4 afterward', () => {
+  const parsed = parseParsedMusicXmlDocument(consensusOverfullScore());
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+
+  assert.equal(projection.reviewIssues.length, 1);
+  assert.equal(
+    projection.reviewIssues[0].details.policy,
+    'CONSENSUS_OVERFULL_MEASURE_REVIEW',
+  );
+  assert.deepEqual(
+    projection.sourceModel.measures[0].timeSignature,
+    { beats: 7, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 28);
+  assert.deepEqual(
+    projection.sourceModel.measures[1].timeSignature,
+    { beats: 6, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+});
 
 test('consensus overfull measure opens review-only provisional TAB without inventing source authority', () => {
   const bytes = Buffer.from(consensusOverfullScore());
