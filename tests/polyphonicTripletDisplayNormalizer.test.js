@@ -119,6 +119,28 @@ function chopinSevenInSixScore() {
 </score-partwise>`;
 }
 
+function chopinTwentyInSixScore() {
+  const timeModification =
+    '<time-modification><actual-notes>20</actual-notes><normal-notes>6</normal-notes></time-modification>';
+  const notes = Array.from({ length: 20 }, (_, index) => {
+    const tuplet = index === 0
+      ? '<notations><tuplet type="start" bracket="no"/></notations>'
+      : index === 19
+        ? '<notations><tuplet type="stop"/></notations>'
+        : '';
+    return `<note><pitch><step>C</step><octave>5</octave></pitch><duration>72</duration><voice>1</voice><type>eighth</type>${timeModification}<staff>1</staff>${tuplet}</note>`;
+  }).join('');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1"><measure number="74">
+    <attributes><divisions>480</divisions><time><beats>3</beats><beat-type>4</beat-type></time><staves>1</staves><clef><sign>G</sign><line>2</line></clef></attributes>
+    ${notes}
+  </measure></part>
+</score-partwise>`;
+}
+
 function parsed(xml) {
   return parseParsedMusicXmlDocument(xml);
 }
@@ -332,6 +354,41 @@ test('accepts the pinned Chopin 7:6 tuplet profile without rescaling producer ti
     [
       { type: 'start', bracket: false, sourceOrder: 0 },
       { type: 'stop', bracket: null, sourceOrder: 6 },
+    ],
+  );
+});
+
+test('accepts the pinned Chopin 20:6 tuplet profile with exact authoritative duration closure', () => {
+  const result = projectParsedMusicXmlWithTripletDisplayCompatibility(
+    parsed(chopinTwentyInSixScore()),
+  );
+  const events = result.sourceModel.measures[0].events;
+
+  assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
+  assert.deepEqual(events.map((event) => event.durationDivisions), new Array(20).fill(72));
+  assert.deepEqual(
+    events.map((event) => event.onsetDivisions),
+    Array.from({ length: 20 }, (_, index) => 72 * index),
+  );
+  assert.equal(result.tripletTimeModificationMarkers.length, 20);
+  assert.deepEqual(result.tripletTimeModificationMarkers[0], {
+    kind: 'twenty-in-six-time-modification',
+    actualNotes: 20,
+    normalNotes: 6,
+    measureIndex: 0,
+    measureNumber: '74',
+    sourceOrder: 0,
+    noteChildIndex: 4,
+  });
+  assert.deepEqual(
+    result.tripletDisplayMarkers.map((marker) => ({
+      type: marker.type,
+      bracket: marker.bracket,
+      sourceOrder: marker.sourceOrder,
+    })),
+    [
+      { type: 'start', bracket: false, sourceOrder: 0 },
+      { type: 'stop', bracket: null, sourceOrder: 19 },
     ],
   );
 });
