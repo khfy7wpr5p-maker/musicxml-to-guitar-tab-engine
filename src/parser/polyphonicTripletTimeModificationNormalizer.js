@@ -104,12 +104,13 @@ function parseExactTripletTimeModification(node, location) {
   }
 
   const children = node.children.filter((child) => child.uri === node.uri);
+  const hasNormalType = children.length === 3 && children[2].name === 'normal-type';
   if (
-    children.length !== 2
-    || children[0].name !== 'actual-notes'
-    || children[1].name !== 'normal-notes'
+    (children.length !== 2 && !hasNormalType)
+    || children[0]?.name !== 'actual-notes'
+    || children[1]?.name !== 'normal-notes'
   ) {
-    throw unsupported('Only a simple actual-notes/normal-notes bounded time-modification is supported.', {
+    throw unsupported('Only bounded actual-notes/normal-notes with an optional pinned normal-type shape is supported.', {
       ...location,
       observedChildren: children.map((child) => child.name),
     });
@@ -117,6 +118,31 @@ function parseExactTripletTimeModification(node, location) {
 
   const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '7', '11', '20', '22']), 'actual-notes', location);
   const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4', '6', '12']), 'normal-notes', location);
+  let normalType = null;
+  if (hasNormalType) {
+    const normalTypeNode = children[2];
+    const observedNormalType = normalTypeNode.text.trim();
+    if (
+      normalTypeNode.attributes.length !== 0
+      || normalTypeNode.children.length !== 0
+      || observedNormalType !== 'eighth'
+    ) {
+      throw unsupported('normal-type is outside the pinned attribute-free eighth-note profile.', {
+        ...location,
+        field: 'normal-type',
+        observedText: observedNormalType,
+      });
+    }
+    if (actualNotes !== 3 || normalNotes !== 2) {
+      throw unsupported('Pinned normal-type provenance is supported only for the exact 3:2 relation.', {
+        ...location,
+        actualNotes,
+        normalNotes,
+        normalType: observedNormalType,
+      });
+    }
+    normalType = observedNormalType;
+  }
   if (!(
     (actualNotes === 3 && normalNotes === 2)
     || (actualNotes === 6 && normalNotes === 4)
@@ -146,6 +172,7 @@ function parseExactTripletTimeModification(node, location) {
               : 'twenty-two-in-twelve-time-modification',
     actualNotes,
     normalNotes,
+    ...(normalType === null ? {} : { normalType }),
   });
 }
 
