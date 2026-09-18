@@ -339,6 +339,34 @@ test('POLY production chain keeps bounded performance-only producer variants rev
   }
 });
 
+test('POLY production chain resolves bounded octave-shift display provenance without blocking TAB', () => {
+  const start =
+    '<direction placement="above"><direction-type><octave-shift type="down" size="8" number="1" default-y="30"/></direction-type><staff>1</staff></direction>';
+  const stop =
+    '<direction placement="above"><direction-type><octave-shift type="stop" size="8" number="1" default-y="30"/></direction-type><staff>1</staff></direction>';
+  const xml = runtimeFixture()
+    .replace('    <note>', `    ${start}\n    <note>`)
+    .replace(
+      '<note>\n        <pitch><step>A</step><octave>3</octave></pitch>',
+      `${stop}\n      <note>\n        <pitch><step>A</step><octave>3</octave></pitch>`,
+    );
+  const bytes = Buffer.from(xml);
+  const before = Buffer.from(bytes);
+  const result = processMusicXmlUpload({
+    fileName: 'bounded-octave-shift.musicxml',
+    bytes,
+  });
+
+  assert.notEqual(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.deepEqual(bytes, before);
+  const ignored = result.preflight.issues.flatMap((issue) => issue.details?.ignoredFeatures || []);
+  assert.ok(ignored.includes('direction:octave-shift-display'));
+});
+
 test('POLY production chain remains fail-closed for timing-affecting or unbounded directions', () => {
   for (const [name, direction] of [
     ['offset', '<direction><offset>1</offset><direction-type><dynamics><mf/></dynamics></direction-type></direction>'],
