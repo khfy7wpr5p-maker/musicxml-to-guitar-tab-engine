@@ -362,6 +362,28 @@ test('extracts a bounded unslashed two-note 16th grace pair with layout-only not
   assert.equal(result.extractedGraceEventCount, 2);
 });
 
+test('extracts exact slashed eighth grace dyad as review-only simultaneous provenance', () => {
+  const first = '<note><grace slash="yes"/><pitch><step>F</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const second = '<note><grace slash="yes"/><chord/><pitch><step>A</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(result.graceOrnamentGroups.length, 1);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-chord-review');
+  assert.equal(group.timingAuthority, 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY');
+  assert.equal(group.physicalIntegration, 'REVIEW_REQUIRED_UNASSIGNED');
+  assert.deepEqual(group.notes.map((note) => note.chordWithPrevious), [false, true]);
+  assert.equal(result.reviewIssues.length, 1);
+  assert.equal(result.reviewIssues[0].code, 'GRACE_CHORD_REQUIRES_REVIEW');
+  assert.equal(result.reviewIssues[0].reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(result.extractedGraceEventCount, 2);
+  assert.equal(JSON.stringify(source), before);
+});
+
 test('PS-6B6A preserves grace provenance and never adds duration fields to sidecar events', () => {
   const result = extractPolyphonicGraceOrnaments(parsed(bwvGracePairScore()));
   const [first, second] = result.graceOrnamentGroups[0].notes;
