@@ -1046,6 +1046,57 @@ function boundedNodeShape(node) {
   });
 }
 
+function safeMultipleRestMeasureStyle(node) {
+  if (node.text.trim().length !== 0 || node.children.some((child) => child.uri !== node.uri)) {
+    return false;
+  }
+  const seenAttributes = new Set();
+  for (const attribute of node.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || attribute.name !== 'number'
+      || seenAttributes.has(attribute.name)
+      || !/^\d+$/.test(attribute.value)
+      || Number(attribute.value) < 1
+      || Number(attribute.value) > 16
+    ) return false;
+    seenAttributes.add(attribute.name);
+  }
+  const children = directChildren(node, 'multiple-rest');
+  if (children.length !== 1 || node.children.length !== 1) return false;
+  const multipleRest = children[0];
+  if (multipleRest.children.length !== 0 || !/^\d+$/.test(multipleRest.text.trim())) return false;
+  const count = Number(multipleRest.text.trim());
+  if (!Number.isSafeInteger(count) || count < 1 || count > 1000) return false;
+  const seen = new Set();
+  for (const attribute of multipleRest.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || attribute.name !== 'use-symbols'
+      || seen.has(attribute.name)
+      || !['yes', 'no'].includes(attribute.value)
+    ) return false;
+    seen.add(attribute.name);
+  }
+  return true;
+}
+
+function normalizeFullMeasureRest(node, ignoredFeatures) {
+  const measureAttributes = node.attributes.filter((attribute) => (
+    attribute.uri.length === 0 && attribute.name === 'measure'
+  ));
+  if (measureAttributes.length === 0) return cloneNode(node);
+  if (
+    measureAttributes.length !== 1
+    || measureAttributes[0].value !== 'yes'
+    || node.attributes.some((attribute) => (
+      attribute.uri.length !== 0 || attribute.name !== 'measure'
+    ))
+  ) return null;
+  ignoredFeatures.add('note:rest:full-measure-provenance');
+  return cloneNode(node, { attributes: [] });
+}
+
 function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) {
   const children = [];
   for (const child of node.children) {
@@ -1086,6 +1137,10 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       if (directChildren(child, 'capo').length > 0) {
         ignoredFeatures.add('attributes:capo-provenance');
       }
+      continue;
+    }
+    if (child.name === 'measure-style' && safeMultipleRestMeasureStyle(child)) {
+      ignoredFeatures.add('attributes:measure-style:multiple-rest-display');
       continue;
     }
     if (IGNORED_ATTRIBUTE_CHILDREN.has(child.name)) {
@@ -1182,6 +1237,12 @@ function sanitizeNote(node, pitchOctaveShift, ignoredFeatures) {
       const staff = scalarInteger(child);
       if (staff === null || staff < 1 || staff > 2) throw unsupported('note-staff');
       children.push(cloneNode(child));
+      continue;
+    }
+    if (child.name === 'rest') {
+      const rest = normalizeFullMeasureRest(child, ignoredFeatures);
+      if (!rest) throw unsupported('rest-attribute:measure');
+      children.push(rest);
       continue;
     }
     if (child.name === 'notations') {
