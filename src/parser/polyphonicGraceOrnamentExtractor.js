@@ -431,9 +431,14 @@ function parseGraceNote(note, location, expectedBeamText) {
         .map((attribute) => attribute.name),
     });
   }
+  const producerOmittedSlashedPairBeam = slash === 'yes'
+    && expectedBeamText !== null
+    && directChildren(note, 'beam').length === 0;
   const beam = isUnslashed16thPair
     ? parseUnslashed16thPairBeams(note, location, expectedBeamText)
-    : parseBeam(note, location, expectedBeamText);
+    : producerOmittedSlashedPairBeam
+      ? null
+      : parseBeam(note, location, expectedBeamText);
 
   return Object.freeze({
     pitch,
