@@ -407,6 +407,21 @@ test('PS-6B6A preserves grace provenance and never adds duration fields to sidec
   }
 });
 
+test('accepts producer stem=none as bounded grace display metadata', () => {
+  const source = parsed(singleGraceScore({
+    grace: {
+      graceMarkup: '<grace slash="yes"/>',
+      stem: 'none',
+    },
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(result.graceOrnamentGroups[0].notes[0].stem, 'none');
+  assert.equal(Object.hasOwn(result.graceOrnamentGroups[0].notes[0], 'duration'), false);
+});
+
 test('PS-6B6A accepts only exact grace notehead=normal display metadata without changing grace facts', () => {
   const baseline = extractPolyphonicGraceOrnaments(parsed(singleGraceScore()));
   const source = parsed(singleGraceScore({
