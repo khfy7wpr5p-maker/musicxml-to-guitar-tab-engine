@@ -136,10 +136,10 @@ function hasExactUnqualifiedAttributes(node, validators) {
 
 function isSafeDeferredWords(node) {
   const text = node.text.trim();
+  if (sameNamespaceChildren(node).length !== 0 || node.children.length !== 0) return false;
+  if (text.length === 0) return node.attributes.length === 0;
   return (
-    sameNamespaceChildren(node).length === 0
-    && node.children.length === 0
-    && SAFE_DEFERRED_WORDS.has(text)
+    SAFE_DEFERRED_WORDS.has(text)
     && hasExactUnqualifiedAttributes(node, {
       'font-style': (value) => value === 'normal' || value === 'italic',
     })
