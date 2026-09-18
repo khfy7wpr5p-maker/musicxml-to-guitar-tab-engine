@@ -327,8 +327,9 @@ test('extracts a bounded two-note grace chord as review-only source provenance',
 
   assert.equal(JSON.stringify(source), before);
   const group = result.graceOrnamentGroups[0];
-  assert.equal(group.kind, 'grace-chord-review');
-  assert.equal(group.timingAuthority, 'SOURCE_ORDER_AND_CHORD_MEMBERSHIP_NO_NUMERIC_TIMING');
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-chord-review');
+  assert.equal(group.timingAuthority, 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY');
+  assert.equal(group.physicalIntegration, 'REVIEW_REQUIRED_UNASSIGNED');
   assert.deepEqual(group.notes.map((note) => note.chordWithPrevious), [false, true]);
   assert.deepEqual(group.notes.map((note) => note.pitch.written), ['F4', 'A4']);
   assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
