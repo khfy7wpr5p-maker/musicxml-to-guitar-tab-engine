@@ -228,6 +228,10 @@ test('PS-6B5B fails closed on unsupported tuplet display shapes', () => {
     { firstTuplet: '<tuplet type="start" bracket="no" number="1"/>' },
     { thirdTuplet: '<tuplet type="stop" number="1"/>' },
     { firstTuplet: '<tuplet type="start" bracket="no"><tuplet-actual/></tuplet>' },
+    { firstTuplet: '<tuplet type="start" bracket="no" show-number="actual"/>' },
+    { firstTuplet: '<tuplet type="start" bracket="no" show-number="both"/>' },
+    { firstTuplet: '<tuplet type="start" bracket="no" show-number="none" number="1"/>' },
+    { thirdTuplet: '<tuplet type="stop" show-number="none"/>' },
   ];
   for (const fixture of fixtures) {
     assert.equal(
