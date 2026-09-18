@@ -132,6 +132,22 @@ test('PS-6B2A keeps malformed or unbounded deferred layout attributes fail-close
   }
 });
 
+test('PS-6B2A turns bounded offset tempo into explicit single-pass review evidence', () => {
+  const sourceDocument = parsed(score(
+    '<direction placement="above"><direction-type><metronome parentheses="no" relative-y="20.00"><beat-unit>quarter</beat-unit><per-minute>48</per-minute></metronome></direction-type><offset>-96</offset><staff>1</staff><sound tempo="48"/></direction>',
+  ));
+  const normalized = normalizeDeferredPolyphonicPerformanceDirections(sourceDocument);
+
+  assert.equal(normalized.ignoredDirectionCount, 1);
+  assert.equal(normalizedMeasure(normalized).children.some((child) => child.name === 'direction'), false);
+  assert.equal(normalized.reviewIssues.length, 1);
+  assert.equal(normalized.reviewIssues[0].code, 'OFFSET_PERFORMANCE_DIRECTION_SINGLE_PASS');
+  assert.equal(normalized.reviewIssues[0].reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(normalized.reviewIssues[0].details.offsetDivisions, -96);
+  assert.equal(normalized.reviewIssues[0].details.rawSoundTempo, '48');
+  assert.equal(normalized.reviewIssues[0].details.rawPerMinute, '48');
+});
+
 test('PS-6B2A keeps octave-shift fail-closed for the dedicated pitch semantic stage', () => {
   const sourceDocument = parsed(score(`
     <direction placement="above">
