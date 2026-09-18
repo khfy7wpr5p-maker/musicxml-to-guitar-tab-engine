@@ -604,6 +604,12 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
     || soundNodes.length > 1
     || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return null;
+  const expectedChildren = [
+    ...directionTypes.map(() => 'direction-type'),
+    ...(staffNodes.length === 1 ? ['staff'] : []),
+    ...(soundNodes.length === 1 ? ['sound'] : []),
+  ];
+  if (!hasExactChildSequence(children, expectedChildren)) return null;
 
   const typeNames = [];
   let metronome = null;
