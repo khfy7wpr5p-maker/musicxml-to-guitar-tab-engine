@@ -129,7 +129,7 @@ test('PS-6B5A fails closed on other ratios, unpinned normal-type and decorated t
     tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>quarter</normal-type>'),
     tripletNode('<actual-notes>6</actual-notes><normal-notes>4</normal-notes><normal-type>eighth</normal-type>'),
     tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type id="nt1">eighth</normal-type>'),
-    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type><normal-dot/></time-modification><time-modification>'),
+    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type><normal-dot/>'),
     tripletNode('<normal-notes>2</normal-notes><actual-notes>3</actual-notes>'),
     tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes>', ' id="tm1"'),
     tripletNode('<actual-notes value="3">3</actual-notes><normal-notes>2</normal-notes>'),
