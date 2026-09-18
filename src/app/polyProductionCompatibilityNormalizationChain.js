@@ -347,6 +347,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
       ...performanceNormalization.reviewIssues,
       ...repeatNormalization.reviewIssues,
       ...(runtimeNormalization?.reviewIssues || []),
+      ...(semanticNormalization.reviewIssues || []),
       ...overflowProjection.reviewIssues,
     ]),
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
