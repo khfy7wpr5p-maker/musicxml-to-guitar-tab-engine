@@ -30,6 +30,7 @@ const SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_VERSION = '1.0.0';
 const SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_DOCUMENT_TYPE = 'SustainedLeftHandPhysicalStateModel';
 const SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_AUTHORITY = 'STATIC_PHYSICAL_CANDIDATES_ONLY';
 const MAX_SUSTAINED_PHYSICAL_STATE_CANDIDATES = MAX_LEFT_HAND_SHAPE_CANDIDATES;
+const MAX_EXACT_SUSTAINED_POSITION_STATE_CANDIDATES = 12_000;
 
 const SUSTAINED_PHYSICAL_POINT_STATUS = Object.freeze({
   PHYSICAL_CANDIDATES_AVAILABLE: 'PHYSICAL_CANDIDATES_AVAILABLE',
@@ -160,6 +161,18 @@ function createSustainedLeftHandPhysicalStateModel(
     guitarOptions,
     targetMidiBySourceEventId,
   );
+  if (positionModel.candidateCount > MAX_EXACT_SUSTAINED_POSITION_STATE_CANDIDATES) {
+    throw new SustainedLeftHandPhysicalStateModelError(
+      'Exact sustained physical search exceeds the bounded production complexity profile.',
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      {
+        reason: 'POSITION_STATE_COMPLEXITY_EXCEEDS_EXACT_SEARCH_BOUNDARY',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        limit: MAX_EXACT_SUSTAINED_POSITION_STATE_CANDIDATES,
+        observed: positionModel.candidateCount,
+      },
+    );
+  }
   const shapeCounters = { shapeCandidates: 0, assignmentAttempts: 0 };
   const measures = [];
   let pointCount = 0;
@@ -341,6 +354,7 @@ module.exports = {
   SUSTAINED_LEFT_HAND_PHYSICAL_STATE_MODEL_AUTHORITY,
   SUSTAINED_PHYSICAL_POINT_STATUS,
   MAX_SUSTAINED_PHYSICAL_STATE_CANDIDATES,
+  MAX_EXACT_SUSTAINED_POSITION_STATE_CANDIDATES,
   SustainedLeftHandPhysicalStateModelError,
   createSustainedLeftHandPhysicalStateModel,
 };
