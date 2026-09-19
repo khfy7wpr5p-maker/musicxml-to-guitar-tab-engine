@@ -219,6 +219,10 @@ function createSustainedLeftHandPhysicalStateModel(
               pointIndex,
               stateIndex,
               shapeIndex,
+              positionStateCandidateCount: positionModel.candidateCount,
+              evaluatedShapeCount,
+              shapeCandidateCount: shapeCounters.shapeCandidates,
+              assignmentAttemptCount: shapeCounters.assignmentAttempts,
             });
             const shape = shapes[shapeIndex];
             const verdict = evaluateStaticLeftHandShapeCandidate(
