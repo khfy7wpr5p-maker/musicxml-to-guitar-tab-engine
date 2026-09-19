@@ -441,6 +441,7 @@
     const alphaTab = options.alphaTab;
     const adapters = options.adapters;
     const config = options.config || {};
+    const stage09Evidence = options.stage09Evidence;
 
     assert(root && root.ownerDocument, 'Workbench host root is required.');
     assert(alphaTab && typeof alphaTab.AlphaTabApi === 'function', 'alphaTab is required.');
@@ -452,6 +453,21 @@
       ? adapters.createStaticPreviewAdapter({previewResultUrl: config.previewResultUrl})
       : adapters.createRuntimeApiAdapter({apiBaseUrl: config.apiBaseUrl});
     const capabilityBridge = createCapabilityBridge(adapter);
+    const stage09EvidenceFacade = stage09Evidence
+      ? Object.freeze({
+        isStage09WorkbenchEvidenceEligible(runtimeResult) {
+          return stage09Evidence.isStage09WorkbenchEvidenceEligible(
+            capabilityBridge.currentResult() || runtimeResult,
+          );
+        },
+        createStage09WorkbenchEvidenceExport({ sourceFileName, runtimeResult }) {
+          return stage09Evidence.createStage09WorkbenchEvidenceExport({
+            sourceFileName,
+            runtimeResult: capabilityBridge.currentResult() || runtimeResult,
+          });
+        },
+      })
+      : undefined;
     const assetUrls = resolveAssetUrls(root.ownerDocument, config.assetBaseUrl);
     const shell = configureShell(root, mode);
 
@@ -462,6 +478,7 @@
       edit: capabilityBridge.adapter.edit,
       polyphonicEdit: capabilityBridge.adapter.polyphonicEdit,
       transpose: capabilityBridge.adapter.transpose,
+      stage09Evidence: stage09EvidenceFacade,
       assetBaseUrl: assetUrls.assetBaseUrl,
       scriptFileUrl: assetUrls.scriptFileUrl,
       soundFontUrl: assetUrls.soundFontUrl,
