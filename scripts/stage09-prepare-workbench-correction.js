@@ -7,6 +7,9 @@ const path = require('node:path');
 const {
   parseParsedMusicXmlDocument,
 } = require('../src/parser/parsedMusicXmlDocument');
+const {
+  materializeStage09WorkbenchPitchCorrections,
+} = require('../src/app/stage09WorkbenchSourceCorrectionMaterializer');
 
 const EVIDENCE_TYPE = 'Stage09WorkbenchCorrectionEvidence';
 const EVIDENCE_VERSION = '1.0.0';
@@ -25,8 +28,6 @@ const ALLOWED_TAGS = new Set([
 ]);
 const ALLOWED_COMMAND_TYPES = new Set([
   'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
-  'SET_POLYPHONIC_SOURCE_EVENT_DURATION',
-  'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_DURATION',
 ]);
 
 function sha256(bytes) {
@@ -107,9 +108,6 @@ function validateEvidence(value) {
   ) {
     throw new TypeError('Workbench evidence appliedEdits must match revisionNumber.');
   }
-  if (typeof value.correctedMusicXml !== 'string' || value.correctedMusicXml.length === 0) {
-    throw new TypeError('Workbench evidence correctedMusicXml is required.');
-  }
   return value;
 }
 
@@ -145,50 +143,20 @@ function stage05PatchesFromEdits(edits) {
   for (let index = 0; index < edits.length; index += 1) {
     const edit = exactSingleEventEdit(edits[index], index);
     const revisionIndex = Number.isSafeInteger(edit.revisionIndex) ? edit.revisionIndex : index;
-    const pitchChanged = edit.beforePitch?.written !== edit.afterPitch?.written;
-    const durationChanged = edit.beforeDurationDivisions !== edit.afterDurationDivisions;
-
     if (
-      edit.commandType === 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH'
-      || edit.commandType === 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_DURATION'
+      typeof edit.beforePitch?.written !== 'string'
+      || typeof edit.afterPitch?.written !== 'string'
+      || edit.beforePitch.written === edit.afterPitch.written
     ) {
-      if (
-        typeof edit.beforePitch?.written !== 'string'
-        || typeof edit.afterPitch?.written !== 'string'
-        || !pitchChanged
-      ) {
-        throw new TypeError(`Pitch edit at revision ${revisionIndex} is incomplete.`);
-      }
-      patches.push({
-        patch_id: `workbench-r${revisionIndex}-pitch`,
-        edit_class: 'PITCH_UPDATE',
-        target_event: edit.sourceEventId,
-        before: { pitch: edit.beforePitch.written },
-        after: { pitch: edit.afterPitch.written },
-      });
+      throw new TypeError(`Pitch edit at revision ${revisionIndex} is incomplete.`);
     }
-
-    if (
-      edit.commandType === 'SET_POLYPHONIC_SOURCE_EVENT_DURATION'
-      || edit.commandType === 'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_DURATION'
-    ) {
-      if (
-        !Number.isSafeInteger(edit.beforeDurationDivisions)
-        || edit.beforeDurationDivisions <= 0
-        || !Number.isSafeInteger(edit.afterDurationDivisions)
-        || edit.afterDurationDivisions <= 0
-        || !durationChanged
-      ) {
-        throw new TypeError(`Duration edit at revision ${revisionIndex} is incomplete.`);
-      }
-      patches.push({
-        patch_id: `workbench-r${revisionIndex}-duration`,
-        edit_class: 'DURATION_UPDATE',
-        target_event: edit.sourceEventId,
-        before: { durationDivisions: edit.beforeDurationDivisions },
-        after: { durationDivisions: edit.afterDurationDivisions },
-      });
-    }
+    patches.push({
+      patch_id: `workbench-r${revisionIndex}-pitch`,
+      edit_class: 'PITCH_UPDATE',
+      target_event: edit.sourceEventId,
+      before: { pitch: edit.beforePitch.written },
+      after: { pitch: edit.afterPitch.written },
+    });
   }
   if (patches.length === 0) {
     throw new TypeError('Workbench evidence contains no Stage 05 representable teacher correction.');
@@ -230,7 +198,10 @@ function prepareWorkbenchCorrectionCase({
 
   const originalBytes = requireFile(originalPath, 'original OMR MusicXML');
   const referenceBytes = requireFile(referencePath, 'reference score');
-  const correctedBytes = Buffer.from(evidence.correctedMusicXml, 'utf8');
+  const correctedBytes = materializeStage09WorkbenchPitchCorrections(
+    originalBytes,
+    evidence.appliedEdits,
+  ).correctedBytes;
 
   if (path.basename(originalPath) !== evidence.sourceFileName) {
     throw new TypeError('original OMR MusicXML file name does not match Workbench evidence.');
