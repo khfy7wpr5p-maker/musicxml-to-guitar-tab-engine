@@ -360,3 +360,61 @@ test('sub-quarter boundary tail derives exact 25/16 provisional review extent an
   assert.deepEqual(bytes, original);
   assert.deepEqual(first, second);
 });
+
+
+function chainedSubQuarterBoundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+test('chained sub-quarter boundary tails extend one bounded provisional measure without losing source timing authority', () => {
+  const xml = chainedSubQuarterBoundaryTailOverflowScore();
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(
+    parseParsedMusicXmlDocument(xml),
+  );
+
+  assert.equal(projection.reviewIssues.length, 2);
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.policy === 'BOUNDARY_TAIL_MEASURE_REVIEW',
+  ));
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.sourceExpectedDurationDivisions === 24,
+  ));
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.sourceTimeSignature.beats === 6
+      && issue.details.sourceTimeSignature.beatType === 4,
+  ));
+  assert.deepEqual(
+    projection.sourceModel.measures[0].timeSignature,
+    { beats: 13, beatType: 8 },
+  );
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 26);
+  assert.deepEqual(
+    projection.sourceModel.measures[1].timeSignature,
+    { beats: 6, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+
+  const bytes = Buffer.from(xml);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'chained-sub-quarter-tail.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'chained-sub-quarter-tail.musicxml', bytes });
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.ok(first.musicXml);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
+});
