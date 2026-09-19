@@ -6,8 +6,6 @@
   const SHA256 = /^[a-f0-9]{64}$/;
   const ALLOWED_COMMAND_TYPES = new Set([
     'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH',
-    'SET_POLYPHONIC_SOURCE_EVENT_DURATION',
-    'REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH_AND_DURATION',
   ]);
 
   function cloneJson(value) {
@@ -46,7 +44,6 @@
     if (runtimeResult.route !== 'POLY_V2') return false;
     if (runtimeResult.status !== 'PASS' && runtimeResult.status !== 'REVIEW_REQUIRED') return false;
     if (!SHA256.test(runtimeResult.input?.sha256 || '')) return false;
-    if (typeof runtimeResult.musicXml !== 'string' || runtimeResult.musicXml.length === 0) return false;
     const edits = runtimeResult.revision?.appliedEdits;
     if (!Array.isArray(edits) || edits.length === 0) return false;
     if (!Number.isSafeInteger(runtimeResult.revision?.revisionNumber)) return false;
@@ -70,7 +67,6 @@
       route: runtimeResult.route,
       revisionNumber: runtimeResult.revision.revisionNumber,
       appliedEdits: Object.freeze(cloneJson(runtimeResult.revision.appliedEdits)),
-      correctedMusicXml: runtimeResult.musicXml,
     });
   }
 
