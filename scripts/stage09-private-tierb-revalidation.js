@@ -54,6 +54,7 @@ function assertPlainObject(value, label) {
 function verifyPacket(packet, evidenceDir) {
   assertPlainObject(packet, 'packet');
   if (packet.documentType !== PACKET_TYPE) throw new TypeError('Unsupported correction packet type.');
+  if (packet.contractVersion !== '1.0.0') throw new TypeError('Unsupported correction packet contractVersion.');
   if (packet.evidenceClass !== 'REAL_TEACHER_CORRECTION_PREPARED') {
     throw new TypeError('Correction packet must remain prepared real teacher evidence.');
   }
@@ -67,26 +68,50 @@ function verifyPacket(packet, evidenceDir) {
   }
 
   const original = path.join(evidenceDir, packet.original?.fileName || '');
+  const reference = path.join(evidenceDir, packet.reference?.fileName || '');
   const corrected = path.join(evidenceDir, packet.corrected?.fileName || '');
-  if (!fs.existsSync(original) || !fs.existsSync(corrected)) {
-    throw new TypeError(`${packet.caseId} source files are missing from the private evidence directory.`);
+  if (!fs.existsSync(original) || !fs.existsSync(reference) || !fs.existsSync(corrected)) {
+    throw new TypeError(`${packet.caseId} source/reference/corrected files are missing from the private evidence directory.`);
   }
 
   const originalBytes = fs.readFileSync(original);
+  const referenceBytes = fs.readFileSync(reference);
   const correctedBytes = fs.readFileSync(corrected);
   const originalSha256 = sha256(originalBytes);
+  const referenceSha256 = sha256(referenceBytes);
   const correctedSha256 = sha256(correctedBytes);
   if (!SHA256.test(packet.original?.sha256 || '') || packet.original.sha256 !== originalSha256) {
     throw new TypeError(`${packet.caseId} original SHA-256 mismatch.`);
+  }
+  if (
+    !packet.reference
+    || !SHA256.test(packet.reference.sha256 || '')
+    || packet.reference.sha256 !== referenceSha256
+    || typeof packet.reference.referenceClass !== 'string'
+    || packet.reference.referenceClass.length === 0
+  ) {
+    throw new TypeError(`${packet.caseId} reference score identity mismatch.`);
   }
   if (!SHA256.test(packet.corrected?.sha256 || '') || packet.corrected.sha256 !== correctedSha256) {
     throw new TypeError(`${packet.caseId} corrected SHA-256 mismatch.`);
   }
   if (originalSha256 === correctedSha256) throw new TypeError(`${packet.caseId} contains no material correction.`);
   if (packet.original.byteLength !== originalBytes.byteLength) throw new TypeError(`${packet.caseId} original byte length mismatch.`);
+  if (packet.reference.byteLength !== referenceBytes.byteLength) throw new TypeError(`${packet.caseId} reference byte length mismatch.`);
   if (packet.corrected.byteLength !== correctedBytes.byteLength) throw new TypeError(`${packet.caseId} corrected byte length mismatch.`);
 
-  return { packet, original, corrected, originalBytes, correctedBytes, originalSha256, correctedSha256 };
+  return {
+    packet,
+    original,
+    reference,
+    corrected,
+    originalBytes,
+    referenceBytes,
+    correctedBytes,
+    originalSha256,
+    referenceSha256,
+    correctedSha256,
+  };
 }
 
 function revisionBundle(verified, ordinal) {
