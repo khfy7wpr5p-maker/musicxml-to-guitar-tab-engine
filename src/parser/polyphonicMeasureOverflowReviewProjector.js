@@ -320,7 +320,8 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
     || timing.timeSignature.beatType !== 4
     || details.expectedDurationDivisions !== timing.divisions * timing.timeSignature.beats
     || details.onsetDivisions !== details.expectedDurationDivisions
-    || details.durationDivisions !== timing.divisions
+    || details.durationDivisions <= 0
+    || details.durationDivisions % timing.divisions !== 0
     || details.endDivisions !== details.onsetDivisions + details.durationDivisions
   ) return null;
 
