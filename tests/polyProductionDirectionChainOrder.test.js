@@ -79,6 +79,22 @@ test('production chain accepts exact bounded pedal and wedge directions without 
   });
 });
 
+test('production chain omits bounded display words targeted to a valid staff without losing notes', () => {
+  const source = score(`
+    <direction placement="above">
+      <direction-type><words font-style="italic">dolce</words></direction-type>
+      <staff>1</staff>
+    </direction>
+  `);
+  const before = JSON.stringify(source);
+
+  const result = projectParsedMusicXmlThroughPolyProductionCompatibilityChain(source);
+
+  assert.equal(result.sourceModel.eventCount, 1);
+  assert.equal(result.sourceModel.measures[0].events[0].pitch.written, 'E3');
+  assert.equal(JSON.stringify(source), before);
+});
+
 test('production chain still fails closed for structural playback directions', () => {
   const source = score(`
     <direction>
@@ -92,6 +108,19 @@ test('production chain still fails closed for structural playback directions', (
     (error) => {
       assert.equal(error.code, 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE');
       assert.equal(error.details.feature, 'direction');
+      assert.deepEqual(error.details.directionShape, {
+        attributes: [],
+        childNames: ['direction-type', 'sound'],
+        typeNames: ['words'],
+        typeProfiles: [{
+          name: 'words',
+          attributes: [],
+          childNames: [],
+          textPresent: true,
+        }],
+        staffCount: 0,
+        soundAttributes: ['dacapo'],
+      });
       return true;
     },
   );

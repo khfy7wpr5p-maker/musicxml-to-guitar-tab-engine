@@ -101,6 +101,34 @@ test('caesura source articulation is reviewable rather than silently discarded',
   assert.ok(issueCodes(result).includes('SOURCE_ARTICULATION_REVIEW_REQUIRED'));
 });
 
+test('exact trill-mark ornament becomes REVIEW_REQUIRED with provisional TAB', () => {
+  const bytes = Buffer.from(withNotation(
+    '<ornaments><trill-mark/></ornaments>',
+  ));
+  const before = sha256(bytes);
+  const result = processMusicXmlUpload({ fileName: 'source-trill.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assertProvisionalReviewArtifacts(result);
+  assert.ok(issueCodes(result).includes('SOURCE_ORNAMENT_REVIEW_REQUIRED'));
+  assert.equal(sha256(bytes), before);
+});
+
+test('bounded arpeggiate notation becomes REVIEW_REQUIRED with provisional TAB', () => {
+  const bytes = Buffer.from(withNotation(
+    '<arpeggiate default-x="-13.81" default-y="0.45"/>',
+  ));
+  const before = sha256(bytes);
+  const result = processMusicXmlUpload({ fileName: 'source-arpeggiate.musicxml', bytes });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assertProvisionalReviewArtifacts(result);
+  assert.ok(issueCodes(result).includes('SOURCE_ARPEGGIATE_REVIEW_REQUIRED'));
+  assert.equal(sha256(bytes), before);
+});
+
 test('unrecognized technical semantics remain fail-closed', () => {
   const bytes = Buffer.from(withNotation(
     '<technical><up-bow placement="above"/></technical>',

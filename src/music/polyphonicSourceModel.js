@@ -408,6 +408,7 @@ function validateEvent(event, field, seen, context) {
       'pitch',
       'tieStart',
       'tieStop',
+      'letRing',
       'source',
     ]),
     new Set([
@@ -512,7 +513,15 @@ function validateEvent(event, field, seen, context) {
     `${field}.tieStop`,
     { measureIndex, eventIndex },
   );
-  if (type === 'rest' && (tieStart || tieStop)) {
+  const hasLetRing = Object.hasOwn(descriptors, 'letRing');
+  const letRing = hasLetRing
+    ? requireBoolean(
+      descriptorValue(descriptors, 'letRing'),
+      `${field}.letRing`,
+      { measureIndex, eventIndex },
+    )
+    : false;
+  if (type === 'rest' && (tieStart || tieStop || letRing)) {
     throw invalid(`${field} rest events must not carry tie markers.`, {
       measureIndex,
       eventIndex,
@@ -578,6 +587,7 @@ function validateEvent(event, field, seen, context) {
     ...(pitch ? { pitch } : {}),
     tieStart,
     tieStop,
+    ...(hasLetRing ? { letRing } : {}),
     source,
   });
 }

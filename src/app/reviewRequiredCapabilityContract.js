@@ -103,9 +103,17 @@ function issueEffects(issue) {
     effects.add('tie');
     effects.add('playback');
   }
-  if (code.includes('PITCH')) {
+  if (
+    code.includes('PITCH')
+    || feature.includes('register-displacement')
+    || reason.includes('HIGH_REGISTER_OCTAVE_DISPLACEMENT')
+  ) {
     effects.add('pitch');
     effects.add('fingering');
+    if (
+      feature.includes('register-displacement')
+      || reason.includes('HIGH_REGISTER_OCTAVE_DISPLACEMENT')
+    ) effects.add('playback');
   }
   if (
     code.includes('FINGER')
@@ -114,7 +122,10 @@ function issueEffects(issue) {
     || code.includes('PHYSICAL_POINT')
     || feature.includes('fingering')
   ) effects.add('fingering');
-  if (issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement') {
+  if (
+    issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement'
+    || issue?.details?.arrangementArtifact === 'NoLossArpeggiatedGuitarArrangement'
+  ) {
     effects.add('playback');
   }
   if (
@@ -149,11 +160,13 @@ function issueAffectsTab(issue) {
     || feature.includes('barline-ending')
   ) return false;
   return code.includes('PITCH')
+    || feature.includes('register-displacement')
     || code.includes('FINGER')
     || code.includes('LEFT_HAND')
     || code.includes('ASSIGNMENT')
     || code.includes('PHYSICAL_POINT')
-    || issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement';
+    || issue?.details?.arrangementArtifact === 'PartialGuitarTabArrangement'
+    || issue?.details?.arrangementArtifact === 'NoLossArpeggiatedGuitarArrangement';
 }
 
 function enrichedIssues(result, tabVisible) {
@@ -207,9 +220,12 @@ function rendererMusicXml(result) {
 function validPartialArrangementArtifact(result) {
   const artifact = result?.arrangementArtifact;
   const musicXml = typeof result?.musicXml === 'string' ? result.musicXml : null;
+  const isBoundedReduction = artifact?.documentType === 'PartialGuitarTabArrangement';
+  const isNoLossArpeggiation = artifact?.documentType === 'NoLossArpeggiatedGuitarArrangement';
+
   if (
     !artifact
-    || artifact.documentType !== 'PartialGuitarTabArrangement'
+    || (!isBoundedReduction && !isNoLossArpeggiation)
     || artifact.contractVersion !== '1.0.0'
     || artifact.authority !== 'PROVISIONAL_REVIEW_ONLY'
     || artifact.sourceUploadSha256 !== result?.input?.sha256
@@ -225,11 +241,34 @@ function validPartialArrangementArtifact(result) {
     || artifact.renderer?.sha256 !== crypto.createHash('sha256').update(musicXml).digest('hex')
   ) return false;
 
+  if (
+    isNoLossArpeggiation
+    && (
+      artifact.policy !== 'NO_LOSS_ARPEGGIATION_REVIEW_RECOVERY_1.0'
+      || artifact.assignedNoteCount !== artifact.sourceNoteCount
+      || artifact.unassignedNoteCount !== 0
+      || artifact.omittedNoteCount !== 0
+      || artifact.coverageBasisPoints !== 10_000
+      || artifact.recovery?.transform !== 'ARPEGGIATED'
+      || artifact.recovery?.spreadDivisions !== 1
+      || artifact.recovery?.targetTimingAuthority !== false
+      || artifact.recovery?.candidateOrderIsPreferenceRank !== false
+      || artifact.recovery?.orderStrategy !== 'SOURCE_ORDER'
+      || artifact.recovery?.physicalValidationStatus !== 'FEASIBLE'
+      || artifact.timing?.sourceTimingAuthority !== true
+      || artifact.timing?.targetTimingAuthority !== false
+      || !Array.isArray(artifact.timing?.source)
+      || !Array.isArray(artifact.timing?.provisionalTarget)
+      || artifact.timing.source.length !== artifact.sourceNoteCount
+      || artifact.timing.provisionalTarget.length !== artifact.sourceNoteCount
+    )
+  ) return false;
+
   return artifact.noteDispositions.every((entry) => {
     if (entry?.disposition === 'KEPT' || entry?.disposition === 'OCTAVE_SHIFTED') {
       return Boolean(entry.targetPitch && entry.selectedPosition);
     }
-    if (entry?.disposition === 'UNASSIGNED' || entry?.disposition === 'OMITTED') {
+    if (isBoundedReduction && (entry?.disposition === 'UNASSIGNED' || entry?.disposition === 'OMITTED')) {
       return entry.targetPitch === null && entry.selectedPosition === null;
     }
     return false;

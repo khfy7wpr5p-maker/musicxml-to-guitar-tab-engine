@@ -49,7 +49,7 @@ test('upload result schema 1.5 exposes additive capability and artifact authorit
   assert.ok(Object.isFrozen(result));
 });
 
-test('combined direction review retains only the safely parsed source score', () => {
+test('combined direction review keeps source score and provisional TAB available', () => {
   const direction = '<direction placement="above"><direction-type><words>Larghetto</words></direction-type><direction-type><metronome><beat-unit>half</beat-unit><per-minute>32</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>';
   const request = {
     fileName: 'conflicting-combined-tempo.musicxml',
@@ -62,8 +62,9 @@ test('combined direction review retains only the safely parsed source score', ()
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.contractVersion, '1.0.0');
   assert.equal(first.resultSchemaVersion, '1.5.0');
-  assert.equal(first.canonicalTabResult, null);
-  assert.equal(first.musicXml, null);
+  assert.ok(first.canonicalTabResult);
+  assert.equal(typeof first.musicXml, 'string');
+  assert.match(first.musicXml, /<sign>TAB<\/sign>/);
   assert.equal(first.sourceArtifact.documentType, 'MusicXmlSourceArtifact');
   assert.equal(first.sourceArtifact.contractVersion, '1.0.0');
   assert.equal(first.sourceArtifact.sourceUploadSha256, first.input.sha256);
@@ -75,19 +76,19 @@ test('combined direction review retains only the safely parsed source score', ()
   assert.equal(Object.isFrozen(first.sourceArtifact), true);
   assert.equal(first.scoreAvailable, true);
   assert.equal(first.capabilities.renderScore, true);
-  assert.equal(first.capabilities.generateTab, false);
+  assert.equal(first.capabilities.generateTab, true);
   assert.equal(first.capabilities.assignTabPosition, false);
   assert.equal(first.capabilities.playback, 'APPROXIMATE');
   assert.equal(first.capabilities.export, false);
   assert.equal(first.artifacts.sourceArtifactAvailable, true);
   assert.equal(first.artifacts.rendererMusicXmlAvailable, true);
-  assert.equal(first.artifacts.provisionalTabAvailable, false);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
   assert.equal(first.artifacts.canonicalTabAvailable, false);
   assert.equal(first.artifacts.playbackTimelineReliability, 'PARTIAL');
   assert.equal(first.issues.length > 0, true);
   assert.match(first.issues[0].issueId, /^issue_[0-9a-f]{20}$/);
   assert.equal(first.issues[0].affectsTab, false);
-  assert.equal(first.issues[0].tabVisible, false);
+  assert.equal(first.issues[0].tabVisible, true);
   assert.equal(first.issues[0].teacherActionRequired, true);
   assert.deepEqual(
     first.issues[0].allowedActions,

@@ -102,10 +102,34 @@ test('records exact 6:4 sextuplet relations without rescaling MusicXML duration'
   assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
 });
 
-test('PS-6B5A fails closed on other ratios, normal-type and decorated time-modification shapes', () => {
+test('records pinned 3:2 eighth normal-type as provenance without rescaling duration', () => {
+  const withNormalType = tripletNode(
+    '<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type>',
+  );
+  const result = normalizePolyphonicTripletTimeModification(parsed(score({
+    firstTimeModification: withNormalType,
+  })));
+
+  assert.deepEqual(result.tripletTimeModificationMarkers[0], {
+    kind: 'triplet-time-modification',
+    actualNotes: 3,
+    normalNotes: 2,
+    normalType: 'eighth',
+    measureIndex: 0,
+    measureNumber: '1',
+    sourceOrder: 0,
+    noteChildIndex: 4,
+  });
+  assert.equal(result.durationPolicy, 'MUSICXML_DURATION_AUTHORITATIVE_NO_RATIO_RESCALING');
+});
+
+test('PS-6B5A fails closed on other ratios, unpinned normal-type and decorated time-modification shapes', () => {
   const fixtures = [
     tripletNode('<actual-notes>5</actual-notes><normal-notes>4</normal-notes>'),
-    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type>'),
+    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>quarter</normal-type>'),
+    tripletNode('<actual-notes>6</actual-notes><normal-notes>4</normal-notes><normal-type>eighth</normal-type>'),
+    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type id="nt1">eighth</normal-type>'),
+    tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type><normal-dot/>'),
     tripletNode('<normal-notes>2</normal-notes><actual-notes>3</actual-notes>'),
     tripletNode('<actual-notes>3</actual-notes><normal-notes>2</normal-notes>', ' id="tm1"'),
     tripletNode('<actual-notes value="3">3</actual-notes><normal-notes>2</normal-notes>'),

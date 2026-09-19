@@ -175,6 +175,40 @@ test('CAP_PERFORMANCE_METADATA_POLICY_V1 leaves overrange, ultra-precision, reor
   }
 });
 
+test('CAP_PERFORMANCE_METADATA_POLICY_V1 classifies fz with exact -1.11 through the existing invalid-dynamics warning path', () => {
+  const direction =
+    '<direction placement="below"><direction-type><dynamics><fz/></dynamics></direction-type><staff>1</staff><sound dynamics="-1.11"/></direction>';
+  const normalized = normalizePolyphonicPerformanceMetadataPolicy(parsed(score(direction)));
+
+  assert.equal(directionCount(normalized), 0);
+  assert.equal(normalized.performanceMetadataRecords.length, 1);
+  assert.equal(normalized.performanceMetadataRecords[0].kind, 'DYNAMICS');
+  assert.equal(normalized.performanceMetadataRecords[0].dynamicMark, 'fz');
+  assert.equal(normalized.performanceMetadataRecords[0].rawDynamics, '-1.11');
+  assert.equal(normalized.performanceMetadataRecords[0].canonicalDynamics, null);
+  assert.equal(normalized.performanceMetadataRecords[0].invalidNegativeDynamics, '-1.11');
+  assert.equal(normalized.issues.length, 1);
+  assert.equal(normalized.issues[0].code, 'INVALID_PERFORMANCE_DYNAMICS');
+  assert.equal(normalized.issues[0].severity, 'warning');
+});
+
+test('CAP_PERFORMANCE_METADATA_POLICY_V1 preserves exact tempo conflict with bounded producer layout attributes as review evidence', () => {
+  const direction =
+    '<direction placement="above"><direction-type><metronome parentheses="no" default-y="22.37" relative-y="20.00"><beat-unit>quarter</beat-unit><per-minute>10</per-minute></metronome></direction-type><staff>1</staff><sound tempo="20"/></direction>';
+  const normalized = normalizePolyphonicPerformanceMetadataPolicy(parsed(score(direction)));
+
+  assert.equal(directionCount(normalized), 0);
+  assert.equal(normalized.performanceMetadataRecords.length, 1);
+  assert.equal(normalized.performanceMetadataRecords[0].kind, 'METRONOME');
+  assert.equal(normalized.performanceMetadataRecords[0].rawPerMinute, '10');
+  assert.equal(normalized.performanceMetadataRecords[0].rawSoundTempo, '20');
+  assert.equal(normalized.performanceMetadataRecords[0].conflictingTempo, true);
+  assert.equal(normalized.issues.length, 1);
+  assert.equal(normalized.issues[0].code, 'CONFLICTING_PERFORMANCE_TEMPO');
+  assert.equal(normalized.issues[0].reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(normalized.issues[0].details.policy, 'NO_AVERAGING_NO_GUESSED_TEMPO');
+});
+
 test('CAP_PERFORMANCE_METADATA_POLICY_V1 is deterministic, deeply immutable and does not mutate source parsed facts', () => {
   const sourceDocument = parsed(score(`${LARGHETTO_DIRECTION}\n${INVALID_DYNAMICS_DIRECTION}`));
   const sourceDirectionCount = sourceDocument.root.children

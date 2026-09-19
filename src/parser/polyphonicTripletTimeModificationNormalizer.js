@@ -85,7 +85,7 @@ function assertScalarLeaf(node, allowedTexts, field, location) {
     || node.attributes.length !== 0
     || node.children.length !== 0
   ) {
-    throw unsupported(`${field} is outside the bounded 3:2/6:4 tuplet profile.`, {
+    throw unsupported(`${field} is outside the bounded 3:2/6:4/7:6/11:6/20:6/22:12 tuplet profile.`, {
       ...location,
       field,
       observedText,
@@ -100,25 +100,58 @@ function parseExactTripletTimeModification(node, location) {
     || node.attributes.length !== 0
     || node.children.some((child) => child.uri !== node.uri)
   ) {
-    throw unsupported('time-modification must use the exact attribute-free 3:2 shape.', location);
+    throw unsupported('time-modification must use an exact attribute-free bounded tuplet shape.', location);
   }
 
   const children = node.children.filter((child) => child.uri === node.uri);
+  const hasNormalType = children.length === 3 && children[2].name === 'normal-type';
   if (
-    children.length !== 2
-    || children[0].name !== 'actual-notes'
-    || children[1].name !== 'normal-notes'
+    (children.length !== 2 && !hasNormalType)
+    || children[0]?.name !== 'actual-notes'
+    || children[1]?.name !== 'normal-notes'
   ) {
-    throw unsupported('Only a simple actual-notes/normal-notes 3:2 time-modification is supported.', {
+    throw unsupported('Only bounded actual-notes/normal-notes with an optional pinned normal-type shape is supported.', {
       ...location,
       observedChildren: children.map((child) => child.name),
     });
   }
 
-  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6']), 'actual-notes', location);
-  const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4']), 'normal-notes', location);
-  if (!((actualNotes === 3 && normalNotes === 2) || (actualNotes === 6 && normalNotes === 4))) {
-    throw unsupported('Only exact 3:2 triplet and 6:4 sextuplet relations are supported.', {
+  const actualNotes = assertScalarLeaf(children[0], new Set(['3', '6', '7', '11', '20', '22']), 'actual-notes', location);
+  const normalNotes = assertScalarLeaf(children[1], new Set(['2', '4', '6', '12']), 'normal-notes', location);
+  let normalType = null;
+  if (hasNormalType) {
+    const normalTypeNode = children[2];
+    const observedNormalType = normalTypeNode.text.trim();
+    if (
+      normalTypeNode.attributes.length !== 0
+      || normalTypeNode.children.length !== 0
+      || observedNormalType !== 'eighth'
+    ) {
+      throw unsupported('normal-type is outside the pinned attribute-free eighth-note profile.', {
+        ...location,
+        field: 'normal-type',
+        observedText: observedNormalType,
+      });
+    }
+    if (actualNotes !== 3 || normalNotes !== 2) {
+      throw unsupported('Pinned normal-type provenance is supported only for the exact 3:2 relation.', {
+        ...location,
+        actualNotes,
+        normalNotes,
+        normalType: observedNormalType,
+      });
+    }
+    normalType = observedNormalType;
+  }
+  if (!(
+    (actualNotes === 3 && normalNotes === 2)
+    || (actualNotes === 6 && normalNotes === 4)
+    || (actualNotes === 7 && normalNotes === 6)
+    || (actualNotes === 11 && normalNotes === 6)
+    || (actualNotes === 20 && normalNotes === 6)
+    || (actualNotes === 22 && normalNotes === 12)
+  )) {
+    throw unsupported('Only exact 3:2, 6:4, pinned 7:6, pinned 11:6, pinned 20:6, and pinned 22:12 tuplet relations are supported.', {
       ...location,
       actualNotes,
       normalNotes,
@@ -126,9 +159,20 @@ function parseExactTripletTimeModification(node, location) {
   }
 
   return Object.freeze({
-    kind: actualNotes === 3 ? 'triplet-time-modification' : 'sextuplet-time-modification',
+    kind: actualNotes === 3
+      ? 'triplet-time-modification'
+      : actualNotes === 6
+        ? 'sextuplet-time-modification'
+        : actualNotes === 7
+          ? 'seven-in-six-time-modification'
+          : actualNotes === 11
+            ? 'eleven-in-six-time-modification'
+            : actualNotes === 20
+              ? 'twenty-in-six-time-modification'
+              : 'twenty-two-in-twelve-time-modification',
     actualNotes,
     normalNotes,
+    ...(normalType === null ? {} : { normalType }),
   });
 }
 

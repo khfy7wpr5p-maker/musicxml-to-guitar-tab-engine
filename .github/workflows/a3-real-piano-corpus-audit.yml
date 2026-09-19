@@ -1,0 +1,50 @@
+name: A3 Real Piano Corpus Audit
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-piano-corpus:
+    name: A3 real piano corpus / Node.js 22
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Fetch exact MuseTrainer corpus commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/a3-musetrainer
+          git init -q /tmp/a3-musetrainer
+          git -C /tmp/a3-musetrainer remote add origin https://github.com/musetrainer/library.git
+          git -C /tmp/a3-musetrainer fetch --depth=1 origin 9128876f6164d96997c877a2be843349a32bdabb
+          git -C /tmp/a3-musetrainer checkout -q FETCH_HEAD -- scores
+
+      - name: Audit pinned real piano corpus through production entrypoint
+        run: >-
+          node scripts/a3-real-piano-corpus-audit.js
+          /tmp/a3-musetrainer
+          a3-real-piano-corpus-audit.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: a3-real-piano-corpus-audit
+          path: a3-real-piano-corpus-audit.json
+          if-no-files-found: warn
+          retention-days: 14

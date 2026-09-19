@@ -161,7 +161,7 @@ test('writer preserves explicit repeat times rather than normalizing the source 
   assert.match(result.musicXml, /<repeat direction="backward" times="3"\/>/);
 });
 
-test('orphan backward repeat requires review without output at a stable source measure', () => {
+test('orphan backward repeat keeps single-pass provisional TAB at a stable source measure', () => {
   const xml = fixture().replace(
     '<bar-style>light-heavy</bar-style>',
     '<bar-style>light-heavy</bar-style><repeat direction="backward"/>',
@@ -170,11 +170,25 @@ test('orphan backward repeat requires review without output at a stable source m
     fileName: 'orphan-backward-repeat.musicxml',
     bytes: Buffer.from(xml),
   });
-  assertReviewWithoutOutput(result);
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.preflight.status, 'REVIEW_REQUIRED');
+  assert.equal(result.preflight.canProcess, false);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
-  assert.equal(result.preflight.issues[0].details.reason, 'ORPHAN_BACKWARD_REPEAT');
-  assert.equal(result.preflight.issues[0].location.measureIndex, 0);
+  const repeatIssue = result.preflight.issues.find(
+    (issue) => issue.code === 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE',
+  );
+  assert.ok(repeatIssue);
+  assert.equal(repeatIssue.details.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(repeatIssue.details.originalReason, 'ORPHAN_BACKWARD_REPEAT');
+  assert.equal(repeatIssue.location.measureIndex, 0);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
 
 test('noncanonical forward repeat times yields deterministic review-only TAB without changing source bytes', () => {

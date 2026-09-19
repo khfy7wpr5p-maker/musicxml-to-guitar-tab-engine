@@ -150,6 +150,41 @@ test('production accepts exact grace notehead=normal as display-only metadata', 
   assert.equal(accepted.musicXml, baseline.musicXml);
 });
 
+test('grace chord keeps main TAB provisional and leaves grace members unassigned for teacher review', () => {
+  const source = fixture().toString('utf8')
+    .replace('        <beam number="1">begin</beam>\n', '')
+    .replace(
+      '        <grace slash="yes"/>\n        <pitch><step>G</step><octave>4</octave></pitch>',
+      '        <grace slash="yes"/>\n        <chord/>\n        <pitch><step>G</step><octave>4</octave></pitch>',
+    )
+    .replace('        <beam number="1">end</beam>\n', '');
+  const result = processMusicXmlUpload({
+    fileName: 'grace-chord-review.musicxml',
+    bytes: Buffer.from(source),
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.ok(result.canonicalTabResult);
+  assert.equal(result.arrangementArtifact, undefined);
+  const graceIssue = result.preflight.issues.find(
+    (issue) => issue.code === 'GRACE_CHORD_REQUIRES_REVIEW',
+  );
+  assert.ok(graceIssue);
+  assert.equal(graceIssue.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(
+    graceIssue.details.reason,
+    'SIMULTANEOUS_GRACE_CHORD_NO_AUTOMATIC_TIMING_OR_POSITION_AUTHORITY',
+  );
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.capabilities.export, false);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  assert.doesNotMatch(result.musicXml, /<chord\/>/);
+  assert.match(result.sourceArtifact.rendererMusicXml, /<chord\/>/);
+});
+
 test('PS-6B6B fails closed when a grace pitch has no exact standard-guitar position', () => {
   const source = fixture().toString('utf8');
   const unplayable = source.replace(

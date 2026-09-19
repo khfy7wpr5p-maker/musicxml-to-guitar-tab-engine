@@ -23,8 +23,16 @@ const RETAINED_NOTE_CAPS = Object.freeze([3, 2, 1]);
 function isRecoverableArrangementFailure(error) {
   if (error?.code === 'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED') return true;
   if (
+    error?.code === 'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW'
+    && error?.details?.reason === 'POSITION_STATE_COMPLEXITY_EXCEEDS_EXACT_SEARCH_BOUNDARY'
+  ) return true;
+  if (
     error?.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
     && error?.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
+  ) return true;
+  if (
+    error?.code === 'UNPLAYABLE_GRACE_PHYSICAL_TRANSITION'
+    && error?.details?.reason === 'GRACE_CHORD_REQUIRES_REVIEW'
   ) return true;
   return error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
     && error?.details?.reason === 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE';

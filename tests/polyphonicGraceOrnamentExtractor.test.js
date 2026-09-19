@@ -155,6 +155,187 @@ test('PS-6B6A preserves the exact BWV-shaped F4 -> G4 ordered pair and following
   });
 });
 
+test('extracts the bounded producer-shaped unslashed single eighth grace without inventing timing', () => {
+  const source = parsed(singleGraceScore({
+    grace: {
+      graceMarkup: '<grace/>',
+      type: 'eighth',
+      beam: null,
+    },
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(result.graceOrnamentGroups.length, 1);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-single-eighth-grace');
+  assert.equal(group.notes.length, 1);
+  assert.equal(group.notes[0].slash, 'no');
+  assert.equal(group.notes[0].nominalType, 'eighth');
+  assert.equal(group.notes[0].beam, null);
+  assert.equal(Object.hasOwn(group.notes[0], 'duration'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'durationDivisions'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'onsetDivisions'), false);
+  assert.equal(result.extractedGraceEventCount, 1);
+});
+
+test('extracts an exact standalone unslashed eighth grace note without inventing timing', () => {
+  const source = parsed(singleGraceScore({
+    grace: {
+      graceMarkup: '<grace/>',
+      type: 'eighth',
+      beam: null,
+    },
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(result.graceOrnamentGroups.length, 1);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-single-eighth-grace');
+  assert.equal(group.timingAuthority, 'ORDER_ONLY_BEFORE_ANCHOR');
+  assert.equal(group.notes.length, 1);
+  assert.equal(group.notes[0].slash, 'no');
+  assert.equal(group.notes[0].nominalType, 'eighth');
+  assert.equal(group.notes[0].beam, null);
+  assert.equal(Object.hasOwn(group.notes[0], 'duration'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'durationDivisions'), false);
+  assert.equal(Object.hasOwn(group.notes[0], 'onsetDivisions'), false);
+  assert.equal(JSON.stringify(source), before);
+});
+
+test('extracts a bounded slashed two-note grace sequence even when producer omits display beams', () => {
+  const first = graceNote({
+    step: 'F',
+    graceMarkup: '<grace slash="yes"/>',
+    type: 'eighth',
+    beam: null,
+  });
+  const second = graceNote({
+    step: 'G',
+    graceMarkup: '<grace slash="yes"/>',
+    type: 'eighth',
+    beam: null,
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-sequence');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['yes', 'yes']);
+  assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
+test('extracts the bounded producer-shaped unslashed two-note eighth grace pair', () => {
+  const first = graceNote({
+    step: 'F',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'begin',
+  });
+  const second = graceNote({
+    step: 'G',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'end',
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-two-note-eighth-grace-sequence');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['no', 'no']);
+  assert.deepEqual(group.notes.map((note) => note.nominalType), ['eighth', 'eighth']);
+  assert.deepEqual(group.notes.map((note) => note.beam), ['begin', 'end']);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
+test('extracts an exact slashed two-note eighth grace pair when display beams are omitted', () => {
+  const first = graceNote({
+    step: 'F',
+    type: 'eighth',
+    graceMarkup: '<grace slash="yes"/>',
+    beam: null,
+  });
+  const second = graceNote({
+    step: 'G',
+    type: 'eighth',
+    graceMarkup: '<grace slash="yes"/>',
+    beam: null,
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-sequence');
+  assert.equal(group.timingAuthority, 'ORDER_ONLY_BEFORE_ANCHOR');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['yes', 'yes']);
+  assert.deepEqual(group.notes.map((note) => note.nominalType), ['eighth', 'eighth']);
+  assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
+  assert.equal(JSON.stringify(source), before);
+});
+
+test('extracts an exact unslashed two-note eighth grace pair with one beam level', () => {
+  const first = graceNote({
+    step: 'F',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'begin',
+  });
+  const second = graceNote({
+    step: 'G',
+    type: 'eighth',
+    graceMarkup: '<grace/>',
+    beam: 'end',
+  });
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'unslashed-two-note-eighth-grace-sequence');
+  assert.equal(group.timingAuthority, 'ORDER_ONLY_BEFORE_ANCHOR');
+  assert.deepEqual(group.notes.map((note) => note.slash), ['no', 'no']);
+  assert.deepEqual(group.notes.map((note) => note.nominalType), ['eighth', 'eighth']);
+  assert.deepEqual(group.notes.map((note) => note.beam), ['begin', 'end']);
+  assert.equal(JSON.stringify(source), before);
+});
+
+test('extracts a bounded two-note grace chord as review-only source provenance', () => {
+  const first = '<note><grace slash="yes"/><pitch><step>F</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const second = '<note><grace slash="yes"/><chord/><pitch><step>A</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-chord-review');
+  assert.equal(group.timingAuthority, 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY');
+  assert.equal(group.physicalIntegration, 'REVIEW_REQUIRED_UNASSIGNED');
+  assert.deepEqual(group.notes.map((note) => note.chordWithPrevious), [false, true]);
+  assert.deepEqual(group.notes.map((note) => note.pitch.written), ['F4', 'A4']);
+  assert.deepEqual(group.notes.map((note) => note.beam), [null, null]);
+  assert.equal(result.extractedGraceEventCount, 2);
+});
+
 test('extracts a bounded unslashed two-note 16th grace pair with layout-only note attributes', () => {
   const first = graceNote({
     step: 'F',
@@ -182,6 +363,28 @@ test('extracts a bounded unslashed two-note 16th grace pair with layout-only not
   assert.equal(result.extractedGraceEventCount, 2);
 });
 
+test('extracts exact slashed eighth grace dyad as review-only simultaneous provenance', () => {
+  const first = '<note><grace slash="yes"/><pitch><step>F</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const second = '<note><grace slash="yes"/><chord/><pitch><step>A</step><octave>4</octave></pitch><voice>1</voice><type>eighth</type><stem>up</stem><staff>1</staff></note>';
+  const source = parsed(score({
+    measures: measure({ notes: `${first}${second}${normalNote()}` }),
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(result.graceOrnamentGroups.length, 1);
+  const group = result.graceOrnamentGroups[0];
+  assert.equal(group.kind, 'slashed-two-note-eighth-grace-chord-review');
+  assert.equal(group.timingAuthority, 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY');
+  assert.equal(group.physicalIntegration, 'REVIEW_REQUIRED_UNASSIGNED');
+  assert.deepEqual(group.notes.map((note) => note.chordWithPrevious), [false, true]);
+  assert.equal(result.reviewIssues.length, 1);
+  assert.equal(result.reviewIssues[0].code, 'GRACE_CHORD_REQUIRES_REVIEW');
+  assert.equal(result.reviewIssues[0].reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(result.extractedGraceEventCount, 2);
+  assert.equal(JSON.stringify(source), before);
+});
+
 test('PS-6B6A preserves grace provenance and never adds duration fields to sidecar events', () => {
   const result = extractPolyphonicGraceOrnaments(parsed(bwvGracePairScore()));
   const [first, second] = result.graceOrnamentGroups[0].notes;
@@ -203,6 +406,21 @@ test('PS-6B6A preserves grace provenance and never adds duration fields to sidec
     assert.equal(Object.hasOwn(event, 'durationDivisions'), false);
     assert.equal(Object.hasOwn(event, 'performanceMilliseconds'), false);
   }
+});
+
+test('accepts producer stem=none as bounded grace display metadata', () => {
+  const source = parsed(singleGraceScore({
+    grace: {
+      graceMarkup: '<grace slash="yes"/>',
+      stem: 'none',
+    },
+  }));
+  const before = JSON.stringify(source);
+  const result = extractPolyphonicGraceOrnaments(source);
+
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(result.graceOrnamentGroups[0].notes[0].stem, 'none');
+  assert.equal(Object.hasOwn(result.graceOrnamentGroups[0].notes[0], 'duration'), false);
 });
 
 test('PS-6B6A accepts only exact grace notehead=normal display metadata without changing grace facts', () => {

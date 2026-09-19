@@ -36,6 +36,9 @@ const {
 const { createBasicChordLabelModel } = require('../music/basicChordLabelModel');
 const { createGuitarArrangementRegister } = require('../guitar/guitarArrangementRegister');
 const { recoverPartialGuitarArrangement } = require('./partialGuitarArrangement');
+const {
+  recoverNoLossArpeggiationReviewArrangement,
+} = require('./noLossArpeggiationReviewRecovery');
 const { decorateUploadResultWithCapabilities } = require('./reviewRequiredCapabilityContract');
 
 const MUSICXML_POLYPHONIC_NOTE_EDIT_RUNTIME_V2_VERSION = '1.4.0';
@@ -1054,7 +1057,7 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         processing,
       );
     } catch (arrangementError) {
-      recovery = recoverPartialGuitarArrangement({
+      recovery = recoverNoLossArpeggiationReviewArrangement({
         sourceModel: revisedSourceModel,
         arrangementDecisions: decisions,
         processing,
@@ -1064,6 +1067,18 @@ function processMusicXmlPolyphonicNoteEditV2(request, options = {}, runtime = nu
         guitarOptions,
         graceOrnamentGroups: projected.graceOrnamentGroups,
       });
+      if (!recovery) {
+        recovery = recoverPartialGuitarArrangement({
+          sourceModel: revisedSourceModel,
+          arrangementDecisions: decisions,
+          processing,
+          writerOptions,
+          sourceUploadSha256: inputIdentity.sha256,
+          originalError: arrangementError,
+          guitarOptions,
+          graceOrnamentGroups: projected.graceOrnamentGroups,
+        });
+      }
       if (!recovery) throw arrangementError;
       canonicalTabResult = null;
       musicXml = recovery.musicXml;

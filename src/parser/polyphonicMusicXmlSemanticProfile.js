@@ -86,6 +86,12 @@ const PITCH_CHILDREN = Object.freeze({
   octave: SUPPORTED,
 });
 
+const REST_CHILDREN = Object.freeze({
+  'display-step': SAFE_IGNORE,
+  'display-octave': SAFE_IGNORE,
+});
+
+
 const NOTATIONS_CHILDREN = Object.freeze({
   tied: SUPPORTED,
 });
@@ -468,6 +474,66 @@ function enforceScalarLeaves(
   }
 }
 
+function enforceRestProfile(restNode, location, rejectUnsupported, processing = null) {
+  const restChildren = enforceChildren(
+    restNode,
+    'rest',
+    REST_CHILDREN,
+    location,
+    rejectUnsupported,
+    null,
+    processing,
+  );
+  enforceAttributes(
+    restNode,
+    'rest',
+    EMPTY_ATTRIBUTES,
+    location,
+    rejectUnsupported,
+    processing,
+  );
+
+  const displaySteps = restChildren.get('display-step') || [];
+  const displayOctaves = restChildren.get('display-octave') || [];
+  if (displaySteps.length === 0 && displayOctaves.length === 0) {
+    return;
+  }
+
+  const directNames = restNode.children
+    .filter((child) => child.uri === restNode.uri)
+    .map((child) => child.name);
+  if (
+    displaySteps.length !== 1
+    || displayOctaves.length !== 1
+    || directNames.length !== 2
+    || directNames[0] !== 'display-step'
+    || directNames[1] !== 'display-octave'
+  ) {
+    throw rejectUnsupported('rest-display-position', {
+      ...location,
+      observedChildren: directNames,
+    });
+  }
+
+  enforceScalarLeaves(
+    restChildren,
+    ['display-step', 'display-octave'],
+    location,
+    rejectUnsupported,
+    processing,
+  );
+
+  const displayStep = displaySteps[0].text.trim();
+  const displayOctave = displayOctaves[0].text.trim();
+  if (!/^[A-G]$/.test(displayStep) || !/^[0-9]$/.test(displayOctave)) {
+    throw rejectUnsupported('rest-display-position', {
+      ...location,
+      displayStep,
+      displayOctave,
+    });
+  }
+}
+
 function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = null) {
   const noteChildren = enforceChildren(
     noteNode,
@@ -528,7 +594,7 @@ function enforceNoteProfile(noteNode, location, rejectUnsupported, processing = 
     );
   }
   for (const rest of noteChildren.get('rest') || []) {
-    enforceLeaf(rest, 'rest', location, rejectUnsupported, processing);
+    enforceRestProfile(rest, location, rejectUnsupported, processing);
   }
   for (const tie of noteChildren.get('tie') || []) {
     enforceChildren(
