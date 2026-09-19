@@ -46,7 +46,7 @@ function consensusOverfullScore() {
 function boundaryTailOverflowScore() {
   return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
   <measure number="269">
-    <attributes><divisions>4</divisions><time><beats>2</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+    <attributes><divisions>4</divisions><time><beats>2</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
     <note><pitch><step>C</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
     <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
   </measure>
