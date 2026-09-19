@@ -12,6 +12,7 @@ const MAX_MEASURE_OVERFLOW_REPAIRS = 256;
 const CONSENSUS_OVERFULL_MEASURE_REVIEW_POLICY = 'CONSENSUS_OVERFULL_MEASURE_REVIEW';
 const BOUNDARY_TAIL_MEASURE_REVIEW_POLICY = 'BOUNDARY_TAIL_MEASURE_REVIEW';
 const MAX_PROVISIONAL_QUARTER_BEATS = 32;
+const BOUNDED_PROVISIONAL_BEAT_TYPES = new Set([1, 2, 4, 8, 16, 32, 64, 128]);
 
 function cloneNode(node, childMapper = null, overrides = {}) {
   const children = [];
@@ -69,6 +70,39 @@ function simpleTimeSignature(timeNode) {
   const beats = scalarPositiveInteger(beatsNodes[0]);
   const beatType = scalarPositiveInteger(beatTypeNodes[0]);
   if (beats === null || beatType === null) return null;
+  return Object.freeze({ beats, beatType });
+}
+
+function greatestCommonDivisor(left, right) {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b !== 0) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a;
+}
+
+function exactProvisionalTimeSignature(divisions, durationDivisions) {
+  if (
+    !Number.isSafeInteger(divisions)
+    || divisions <= 0
+    || !Number.isSafeInteger(durationDivisions)
+    || durationDivisions <= 0
+    || durationDivisions > divisions * MAX_PROVISIONAL_QUARTER_BEATS
+    || divisions > Number.MAX_SAFE_INTEGER / 4
+  ) return null;
+
+  const denominator = divisions * 4;
+  const divisor = greatestCommonDivisor(durationDivisions, denominator);
+  const beats = durationDivisions / divisor;
+  const beatType = denominator / divisor;
+  if (
+    !Number.isSafeInteger(beats)
+    || beats <= 0
+    || !BOUNDED_PROVISIONAL_BEAT_TYPES.has(beatType)
+  ) return null;
   return Object.freeze({ beats, beatType });
 }
 
@@ -321,7 +355,6 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
     || details.expectedDurationDivisions !== timing.divisions * timing.timeSignature.beats
     || details.onsetDivisions !== details.expectedDurationDivisions
     || details.durationDivisions <= 0
-    || details.durationDivisions % timing.divisions !== 0
     || details.endDivisions !== details.onsetDivisions + details.durationDivisions
   ) return null;
 
@@ -329,14 +362,12 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
   if (
     !Number.isSafeInteger(provisionalMeasureDurationDivisions)
     || provisionalMeasureDurationDivisions <= details.expectedDurationDivisions
-    || provisionalMeasureDurationDivisions % timing.divisions !== 0
   ) return null;
-  const provisionalBeats = provisionalMeasureDurationDivisions / timing.divisions;
-  if (
-    !Number.isSafeInteger(provisionalBeats)
-    || provisionalBeats <= timing.timeSignature.beats
-    || provisionalBeats > MAX_PROVISIONAL_QUARTER_BEATS
-  ) return null;
+  const provisionalTimeSignature = exactProvisionalTimeSignature(
+    timing.divisions,
+    provisionalMeasureDurationDivisions,
+  );
+  if (provisionalTimeSignature === null) return null;
 
   const notes = directChildren(measure, 'note');
   const note = notes[details.sourceOrder];
@@ -348,7 +379,6 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
     || durationNodes[0].text.trim() !== String(details.durationDivisions)
   ) return null;
 
-  const provisionalTimeSignature = Object.freeze({ beats: provisionalBeats, beatType: 4 });
   const targetMeasure = withTimeSignature(measure, provisionalTimeSignature, true);
   if (!targetMeasure) return null;
   const restoredNextMeasure = measureHasExplicitTime(nextMeasure)
