@@ -33,7 +33,7 @@ function makeCase(dir, index, coverageTags) {
   fs.writeFileSync(path.join(dir, correctedName), corrected);
   const packet = {
     documentType: 'Stage09TeacherCorrectionPreparedCase',
-    contractVersion: '1.0.0-draft',
+    contractVersion: '1.0.0',
     caseId: `modeled-case-${index}`,
     evidenceClass: 'REAL_TEACHER_CORRECTION_PREPARED',
     work: `Modeled test case ${index}`,
