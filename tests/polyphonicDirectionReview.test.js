@@ -99,6 +99,44 @@ test('non-leading tempo direction remains review-required instead of moving to m
   assert.equal(result.artifacts.canonicalTabAvailable, false);
 });
 
+test('bounded offset tempo words become review-required provisional TAB without changing source timing authority', () => {
+  const direction = '<direction placement="above"><direction-type><words font-family="Times New Roman" font-size="12" font-style="italic" font-weight="bold" relative-y="10">Larghetto</words></direction-type><offset>-174</offset><staff>1</staff><sound tempo="66"/></direction>';
+  const xml = score(direction);
+  const request = { fileName: 'offset-tempo.musicxml', bytes: Buffer.from(xml) };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.route, 'POLY_V2');
+  assert.deepEqual(first, second);
+  assert.equal(first.sourceArtifact.rendererMusicXml, xml);
+  assert.equal(first.capabilities.renderScore, true);
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  const issue = first.preflight.issues.find(
+    (entry) => entry.code === 'PERFORMANCE_DIRECTION_REVIEW_REQUIRED',
+  );
+  assert.ok(issue);
+  assert.equal(issue.details.direction.kind, 'TEMPO_PLAYBACK_REVIEW');
+  assert.equal(issue.details.direction.hasOffset, true);
+  assert.equal(issue.details.direction.offsetDivisions, -174);
+  assert.deepEqual(issue.details.direction.soundAttributes, ['tempo']);
+});
+
+test('navigation and octave-shift words remain fail-closed even in the bounded offset tempo shape', () => {
+  for (const words of ['D.C.', 'D.S.', '8va']) {
+    const direction = `<direction placement="above"><direction-type><words>${words}</words></direction-type><offset>-174</offset><staff>1</staff><sound tempo="66"/></direction>`;
+    const result = processMusicXmlUpload({
+      fileName: 'unsafe-offset-words.musicxml',
+      bytes: Buffer.from(score(direction)),
+    });
+    assert.equal(result.status, 'BLOCKED');
+    assert.equal(result.capabilities.generateTab, false);
+  }
+});
 test('unknown direction semantics remain fail-closed', () => {
   const result = processMusicXmlUpload({
     fileName: 'navigation.musicxml',
