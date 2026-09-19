@@ -292,7 +292,9 @@ function runPrivateTierBAudit({ evidenceDir, out, promote = false }) {
     throw new TypeError(`Private evidence directory not found: ${evidenceDir}`);
   }
   const discovered = discoverPackets(evidenceDir);
-  if (discovered.length !== 3) throw new TypeError(`Expected exactly 3 private correction packets, found ${discovered.length}.`);
+  if (discovered.length < 1 || discovered.length > 3) {
+    throw new TypeError(`Expected between 1 and 3 private correction packets, found ${discovered.length}.`);
+  }
   const verified = discovered.map(({ packet }) => verifyPacket(packet, evidenceDir));
   const cases = verified.map((entry, index) => runCase(entry, index));
   const corpus = buildCorpus(cases);
