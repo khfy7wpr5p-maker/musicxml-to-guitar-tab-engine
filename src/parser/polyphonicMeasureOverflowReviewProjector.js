@@ -10,6 +10,7 @@ const POLYPHONIC_MEASURE_OVERFLOW_REVIEW_AUTHORITY =
   'PROVISIONAL_DURATION_CLAMP_WITH_IMMUTABLE_SOURCE';
 const MAX_MEASURE_OVERFLOW_REPAIRS = 256;
 const CONSENSUS_OVERFULL_MEASURE_REVIEW_POLICY = 'CONSENSUS_OVERFULL_MEASURE_REVIEW';
+const BOUNDARY_TAIL_MEASURE_REVIEW_POLICY = 'BOUNDARY_TAIL_MEASURE_REVIEW';
 const MAX_PROVISIONAL_QUARTER_BEATS = 32;
 
 function cloneNode(node, childMapper = null, overrides = {}) {
@@ -299,6 +300,113 @@ function normalizeConsensusOverfullMeasure(parsedDocument, details) {
   });
 }
 
+
+function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
+  const parts = directChildren(parsedDocument.root, 'part');
+  const measures = parts.length === 1 ? directChildren(parts[0], 'measure') : [];
+  const measure = measures[details.measureIndex];
+  const nextMeasure = measures[details.measureIndex + 1];
+  if (
+    !measure
+    || !nextMeasure
+    || measureHasAffirmativeFlag(measure, 'implicit')
+    || measureHasAffirmativeFlag(measure, 'non-controlling')
+    || measureHasAffirmativeFlag(nextMeasure, 'non-controlling')
+  ) return null;
+
+  const timing = timingAtMeasure(parsedDocument, details.measureIndex);
+  if (
+    !timing
+    || timing.timeSignature.beatType !== 4
+    || details.expectedDurationDivisions !== timing.divisions * timing.timeSignature.beats
+    || details.onsetDivisions !== details.expectedDurationDivisions
+    || details.durationDivisions !== timing.divisions
+    || details.endDivisions !== details.onsetDivisions + details.durationDivisions
+  ) return null;
+
+  const provisionalMeasureDurationDivisions = details.endDivisions;
+  if (
+    !Number.isSafeInteger(provisionalMeasureDurationDivisions)
+    || provisionalMeasureDurationDivisions <= details.expectedDurationDivisions
+    || provisionalMeasureDurationDivisions % timing.divisions !== 0
+  ) return null;
+  const provisionalBeats = provisionalMeasureDurationDivisions / timing.divisions;
+  if (
+    !Number.isSafeInteger(provisionalBeats)
+    || provisionalBeats <= timing.timeSignature.beats
+    || provisionalBeats > MAX_PROVISIONAL_QUARTER_BEATS
+  ) return null;
+
+  const notes = directChildren(measure, 'note');
+  const note = notes[details.sourceOrder];
+  const durationNodes = note ? directChildren(note, 'duration') : [];
+  if (
+    durationNodes.length !== 1
+    || durationNodes[0].attributes.length !== 0
+    || durationNodes[0].children.length !== 0
+    || durationNodes[0].text.trim() !== String(details.durationDivisions)
+  ) return null;
+
+  const provisionalTimeSignature = Object.freeze({ beats: provisionalBeats, beatType: 4 });
+  const targetMeasure = withTimeSignature(measure, provisionalTimeSignature, true);
+  if (!targetMeasure) return null;
+  const restoredNextMeasure = measureHasExplicitTime(nextMeasure)
+    ? cloneNode(nextMeasure)
+    : withTimeSignature(nextMeasure, timing.timeSignature, false);
+  if (!restoredNextMeasure) return null;
+
+  const part = parts[0];
+  const normalizedRoot = cloneNode(parsedDocument.root, (rootChild) => {
+    if (rootChild !== part) return cloneNode(rootChild);
+    return cloneNode(part, (partChild) => {
+      if (partChild === measure) return targetMeasure;
+      if (partChild === nextMeasure) return restoredNextMeasure;
+      return cloneNode(partChild);
+    });
+  });
+
+  return Object.freeze({
+    parsedDocument: Object.freeze({
+      documentType: parsedDocument.documentType,
+      contractVersion: parsedDocument.contractVersion,
+      root: deepFreezeNode(normalizedRoot),
+    }),
+    sourceExpectedDurationDivisions: details.expectedDurationDivisions,
+    provisionalMeasureDurationDivisions,
+    sourceTimeSignature: timing.timeSignature,
+    provisionalTimeSignature,
+  });
+}
+
+function boundaryTailOverflowReviewIssue(details, normalization) {
+  return Object.freeze({
+    severity: 'error',
+    category: 'semantic',
+    code: 'INVALID_MUSICXML',
+    message: 'A measure-boundary source event is retained at full duration only in a bounded provisional local timing extent.',
+    reviewDisposition: 'REVIEW_REQUIRED',
+    location: Object.freeze({
+      measure: details.measureNumber ?? null,
+      measureIndex: details.measureIndex,
+      eventIndex: details.sourceOrder,
+      sourceEventId: details.sourceEventId ?? null,
+    }),
+    details: Object.freeze({
+      ...details,
+      feature: 'rhythm-timeline',
+      reason: 'MEASURE_EVENT_OVERFLOW',
+      policy: BOUNDARY_TAIL_MEASURE_REVIEW_POLICY,
+      reviewDisposition: 'REVIEW_REQUIRED',
+      sourceExpectedDurationDivisions: normalization.sourceExpectedDurationDivisions,
+      provisionalMeasureDurationDivisions: normalization.provisionalMeasureDurationDivisions,
+      sourceTimeSignature: normalization.sourceTimeSignature,
+      provisionalTimeSignature: normalization.provisionalTimeSignature,
+      sourceMusicXmlImmutable: true,
+      targetTimingAuthority: false,
+    }),
+  });
+}
+
 function consensusOverflowReviewIssue(details, normalization) {
   return Object.freeze({
     severity: 'error',
@@ -508,6 +616,27 @@ function projectParsedMusicXmlWithMeasureOverflowReview(parsedDocument, runtime 
             consensusNormalization,
           ));
           candidate = consensusNormalization.parsedDocument;
+          continue;
+        }
+
+        const boundaryTailNormalization = normalizeBoundaryTailOverflowMeasure(
+          candidate,
+          error.details,
+        );
+        if (boundaryTailNormalization !== null) {
+          runtime?.checkpoint('measure-overflow-review:boundary-tail-extent', {
+            measureIndex: error.details.measureIndex,
+            sourceOrder: error.details.sourceOrder ?? null,
+            sourceExpectedDurationDivisions:
+              boundaryTailNormalization.sourceExpectedDurationDivisions,
+            provisionalMeasureDurationDivisions:
+              boundaryTailNormalization.provisionalMeasureDurationDivisions,
+          });
+          reviewIssues.push(boundaryTailOverflowReviewIssue(
+            error.details,
+            boundaryTailNormalization,
+          ));
+          candidate = boundaryTailNormalization.parsedDocument;
           continue;
         }
       }
