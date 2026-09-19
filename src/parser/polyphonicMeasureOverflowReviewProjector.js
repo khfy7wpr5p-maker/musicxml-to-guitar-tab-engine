@@ -94,6 +94,17 @@ function exactProvisionalTimeSignature(divisions, durationDivisions) {
     || divisions > Number.MAX_SAFE_INTEGER / 4
   ) return null;
 
+  if (durationDivisions % divisions === 0) {
+    const quarterBeats = durationDivisions / divisions;
+    if (
+      Number.isSafeInteger(quarterBeats)
+      && quarterBeats > 0
+      && quarterBeats <= MAX_PROVISIONAL_QUARTER_BEATS
+    ) {
+      return Object.freeze({ beats: quarterBeats, beatType: 4 });
+    }
+  }
+
   const denominator = divisions * 4;
   const divisor = greatestCommonDivisor(durationDivisions, denominator);
   const beats = durationDivisions / divisor;
