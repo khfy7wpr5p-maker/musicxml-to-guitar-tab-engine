@@ -133,10 +133,8 @@ function validatePosition(position, targetMidi, sourceEventId, sourceGroupId, co
   }
 }
 
-function enumerateGroupCandidates(group, activeEntries, runtime, counter, configuration) {
-  if (activeEntries.length > GUITAR_STRING_COUNT) {
-    return Object.freeze([]);
-  }
+function buildPositionLayers(group, activeEntries, runtime, configuration) {
+  if (activeEntries.length > GUITAR_STRING_COUNT) return [];
 
   const positionLayers = new Array(activeEntries.length);
   for (let memberIndex = 0; memberIndex < activeEntries.length; memberIndex += 1) {
@@ -166,6 +164,55 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter, config
 
     positionLayers[memberIndex] = normalized;
   }
+  return positionLayers;
+}
+
+function countPreparedCandidates(group, activeEntries, positionLayers, runtime, maximum) {
+  if (activeEntries.length > GUITAR_STRING_COUNT) return 0;
+  let states = new Map([[0, 1]]);
+  const cap = maximum + 1;
+
+  for (let memberIndex = 0; memberIndex < positionLayers.length; memberIndex += 1) {
+    checkpoint(runtime, 'guitar-voicing-candidate-model:precount-layer', {
+      sourceGroupId: group.groupId,
+      memberIndex,
+      stateCount: states.size,
+    });
+    const next = new Map();
+    const layer = positionLayers[memberIndex];
+
+    for (const [usedMask, ways] of states) {
+      for (let positionIndex = 0; positionIndex < layer.length; positionIndex += 1) {
+        checkpoint(runtime, 'guitar-voicing-candidate-model:precount-position', {
+          sourceGroupId: group.groupId,
+          memberIndex,
+          positionIndex,
+        });
+        const position = layer[positionIndex];
+        const bit = 1 << (position.string - 1);
+        if ((usedMask & bit) !== 0) continue;
+        const nextMask = usedMask | bit;
+        const observed = (next.get(nextMask) || 0) + ways;
+        next.set(nextMask, Math.min(cap, observed));
+      }
+    }
+
+    states = next;
+    if (states.size === 0) return 0;
+  }
+
+  let total = 0;
+  for (const ways of states.values()) {
+    total = Math.min(cap, total + ways);
+    if (total >= cap) return cap;
+  }
+  return total;
+}
+
+function enumeratePreparedGroupCandidates(group, activeEntries, positionLayers, runtime) {
+  if (activeEntries.length > GUITAR_STRING_COUNT) {
+    return Object.freeze([]);
+  }
 
   const candidates = [];
   const working = new Array(activeEntries.length);
@@ -179,13 +226,6 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter, config
     });
 
     if (memberIndex === activeEntries.length) {
-      const observed = counter.count + 1;
-      if (observed > MAX_GUITAR_VOICING_CANDIDATES) {
-        throw candidateLimitExceeded(observed, {
-          sourceGroupId: group.groupId,
-        });
-      }
-
       const candidateIndex = candidates.length;
       const positions = Object.freeze(working.map((position) => position));
       candidates.push(Object.freeze({
@@ -193,7 +233,6 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter, config
         positionCount: positions.length,
         positions,
       }));
-      counter.count = observed;
       return;
     }
 
@@ -205,9 +244,7 @@ function enumerateGroupCandidates(group, activeEntries, runtime, counter, config
         positionIndex,
       });
       const position = layer[positionIndex];
-      if (usedStrings.has(position.string)) {
-        continue;
-      }
+      if (usedStrings.has(position.string)) continue;
 
       usedStrings.add(position.string);
       working[memberIndex] = position;
@@ -235,7 +272,8 @@ function createGuitarVoicingCandidateModel(
   const instructionsBySourceEventId = buildInstructionIndex(reduction, runtime);
 
   const groups = [];
-  const counter = { count: 0 };
+  const pendingGroups = [];
+  let candidateCount = 0;
 
   for (let measureIndex = 0; measureIndex < grouping.measures.length; measureIndex += 1) {
     const measure = grouping.measures[measureIndex];
@@ -300,29 +338,73 @@ function createGuitarVoicingCandidateModel(
         continue;
       }
 
-      const candidates = enumerateGroupCandidates(
+      const positionLayers = buildPositionLayers(
         group,
         activeEntries,
         runtime,
-        counter,
         configuration,
       );
-      groups.push(Object.freeze({
-        sourceGroupId: group.groupId,
-        onsetDivisions: group.onsetDivisions,
-        sourceEventIds: Object.freeze([...group.sourceEventIds]),
-        activeSourceEventIds: Object.freeze(activeSourceEventIds),
-        omittedSourceEventIds: Object.freeze(omittedSourceEventIds),
-        targetMidis: Object.freeze(targetMidis),
-        candidateCount: candidates.length,
-        candidates,
-      }));
+      const remaining = MAX_GUITAR_VOICING_CANDIDATES - candidateCount;
+      const groupCandidateCount = countPreparedCandidates(
+        group,
+        activeEntries,
+        positionLayers,
+        runtime,
+        remaining,
+      );
+      if (groupCandidateCount > remaining) {
+        throw candidateLimitExceeded(MAX_GUITAR_VOICING_CANDIDATES + 1, {
+          sourceGroupId: group.groupId,
+        });
+      }
+      candidateCount += groupCandidateCount;
+      pendingGroups.push({
+        group,
+        activeEntries,
+        activeSourceEventIds,
+        omittedSourceEventIds,
+        targetMidis,
+        positionLayers,
+        candidateCount: groupCandidateCount,
+      });
     }
+  }
+
+  for (let pendingIndex = 0; pendingIndex < pendingGroups.length; pendingIndex += 1) {
+    const pending = pendingGroups[pendingIndex];
+    checkpoint(runtime, 'guitar-voicing-candidate-model:materialize-group', {
+      pendingIndex,
+      sourceGroupId: pending.group.groupId,
+      candidateCount: pending.candidateCount,
+    });
+    const candidates = enumeratePreparedGroupCandidates(
+      pending.group,
+      pending.activeEntries,
+      pending.positionLayers,
+      runtime,
+    );
+    if (candidates.length !== pending.candidateCount) {
+      throw invalid('PA-7 candidate pre-count disagrees with deterministic materialization.', {
+        sourceGroupId: pending.group.groupId,
+        expectedCandidateCount: pending.candidateCount,
+        observedCandidateCount: candidates.length,
+      });
+    }
+    groups.push(Object.freeze({
+      sourceGroupId: pending.group.groupId,
+      onsetDivisions: pending.group.onsetDivisions,
+      sourceEventIds: Object.freeze([...pending.group.sourceEventIds]),
+      activeSourceEventIds: Object.freeze(pending.activeSourceEventIds),
+      omittedSourceEventIds: Object.freeze(pending.omittedSourceEventIds),
+      targetMidis: Object.freeze(pending.targetMidis),
+      candidateCount: candidates.length,
+      candidates,
+    }));
   }
 
   checkpoint(runtime, 'guitar-voicing-candidate-model:complete', {
     groupCount: groups.length,
-    candidateCount: counter.count,
+    candidateCount,
   });
 
   const snapshot = Object.freeze({
@@ -346,7 +428,7 @@ function createGuitarVoicingCandidateModel(
       maximumFret: configuration.maximumFret,
     }),
     groupCount: groups.length,
-    candidateCount: counter.count,
+    candidateCount,
     groups: Object.freeze(groups),
   });
   authenticGuitarVoicingCandidateModelSnapshots.add(snapshot);
