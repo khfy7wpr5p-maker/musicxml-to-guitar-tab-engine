@@ -129,6 +129,38 @@ test('private Tier B runner accepts progressive one-of-three evidence while keep
   }
 });
 
+test('private Tier B progressive intake rejects zero or more than three packets', () => {
+  const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-empty-'));
+  const overflowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-overflow-'));
+  try {
+    assert.throws(
+      () => runPrivateTierBAudit({
+        evidenceDir: emptyDir,
+        out: path.join(emptyDir, 'audit-output.json'),
+        promote: false,
+      }),
+      /Expected between 1 and 3 private correction packets, found 0/,
+    );
+
+    makeCase(overflowDir, 1, ['voice-2']);
+    makeCase(overflowDir, 2, ['staff']);
+    makeCase(overflowDir, 3, ['tie']);
+    makeCase(overflowDir, 4, ['chord']);
+
+    assert.throws(
+      () => runPrivateTierBAudit({
+        evidenceDir: overflowDir,
+        out: path.join(overflowDir, 'audit-output.json'),
+        promote: false,
+      }),
+      /Expected between 1 and 3 private correction packets, found 4/,
+    );
+  } finally {
+    fs.rmSync(emptyDir, { recursive: true, force: true });
+    fs.rmSync(overflowDir, { recursive: true, force: true });
+  }
+});
+
 test('promotion fails closed unless the full Stage 09 product gate passes', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-promote-'));
   try {
