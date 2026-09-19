@@ -36,7 +36,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | Stage 06 review editor backend contract | ✅ INTERNAL / CAPABILITY-GATED / NON-UI |
 | Stage 07 review editor UI + exact host/pins | ✅ COMPLETE / INTERNAL — Editor Core `9429116…`, Rendering `13c32eef…` |
 | Stage 08 correction revalidation → production TAB | ✅ COMPLETE / INTERNAL — merged PR #314 at `051aae293244ead108079b4756810558e0a44891` |
-| Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections |
+| Stage 09 real OMR/MusicXML product gate | ⚠️ IN PROGRESS / TIER-B EVIDENCE GAP — 20/20 verified real MusicXML, 0/3 eligible teacher corrections; private intake supports progressive 1/3 → 2/3 → 3/3 audit with promotion still gate-locked |
 | R1 safely parsed source-artifact retention | ✅ IMPLEMENTED — source rendering separated from TAB/export authority |
 | R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
 | R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
