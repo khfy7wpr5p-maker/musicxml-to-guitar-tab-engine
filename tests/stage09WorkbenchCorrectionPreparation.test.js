@@ -21,7 +21,7 @@ function fixtureXml(step = 'C') {
   );
 }
 
-function evidence(originalSha, correctedXml, appliedEdits) {
+function evidence(originalSha, appliedEdits) {
   return {
     documentType: 'Stage09WorkbenchCorrectionEvidence',
     contractVersion: '1.0.0',
@@ -31,7 +31,6 @@ function evidence(originalSha, correctedXml, appliedEdits) {
     route: 'POLY_V2',
     revisionNumber: appliedEdits.length,
     appliedEdits,
-    correctedMusicXml: correctedXml.toString('utf8'),
   };
 }
 
@@ -69,7 +68,7 @@ test('prepares a private Stage 09 correction packet from authentic Workbench pit
     fs.writeFileSync(referencePath, reference);
     fs.writeFileSync(
       evidencePath,
-      JSON.stringify(evidence(sha256(original), corrected, [pitchEdit()])),
+      JSON.stringify(evidence(sha256(original), [pitchEdit()])),
     );
 
     const prepared = prepareWorkbenchCorrectionCase({
@@ -115,7 +114,7 @@ test('preparation fails closed when the exact teacher reference score is missing
     fs.writeFileSync(originalPath, original);
     fs.writeFileSync(
       evidencePath,
-      JSON.stringify(evidence(sha256(original), corrected, [pitchEdit()])),
+      JSON.stringify(evidence(sha256(original), [pitchEdit()])),
     );
 
     assert.throws(
@@ -147,7 +146,7 @@ test('preparation rejects Workbench edits that cannot be represented exactly by 
     fs.writeFileSync(referencePath, Buffer.from('%PDF-1.4\n'));
     fs.writeFileSync(
       evidencePath,
-      JSON.stringify(evidence(sha256(original), original, [{
+      JSON.stringify(evidence(sha256(original), [{
         ...pitchEdit(),
         commandType: 'SET_POLYPHONIC_SOURCE_EVENT_POSITION',
         selectedPosition: { string: 2, fret: 3 },
