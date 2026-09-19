@@ -11,6 +11,7 @@ const POLYPHONIC_SOURCE_MODEL_DOCUMENT_TYPE = 'PolyphonicSourceModel';
 const MAX_SOURCE_STRING_LENGTH = 256;
 const MAX_VOICE_ID_LENGTH = 64;
 const MAX_STAFF = 2;
+const authenticPolyphonicSourceModelSnapshots = new WeakSet();
 
 class PolyphonicSourceModelError extends EngineError {
   constructor(message, details = {}) {
@@ -749,6 +750,15 @@ function validateSourceMetadata(source, field, seen) {
 
 function validatePolyphonicSourceModel(model, runtime = null) {
   const processing = resolveOptionalProcessingRuntime(runtime);
+  if (
+    model
+    && typeof model === 'object'
+    && authenticPolyphonicSourceModelSnapshots.has(model)
+  ) {
+    processing?.checkpoint('polyphonic-source-model:authentic-snapshot');
+    return model;
+  }
+
   const seen = new WeakSet();
   const descriptors = safeObjectDescriptors(
     model,
@@ -873,7 +883,7 @@ function validatePolyphonicSourceModel(model, runtime = null) {
     });
   }
 
-  return Object.freeze({
+  const snapshot = Object.freeze({
     documentType,
     contractVersion,
     source,
@@ -881,6 +891,8 @@ function validatePolyphonicSourceModel(model, runtime = null) {
     eventCount,
     measures: Object.freeze(measures),
   });
+  authenticPolyphonicSourceModelSnapshots.add(snapshot);
+  return snapshot;
 }
 
 function createPolyphonicSourceModel(input, runtime = null) {
