@@ -103,6 +103,12 @@ On current main, the fresh eleven-file Tier-A run produces `0 PASS`, `6 REVIEW_R
 
 Therefore **Stage 09 is not COMPLETE**. The independent blockers are authentic teacher-correction evidence and usable product output; Tier-A corpus identity/safety coverage alone does not prove either one.
 
+## Progressive private Tier B collection
+
+Authentic teacher-correction evidence may now be audited incrementally as **1/3**, **2/3** and **3/3** private cases. The private runner accepts only one through three correction packets in a run. One- and two-case runs produce ordinary Stage 09 HOLD evidence and are never promotable. Promotion remains fail-closed and is allowed only when the complete Stage 09 product gate reports `PASS_PRODUCT_GATE`, including the three-case minimum, required status coverage and required representation tags.
+
+The original and corrected MusicXML files remain private evidence inputs and are not committed by this workflow. Each case still requires a non-empty Stage 05 patch ledger, exact source/corrected SHA-256 identities, two deterministic Stage 08 runs and source-byte immutability.
+
 ## Safety invariants
 
 Corpus work must not:
