@@ -97,12 +97,14 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostController, /createIssueController/);
   assert.match(hostController, /mode === 'preview'/);
   assert.match(hostController, /assetBaseUrl/);
+  assert.match(hostController, /stage09EvidenceFacade/);
+  assert.match(hostController, /capabilityBridge\.currentResult\(\) \|\| runtimeResult/);
   assert.match(previewConfig, /mode:\s*'runtime'/);
   assert.match(previewConfig, /playerMode:\s*'synthesizer'/);
   assert.match(boot, /Stage09WorkbenchEvidence/);
   assert.match(stage09Evidence, /Stage09WorkbenchCorrectionEvidence/);
   assert.match(stage09Evidence, /REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH/);
-  assert.match(stage09Evidence, /SET_POLYPHONIC_SOURCE_EVENT_DURATION/);
+  assert.doesNotMatch(stage09Evidence, /SET_POLYPHONIC_SOURCE_EVENT_DURATION/);
   assert.match(stage09Evidence, /!edit\.selectedPosition/);
   assert.match(stage09Evidence, /!edit\.assignmentMode/);
 
