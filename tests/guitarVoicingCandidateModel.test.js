@@ -277,3 +277,29 @@ test('PA-7 remains internal and does not expand the package-root public API', ()
   assert.equal('createGuitarVoicingCandidateModel' in publicApi, false);
   assert.equal('GUITAR_VOICING_CANDIDATE_MODEL_VERSION' in publicApi, false);
 });
+
+
+test('PA-7 pre-counts the aggregate candidate ceiling before materializing assignments', () => {
+  const source = sourceModel(repeatedDyadScore(500));
+  const decisions = preserveAllDecisions(source);
+  let assignmentCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    {},
+    {
+      clock(phase) {
+        if (phase === 'guitar-voicing-candidate-model:assignment') {
+          assignmentCheckpoints += 1;
+        }
+        return 0;
+      },
+    },
+  );
+
+  assert.throws(
+    () => createGuitarVoicingCandidateModel(source, decisions, runtime),
+    (error) => error?.code === 'GUITAR_VOICING_CANDIDATE_LIMIT_EXCEEDED'
+      && error.details?.limit === MAX_GUITAR_VOICING_CANDIDATES
+      && error.details?.observed === MAX_GUITAR_VOICING_CANDIDATES + 1,
+  );
+  assert.equal(assignmentCheckpoints, 0);
+});
