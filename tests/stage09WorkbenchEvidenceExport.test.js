@@ -37,11 +37,11 @@ function runtimeResult(appliedEdits = [pitchEdit()]) {
       revisionNumber: appliedEdits.length,
       appliedEdits,
     },
-    musicXml: '<?xml version="1.0"?><score-partwise version="4.0"></score-partwise>',
+    musicXml: '<renderer-only/>',
   };
 }
 
-test('Stage 09 Workbench evidence exports exact source identity, applied edits and corrected MusicXML', () => {
+test('Stage 09 Workbench evidence exports exact source identity and authoritative applied edits only', () => {
   const result = runtimeResult();
   assert.equal(isStage09WorkbenchEvidenceEligible(result), true);
 
@@ -58,7 +58,19 @@ test('Stage 09 Workbench evidence exports exact source identity, applied edits a
   assert.equal(exported.route, 'POLY_V2');
   assert.equal(exported.revisionNumber, 1);
   assert.deepEqual(exported.appliedEdits, [pitchEdit()]);
-  assert.equal(exported.correctedMusicXml, result.musicXml);
+  assert.equal(Object.hasOwn(exported, 'correctedMusicXml'), false);
+});
+
+test('Stage 09 Workbench evidence admits only single-event pitch corrections in the first Tier-B slice', () => {
+  const durationOnly = {
+    ...pitchEdit(),
+    commandType: 'SET_POLYPHONIC_SOURCE_EVENT_DURATION',
+    beforePitch: { written: 'C4', step: 'C', alter: 0, octave: 4 },
+    afterPitch: { written: 'C4', step: 'C', alter: 0, octave: 4 },
+    beforeDurationDivisions: 4,
+    afterDurationDivisions: 2,
+  };
+  assert.equal(isStage09WorkbenchEvidenceEligible(runtimeResult([durationOnly])), false);
 });
 
 test('Stage 09 Workbench evidence does not admit position-only or omitted-note assignment edits', () => {
@@ -78,10 +90,8 @@ test('Stage 09 Workbench evidence does not admit position-only or omitted-note a
   assert.equal(isStage09WorkbenchEvidenceEligible(runtimeResult([omittedAssignment])), false);
 });
 
-test('Stage 09 Workbench evidence requires a non-empty real edit revision and corrected MusicXML', () => {
+test('Stage 09 Workbench evidence requires a non-empty real edit revision', () => {
   assert.equal(isStage09WorkbenchEvidenceEligible(runtimeResult([])), false);
-  assert.equal(isStage09WorkbenchEvidenceEligible({ ...runtimeResult(), musicXml: null }), false);
-
   assert.throws(
     () => createStage09WorkbenchEvidenceExport({
       sourceFileName: 'teacher-omr.musicxml',
