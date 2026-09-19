@@ -198,6 +198,7 @@ function prepareWorkbenchCorrectionCase({
 
   const originalBytes = requireFile(originalPath, 'original OMR MusicXML');
   const referenceBytes = requireFile(referencePath, 'reference score');
+  const stage05Patches = stage05PatchesFromEdits(evidence.appliedEdits);
   const correctedBytes = materializeStage09WorkbenchPitchCorrections(
     originalBytes,
     evidence.appliedEdits,
@@ -219,7 +220,6 @@ function prepareWorkbenchCorrectionCase({
   validateMusicXml(originalBytes, 'Original');
   validateMusicXml(correctedBytes, 'Corrected');
 
-  const stage05Patches = stage05PatchesFromEdits(evidence.appliedEdits);
   const patchIds = stage05Patches.map((patch) => patch.patch_id);
 
   fs.mkdirSync(outDir, { recursive: true });
