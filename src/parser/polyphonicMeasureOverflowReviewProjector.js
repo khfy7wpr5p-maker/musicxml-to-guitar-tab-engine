@@ -346,7 +346,7 @@ function normalizeConsensusOverfullMeasure(parsedDocument, details) {
 }
 
 
-function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
+function normalizeBoundaryTailOverflowMeasure(parsedDocument, details, sourceTiming = null) {
   const parts = directChildren(parsedDocument.root, 'part');
   const measures = parts.length === 1 ? directChildren(parts[0], 'measure') : [];
   const measure = measures[details.measureIndex];
@@ -360,10 +360,31 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
   ) return null;
 
   const timing = timingAtMeasure(parsedDocument, details.measureIndex);
+  const authoritativeTiming = sourceTiming || timing;
+  if (!timing || !authoritativeTiming) return null;
+
+  const currentDurationNumerator = timing.divisions
+    * timing.timeSignature.beats
+    * 4;
+  const sourceDurationNumerator = authoritativeTiming.divisions
+    * authoritativeTiming.timeSignature.beats
+    * 4;
   if (
-    !timing
-    || timing.timeSignature.beatType !== 4
-    || details.expectedDurationDivisions !== timing.divisions * timing.timeSignature.beats
+    timing.divisions !== authoritativeTiming.divisions
+    || authoritativeTiming.timeSignature.beatType !== 4
+    || !Number.isSafeInteger(currentDurationNumerator)
+    || currentDurationNumerator % timing.timeSignature.beatType !== 0
+    || !Number.isSafeInteger(sourceDurationNumerator)
+    || sourceDurationNumerator % authoritativeTiming.timeSignature.beatType !== 0
+  ) return null;
+
+  const currentExpectedDurationDivisions =
+    currentDurationNumerator / timing.timeSignature.beatType;
+  const sourceExpectedDurationDivisions =
+    sourceDurationNumerator / authoritativeTiming.timeSignature.beatType;
+  if (
+    details.expectedDurationDivisions !== currentExpectedDurationDivisions
+    || currentExpectedDurationDivisions < sourceExpectedDurationDivisions
     || details.onsetDivisions !== details.expectedDurationDivisions
     || details.durationDivisions <= 0
     || details.endDivisions !== details.onsetDivisions + details.durationDivisions
@@ -413,9 +434,9 @@ function normalizeBoundaryTailOverflowMeasure(parsedDocument, details) {
       contractVersion: parsedDocument.contractVersion,
       root: deepFreezeNode(normalizedRoot),
     }),
-    sourceExpectedDurationDivisions: details.expectedDurationDivisions,
+    sourceExpectedDurationDivisions,
     provisionalMeasureDurationDivisions,
-    sourceTimeSignature: timing.timeSignature,
+    sourceTimeSignature: authoritativeTiming.timeSignature,
     provisionalTimeSignature,
   });
 }
@@ -664,6 +685,7 @@ function projectParsedMusicXmlWithMeasureOverflowReview(parsedDocument, runtime 
         const boundaryTailNormalization = normalizeBoundaryTailOverflowMeasure(
           candidate,
           error.details,
+          timingAtMeasure(parsedDocument, error.details.measureIndex),
         );
         if (boundaryTailNormalization !== null) {
           runtime?.checkpoint('measure-overflow-review:boundary-tail-extent', {
