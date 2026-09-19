@@ -604,6 +604,8 @@ test('polyphonic route keeps high notes requiring more than two octaves fail-clo
 <part id="P1"><measure number="1">
 <attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
 <note><pitch><step>C</step><octave>9</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>1</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
 </measure></part></score-partwise>`);
 
   const result = processMusicXmlUpload({ fileName: 'too-high.musicxml', bytes });
