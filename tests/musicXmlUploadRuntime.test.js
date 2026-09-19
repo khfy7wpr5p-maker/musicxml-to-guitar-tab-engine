@@ -553,7 +553,7 @@ test('polyphonic route lowers an exact one-octave high-register source note for 
 });
 
 test('polyphonic route lowers a pinned two-octave high-register source note for review-only provisional TAB', () => {
-  const bytes = Buffer.from(\`<?xml version="1.0" encoding="UTF-8"?>
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
 <part id="P1"><measure number="12">
@@ -563,7 +563,7 @@ test('polyphonic route lowers a pinned two-octave high-register source note for 
 <backup><duration>8</duration></backup>
 <note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
 <forward><duration>4</duration></forward>
-</measure></part></score-partwise>\`);
+</measure></part></score-partwise>`);
   const original = Buffer.from(bytes);
 
   const first = processMusicXmlUpload({ fileName: 'high-two-octaves.musicxml', bytes });
@@ -598,13 +598,13 @@ test('polyphonic route lowers a pinned two-octave high-register source note for 
 });
 
 test('polyphonic route keeps high notes requiring more than two octaves fail-closed', () => {
-  const bytes = Buffer.from(\`<?xml version="1.0" encoding="UTF-8"?>
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
 <part id="P1"><measure number="1">
 <attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
 <note><pitch><step>C</step><octave>9</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
-</measure></part></score-partwise>\`);
+</measure></part></score-partwise>`);
 
   const result = processMusicXmlUpload({ fileName: 'too-high.musicxml', bytes });
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
