@@ -47,7 +47,7 @@ function scalarPositiveInteger(node) {
     !node
     || node.attributes.length !== 0
     || node.children.length !== 0
-    || !/^[1-9]\\d*$/.test(node.text.trim())
+    || !/^[1-9]\d*$/.test(node.text.trim())
   ) return null;
   const value = Number(node.text.trim());
   return Number.isSafeInteger(value) && value > 0 ? value : null;
