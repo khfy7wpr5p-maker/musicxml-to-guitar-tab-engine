@@ -590,22 +590,36 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   const children = node.children.filter((child) => child.uri === node.uri);
   if (
     children.length < 1
-    || children.length > 4
-    || children.some((child) => !['direction-type', 'staff', 'sound'].includes(child.name))
+    || children.length > 5
+    || children.some((child) => !['direction-type', 'offset', 'staff', 'sound'].includes(child.name))
   ) return null;
 
   const directionTypes = directChildren(node, 'direction-type');
+  const offsetNodes = directChildren(node, 'offset');
   const staffNodes = directChildren(node, 'staff');
   const soundNodes = directChildren(node, 'sound');
   if (
     directionTypes.length < 1
     || directionTypes.length > 2
+    || offsetNodes.length > 1
     || staffNodes.length > 1
     || soundNodes.length > 1
     || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return null;
+  let offsetDivisions = null;
+  if (offsetNodes.length === 1) {
+    const offset = offsetNodes[0];
+    offsetDivisions = scalarInteger(offset);
+    if (
+      offset.attributes.length !== 0
+      || offset.children.length !== 0
+      || offsetDivisions === null
+      || Math.abs(offsetDivisions) > 1_000_000
+    ) return null;
+  }
   const expectedChildren = [
     ...directionTypes.map(() => 'direction-type'),
+    ...(offsetNodes.length === 1 ? ['offset'] : []),
     ...(staffNodes.length === 1 ? ['staff'] : []),
     ...(soundNodes.length === 1 ? ['sound'] : []),
   ];
@@ -626,11 +640,15 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
     for (const child of directionType.children) {
       typeNames.push(child.name);
       if (child.name === 'words') {
+        const normalizedWords = child.text.trim().replace(/\s+/g, ' ').toLowerCase();
         if (
           wordsSeen
           || child.children.length !== 0
           || child.text.trim().length === 0
           || child.text.length > 256
+          || /\b(?:da capo|dal segno|to coda|fine|segno|coda)\b/.test(normalizedWords)
+          || /\b(?:d\.?\s*c\.?|d\.?\s*s\.?)\b/.test(normalizedWords)
+          || /\b(?:8va|8vb|15ma|15mb|ottava)\b/.test(normalizedWords)
           || child.attributes.some((attribute) => (
             attribute.uri.length !== 0
             || !SAFE_WORDS_ATTRIBUTES.has(attribute.name)
@@ -715,6 +733,7 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
       kind: 'DYNAMICS_PLAYBACK_REVIEW',
       typeNames: Object.freeze(typeNames),
       hasStaff: true,
+      ...(offsetDivisions === null ? {} : { hasOffset: true, offsetDivisions }),
       dynamicMark,
       soundAttributes: Object.freeze(['dynamics']),
     });
@@ -747,6 +766,7 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
     kind: 'TEMPO_PLAYBACK_REVIEW',
     typeNames: Object.freeze(typeNames),
     hasStaff: true,
+    ...(offsetDivisions === null ? {} : { hasOffset: true, offsetDivisions }),
     conflictingTempo,
     soundAttributes: Object.freeze(['tempo']),
   });
