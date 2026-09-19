@@ -103,9 +103,17 @@ function issueEffects(issue) {
     effects.add('tie');
     effects.add('playback');
   }
-  if (code.includes('PITCH')) {
+  if (
+    code.includes('PITCH')
+    || feature.includes('register-displacement')
+    || reason.includes('HIGH_REGISTER_OCTAVE_DISPLACEMENT')
+  ) {
     effects.add('pitch');
     effects.add('fingering');
+    if (
+      feature.includes('register-displacement')
+      || reason.includes('HIGH_REGISTER_OCTAVE_DISPLACEMENT')
+    ) effects.add('playback');
   }
   if (
     code.includes('FINGER')
@@ -152,6 +160,7 @@ function issueAffectsTab(issue) {
     || feature.includes('barline-ending')
   ) return false;
   return code.includes('PITCH')
+    || feature.includes('register-displacement')
     || code.includes('FINGER')
     || code.includes('LEFT_HAND')
     || code.includes('ASSIGNMENT')
