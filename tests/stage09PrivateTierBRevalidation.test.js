@@ -85,6 +85,20 @@ test('private Tier B packet verification binds exact local original and correcte
   }
 });
 
+test('private Tier B packet verification rejects a tampered teacher reference score', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-reference-tamper-'));
+  try {
+    const packet = makeCase(dir, 1, ['voice-2']);
+    fs.appendFileSync(path.join(dir, packet.reference.fileName), Buffer.from('tampered'));
+    assert.throws(
+      () => verifyPacket(packet, dir),
+      /reference score identity mismatch/,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('private Tier B runner executes each local case twice without committing source files', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-audit-'));
   try {
