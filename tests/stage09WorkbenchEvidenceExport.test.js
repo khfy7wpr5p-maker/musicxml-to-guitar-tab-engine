@@ -67,7 +67,7 @@ test('Stage 09 Workbench evidence exports exact source identity and authoritativ
   assert.equal(exported.status, 'REVIEW_REQUIRED');
   assert.equal(exported.route, 'POLY_V2');
   assert.equal(exported.revisionNumber, 1);
-  assert.deepEqual(exported.appliedEdits, [pitchEdit()]);
+  assert.deepEqual(JSON.parse(JSON.stringify(exported.appliedEdits)), [pitchEdit()]);
   assert.equal(Object.hasOwn(exported, 'correctedMusicXml'), false);
 });
 
