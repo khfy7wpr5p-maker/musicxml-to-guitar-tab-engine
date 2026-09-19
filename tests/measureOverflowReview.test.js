@@ -222,7 +222,7 @@ test('boundary-tail overflow opens deterministic teacher-editable provisional TA
   assert.equal(first.capabilities.export, false);
   assert.equal(first.capabilities.editRhythm, true);
   assert.ok(first.musicXml);
-  assert.match(first.musicXml, /<sign>TAB<\\/sign>/);
+  assert.match(first.musicXml, /<sign>TAB<\/sign>/);
   const issue = first.preflight.issues.find(
     (entry) => entry.details?.policy === 'BOUNDARY_TAIL_MEASURE_REVIEW',
   );
