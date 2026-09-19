@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
 const { parseParsedMusicXmlDocument } = require('../src/parser/parsedMusicXmlDocument');
 const { projectParsedMusicXmlToPolyphonicSourceModel } = require('../src/parser/polyphonicMusicXmlProjector');
+const {
+  projectParsedMusicXmlWithMeasureOverflowReview,
+} = require('../src/parser/polyphonicMeasureOverflowReviewProjector');
 
 function score(duration = 8) {
   return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list><part id="P1"><measure number="1">
@@ -14,6 +17,115 @@ function score(duration = 8) {
   <note><pitch><step>E</step><octave>3</octave></pitch><duration>${duration}</duration><voice>2</voice><type>${duration === 8 ? 'half' : 'quarter'}</type></note>
   </measure></part></score-partwise>`;
 }
+
+
+function consensusOverfullScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="1">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><rest/><duration>28</duration><voice>1</voice><staff>1</staff></note>
+    <backup><duration>28</duration></backup>
+    <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>F</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>G</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>A</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <note><pitch><step>B</step><octave>4</octave></pitch><duration>4</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+    <backup><duration>28</duration></backup>
+    <note><rest/><duration>28</duration><voice>6</voice><staff>2</staff></note>
+  </measure>
+  <measure number="2">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+
+
+function boundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>2</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><pitch><step>C</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+
+function twoQuarterBoundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>2</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><pitch><step>C</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+test('consensus overflow projector derives a bounded 7/4 review model and restores 6/4 afterward', () => {
+  const parsed = parseParsedMusicXmlDocument(consensusOverfullScore());
+  let projection;
+  try {
+    projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  } catch (error) {
+    assert.fail(`consensus projector failed: ${error.code || error.name} ${JSON.stringify(error.details || {})}`);
+  }
+
+  assert.equal(projection.reviewIssues.length, 1);
+  assert.equal(
+    projection.reviewIssues[0].details.policy,
+    'CONSENSUS_OVERFULL_MEASURE_REVIEW',
+  );
+  assert.deepEqual(
+    projection.sourceModel.measures[0].timeSignature,
+    { beats: 7, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 28);
+  assert.deepEqual(
+    projection.sourceModel.measures[1].timeSignature,
+    { beats: 6, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+});
+
+test('consensus overfull measure opens review-only provisional TAB without inventing source authority', () => {
+  const bytes = Buffer.from(consensusOverfullScore());
+  const original = Buffer.from(bytes);
+  const result = processMusicXmlUpload({ fileName: 'consensus-overflow.musicxml', bytes });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(result.route, 'POLY_V2');
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
+  assert.equal(result.artifacts.canonicalTabAvailable, false);
+  assert.equal(result.capabilities.playback, 'APPROXIMATE');
+  assert.equal(result.capabilities.export, false);
+  assert.ok(result.musicXml);
+  assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+  const issue = result.preflight.issues.find(
+    (entry) => entry.details?.policy === 'CONSENSUS_OVERFULL_MEASURE_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(issue.details.reason, 'MEASURE_EVENT_OVERFLOW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 24);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 28);
+  assert.equal(issue.details.provisionalTimeSignature.beats, 7);
+  assert.equal(issue.details.provisionalTimeSignature.beatType, 4);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(
+    result,
+    processMusicXmlUpload({ fileName: 'consensus-overflow.musicxml', bytes }),
+  );
+});
 
 test('measure overflow opens with provisional TAB without source mutation', () => {
   const bytes = Buffer.from(score());
@@ -73,4 +185,236 @@ test('extreme TAB-mirror overflow remains reviewable without claiming a false TA
   assert.equal(result.capabilities.generateTab, false);
   assert.equal(result.capabilities.export, false);
   assert.equal(result.musicXml, null);
+});
+
+
+test('boundary-tail overflow derives a bounded local 3/4 review extent and restores inherited 2/4', () => {
+  const parsed = parseParsedMusicXmlDocument(boundaryTailOverflowScore());
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed),
+    (error) => error?.code === 'INVALID_MUSICXML'
+      && error?.details?.reason === 'MEASURE_EVENT_OVERFLOW'
+      && error?.details?.onsetDivisions === 8
+      && error?.details?.durationDivisions === 4
+      && error?.details?.endDivisions === 12
+      && error?.details?.expectedDurationDivisions === 8,
+  );
+
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  assert.equal(projection.reviewIssues.length, 1);
+  const issue = projection.reviewIssues[0];
+  assert.equal(issue.details.policy, 'BOUNDARY_TAIL_MEASURE_REVIEW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 8);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 12);
+  assert.equal(issue.details.targetTimingAuthority, false);
+  assert.equal(issue.details.sourceMusicXmlImmutable, true);
+  assert.deepEqual(projection.sourceModel.measures[0].timeSignature, { beats: 3, beatType: 4 });
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 12);
+  assert.deepEqual(projection.sourceModel.measures[1].timeSignature, { beats: 2, beatType: 4 });
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 8);
+  const overflowEvent = projection.sourceModel.measures[0].events.find(
+    (event) => event.type === 'note' && event.sourceOrder === 1,
+  );
+  assert.equal(overflowEvent.onsetDivisions, 8);
+  assert.equal(overflowEvent.durationDivisions, 4);
+  assert.equal(overflowEvent.pitch.written, 'D4');
+});
+
+test('boundary-tail overflow opens deterministic teacher-editable provisional TAB without source mutation', () => {
+  const bytes = Buffer.from(boundaryTailOverflowScore());
+  const original = Buffer.from(bytes);
+  const request = { fileName: 'boundary-tail-overflow.musicxml', bytes };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.route, 'POLY_V2');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.capabilities.editRhythm, true);
+  assert.ok(first.musicXml);
+  assert.match(first.musicXml, /<sign>TAB<\/sign>/);
+  const issue = first.preflight.issues.find(
+    (entry) => entry.details?.policy === 'BOUNDARY_TAIL_MEASURE_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 8);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 12);
+  assert.equal(issue.details.targetTimingAuthority, false);
+  assert.equal(issue.details.sourceMusicXmlImmutable, true);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
+});
+
+
+test('boundary-tail review extent preserves a two-quarter tail without clipping source duration', () => {
+  const parsed = parseParsedMusicXmlDocument(twoQuarterBoundaryTailOverflowScore());
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed),
+    (error) => error?.code === 'INVALID_MUSICXML'
+      && error?.details?.reason === 'MEASURE_EVENT_OVERFLOW'
+      && error?.details?.onsetDivisions === 8
+      && error?.details?.durationDivisions === 8
+      && error?.details?.endDivisions === 16
+      && error?.details?.expectedDurationDivisions === 8,
+  );
+
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  assert.equal(projection.reviewIssues.length, 1);
+  const issue = projection.reviewIssues[0];
+  assert.equal(issue.details.policy, 'BOUNDARY_TAIL_MEASURE_REVIEW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 8);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 16);
+  assert.equal(issue.details.targetTimingAuthority, false);
+  assert.equal(issue.details.sourceMusicXmlImmutable, true);
+  assert.deepEqual(projection.sourceModel.measures[0].timeSignature, { beats: 4, beatType: 4 });
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 16);
+  assert.deepEqual(projection.sourceModel.measures[1].timeSignature, { beats: 2, beatType: 4 });
+  const tail = projection.sourceModel.measures[0].events.find(
+    (event) => event.type === 'note' && event.sourceOrder === 1,
+  );
+  assert.equal(tail.onsetDivisions, 8);
+  assert.equal(tail.durationDivisions, 8);
+  assert.equal(tail.pitch.written, 'D4');
+});
+
+test('two-quarter boundary tail remains deterministic review-only provisional TAB', () => {
+  const bytes = Buffer.from(twoQuarterBoundaryTailOverflowScore());
+  const original = Buffer.from(bytes);
+  const request = { fileName: 'two-quarter-boundary-tail.musicxml', bytes };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.route, 'POLY_V2');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.capabilities.editRhythm, true);
+  const issue = first.preflight.issues.find(
+    (entry) => entry.details?.policy === 'BOUNDARY_TAIL_MEASURE_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 16);
+  assert.equal(issue.details.targetTimingAuthority, false);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
+});
+
+
+function subQuarterBoundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+test('sub-quarter boundary tail derives exact 25/16 provisional review extent and restores 6/4', () => {
+  const xml = subQuarterBoundaryTailOverflowScore();
+  const parsed = parseParsedMusicXmlDocument(xml);
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed),
+    (error) => error?.code === 'INVALID_MUSICXML'
+      && error?.details?.reason === 'MEASURE_EVENT_OVERFLOW'
+      && error?.details?.onsetDivisions === 24
+      && error?.details?.durationDivisions === 1
+      && error?.details?.endDivisions === 25
+      && error?.details?.expectedDurationDivisions === 24,
+  );
+
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  assert.equal(projection.reviewIssues.length, 1);
+  const issue = projection.reviewIssues[0];
+  assert.equal(issue.details.policy, 'BOUNDARY_TAIL_MEASURE_REVIEW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 24);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 25);
+  assert.deepEqual(issue.details.provisionalTimeSignature, { beats: 25, beatType: 16 });
+  assert.deepEqual(projection.sourceModel.measures[0].timeSignature, { beats: 25, beatType: 16 });
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 25);
+  assert.deepEqual(projection.sourceModel.measures[1].timeSignature, { beats: 6, beatType: 4 });
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+
+  const bytes = Buffer.from(xml);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'sub-quarter-tail.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'sub-quarter-tail.musicxml', bytes });
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.ok(first.musicXml);
+  assert.match(first.musicXml, /<sign>TAB<\/sign>/);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
+});
+
+
+function chainedSubQuarterBoundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+    <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+test('chained sub-quarter boundary tails extend one bounded provisional measure without losing source timing authority', () => {
+  const xml = chainedSubQuarterBoundaryTailOverflowScore();
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(
+    parseParsedMusicXmlDocument(xml),
+  );
+
+  assert.equal(projection.reviewIssues.length, 2);
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.policy === 'BOUNDARY_TAIL_MEASURE_REVIEW',
+  ));
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.sourceExpectedDurationDivisions === 24,
+  ));
+  assert.ok(projection.reviewIssues.every(
+    (issue) => issue.details.sourceTimeSignature.beats === 6
+      && issue.details.sourceTimeSignature.beatType === 4,
+  ));
+  assert.deepEqual(
+    projection.sourceModel.measures[0].timeSignature,
+    { beats: 13, beatType: 8 },
+  );
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 26);
+  assert.deepEqual(
+    projection.sourceModel.measures[1].timeSignature,
+    { beats: 6, beatType: 4 },
+  );
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+
+  const bytes = Buffer.from(xml);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'chained-sub-quarter-tail.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'chained-sub-quarter-tail.musicxml', bytes });
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.ok(first.musicXml);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
 });

@@ -262,6 +262,16 @@ function createGracePhysicalTransitionModel(
   for (let groupIndex = 0; groupIndex < graceOrnamentGroups.length; groupIndex += 1) {
     checkpoint(runtime, 'grace-physical-transition:group', { groupIndex });
     const group = graceOrnamentGroups[groupIndex];
+    if (group.notes.some((note) => note.chordWithPrevious === true)) {
+      throw unplayable(
+        'Grace chord physical realization is intentionally deferred to teacher review.',
+        {
+          graceGroupId: group.graceGroupId,
+          measureIndex: group.measureIndex,
+          reason: 'GRACE_CHORD_REQUIRES_REVIEW',
+        },
+      );
+    }
     const anchorSourceEventId = group.anchor.projectedSourceEventId;
     const anchorEvent = notesById.get(anchorSourceEventId);
     const anchorDisposition = dispositions.get(anchorSourceEventId);

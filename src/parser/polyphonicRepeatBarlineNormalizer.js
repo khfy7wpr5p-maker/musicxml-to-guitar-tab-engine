@@ -467,6 +467,8 @@ function normalizeSelectedPart(part, runtime) {
         });
       }
 
+      const orphanBackwardRepeat = parsed.repeat?.direction === 'backward'
+        && openRepeatStart === null;
       if (parsed.repeat !== null) {
         const marker = Object.freeze({
           measureIndex,
@@ -477,7 +479,7 @@ function normalizeSelectedPart(part, runtime) {
           times: parsed.repeat.times,
           playCount: parsed.repeat.playCount,
         });
-        repeatBarlines.push(marker);
+        if (!orphanBackwardRepeat) repeatBarlines.push(marker);
         if (parsed.repeat.reviewIssue !== null) {
           reviewIssues.push(parsed.repeat.reviewIssue);
         }
@@ -493,21 +495,37 @@ function normalizeSelectedPart(part, runtime) {
         }
         openRepeatStart = measureIndex;
       } else if (parsed.repeat?.direction === 'backward') {
-        if (openRepeatStart === null) {
-          throw unsupported('Backward repeat has no unambiguous forward-repeat boundary.', {
-            ...location,
-            reason: 'ORPHAN_BACKWARD_REPEAT',
-          });
+        if (orphanBackwardRepeat) {
+          reviewIssues.push(Object.freeze({
+            severity: 'error',
+            category: 'semantic',
+            code: 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE',
+            message: 'Orphan backward repeat was omitted from provisional single-pass playback and requires review.',
+            reviewDisposition: 'REVIEW_REQUIRED',
+            location: Object.freeze({
+              measure: number,
+              measureIndex,
+              eventIndex: measureChildIndex,
+              sourceEventId: null,
+            }),
+            details: Object.freeze({
+              feature: 'barline-repeat',
+              reason: 'ORPHAN_BACKWARD_REPEAT_NORMALIZED_TO_SINGLE_PASS',
+              originalReason: 'ORPHAN_BACKWARD_REPEAT',
+              reviewDisposition: 'REVIEW_REQUIRED',
+            }),
+          }));
+        } else {
+          if (measureIndex < openRepeatStart) {
+            throw invalid('Repeat region ordering became internally inconsistent.', location);
+          }
+          regions.push(Object.freeze({
+            startMeasureIndex: openRepeatStart,
+            endMeasureIndex: measureIndex,
+            playCount: parsed.repeat.playCount,
+          }));
+          openRepeatStart = null;
         }
-        if (measureIndex < openRepeatStart) {
-          throw invalid('Repeat region ordering became internally inconsistent.', location);
-        }
-        regions.push(Object.freeze({
-          startMeasureIndex: openRepeatStart,
-          endMeasureIndex: measureIndex,
-          playCount: parsed.repeat.playCount,
-        }));
-        openRepeatStart = null;
       }
 
       if (parsed.ending !== null) {

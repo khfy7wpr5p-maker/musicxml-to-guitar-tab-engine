@@ -298,6 +298,47 @@ test('POLY production chain returns REVIEW_REQUIRED for conflicting exact numeri
   assert.equal(issue.details.rawSoundTempo, '61');
 });
 
+test('POLY production chain keeps bounded performance-only producer variants reviewable with visible TAB', () => {
+  const fixtures = [
+    ['display-words-with-staff',
+      '<direction placement="above"><direction-type><words font-style="italic">dolce</words></direction-type><staff>1</staff></direction>',
+      false],
+    ['non-quarter-equivalent-tempo',
+      '<direction placement="above"><direction-type><metronome><beat-unit>half</beat-unit><per-minute>40</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>',
+      false],
+    ['bounded-playback-dynamics',
+      '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>',
+      true],
+    ['rounded-mismatched-tempo',
+      '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>999.999999999999999999</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000"/></direction>',
+      true],
+  ];
+
+  for (const [name, direction, requiresReview] of fixtures) {
+    const bytes = Buffer.from(withDirection(runtimeFixture(), direction));
+    const before = Buffer.from(bytes);
+    const result = processMusicXmlUpload({
+      fileName: `${name}.musicxml`,
+      bytes,
+    });
+
+    assert.notEqual(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED, name);
+    assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2, name);
+    assert.equal(result.capabilities.generateTab, true, name);
+    assert.equal(typeof result.musicXml, 'string', name);
+    assert.match(result.musicXml, /<sign>TAB<\/sign>/, name);
+    assert.deepEqual(bytes, before, name);
+
+    if (requiresReview) {
+      assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED, name);
+      assert.equal(result.capabilities.playback, 'APPROXIMATE', name);
+      assert.equal(result.capabilities.export, false, name);
+      assert.equal(result.artifacts.provisionalTabAvailable, true, name);
+      assert.equal(result.artifacts.canonicalTabAvailable, false, name);
+    }
+  }
+});
+
 test('POLY production chain remains fail-closed for timing-affecting or unbounded directions', () => {
   for (const [name, direction] of [
     ['offset', '<direction><offset>1</offset><direction-type><dynamics><mf/></dynamics></direction-type></direction>'],
@@ -309,12 +350,9 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['staff-not-declared', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>2</staff><sound dynamics="17.78"/></direction>'],
     ['duplicate-direction-staff', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><staff>2</staff><sound dynamics="17.78"/></direction>'],
     ['structured-direction-staff', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1<ext:payload xmlns:ext="urn:test"/></staff><sound dynamics="17.78"/></direction>'],
-    ['over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="128"/></direction>'],
     ['underflow-sound-dynamics', '<direction placement="below"><direction-type><dynamics><pp/></dynamics></direction-type><staff>1</staff><sound dynamics="-0.0000000000000000001"/></direction>'],
     ['rounded-over-range-sound-dynamics', '<direction placement="below"><direction-type><dynamics><ff/></dynamics></direction-type><staff>1</staff><sound dynamics="127.000000000000000001"/></direction>'],
     ['rounded-over-range-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>1000.000000000000000001</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000.000000000000000001"/></direction>'],
-    ['rounded-mismatched-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>999.999999999999999999</per-minute></metronome></direction-type><staff>1</staff><sound tempo="1000"/></direction>'],
-    ['non-quarter-sound-tempo', '<direction placement="above"><direction-type><metronome><beat-unit>half</beat-unit><per-minute>40</per-minute></metronome></direction-type><staff>1</staff><sound tempo="80"/></direction>'],
     ['reversed-metronome-children', '<direction placement="above"><direction-type><metronome><per-minute>40</per-minute><beat-unit>quarter</beat-unit></metronome></direction-type><staff>1</staff><sound tempo="40"/></direction>'],
     ['reordered-metronome-direction', '<direction placement="above"><sound tempo="40"/><staff>1</staff><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>40</per-minute></metronome></direction-type></direction>'],
     ['mixed-dynamics-text', '<direction placement="below"><direction-type><dynamics>unexpected<pp/></dynamics></direction-type><staff>1</staff><sound dynamics="17.78"/></direction>'],
@@ -325,6 +363,7 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     ['rehearsal-with-structured-content', '<direction><direction-type><rehearsal><display-text>Section A</display-text></rehearsal></direction-type></direction>'],
     ['rehearsal-with-direction-text', '<direction>unexpected<direction-type><rehearsal>Section A</rehearsal></direction-type></direction>'],
     ['rehearsal-with-direction-type-text', '<direction><direction-type>unexpected<rehearsal>Section A</rehearsal></direction-type></direction>'],
+    ['octave-text-with-staff', '<direction placement="above"><direction-type><words>8va</words></direction-type><staff>1</staff></direction>'],
   ]) {
     const result = processMusicXmlUpload({
       fileName: `unsupported-direction-${name}.musicxml`,
@@ -333,7 +372,15 @@ test('POLY production chain remains fail-closed for timing-affecting or unbounde
     assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED, name);
     assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2, name);
     assert.equal(result.canonicalTabResult, null, name);
-    assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
+    if (name === 'octave-shift') {
+      assert.ok(
+        ['INVALID_POLYPHONIC_OCTAVE_SHIFT', 'UNSUPPORTED_POLYPHONIC_OCTAVE_SHIFT']
+          .includes(result.preflight.issues[0].code),
+        name,
+      );
+    } else {
+      assert.equal(result.preflight.issues[0].details.feature, 'direction', name);
+    }
   }
 });
 
@@ -381,6 +428,61 @@ test('POLY production chain accepts the combined producer profile without losing
     'note:triplet-time-modification-context',
     'notation:triplet-display-context',
   ]) assert.ok(ignored.includes(feature), feature);
+});
+
+test('POLY production chain treats full-measure rest and multiple-rest style as bounded notation provenance', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+        <measure-style><multiple-rest>2</multiple-rest></measure-style>
+      </attributes>
+      <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><rest measure="yes"/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+    <measure number="2">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note><rest measure="yes"/><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><rest measure="yes"/><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+    <measure number="3">
+      <attributes>
+        <divisions>4</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>1</staves>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>16</duration></backup>
+      <note><pitch><step>E</step><octave>3</octave></pitch><duration>16</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  const bytes = Buffer.from(xml);
+  const before = Buffer.from(bytes);
+  const result = processMusicXmlUpload({
+    fileName: 'multiple-rest-provenance.musicxml',
+    bytes,
+  });
+
+  assert.notEqual(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(typeof result.musicXml, 'string');
+  assert.deepEqual(bytes, before);
+  const ignored = result.preflight.issues.flatMap((issue) => issue.details?.ignoredFeatures || []);
+  assert.ok(ignored.includes('attributes:measure-style:multiple-rest-display'));
+  assert.ok(ignored.includes('note:rest:full-measure-provenance'));
 });
 
 test('POLY production chain remains fail-closed for unsupported ratio and malformed timing', () => {

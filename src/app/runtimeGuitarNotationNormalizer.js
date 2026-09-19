@@ -50,7 +50,10 @@ const SAFE_ARTICULATION_CHILDREN = new Set([
   'tenuto',
 ]);
 const SAFE_DYNAMIC_MARKS = new Set([
-  'ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff',
+  'pppppp', 'ppppp', 'pppp', 'ppp', 'pp', 'p',
+  'mp', 'mf',
+  'f', 'ff', 'fff', 'ffff', 'fffff', 'ffffff',
+  'sf', 'sfp', 'sfpp', 'fp', 'rf', 'rfz', 'sfz', 'sffz', 'fz', 'n', 'pf', 'sfzp',
 ]);
 const SAFE_WORDS_ATTRIBUTES = new Set([
   'default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style',
@@ -311,15 +314,19 @@ function hasSafeMetronomeDirectionAttributes(node) {
 
 function hasSafeMetronomeLayoutAttributes(node) {
   const seen = new Set();
+  const numericLayout = new Set(['default-x', 'default-y', 'relative-x', 'relative-y']);
   for (const attribute of node.attributes) {
-    if (attribute.uri.length !== 0 || !['parentheses', 'default-y'].includes(attribute.name)) {
+    if (
+      attribute.uri.length !== 0
+      || (attribute.name !== 'parentheses' && !numericLayout.has(attribute.name))
+    ) {
       return false;
     }
     if (seen.has(attribute.name)) return false;
     seen.add(attribute.name);
     if (attribute.name === 'parentheses' && !['yes', 'no'].includes(attribute.value)) return false;
     if (
-      attribute.name === 'default-y'
+      numericLayout.has(attribute.name)
       && (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(attribute.value)
         || !Number.isFinite(Number(attribute.value))
         || Math.abs(Number(attribute.value)) > 1_000_000)
@@ -493,21 +500,34 @@ function safeGuitarProDynamicsDirection(node, effectiveStaffCount) {
 // sound, voice, staff, or extension semantics. They may be omitted from the
 // derived TAB without changing pitch/onset facts; the immutable source
 // artifact remains the authority for the original annotation.
-function safeDisplayWordsDirection(node) {
+function safeDisplayWordsDirection(node, effectiveStaffCount) {
   if (
     node.text.trim().length !== 0
-    || node.children.length !== 1
     || node.attributes.some((attribute) => (
       attribute.uri.length !== 0
       || attribute.name !== 'placement'
       || !['above', 'below'].includes(attribute.value)
     ))
+    || node.children.some((child) => child.uri !== node.uri)
   ) return false;
-  const directionType = node.children[0];
+
+  const children = node.children.filter((child) => child.uri === node.uri);
+  const directionTypes = directChildren(node, 'direction-type');
+  const staffNodes = directChildren(node, 'staff');
   if (
-    directionType.uri !== node.uri
-    || directionType.name !== 'direction-type'
-    || directionType.attributes.length !== 0
+    directionTypes.length !== 1
+    || staffNodes.length > 1
+    || children.some((child) => !['direction-type', 'staff'].includes(child.name))
+    || !hasExactChildSequence(
+      children,
+      staffNodes.length === 1 ? ['direction-type', 'staff'] : ['direction-type'],
+    )
+    || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
+  ) return false;
+
+  const directionType = directionTypes[0];
+  if (
+    directionType.attributes.length !== 0
     || directionType.text.trim().length !== 0
     || directionType.children.length !== 1
   ) return false;
@@ -521,6 +541,7 @@ function safeDisplayWordsDirection(node) {
     || words.text.length > 256
     || /\b(?:da capo|dal segno|to coda|fine|segno|coda)\b/.test(normalizedWords)
     || /\b(?:d\.?\s*c\.?|d\.?\s*s\.?)\b/.test(normalizedWords)
+    || /\b(?:8va|8vb|15ma|15mb|ottava)\b/.test(normalizedWords)
   ) return false;
   const seen = new Set();
   for (const attribute of words.attributes) {
@@ -569,22 +590,45 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
   const children = node.children.filter((child) => child.uri === node.uri);
   if (
     children.length < 1
-    || children.length > 4
-    || children.some((child) => !['direction-type', 'staff', 'sound'].includes(child.name))
+    || children.length > 5
+    || children.some((child) => !['direction-type', 'offset', 'staff', 'sound'].includes(child.name))
   ) return null;
 
   const directionTypes = directChildren(node, 'direction-type');
+  const offsetNodes = directChildren(node, 'offset');
   const staffNodes = directChildren(node, 'staff');
   const soundNodes = directChildren(node, 'sound');
   if (
     directionTypes.length < 1
     || directionTypes.length > 2
+    || offsetNodes.length > 1
     || staffNodes.length > 1
     || soundNodes.length > 1
     || (staffNodes.length === 1 && !isSafeDirectionStaff(staffNodes[0], effectiveStaffCount))
   ) return null;
+  let offsetDivisions = null;
+  if (offsetNodes.length === 1) {
+    const offset = offsetNodes[0];
+    offsetDivisions = scalarInteger(offset);
+    if (
+      offset.attributes.length !== 0
+      || offset.children.length !== 0
+      || offsetDivisions === null
+      || Math.abs(offsetDivisions) > 1_000_000
+    ) return null;
+  }
+  const expectedChildren = [
+    ...directionTypes.map(() => 'direction-type'),
+    ...(offsetNodes.length === 1 ? ['offset'] : []),
+    ...(staffNodes.length === 1 ? ['staff'] : []),
+    ...(soundNodes.length === 1 ? ['sound'] : []),
+  ];
+  if (!hasExactChildSequence(children, expectedChildren)) return null;
 
   const typeNames = [];
+  let metronome = null;
+  let wordsSeen = false;
+  let dynamicMark = null;
   for (const directionType of directionTypes) {
     if (
       directionType.attributes.length !== 0
@@ -594,56 +638,204 @@ function reviewableBoundedDirection(node, effectiveStaffCount) {
       || directionType.children.some((child) => child.uri !== directionType.uri)
     ) return null;
     for (const child of directionType.children) {
-      if (!['words', 'metronome'].includes(child.name)) return null;
       typeNames.push(child.name);
       if (child.name === 'words') {
+        const normalizedWords = child.text.trim().replace(/\s+/g, ' ').toLowerCase();
         if (
-          child.children.length !== 0
+          wordsSeen
+          || child.children.length !== 0
           || child.text.trim().length === 0
           || child.text.length > 256
+          || /\b(?:da capo|dal segno|to coda|fine|segno|coda)\b/.test(normalizedWords)
+          || /\b(?:d\.?\s*c\.?|d\.?\s*s\.?)\b/.test(normalizedWords)
+          || /\b(?:8va|8vb|15ma|15mb|ottava)\b/.test(normalizedWords)
           || child.attributes.some((attribute) => (
             attribute.uri.length !== 0
-            || !['default-x', 'default-y', 'relative-x', 'relative-y', 'font-family', 'font-style', 'font-size', 'font-weight', 'color', 'halign', 'valign', 'enclosure'].includes(attribute.name)
+            || !SAFE_WORDS_ATTRIBUTES.has(attribute.name)
             || attribute.value.length > 256
           ))
         ) return null;
-      }
-      if (child.name === 'metronome') {
+        wordsSeen = true;
+      } else if (child.name === 'metronome') {
+        if (metronome !== null) return null;
         const metronomeChildren = child.children.filter((item) => item.uri === child.uri);
         if (
           !hasSafeMetronomeLayoutAttributes(child)
           || child.text.trim().length !== 0
           || metronomeChildren.length !== child.children.length
-          || !hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])
+          || !(
+            hasExactChildSequence(metronomeChildren, ['beat-unit', 'per-minute'])
+            || hasExactChildSequence(metronomeChildren, ['beat-unit', 'beat-unit-dot', 'per-minute'])
+          )
           || !['whole', 'half', 'quarter', 'eighth', '16th', '32nd'].includes(metronomeChildren[0].text.trim())
           || metronomeChildren[0].attributes.length !== 0
           || metronomeChildren[0].children.length !== 0
-          || positiveTempo(metronomeChildren[1]) === null
         ) return null;
+        const dotted = metronomeChildren.length === 3;
+        if (dotted) {
+          const dot = metronomeChildren[1];
+          if (dot.attributes.length !== 0 || dot.children.length !== 0 || dot.text.trim().length !== 0) {
+            return null;
+          }
+        }
+        const perMinuteNode = metronomeChildren[dotted ? 2 : 1];
+        const perMinute = positiveTempo(perMinuteNode);
+        if (perMinute === null) return null;
+        metronome = Object.freeze({
+          beatUnit: metronomeChildren[0].text.trim(),
+          dotted,
+          perMinute,
+        });
+      } else if (child.name === 'dynamics') {
+        if (
+          dynamicMark !== null
+          || child.text.trim().length !== 0
+          || child.children.length !== 1
+          || child.attributes.some((attribute) => {
+            if (attribute.uri.length !== 0) return true;
+            if (!['default-x', 'default-y', 'relative-x', 'relative-y'].includes(attribute.name)) return true;
+            if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(attribute.value)) return true;
+            const numeric = Number(attribute.value);
+            return !Number.isFinite(numeric) || Math.abs(numeric) > 1_000_000;
+          })
+        ) return null;
+        const mark = child.children[0];
+        if (
+          mark.uri !== child.uri
+          || !SAFE_DYNAMIC_MARKS.has(mark.name)
+          || mark.attributes.length !== 0
+          || mark.children.length !== 0
+          || mark.text.trim().length !== 0
+        ) return null;
+        dynamicMark = mark.name;
+      } else {
+        return null;
       }
     }
   }
 
-  const exactTypeProfile = typeNames.length === 1 && typeNames[0] === 'words'
-    || typeNames.length === 2 && typeNames[0] === 'words' && typeNames[1] === 'metronome';
-  if (!exactTypeProfile || staffNodes.length !== 1 || soundNodes.length !== 1) return null;
-
+  if (staffNodes.length !== 1 || soundNodes.length !== 1) return null;
   const sound = soundNodes[0];
   if (
     sound.children.length !== 0
     || sound.text.trim().length !== 0
     || sound.attributes.length !== 1
     || sound.attributes[0].uri.length !== 0
-    || sound.attributes[0].name !== 'tempo'
-    || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
   ) return null;
 
+  if (typeNames.length === 1 && typeNames[0] === 'dynamics' && dynamicMark !== null) {
+    if (
+      sound.attributes[0].name !== 'dynamics'
+      || !/^\+?(?:\d+(?:\.\d{0,6})?|\.\d{1,6})$/.test(sound.attributes[0].value)
+      || canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000) === null
+    ) return null;
+    return Object.freeze({
+      kind: 'DYNAMICS_PLAYBACK_REVIEW',
+      typeNames: Object.freeze(typeNames),
+      hasStaff: true,
+      ...(offsetDivisions === null ? {} : { hasOffset: true, offsetDivisions }),
+      dynamicMark,
+      soundAttributes: Object.freeze(['dynamics']),
+    });
+  }
+
+  const tempoProfile = (
+    (typeNames.length === 1 && typeNames[0] === 'metronome')
+    || (typeNames.length === 1 && typeNames[0] === 'words')
+    || (typeNames.length === 2 && typeNames[0] === 'words' && typeNames[1] === 'metronome')
+  );
+  if (!tempoProfile || sound.attributes[0].name !== 'tempo') return null;
+  const soundTempo = canonicalBoundedUnsignedDecimal(sound.attributes[0].value, 10_000);
+  if (soundTempo === null || soundTempo === '0') return null;
+
+  let conflictingTempo = false;
+  if (metronome !== null) {
+    const multiplier = {
+      whole: 4,
+      half: 2,
+      quarter: 1,
+      eighth: 0.5,
+      '16th': 0.25,
+      '32nd': 0.125,
+    }[metronome.beatUnit];
+    const expectedQuarterTempo = Number(metronome.perMinute) * multiplier * (metronome.dotted ? 1.5 : 1);
+    conflictingTempo = Math.abs(Number(soundTempo) - expectedQuarterTempo) > 0.001;
+  }
+
   return Object.freeze({
+    kind: 'TEMPO_PLAYBACK_REVIEW',
     typeNames: Object.freeze(typeNames),
-    hasStaff: staffNodes.length === 1,
-    soundAttributes: Object.freeze(soundNodes.length === 0
-      ? []
-      : soundNodes[0].attributes.map((attribute) => attribute.name)),
+    hasStaff: true,
+    ...(offsetDivisions === null ? {} : { hasOffset: true, offsetDivisions }),
+    conflictingTempo,
+    soundAttributes: Object.freeze(['tempo']),
+  });
+}
+
+function boundedDirectionValues(directionNode) {
+  const boundedText = (value) => (
+    typeof value === 'string' && value.length <= 64 ? value.trim() : null
+  );
+  const typeValues = [];
+  for (const directionType of directChildren(directionNode, 'direction-type')) {
+    for (const child of directionType.children.filter((item) => item.uri === directionType.uri)) {
+      if (child.name === 'metronome') {
+        typeValues.push(Object.freeze({
+          name: 'metronome',
+          attributes: Object.freeze(child.attributes
+            .filter((attribute) => attribute.uri.length === 0)
+            .map((attribute) => Object.freeze({
+              name: attribute.name,
+              value: boundedText(attribute.value),
+            }))),
+          children: Object.freeze(child.children
+            .filter((item) => item.uri === child.uri)
+            .map((item) => Object.freeze({
+              name: item.name,
+              text: boundedText(item.text),
+            }))),
+        }));
+      } else if (child.name === 'dynamics') {
+        typeValues.push(Object.freeze({
+          name: 'dynamics',
+          marks: Object.freeze(child.children
+            .filter((item) => item.uri === child.uri)
+            .map((item) => item.name)),
+        }));
+      } else if (child.name === 'pedal' || child.name === 'wedge') {
+        typeValues.push(Object.freeze({
+          name: child.name,
+          attributes: Object.freeze(child.attributes
+            .filter((attribute) => attribute.uri.length === 0)
+            .map((attribute) => Object.freeze({
+              name: attribute.name,
+              value: boundedText(attribute.value),
+            }))),
+        }));
+      }
+    }
+  }
+  const staff = directChildren(directionNode, 'staff')[0] || null;
+  const sound = directChildren(directionNode, 'sound')[0] || null;
+  const offsets = directChildren(directionNode, 'offset').map((offset) => Object.freeze({
+    text: boundedText(offset.text),
+    attributes: Object.freeze(offset.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+  }));
+  return Object.freeze({
+    staff: staff ? boundedText(staff.text) : null,
+    offsets: Object.freeze(offsets),
+    sound: Object.freeze((sound?.attributes || [])
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+    typeValues: Object.freeze(typeValues),
   });
 }
 
@@ -845,6 +1037,88 @@ function parseKeySignature(node, measureIndex) {
   return Object.freeze({ measureIndex, fifths, mode });
 }
 
+function boundedNodeShape(node) {
+  const boundedText = (value) => (
+    typeof value === 'string' && value.length <= 64 ? value.trim() : null
+  );
+  return Object.freeze({
+    name: node.name,
+    attributes: Object.freeze(node.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => Object.freeze({
+        name: attribute.name,
+        value: boundedText(attribute.value),
+      }))),
+    text: boundedText(node.text),
+    children: Object.freeze(node.children
+      .filter((child) => child.uri === node.uri)
+      .map((child) => Object.freeze({
+        name: child.name,
+        attributes: Object.freeze(child.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => Object.freeze({
+            name: attribute.name,
+            value: boundedText(attribute.value),
+          }))),
+        text: boundedText(child.text),
+        childNames: Object.freeze(child.children
+          .filter((grandchild) => grandchild.uri === child.uri)
+          .map((grandchild) => grandchild.name)),
+      }))),
+  });
+}
+
+function safeMultipleRestMeasureStyle(node) {
+  if (node.text.trim().length !== 0 || node.children.some((child) => child.uri !== node.uri)) {
+    return false;
+  }
+  const seenAttributes = new Set();
+  for (const attribute of node.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || attribute.name !== 'number'
+      || seenAttributes.has(attribute.name)
+      || !/^\d+$/.test(attribute.value)
+      || Number(attribute.value) < 1
+      || Number(attribute.value) > 16
+    ) return false;
+    seenAttributes.add(attribute.name);
+  }
+  const children = directChildren(node, 'multiple-rest');
+  if (children.length !== 1 || node.children.length !== 1) return false;
+  const multipleRest = children[0];
+  if (multipleRest.children.length !== 0 || !/^\d+$/.test(multipleRest.text.trim())) return false;
+  const count = Number(multipleRest.text.trim());
+  if (!Number.isSafeInteger(count) || count < 1 || count > 1000) return false;
+  const seen = new Set();
+  for (const attribute of multipleRest.attributes) {
+    if (
+      attribute.uri.length !== 0
+      || attribute.name !== 'use-symbols'
+      || seen.has(attribute.name)
+      || !['yes', 'no'].includes(attribute.value)
+    ) return false;
+    seen.add(attribute.name);
+  }
+  return true;
+}
+
+function normalizeFullMeasureRest(node, ignoredFeatures) {
+  const measureAttributes = node.attributes.filter((attribute) => (
+    attribute.uri.length === 0 && attribute.name === 'measure'
+  ));
+  if (measureAttributes.length === 0) return cloneNode(node);
+  if (
+    measureAttributes.length !== 1
+    || measureAttributes[0].value !== 'yes'
+    || node.attributes.some((attribute) => (
+      attribute.uri.length !== 0 || attribute.name !== 'measure'
+    ))
+  ) return null;
+  ignoredFeatures.add('note:rest:full-measure-provenance');
+  return cloneNode(node, { attributes: [] });
+}
+
 function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) {
   const children = [];
   for (const child of node.children) {
@@ -887,11 +1161,17 @@ function sanitizeAttributes(node, ignoredFeatures, measureIndex, keySignatures) 
       }
       continue;
     }
+    if (child.name === 'measure-style' && safeMultipleRestMeasureStyle(child)) {
+      ignoredFeatures.add('attributes:measure-style:multiple-rest-display');
+      continue;
+    }
     if (IGNORED_ATTRIBUTE_CHILDREN.has(child.name)) {
       ignoredFeatures.add(`attributes:${child.name}`);
       continue;
     }
-    throw unsupported(`attributes-child:${child.name}`);
+    throw unsupported(`attributes-child:${child.name}`, {
+      attributeChildShape: boundedNodeShape(child),
+    });
   }
   return cloneNode(node, { children });
 }
@@ -938,7 +1218,9 @@ function sanitizeNotations(node, ignoredFeatures) {
       }
       continue;
     }
-    throw unsupported(`notation:${child.name}`);
+    throw unsupported(`notation:${child.name}`, {
+      notationShape: boundedNodeShape(child),
+    });
   }
   return children.length === 0 ? null : cloneNode(node, { children });
 }
@@ -979,6 +1261,12 @@ function sanitizeNote(node, pitchOctaveShift, ignoredFeatures) {
       children.push(cloneNode(child));
       continue;
     }
+    if (child.name === 'rest') {
+      const rest = normalizeFullMeasureRest(child, ignoredFeatures);
+      if (!rest) throw unsupported('rest-attribute:measure');
+      children.push(rest);
+      continue;
+    }
     if (child.name === 'notations') {
       const notations = sanitizeNotations(child, ignoredFeatures);
       if (notations) children.push(notations);
@@ -1012,6 +1300,45 @@ function derivedDocument(parsedDocument, partList, scorePart, part, measures) {
     contractVersion: PARSED_MUSICXML_DOCUMENT_VERSION,
     root: cloneNode(parsedDocument.root, { children: [derivedPartList, derivedPart] }),
   };
+}
+
+function boundedDirectionShape(directionNode) {
+  const direct = directionNode.children.filter((child) => child.uri === directionNode.uri);
+  const directionTypes = direct.filter((child) => child.name === 'direction-type');
+  const typeNames = [];
+  const typeProfiles = [];
+  for (const directionType of directionTypes) {
+    for (const child of directionType.children.filter((item) => item.uri === directionType.uri)) {
+      typeNames.push(child.name);
+      typeProfiles.push(Object.freeze({
+        name: child.name,
+        attributes: Object.freeze(child.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => attribute.name)
+          .sort()),
+        childNames: Object.freeze(child.children
+          .filter((item) => item.uri === child.uri)
+          .map((item) => item.name)),
+        textPresent: child.text.trim().length > 0,
+      }));
+    }
+  }
+  const soundAttributes = direct
+    .filter((child) => child.name === 'sound')
+    .flatMap((sound) => sound.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => attribute.name));
+  return Object.freeze({
+    attributes: Object.freeze(directionNode.attributes
+      .filter((attribute) => attribute.uri.length === 0)
+      .map((attribute) => attribute.name)
+      .sort()),
+    childNames: Object.freeze(direct.map((child) => child.name)),
+    typeNames: Object.freeze(typeNames.sort()),
+    typeProfiles: Object.freeze(typeProfiles),
+    staffCount: direct.filter((child) => child.name === 'staff').length,
+    soundAttributes: Object.freeze([...new Set(soundAttributes)].sort()),
+  });
 }
 
 function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
@@ -1064,6 +1391,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
 
   const measures = [];
   const keySignatures = [];
+  const reviewIssues = [];
   let effectiveStaffCount = 1;
   for (let measureIndex = 0; measureIndex < measureNodes.length; measureIndex += 1) {
     const measure = measureNodes[measureIndex];
@@ -1100,25 +1428,42 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
           ignoredFeatures.add('measure:direction:rehearsal');
           continue;
         }
-        if (safeDisplayWordsDirection(child)) {
+        if (safeDisplayWordsDirection(child, effectiveStaffCount)) {
           ignoredFeatures.add('measure:direction:words-display');
           continue;
         }
         const reviewDirection = reviewableBoundedDirection(child, effectiveStaffCount);
         if (reviewDirection) {
-          throw unsupported('direction-review', {
+          const measureNumber = getAttribute(measure, 'number') ?? String(measureIndex + 1);
+          const measureChildIndex = measure.children.indexOf(child);
+          ignoredFeatures.add('measure:direction:review-required');
+          reviewIssues.push(Object.freeze({
+            severity: 'error',
+            category: 'semantic',
+            code: 'PERFORMANCE_DIRECTION_REVIEW_REQUIRED',
+            message: 'Playback-only direction metadata was omitted from provisional TAB timing and requires review.',
             reviewDisposition: 'REVIEW_REQUIRED',
-            reason: 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW',
-            measureIndex,
-            measureNumber: getAttribute(measure, 'number') ?? null,
-            measureChildIndex: measure.children.indexOf(child),
-            direction: reviewDirection,
-          });
+            location: Object.freeze({
+              measure: measureNumber,
+              measureIndex,
+              eventIndex: measureChildIndex,
+              sourceEventId: null,
+            }),
+            details: Object.freeze({
+              feature: 'direction-review',
+              reason: 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW',
+              reviewDisposition: 'REVIEW_REQUIRED',
+              direction: reviewDirection,
+            }),
+          }));
+          continue;
         }
         throw unsupported('direction', {
           measureIndex,
           measureNumber: getAttribute(measure, 'number') ?? null,
           measureChildIndex: measure.children.indexOf(child),
+          directionShape: boundedDirectionShape(child),
+          directionValues: boundedDirectionValues(child),
         });
       }
       if (child.name === 'barline') {
@@ -1161,6 +1506,7 @@ function tryNormalizeRuntimeGuitarNotation(parsedDocument) {
     pitchOctaveShift,
     notationContext: Object.freeze({ keySignatures: Object.freeze(keySignatures) }),
     ignoredFeatures: Object.freeze([...ignoredFeatures].sort()),
+    reviewIssues: Object.freeze(reviewIssues),
   });
 }
 

@@ -246,7 +246,7 @@ function parseOptionalStem(note, location) {
   if (stems.length === 0) return null;
   requireExactLeaf(stems[0], 'stem', location);
   const value = stems[0].text.trim();
-  if (value !== 'up' && value !== 'down') {
+  if (value !== 'up' && value !== 'down' && value !== 'none') {
     throw unsupported('Grace stem has an unsupported value.', {
       ...location,
       field: 'stem',
@@ -345,7 +345,7 @@ function parseUnslashed16thPairBeams(note, location, expectedBeamText) {
   return expectedBeamText;
 }
 
-function parseGraceNote(note, location, expectedBeamText) {
+function parseGraceNote(note, location, expectedBeamText, allowChordMember = false) {
   if (note.text.trim().length !== 0) {
     throw unsupported('Extracted grace notes must have no note-level text.', location);
   }
@@ -356,12 +356,34 @@ function parseGraceNote(note, location, expectedBeamText) {
   if (directChildren(note, 'rest').length !== 0) {
     throw unsupported('Grace rests are outside the PS-6B6A extraction scope.', location);
   }
-  if (directChildren(note, 'chord').length !== 0) {
-    throw unsupported('Grace chord members are outside the PS-6B6A extraction scope.', location);
+  const chordNodes = directChildren(note, 'chord');
+  if (chordNodes.length > 1 || (chordNodes.length === 1 && !allowChordMember)) {
+    const graceNode = directChildren(note, 'grace')[0] || null;
+    const typeNode = directChildren(note, 'type')[0] || null;
+    throw unsupported('Grace chord membership is outside the bounded review profile.', {
+      ...location,
+      reason: 'GRACE_CHORD_MEMBER_OUTSIDE_REVIEW_PROFILE',
+      expectedBeamText,
+      nominalType: typeNode && typeNode.text.length <= 64 ? typeNode.text.trim() : null,
+      observedChordCount: chordNodes.length,
+      observedBeamCount: directChildren(note, 'beam').length,
+      graceAttributeNames: graceNode
+        ? graceNode.attributes
+          .filter((attribute) => attribute.uri.length === 0)
+          .map((attribute) => attribute.name)
+        : [],
+      childNames: note.children
+        .filter((child) => child.uri === note.uri)
+        .map((child) => child.name),
+    });
+  }
+  const chordWithPrevious = chordNodes.length === 1;
+  if (chordWithPrevious) {
+    requireExactLeaf(chordNodes[0], 'chord', location, { text: '', attributes: {} });
   }
 
   const allowedChildren = new Set([
-    'grace', 'pitch', 'voice', 'type', 'stem', 'notehead', 'staff', 'beam',
+    'grace', 'chord', 'pitch', 'voice', 'type', 'stem', 'notehead', 'staff', 'beam',
   ]);
   for (const child of note.children) {
     if (child.uri !== note.uri || !allowedChildren.has(child.name)) {
@@ -390,7 +412,22 @@ function parseGraceNote(note, location, expectedBeamText) {
   const isUnslashed16thPair = slash === 'no'
     && nominalType === '16th'
     && expectedBeamText !== null;
-  if (!SAFE_GRACE_NOMINAL_TYPES.has(nominalType) && !isUnslashed16thPair) {
+  const isUnslashedSingleEighth = slash === 'no'
+    && nominalType === 'eighth'
+    && expectedBeamText === null
+    && directChildren(note, 'beam').length === 0
+    && grace.attributes.length === 0;
+  const isUnslashedEighthPair = slash === 'no'
+    && nominalType === 'eighth'
+    && expectedBeamText !== null
+    && directChildren(note, 'beam').length === 1
+    && grace.attributes.length === 0;
+  if (
+    !SAFE_GRACE_NOMINAL_TYPES.has(nominalType)
+    && !isUnslashed16thPair
+    && !isUnslashedSingleEighth
+    && !isUnslashedEighthPair
+  ) {
     throw unsupported('Grace type has an unsupported nominal value.', {
       ...location,
       field: 'type',
@@ -399,12 +436,31 @@ function parseGraceNote(note, location, expectedBeamText) {
   }
   const stem = parseOptionalStem(note, location);
   validateOptionalNormalNotehead(note, location);
-  if (slash === 'no' && !isUnslashed16thPair) {
-    throw unsupported('Unslashed grace is supported only as an exact two-note 16th sequence.', location);
+  if (
+    slash === 'no'
+    && !isUnslashed16thPair
+    && !isUnslashedSingleEighth
+    && !isUnslashedEighthPair
+  ) {
+    throw unsupported('Unslashed grace is outside the bounded producer profile.', {
+      ...location,
+      reason: 'UNSLASHED_GRACE_OUTSIDE_BOUNDED_PAIR_PROFILE',
+      nominalType,
+      expectedBeamText,
+      observedBeamCount: directChildren(note, 'beam').length,
+      graceAttributeNames: grace.attributes
+        .filter((attribute) => attribute.uri.length === 0)
+        .map((attribute) => attribute.name),
+    });
   }
+  const producerOmittedSlashedPairBeam = slash === 'yes'
+    && expectedBeamText !== null
+    && directChildren(note, 'beam').length === 0;
   const beam = isUnslashed16thPair
     ? parseUnslashed16thPairBeams(note, location, expectedBeamText)
-    : parseBeam(note, location, expectedBeamText);
+    : producerOmittedSlashedPairBeam
+      ? null
+      : parseBeam(note, location, expectedBeamText);
 
   return Object.freeze({
     pitch,
@@ -414,6 +470,7 @@ function parseGraceNote(note, location, expectedBeamText) {
     slash,
     stem,
     beam,
+    chordWithPrevious,
   });
 }
 
@@ -497,8 +554,33 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
         entry.note,
         { ...context, sourceOrder: entry.sourceOrder },
         beamExpectations[index],
+        index > 0,
       );
     });
+
+    const hasGraceChord = parsedRun.some((event) => event.chordWithPrevious);
+    if (hasGraceChord) {
+      const exactReviewGraceChord = parsedRun.length === 2
+        && parsedRun[0].chordWithPrevious === false
+        && parsedRun[1].chordWithPrevious === true
+        && parsedRun.every((event) => (
+          event.slash === 'yes'
+          && event.nominalType === 'eighth'
+          && event.beam === null
+        ));
+      if (!exactReviewGraceChord) {
+        throw unsupported('Grace chord membership is outside the bounded review profile.', {
+          ...context,
+          startSourceOrder: startOrder,
+          reason: 'GRACE_CHORD_MEMBER_OUTSIDE_REVIEW_PROFILE',
+          graceCount: parsedRun.length,
+          chordProfile: parsedRun.map((event) => event.chordWithPrevious),
+          slashProfile: parsedRun.map((event) => event.slash),
+          nominalTypeProfile: parsedRun.map((event) => event.nominalType),
+          beamProfile: parsedRun.map((event) => event.beam),
+        });
+      }
+    }
 
     const first = parsedRun[0];
     for (let index = 1; index < parsedRun.length; index += 1) {
@@ -550,6 +632,7 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
         slash: parsed.slash,
         stem: parsed.stem,
         beam: parsed.beam,
+        chordWithPrevious: parsed.chordWithPrevious,
         source: {
           partId,
           measureIndex: context.measureIndex,
@@ -561,12 +644,23 @@ function analyzeMeasure(measure, context, partId, counters, runtime) {
     removedBefore += run.length;
     groups.push(freezeGraceGroup({
       graceGroupId,
-      kind: first.slash === 'no'
-        ? 'unslashed-two-note-16th-grace-sequence'
-        : (run.length === 1
-          ? 'slashed-single-eighth-grace'
-          : 'slashed-two-note-eighth-grace-sequence'),
-      timingAuthority: 'ORDER_ONLY_BEFORE_ANCHOR',
+      kind: hasGraceChord
+        ? 'slashed-two-note-eighth-grace-chord-review'
+        : first.slash === 'no'
+          ? (run.length === 1
+            ? 'unslashed-single-eighth-grace'
+            : (first.nominalType === 'eighth'
+              ? 'unslashed-two-note-eighth-grace-sequence'
+              : 'unslashed-two-note-16th-grace-sequence'))
+          : (run.length === 1
+            ? 'slashed-single-eighth-grace'
+            : 'slashed-two-note-eighth-grace-sequence'),
+      timingAuthority: hasGraceChord
+        ? 'SIMULTANEOUS_BEFORE_ANCHOR_REVIEW_ONLY'
+        : 'ORDER_ONLY_BEFORE_ANCHOR',
+      physicalIntegration: hasGraceChord
+        ? 'REVIEW_REQUIRED_UNASSIGNED'
+        : 'EXACT_ORDER_ONLY_PHYSICAL_TRANSITION',
       measureIndex: context.measureIndex,
       measureNumber: context.measureNumber,
       voice: first.voice,
@@ -664,6 +758,29 @@ function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
   });
   const upstream = normalizePolyphonicTripletDisplay(graceFreeDocument, runtime);
   const frozenGroups = Object.freeze(groups);
+  const reviewIssues = Object.freeze(
+    frozenGroups
+      .filter((group) => group.physicalIntegration === 'REVIEW_REQUIRED_UNASSIGNED')
+      .map((group) => Object.freeze({
+        severity: 'error',
+        category: 'semantic',
+        code: 'GRACE_CHORD_REQUIRES_REVIEW',
+        message: 'Grace chord is preserved as source provenance but left unassigned in provisional guitar TAB.',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        location: Object.freeze({
+          measure: group.measureNumber,
+          measureIndex: group.measureIndex,
+          eventIndex: group.notes[0]?.originalSourceOrder ?? null,
+          sourceEventId: null,
+        }),
+        details: Object.freeze({
+          feature: 'grace-chord',
+          reason: 'SIMULTANEOUS_GRACE_CHORD_NO_AUTOMATIC_TIMING_OR_POSITION_AUTHORITY',
+          reviewDisposition: 'REVIEW_REQUIRED',
+          graceGroupId: group.graceGroupId,
+        }),
+      })),
+  );
   const extractedFeatures = Object.freeze(
     frozenGroups.length === 0 ? [] : ['grace-note:order-only-ornament'],
   );
@@ -683,6 +800,7 @@ function extractPolyphonicGraceOrnaments(parsedDocument, runtime = null) {
       : POLYPHONIC_GRACE_SOLVER_STATUS.BLOCKED_PENDING_PHYSICAL_INTEGRATION,
     parsedMainDocument,
     graceOrnamentGroups: frozenGroups,
+    reviewIssues,
     extractedGraceEventCount: counters.graceEvents,
     originalNoteElementCount: accounting.originalNoteElementCount,
     extractedFeatures,
@@ -729,6 +847,7 @@ function projectParsedMusicXmlWithGraceOrnamentExtraction(parsedDocument, runtim
     solverCompatibility: extraction.solverCompatibility,
     mainSourceModel,
     graceOrnamentGroups: extraction.graceOrnamentGroups,
+    reviewIssues: extraction.reviewIssues,
     extractedFeatures: extraction.extractedFeatures,
     musicalMaterialAccounting,
     ignoredFeatures: extraction.ignoredFeatures,

@@ -11,7 +11,7 @@ const MAX_FONT_FAMILY_LENGTH = 256;
 const MAX_INVALID_DYNAMICS_FRACTION_DIGITS = 6;
 const MAX_EXACT_TEMPO_FRACTION_DIGITS = 6;
 
-const SAFE_DYNAMIC_MARKS = new Set(['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff']);
+const SAFE_DYNAMIC_MARKS = new Set(['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff', 'fz']);
 const SAFE_DIRECTION_ATTRIBUTES = new Set(['placement', 'directive']);
 const SAFE_WORDS_ATTRIBUTES = new Set([
   'default-x',
@@ -287,12 +287,21 @@ function positiveTempo(node) {
 
 function hasSafeMetronomeLayoutAttributes(node) {
   const seen = new Set();
+  const numericLayoutAttributes = new Set([
+    'default-x',
+    'default-y',
+    'relative-x',
+    'relative-y',
+  ]);
   for (const attribute of node.attributes) {
-    if (attribute.uri.length !== 0 || !['parentheses', 'default-y'].includes(attribute.name)) return false;
+    if (
+      attribute.uri.length !== 0
+      || (attribute.name !== 'parentheses' && !numericLayoutAttributes.has(attribute.name))
+    ) return false;
     if (seen.has(attribute.name)) return false;
     seen.add(attribute.name);
     if (attribute.name === 'parentheses' && !['yes', 'no'].includes(attribute.value)) return false;
-    if (attribute.name === 'default-y' && !isBoundedLayoutTenths(attribute.value)) return false;
+    if (numericLayoutAttributes.has(attribute.name) && !isBoundedLayoutTenths(attribute.value)) return false;
   }
   return true;
 }

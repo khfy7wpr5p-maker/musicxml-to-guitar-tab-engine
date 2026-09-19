@@ -17,6 +17,9 @@ const {
   normalizePolyphonicRepeatBarlines,
 } = require('../parser/polyphonicRepeatBarlineNormalizer');
 const {
+  normalizePreNormalizedPolyphonicOctaveShifts,
+} = require('../parser/polyphonicOctaveShiftResolver');
+const {
   bindPolyphonicFingeringProvenance,
 } = require('../parser/polyphonicFingeringProvenance');
 const {
@@ -197,12 +200,16 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     performanceNormalization.parsedDocument,
     runtime,
   );
-  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+  const octaveShiftNormalization = normalizePreNormalizedPolyphonicOctaveShifts(
     repeatNormalization.parsedDocument,
+    runtime,
+  );
+  const runtimeNormalization = tryNormalizeRuntimeGuitarNotation(
+    octaveShiftNormalization.parsedDocument,
   );
   const representationDocument = runtimeNormalization
     ? runtimeNormalization.parsedDocument
-    : repeatNormalization.parsedDocument;
+    : octaveShiftNormalization.parsedDocument;
   const graceAccidentalNormalization = normalizeGraceDisplayAccidental(
     representationDocument,
   );
@@ -260,6 +267,7 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     ...performanceMetadata.ignoredFeatures,
     ...performanceNormalization.ignoredFeatures,
     ...repeatNormalization.ignoredFeatures,
+    ...octaveShiftNormalization.ignoredFeatures,
     ...semanticNormalization.ignoredFeatures,
     ...(semanticNormalization.staccatoMarkers.length > 0
       ? ['notation:articulation:staccato']
@@ -280,10 +288,12 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
   const policyExcludedDirections = excludedPerformanceMetadataDirectionRecords(performanceMetadata);
   const ignoredDirectionCount = policyExcludedDirections.length
     + performanceNormalization.ignoredDirectionCount
+    + octaveShiftNormalization.ignoredDirectionCount
     + semanticNormalization.ignoredDirectionCount;
   const ignoredDirectionFeatureCounts = mergeDirectionFeatureCounts(
     performanceMetadataDirectionFeatureCounts(performanceMetadata),
     performanceNormalization.ignoredDirectionFeatureCounts,
+    octaveShiftNormalization.ignoredDirectionFeatureCounts,
     semanticNormalization.ignoredDirectionFeatureCounts,
   );
 
@@ -336,12 +346,17 @@ function projectParsedMusicXmlThroughPolyProductionCompatibilityChain(
     reviewIssues: Object.freeze([
       ...performanceNormalization.reviewIssues,
       ...repeatNormalization.reviewIssues,
+      ...(runtimeNormalization?.reviewIssues || []),
+      ...(semanticNormalization.reviewIssues || []),
       ...overflowProjection.reviewIssues,
     ]),
     performanceTimingCaveats: semanticNormalization.performanceTimingCaveats,
     ignoredDirectionCount,
     ignoredDirectionFeatureCounts,
-    octaveShiftMarkers: semanticNormalization.octaveShiftMarkers,
+    octaveShiftMarkers: Object.freeze([
+      ...octaveShiftNormalization.octaveShiftMarkers,
+      ...semanticNormalization.octaveShiftMarkers,
+    ]),
     notationContextMarkers: semanticNormalization.notationContextMarkers,
     timeSignatureDisplayMarkers: semanticNormalization.timeSignatureDisplayMarkers,
     fermataMarkers: semanticNormalization.fermataMarkers,

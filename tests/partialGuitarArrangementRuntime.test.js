@@ -122,3 +122,49 @@ test('partial recovery keeps extracted grace notes explicit as unassigned review
     false,
   );
 });
+
+
+function repeatedCandidateLimitDyads(measureCount = 500) {
+  const measures = [];
+  for (let index = 0; index < measureCount; index += 1) {
+    measures.push(`<measure number="${index + 1}">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+    </measure>`);
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Candidate limit review</part-name></score-part></part-list>
+  <part id="P1">${measures.join('')}</part>
+</score-partwise>`;
+}
+
+test('aggregate voicing candidate ceiling recovers as bounded provisional TAB instead of hard blocking', () => {
+  const xml = repeatedCandidateLimitDyads();
+  const request = {
+    fileName: 'candidate-limit.musicxml',
+    bytes: Buffer.from(xml),
+  };
+  const first = processMusicXmlUpload(request);
+  const second = processMusicXmlUpload(request);
+
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.route, 'POLY_V2');
+  assert.equal(first.preflight.issues[0].code, 'GUITAR_VOICING_CANDIDATE_LIMIT_EXCEEDED');
+  assert.equal(first.preflight.issues[0].details.limit, 10000);
+  assert.equal(first.preflight.issues[0].details.observed, 10001);
+  assert.equal(first.canonicalTabResult, null);
+  assert.equal(first.arrangementArtifact.documentType, 'PartialGuitarTabArrangement');
+  assert.equal(first.arrangementArtifact.authority, 'PROVISIONAL_REVIEW_ONLY');
+  assert.equal(first.arrangementArtifact.sourceNoteCount, 1000);
+  assert.ok(first.arrangementArtifact.assignedNoteCount > 0);
+  assert.ok(first.arrangementArtifact.unassignedNoteCount > 0);
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.sourceArtifact.rendererMusicXml, xml);
+  assert.deepEqual(first, second);
+});

@@ -1,0 +1,47 @@
+{
+  "documentType": "A3ProductionRealPianoCorpusManifest",
+  "contractVersion": "1.0.0",
+  "evidenceClass": "REAL_EXTERNAL_PINNED_PIANO_MXL",
+  "sourceRepository": "musetrainer/library",
+  "sourceCommit": "9128876f6164d96997c877a2be843349a32bdabb",
+  "sourceRoot": "scores",
+  "requiredRunCount": 2,
+  "requiredSupportedCount": 5,
+  "files": [
+    {
+      "caseId": "schubert-ave-maria-solo-piano",
+      "path": "scores/Ave_Maria_D839_-_Schubert_-_Solo_Piano_Arrg..mxl",
+      "gitBlobSha": "cbf1240b4bc751aacd91525498daf2c72eb8bf28",
+      "byteLength": 11543,
+      "role": "REAL_PIANO"
+    },
+    {
+      "caseId": "chopin-nocturne-op9-no1",
+      "path": "scores/Chopin_-_Nocturne_Op._9_No._1.mxl",
+      "gitBlobSha": "df70e9dcb72815c6267d7a68cedd734af79ee855",
+      "byteLength": 25776,
+      "role": "REAL_PIANO"
+    },
+    {
+      "caseId": "beethoven-fur-elise-fingered",
+      "path": "scores/Fur_Elise_fingered.mxl",
+      "gitBlobSha": "1c868dc76cc1a314af84f75e097616e0543dec1e",
+      "byteLength": 19047,
+      "role": "REAL_PIANO"
+    },
+    {
+      "caseId": "bach-toccata-fugue-piano-solo",
+      "path": "scores/Bach_Toccata_and_Fugue_in_D_Minor_Piano_solo.mxl",
+      "gitBlobSha": "10b2d8b09491f5fb716ea787b2bdc3a4568c4cb9",
+      "byteLength": 66697,
+      "role": "REAL_PIANO_STRESS"
+    },
+    {
+      "caseId": "beethoven-symphony5-piano-solo",
+      "path": "scores/Beethoven_Symphony_No._5_1st_movement_Piano_solo.mxl",
+      "gitBlobSha": "0c83281debb70a0c7c295410db67aad3058d74cd",
+      "byteLength": 56279,
+      "role": "REAL_PIANO_STRESS"
+    }
+  ]
+}

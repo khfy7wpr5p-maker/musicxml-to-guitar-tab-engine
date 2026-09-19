@@ -153,6 +153,24 @@ function parseExactTupletDisplay(node, location) {
       number: null,
     });
   }
+  if (
+    names.length === 3
+    && names[0] === 'bracket'
+    && names[1] === 'show-number'
+    && names[2] === 'type'
+    && attributes.type === 'start'
+    && attributes.bracket === 'no'
+    && attributes['show-number'] === 'none'
+  ) {
+    return Object.freeze({
+      type: 'start',
+      bracket: false,
+      profile: 'CHOPIN_UNBRACKETED_HIDDEN_NUMBER',
+      placement: null,
+      number: null,
+      showNumber: 'none',
+    });
+  }
   if (names.length === 1 && names[0] === 'type' && attributes.type === 'stop') {
     return Object.freeze({
       type: 'stop',
@@ -218,7 +236,10 @@ function stopMatchesOpenDisplay(openDisplay, stopDisplay) {
   if (openDisplay.profile === 'LEGACY_UNBRACKETED') {
     return stopDisplay.profile === 'LEGACY_UNBRACKETED';
   }
-  if (openDisplay.profile === 'GENERIC_BRACKETED') {
+  if (
+    openDisplay.profile === 'GENERIC_BRACKETED'
+    || openDisplay.profile === 'CHOPIN_UNBRACKETED_HIDDEN_NUMBER'
+  ) {
     return stopDisplay.profile === 'LEGACY_UNBRACKETED';
   }
   return sameDisplayIdentity(openDisplay, stopDisplay);
@@ -290,6 +311,7 @@ function sanitizeNotations(notations, context, markers, laneState, tripletMarker
       bracket: display.bracket,
       ...(display.placement === null ? {} : { placement: display.placement }),
       ...(display.number === null ? {} : { number: display.number }),
+      ...(display.showNumber === undefined ? {} : { showNumber: display.showNumber }),
       voice: context.voice,
       staff: context.staff,
       ...location,

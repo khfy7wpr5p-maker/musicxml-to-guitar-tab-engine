@@ -424,22 +424,28 @@ function removeResolvedDirections(root, markerKeys) {
   });
 }
 
-function normalizePolyphonicOctaveShifts(parsedDocument, runtime = null) {
-  checkpoint(runtime, 'polyphonic-octave-shift-resolver:start');
-  const performance = normalizePolyphonicPerformanceDirections(parsedDocument, runtime);
-  const markers = collectMarkers(performance.parsedDocument.root, runtime);
+function normalizeOctaveShiftsFromPreparedDocument(
+  parsedDocument,
+  runtime,
+  {
+    upstreamIgnoredFeatures = Object.freeze([]),
+    upstreamIgnoredDirectionCount = 0,
+    upstreamIgnoredDirectionFeatureCounts = Object.freeze({}),
+  } = {},
+) {
+  const markers = collectMarkers(parsedDocument.root, runtime);
   const resolvedMarkers = validateMarkerChains(markers, runtime);
   const markerKeys = new Set(resolvedMarkers.map((marker) => `${marker.measureIndex}:${marker.childIndex}`));
-  const normalizedRoot = removeResolvedDirections(performance.parsedDocument.root, markerKeys);
+  const normalizedRoot = removeResolvedDirections(parsedDocument.root, markerKeys);
   const ignoredFeatures = Object.freeze([
     ...new Set([
-      ...performance.ignoredFeatures,
+      ...upstreamIgnoredFeatures,
       ...(resolvedMarkers.length > 0 ? ['direction:octave-shift-display'] : []),
     ]),
   ].sort());
   const normalizedDocument = Object.freeze({
-    documentType: performance.parsedDocument.documentType,
-    contractVersion: performance.parsedDocument.contractVersion,
+    documentType: parsedDocument.documentType,
+    contractVersion: parsedDocument.contractVersion,
     root: deepFreezeNode(normalizedRoot),
   });
 
@@ -451,10 +457,29 @@ function normalizePolyphonicOctaveShifts(parsedDocument, runtime = null) {
     authority: POLYPHONIC_OCTAVE_SHIFT_RESOLVER_AUTHORITY,
     parsedDocument: normalizedDocument,
     ignoredFeatures,
-    ignoredDirectionCount: performance.ignoredDirectionCount,
-    ignoredDirectionFeatureCounts: performance.ignoredDirectionFeatureCounts,
+    ignoredDirectionCount: upstreamIgnoredDirectionCount,
+    ignoredDirectionFeatureCounts: upstreamIgnoredDirectionFeatureCounts,
     octaveShiftMarkers: resolvedMarkers,
   });
+}
+
+function normalizePolyphonicOctaveShifts(parsedDocument, runtime = null) {
+  checkpoint(runtime, 'polyphonic-octave-shift-resolver:start');
+  const performance = normalizePolyphonicPerformanceDirections(parsedDocument, runtime);
+  return normalizeOctaveShiftsFromPreparedDocument(
+    performance.parsedDocument,
+    runtime,
+    {
+      upstreamIgnoredFeatures: performance.ignoredFeatures,
+      upstreamIgnoredDirectionCount: performance.ignoredDirectionCount,
+      upstreamIgnoredDirectionFeatureCounts: performance.ignoredDirectionFeatureCounts,
+    },
+  );
+}
+
+function normalizePreNormalizedPolyphonicOctaveShifts(parsedDocument, runtime = null) {
+  checkpoint(runtime, 'polyphonic-octave-shift-resolver:start');
+  return normalizeOctaveShiftsFromPreparedDocument(parsedDocument, runtime);
 }
 
 function projectParsedMusicXmlWithOctaveShiftCompatibility(parsedDocument, runtime = null) {
@@ -479,5 +504,6 @@ module.exports = {
   POLYPHONIC_OCTAVE_SHIFT_RESOLVER_AUTHORITY,
   PolyphonicOctaveShiftResolverError,
   normalizePolyphonicOctaveShifts,
+  normalizePreNormalizedPolyphonicOctaveShifts,
   projectParsedMusicXmlWithOctaveShiftCompatibility,
 };

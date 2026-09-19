@@ -501,7 +501,7 @@ test('polyphonic route raises an exact one-octave low-register source note into 
   assert.match(first.musicXml, /<pitch><step>A<\/step><octave>2<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>/);
 });
 
-test('polyphonic route still refuses high-register source notes and reports the source measure/event', () => {
+test('polyphonic route lowers an exact one-octave high-register source note for review-only provisional TAB', () => {
   const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
@@ -513,23 +513,114 @@ test('polyphonic route still refuses high-register source notes and reports the 
 <note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
 <forward><duration>4</duration></forward>
 </measure></part></score-partwise>`);
+  const original = Buffer.from(bytes);
 
-  const result = processMusicXmlUpload({ fileName: 'range.musicxml', bytes });
-  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
-  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
-  assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_SOURCE_PITCH');
-  assert.equal(result.preflight.issues[0].location.measure, '7');
-  assert.equal(result.preflight.issues[0].location.measureIndex, 0);
-  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C7');
+  const first = processMusicXmlUpload({ fileName: 'range.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'range.musicxml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(first, second);
+  assert.deepEqual(bytes, original);
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.capabilities.export, false);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+
+  const displaced = first.canonicalTabResult.noteDispositions[0];
+  assert.equal(displaced.disposition, 'KEEP');
+  assert.equal(displaced.octaveShiftSemitones, -12);
+  assert.equal(displaced.targetPitch.written, 'C6');
+  assert.equal(displaced.targetPitch.midi, 84);
+  assert.equal(displaced.ruleId, 'OCTAVE_NEAREST_IN_REGISTER');
+  assert.equal(first.canonicalTabResult.arrangementDecisions[0].decisionType, 'OCTAVE_DISPLACED');
+  assert.equal(first.canonicalTabResult.measures[0].events[0].pitch.written, 'C7');
+  assert.match(first.musicXml, /<pitch><step>C<\/step><octave>6<\/octave><\/pitch>[\s\S]*?<staff>2<\/staff>/);
+
+  const issue = first.preflight.issues.find(
+    (entry) => entry.code === 'HIGH_REGISTER_OCTAVE_DISPLACEMENT_REQUIRES_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.reviewDisposition, 'REVIEW_REQUIRED');
+  assert.equal(issue.location.measure, '7');
+  assert.equal(issue.location.measureIndex, 0);
+  assert.equal(issue.details.writtenPitch, 'C7');
+  assert.equal(issue.details.sourceMidi, 96);
+  assert.equal(issue.details.targetMidi, 84);
+  assert.equal(issue.details.octaveShiftSemitones, -12);
+  assert.equal(issue.details.sourceMusicXmlImmutable, true);
 });
 
-test('polyphonic route refuses low notes that need more than one octave of displacement', () => {
+test('polyphonic route lowers a pinned two-octave high-register source note for review-only provisional TAB', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
+<part id="P1"><measure number="12">
+<attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>F</step><octave>7</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>8</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
+<forward><duration>4</duration></forward>
+</measure></part></score-partwise>`);
+  const original = Buffer.from(bytes);
+
+  const first = processMusicXmlUpload({ fileName: 'high-two-octaves.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'high-two-octaves.musicxml', bytes });
+
+  assert.equal(first.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(first.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.deepEqual(first, second);
+  assert.deepEqual(bytes, original);
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+
+  const displaced = first.canonicalTabResult.noteDispositions[0];
+  assert.equal(displaced.disposition, 'KEEP');
+  assert.equal(displaced.octaveShiftSemitones, -24);
+  assert.equal(displaced.targetPitch.written, 'F5');
+  assert.equal(displaced.targetPitch.midi, 77);
+  assert.equal(displaced.ruleId, 'OCTAVE_NEAREST_IN_REGISTER');
+  assert.equal(first.canonicalTabResult.measures[0].events[0].pitch.written, 'F7');
+
+  const issue = first.preflight.issues.find(
+    (entry) => entry.code === 'HIGH_REGISTER_OCTAVE_DISPLACEMENT_REQUIRES_REVIEW',
+  );
+  assert.ok(issue);
+  assert.equal(issue.details.sourceMidi, 101);
+  assert.equal(issue.details.targetMidi, 77);
+  assert.equal(issue.details.octaveShiftSemitones, -24);
+  assert.equal(issue.details.sourceMusicXmlImmutable, true);
+});
+
+test('polyphonic route keeps high notes requiring more than two octaves fail-closed', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+<part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+<note><pitch><step>C</step><octave>9</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>1</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
+</measure></part></score-partwise>`);
+
+  const result = processMusicXmlUpload({ fileName: 'too-high.musicxml', bytes });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
+  assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_SOURCE_PITCH');
+  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C9');
+});
+
+test('polyphonic route refuses low notes that need more than two octaves of displacement', () => {
   const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
 <part id="P1"><measure number="3">
 <attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
-<note><pitch><step>C</step><octave>1</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>C</step><octave>0</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
 <backup><duration>1</duration></backup>
 <note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
 </measure></part></score-partwise>`);
@@ -538,8 +629,8 @@ test('polyphonic route refuses low notes that need more than one octave of displ
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_SOURCE_PITCH');
-  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C1');
-  assert.equal(result.preflight.issues[0].details.permittedOctaveShiftSemitones, 12);
+  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C0');
+  assert.equal(result.preflight.issues[0].details.permittedOctaveShiftSemitones, 24);
 });
 
 test('upload request shape is fail-closed and the application runtime remains outside package-root authority', () => {
