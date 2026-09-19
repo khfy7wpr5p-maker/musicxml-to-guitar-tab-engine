@@ -305,3 +305,58 @@ test('two-quarter boundary tail remains deterministic review-only provisional TA
   assert.deepEqual(bytes, original);
   assert.deepEqual(first, second);
 });
+
+
+function subQuarterBoundaryTailOverflowScore() {
+  return `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">
+  <measure number="269">
+    <attributes><divisions>4</divisions><time><beats>6</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+    <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>16th</type><staff>1</staff></note>
+  </measure>
+  <measure number="270">
+    <note><rest/><duration>24</duration><voice>1</voice><staff>1</staff></note>
+  </measure>
+  </part></score-partwise>`;
+}
+
+test('sub-quarter boundary tail derives exact 25/16 provisional review extent and restores 6/4', () => {
+  const xml = subQuarterBoundaryTailOverflowScore();
+  const parsed = parseParsedMusicXmlDocument(xml);
+  assert.throws(
+    () => projectParsedMusicXmlToPolyphonicSourceModel(parsed),
+    (error) => error?.code === 'INVALID_MUSICXML'
+      && error?.details?.reason === 'MEASURE_EVENT_OVERFLOW'
+      && error?.details?.onsetDivisions === 24
+      && error?.details?.durationDivisions === 1
+      && error?.details?.endDivisions === 25
+      && error?.details?.expectedDurationDivisions === 24,
+  );
+
+  const projection = projectParsedMusicXmlWithMeasureOverflowReview(parsed);
+  assert.equal(projection.reviewIssues.length, 1);
+  const issue = projection.reviewIssues[0];
+  assert.equal(issue.details.policy, 'BOUNDARY_TAIL_MEASURE_REVIEW');
+  assert.equal(issue.details.sourceExpectedDurationDivisions, 24);
+  assert.equal(issue.details.provisionalMeasureDurationDivisions, 25);
+  assert.deepEqual(issue.details.provisionalTimeSignature, { beats: 25, beatType: 16 });
+  assert.deepEqual(projection.sourceModel.measures[0].timeSignature, { beats: 25, beatType: 16 });
+  assert.equal(projection.sourceModel.measures[0].expectedDurationDivisions, 25);
+  assert.deepEqual(projection.sourceModel.measures[1].timeSignature, { beats: 6, beatType: 4 });
+  assert.equal(projection.sourceModel.measures[1].expectedDurationDivisions, 24);
+
+  const bytes = Buffer.from(xml);
+  const original = Buffer.from(bytes);
+  const first = processMusicXmlUpload({ fileName: 'sub-quarter-tail.musicxml', bytes });
+  const second = processMusicXmlUpload({ fileName: 'sub-quarter-tail.musicxml', bytes });
+  assert.equal(first.status, 'REVIEW_REQUIRED');
+  assert.equal(first.capabilities.generateTab, true);
+  assert.equal(first.artifacts.provisionalTabAvailable, true);
+  assert.equal(first.artifacts.canonicalTabAvailable, false);
+  assert.equal(first.capabilities.playback, 'APPROXIMATE');
+  assert.equal(first.capabilities.export, false);
+  assert.ok(first.musicXml);
+  assert.match(first.musicXml, /<sign>TAB<\/sign>/);
+  assert.deepEqual(bytes, original);
+  assert.deepEqual(first, second);
+});
