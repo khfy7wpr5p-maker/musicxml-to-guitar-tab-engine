@@ -393,8 +393,8 @@
         setText(
           stage09EvidenceStatus,
           stage09EvidenceReady()
-            ? 'Ready: export exact pitch/duration teacher evidence.'
-            : 'Requires at least one eligible POLY_V2 pitch/duration correction.',
+            ? 'Ready: export exact pitch teacher evidence.'
+            : 'Requires at least one eligible POLY_V2 pitch correction.',
         );
       }
     }
