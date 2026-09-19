@@ -110,6 +110,25 @@ test('private Tier B runner executes each local case twice without committing so
   }
 });
 
+test('private Tier B runner accepts progressive one-of-three evidence while keeping Stage 09 on HOLD', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-progressive-'));
+  try {
+    makeCase(dir, 1, ['voice-2', 'duration-or-onset']);
+    const out = path.join(dir, 'audit-output.json');
+    const report = runPrivateTierBAudit({ evidenceDir: dir, out, promote: false });
+
+    assert.equal(report.caseCount, 1);
+    assert.equal(report.corpus.cases.length, 1);
+    assert.equal(report.corpus.eligibleCandidateCount, 1);
+    assert.equal(report.gate.stage09Complete, false);
+    assert.equal(report.gate.summary.realTeacherCorrectionCases, 1);
+    assert.ok(report.gate.gaps.includes('REAL_TEACHER_CORRECTION_CASES_1_OF_3'));
+    assert.equal(fs.existsSync(out), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('promotion fails closed unless the full Stage 09 product gate passes', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-promote-'));
   try {
