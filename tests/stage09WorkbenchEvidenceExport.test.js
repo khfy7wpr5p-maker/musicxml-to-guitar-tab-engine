@@ -1,12 +1,22 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const source = fs.readFileSync(
+  path.join(__dirname, '..', 'web/guitar-tab-workbench/stage09-evidence.js'),
+  'utf8',
+);
+const context = { window: {} };
+vm.createContext(context);
+vm.runInContext(source, context);
 const {
   createStage09WorkbenchEvidenceExport,
   isStage09WorkbenchEvidenceEligible,
-} = require('../web/guitar-tab-workbench/stage09-evidence');
+} = context.window.Stage09WorkbenchEvidence;
 
 function pitchEdit() {
   return {
