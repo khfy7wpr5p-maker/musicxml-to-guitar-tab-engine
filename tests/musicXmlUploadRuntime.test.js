@@ -614,13 +614,13 @@ test('polyphonic route keeps high notes requiring more than two octaves fail-clo
   assert.equal(result.preflight.issues[0].details.writtenPitch, 'C9');
 });
 
-test('polyphonic route refuses low notes that need more than one octave of displacement', () => {
+test('polyphonic route refuses low notes that need more than two octaves of displacement', () => {
   const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
 <part-list><score-part id="P1"><part-name>Range</part-name></score-part></part-list>
 <part id="P1"><measure number="3">
 <attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
-<note><pitch><step>C</step><octave>1</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><pitch><step>C</step><octave>0</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
 <backup><duration>1</duration></backup>
 <note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
 </measure></part></score-partwise>`);
@@ -629,8 +629,8 @@ test('polyphonic route refuses low notes that need more than one octave of displ
   assert.equal(result.status, MUSICXML_UPLOAD_STATUS.BLOCKED);
   assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
   assert.equal(result.preflight.issues[0].code, 'UNPLAYABLE_SOURCE_PITCH');
-  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C1');
-  assert.equal(result.preflight.issues[0].details.permittedOctaveShiftSemitones, 12);
+  assert.equal(result.preflight.issues[0].details.writtenPitch, 'C0');
+  assert.equal(result.preflight.issues[0].details.permittedOctaveShiftSemitones, 24);
 });
 
 test('upload request shape is fail-closed and the application runtime remains outside package-root authority', () => {
