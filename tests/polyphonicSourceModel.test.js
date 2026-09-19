@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const publicApi = require('../src');
+const { createMusicXmlProcessingRuntime } = require('../src/parser/musicxmlSemanticResourceLimits');
 const {
   POLYPHONIC_SOURCE_MODEL_VERSION,
   PolyphonicSourceModelError,
@@ -438,4 +439,32 @@ test('enforces the aggregate event budget before validating an over-budget measu
       return true;
     },
   );
+});
+
+
+test('authentic immutable PolyphonicSourceModel snapshots skip repeated deep validation', () => {
+  const model = createPolyphonicSourceModel(validModel());
+  let deepValidationCheckpoints = 0;
+  const runtime = createMusicXmlProcessingRuntime(
+    {},
+    {
+      clock(phase) {
+        if (String(phase).startsWith('polyphonic-source-model:event')) {
+          deepValidationCheckpoints += 1;
+        }
+        if (phase === 'polyphonic-source-model:index-event') {
+          deepValidationCheckpoints += 1;
+        }
+        return 0;
+      },
+    },
+  );
+
+  const validated = validatePolyphonicSourceModel(model, runtime);
+  assert.strictEqual(validated, model);
+  assert.equal(deepValidationCheckpoints, 0);
+
+  const external = validModel();
+  validatePolyphonicSourceModel(external, runtime);
+  assert.ok(deepValidationCheckpoints > 0);
 });
