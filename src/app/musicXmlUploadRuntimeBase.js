@@ -706,8 +706,20 @@ function graceWriterTransitions(model) {
   })));
 }
 
-const LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES = 12;
+const LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES = Object.freeze([12, 24]);
 const HIGH_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES = Object.freeze([12, 24]);
+
+function boundedLowRegisterOctaveShift(sourceMidi, arrangementRegister) {
+  if (sourceMidi >= arrangementRegister.minimumMidi) return null;
+  for (const semitones of LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES) {
+    const targetMidi = sourceMidi + semitones;
+    if (
+      targetMidi >= arrangementRegister.minimumMidi
+      && targetMidi <= arrangementRegister.maximumMidi
+    ) return semitones;
+  }
+  return null;
+}
 
 function boundedHighRegisterOctaveShift(sourceMidi, arrangementRegister) {
   if (sourceMidi <= arrangementRegister.maximumMidi) return null;
@@ -732,25 +744,24 @@ function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptio
 
       const isRepresentationNote = omitted.has(event.sourceEventId);
       const sourceMidi = event.pitch.midi;
-      const lowRegisterTargetMidi = sourceMidi + LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES;
-      const canRaiseOneOctaveIntoRegister = (
-        sourceMidi < arrangementRegister.minimumMidi
-        && lowRegisterTargetMidi >= arrangementRegister.minimumMidi
-        && lowRegisterTargetMidi <= arrangementRegister.maximumMidi
+      const lowRegisterOctaveShift = boundedLowRegisterOctaveShift(
+        sourceMidi,
+        arrangementRegister,
       );
+      const canRaiseBoundedOctavesIntoRegister = lowRegisterOctaveShift !== null;
       const highRegisterOctaveShift = boundedHighRegisterOctaveShift(
         sourceMidi,
         arrangementRegister,
       );
       const canLowerBoundedOctavesIntoRegister = highRegisterOctaveShift !== null;
       const canDisplaceIntoRegister = (
-        canRaiseOneOctaveIntoRegister || canLowerBoundedOctavesIntoRegister
+        canRaiseBoundedOctavesIntoRegister || canLowerBoundedOctavesIntoRegister
       );
 
       if (!isRepresentationNote) {
         if (
           (sourceMidi > arrangementRegister.maximumMidi && !canLowerBoundedOctavesIntoRegister)
-          || (sourceMidi < arrangementRegister.minimumMidi && !canRaiseOneOctaveIntoRegister)
+          || (sourceMidi < arrangementRegister.minimumMidi && !canRaiseBoundedOctavesIntoRegister)
         ) {
           throw new MusicXmlUploadRuntimeError(
             'Source note is outside the configured guitar arrangement register and cannot be displaced by the bounded octave profile.',
@@ -766,7 +777,7 @@ function buildGuitarArrangementDecisions(sourceModel, normalization, guitarOptio
               maximumMidi: arrangementRegister.maximumMidi,
               permittedOctaveShiftSemitones: sourceMidi > arrangementRegister.maximumMidi
                 ? HIGH_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES.at(-1)
-                : LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES,
+                : LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES.at(-1),
             },
           );
         }
@@ -834,7 +845,7 @@ function assertAuthorizedGuitarArrangement(
     }
 
     const expectedOctaveShiftSemitones = event.pitch.midi < arrangementRegister.minimumMidi
-      ? LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES
+      ? boundedLowRegisterOctaveShift(event.pitch.midi, arrangementRegister)
       : event.pitch.midi > arrangementRegister.maximumMidi
         ? boundedHighRegisterOctaveShift(event.pitch.midi, arrangementRegister)
         : 0;
@@ -868,6 +879,61 @@ function assertAuthorizedGuitarArrangement(
   }
 }
 
+
+function lowRegisterOctaveDisplacementReviewIssues(
+  sourceModel,
+  canonicalTabResult,
+  guitarOptions = {},
+) {
+  const arrangementRegister = createGuitarArrangementRegister(guitarOptions);
+  const dispositionsById = new Map(
+    canonicalTabResult.noteDispositions.map((entry) => [entry.sourceEventId, entry]),
+  );
+  const issues = [];
+
+  for (const measure of sourceModel.measures) {
+    for (const event of measure.events) {
+      if (event.type !== 'note' || event.pitch.midi >= arrangementRegister.minimumMidi) continue;
+      const disposition = dispositionsById.get(event.sourceEventId);
+      if (
+        !disposition
+        || disposition.disposition !== 'KEEP'
+        || !LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES.includes(
+          disposition.octaveShiftSemitones,
+        )
+        || disposition.octaveShiftSemitones <= LOW_REGISTER_OCTAVE_DISPLACEMENT_SEMITONES[0]
+        || !disposition.targetPitch
+      ) {
+        continue;
+      }
+      issues.push(Object.freeze({
+        severity: 'error',
+        category: 'semantic',
+        code: 'LOW_REGISTER_OCTAVE_DISPLACEMENT_REQUIRES_REVIEW',
+        message: 'Low-register source pitch was raised by a bounded octave displacement only in the guitar arrangement.',
+        reviewDisposition: 'REVIEW_REQUIRED',
+        location: Object.freeze({
+          measure: measure.number,
+          measureIndex: measure.index,
+          eventIndex: event.sourceOrder,
+          sourceEventId: event.sourceEventId,
+        }),
+        details: Object.freeze({
+          feature: 'register-displacement',
+          reason: 'LOW_REGISTER_OCTAVE_DISPLACEMENT',
+          reviewDisposition: 'REVIEW_REQUIRED',
+          writtenPitch: event.pitch.written,
+          sourceMidi: event.pitch.midi,
+          targetMidi: disposition.targetPitch.midi,
+          octaveShiftSemitones: disposition.octaveShiftSemitones,
+          sourceMusicXmlImmutable: true,
+        }),
+      }));
+    }
+  }
+
+  return Object.freeze(issues);
+}
 
 function highRegisterOctaveDisplacementReviewIssues(
   sourceModel,
@@ -1314,11 +1380,18 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
       && (graceProjection.pitchOctaveShift !== 0 || graceProjection.ignoredFeatures.length > 0)
       ? [runtimeCompatibilityIssue(graceProjection)]
       : [];
-    const registerReviewIssues = highRegisterOctaveDisplacementReviewIssues(
-      sourceModel,
-      conversion.canonicalTabResult,
-      guitarOptions,
-    );
+    const registerReviewIssues = [
+      ...lowRegisterOctaveDisplacementReviewIssues(
+        sourceModel,
+        conversion.canonicalTabResult,
+        guitarOptions,
+      ),
+      ...highRegisterOctaveDisplacementReviewIssues(
+        sourceModel,
+        conversion.canonicalTabResult,
+        guitarOptions,
+      ),
+    ];
     const semanticReviewIssues = [
       ...(graceProjection?.reviewIssues || []),
       ...registerReviewIssues,
