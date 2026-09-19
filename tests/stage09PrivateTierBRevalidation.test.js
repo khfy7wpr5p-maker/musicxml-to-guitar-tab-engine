@@ -22,6 +22,7 @@ function makeCase(dir, index, coverageTags) {
   const sourceName = `case-${index}.musicxml`;
   const correctedName = `case-${index}.corrected.musicxml`;
   const packetName = `case-${index}.correction-packet.json`;
+  const referenceName = `reference-${index}.pdf`;
   const source = Buffer.from(FIXTURE);
   const sourceText = source.toString('utf8');
   const corrected = Buffer.from(sourceText.replace(
@@ -31,6 +32,8 @@ function makeCase(dir, index, coverageTags) {
   assert.notEqual(sha256(source), sha256(corrected));
   fs.writeFileSync(path.join(dir, sourceName), source);
   fs.writeFileSync(path.join(dir, correctedName), corrected);
+  const reference = Buffer.from(`%PDF-1.4\n% Stage 09 private test reference ${index}\n`);
+  fs.writeFileSync(path.join(dir, referenceName), reference);
   const packet = {
     documentType: 'Stage09TeacherCorrectionPreparedCase',
     contractVersion: '1.0.0',
@@ -46,9 +49,9 @@ function makeCase(dir, index, coverageTags) {
       immutable: true,
     },
     reference: {
-      fileName: `reference-${index}.pdf`,
-      sha256: 'a'.repeat(64),
-      byteLength: 1,
+      fileName: referenceName,
+      sha256: sha256(reference),
+      byteLength: reference.byteLength,
       referenceClass: 'TEST_ONLY',
     },
     corrected: {
