@@ -1,6 +1,6 @@
 # R9 Melody/Bass Piano Arrangement
 
-Status: local implementation and real-corpus verification complete; protected CI and merge evidence pending.
+Status: local implementation, real-corpus verification and protected CI complete; merge evidence pending.
 
 Implementation branch: `r9/melody-bass-arrangement-implementation`
 
@@ -64,10 +64,22 @@ The CLI corpus audit reports teacher-editability as `0/11` because that audit ru
 - A3 candidate pre-count integration is covered explicitly: `GUITAR_VOICING_CANDIDATE_LIMIT_EXCEEDED` remains a bounded R9 retry reason, so a successfully recovered provisional artifact cannot be hidden by the capability validator.
 - Sustained physical-search complexity uses the same fail-closed evidence rule: `SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW` is accepted only as a recorded rejected retry before a smaller cap is physically selected.
 
-An independent read-only review found and caused two pre-PR corrections: incomplete ordinary tie chains now trigger deterministic re-ranking of every affected onset, and the `1.1.0` capability validator now recomputes disposition counts/coverage and validates exact reason, source-identity and retry-prefix evidence.
+An independent read-only review found and caused three pre-merge corrections: incomplete ordinary tie chains now trigger deterministic re-ranking of every affected onset; the `1.1.0` capability validator recomputes disposition counts/coverage and validates exact reason, source-identity and retry-prefix evidence; and bounded sustained-search complexity retries can no longer produce a valid artifact that the capability layer hides.
+
+## Protected CI evidence
+
+Pull request [#349](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/349) passed every required workflow on exact implementation head `3d54f49ff5375d8c345e71529b4164fcd4126f5e`:
+
+- Tests run `1752`: success.
+- MusicXML Compatibility run `1370`: success, including the browser Workbench hardening smoke.
+- Runtime Staging E2E run `506`: success.
+- A3 Real Piano Corpus Audit run `156`: success.
+- Stage 09 Real Corpus Audit run `206`: success.
+
+The first compatibility attempt exposed an R8-era browser assertion that still expected three unassigned notes. R9 correctly preassigned five of six notes, leaving one. The smoke now selects that exact remaining source note, assigns string 4/fret 10, and verifies all six selected physical positions before passing.
 
 ## Acceptance and remaining gate
 
 Local acceptance requires deterministic artifact identity, immutable source bytes, no POLY-to-MONO routing downgrade, valid R9 reason/attempt evidence, renderer-visible TAB for all eleven pinned scores, and no per-file regression against R8. These conditions pass locally.
 
-The remaining release step is protected CI on the exact pull-request head. Merge must not be represented as complete until required checks and branch policy permit it.
+The remaining release step is merge approval for PR #349. Merge must not be represented as complete until branch policy permits it and protected `main` contains the R9 tree.
