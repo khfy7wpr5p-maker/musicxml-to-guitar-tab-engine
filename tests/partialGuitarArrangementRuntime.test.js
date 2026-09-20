@@ -282,6 +282,36 @@ function repeatedCandidateLimitDyads(measureCount = 500) {
 </score-partwise>`;
 }
 
+function sustainedComplexityFixture(measureCount = 80) {
+  const pitches = [['C', 4], ['E', 4], ['G', 4], ['B', 4]];
+  const measures = [];
+
+  for (let measureIndex = 0; measureIndex < measureCount; measureIndex += 1) {
+    let events = '';
+    for (let voiceIndex = 0; voiceIndex < pitches.length; voiceIndex += 1) {
+      if (voiceIndex > 0) {
+        events += '<backup><duration>16</duration></backup>';
+        events += `<forward><duration>${voiceIndex}</duration></forward>`;
+      }
+      const [step, octave] = pitches[voiceIndex];
+      events += `<note>
+        <pitch><step>${step}</step><octave>${octave}</octave></pitch>
+        <duration>${16 - voiceIndex}</duration>
+        <voice>${voiceIndex + 1}</voice><staff>1</staff>
+      </note>`;
+    }
+    measures.push(`<measure number="${measureIndex + 1}">
+      ${measureIndex === 0 ? '<attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>' : ''}
+      ${events}
+    </measure>`);
+  }
+
+  return `<score-partwise version="4.0">
+    <part-list><score-part id="P1"><part-name>Sustained complexity</part-name></score-part></part-list>
+    <part id="P1">${measures.join('')}</part>
+  </score-partwise>`;
+}
+
 test('aggregate voicing candidate ceiling recovers as bounded provisional TAB instead of hard blocking', () => {
   const xml = repeatedCandidateLimitDyads();
   const request = {
@@ -309,4 +339,32 @@ test('aggregate voicing candidate ceiling recovers as bounded provisional TAB in
   assert.equal(first.artifacts.canonicalTabAvailable, false);
   assert.equal(first.sourceArtifact.rendererMusicXml, xml);
   assert.deepEqual(first, second);
+});
+
+test('sustained-search complexity recovery remains an authorized provisional TAB', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'sustained-complexity.musicxml',
+    bytes: Buffer.from(sustainedComplexityFixture()),
+  });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(result.preflight.issues[0].code, 'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW');
+  assert.equal(
+    result.preflight.issues[0].details.reason,
+    'POSITION_STATE_COMPLEXITY_EXCEEDS_EXACT_SEARCH_BOUNDARY',
+  );
+  assert.equal(result.arrangementArtifact.recovery.retainedNoteCap, 1);
+  assert.deepEqual(
+    result.arrangementArtifact.recovery.attempts.map((attempt) => attempt.errorCode),
+    [
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      'SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW',
+      null,
+    ],
+  );
+  assert.equal(result.capabilities.generateTab, true);
+  assert.equal(result.artifacts.provisionalTabAvailable, true);
 });

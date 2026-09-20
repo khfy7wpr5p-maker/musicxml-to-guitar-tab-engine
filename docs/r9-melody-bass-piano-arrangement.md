@@ -4,7 +4,7 @@ Status: local implementation and real-corpus verification complete; protected CI
 
 Implementation branch: `r9/melody-bass-arrangement-implementation`
 
-Reviewed implementation evidence commit: `cc7001bd899fb68def924f4dddff35020ffeca8e`
+Reviewed implementation evidence commit: `8a6d4b1c05f0920a1535a91b0f6a19a801ac6627`
 
 ## Goal and boundary
 
@@ -55,13 +55,14 @@ The CLI corpus audit reports teacher-editability as `0/11` because that audit ru
 
 ## Local verification
 
-- `npm test`: 1,673 passed, 0 failed, 0 skipped after rebasing onto A3-enabled `main` at `be7b77e7cc26669559b0da3965604a9484f50986`.
-- Focused R9 policy, candidate-limit recovery, artifact, R8 edit, runtime-host, Workbench and A3 integration tests: 64 passed, 0 failed.
+- `npm test`: 1,674 passed, 0 failed, 0 skipped after rebasing onto A3-enabled `main` at `be7b77e7cc26669559b0da3965604a9484f50986`.
+- Focused R9 policy, candidate-limit and sustained-complexity recovery, artifact, R8 edit, runtime-host, Workbench and A3 integration tests: 65 passed, 0 failed.
 - `alphaTabMusicXmlSmoke.mjs`: passed with alphaTab `1.8.4`.
 - `alphaTabV2MusicXmlSmoke.mjs`: passed with `CanonicalTabResult 2.0.0` and rendered SVG fragments.
 - `alphaTabGuitarTabPolyV2WorkbenchSmoke.mjs` and `alphaTabRuntimeHostPolyV2E2e.mjs`: not executed locally because `puppeteer-core` is absent from this environment. These are not counted as local passes and remain required in protected CI.
 - Two post-review Stage 09 runs produced byte-identical audit JSON with contract `1.3.0`, 11 deterministic files, 11 immutable sources, 11 valid output artifacts, 2,801 assigned notes, zero POLY-to-MONO downgrade and zero hard blocks.
 - A3 candidate pre-count integration is covered explicitly: `GUITAR_VOICING_CANDIDATE_LIMIT_EXCEEDED` remains a bounded R9 retry reason, so a successfully recovered provisional artifact cannot be hidden by the capability validator.
+- Sustained physical-search complexity uses the same fail-closed evidence rule: `SUSTAINED_PHYSICAL_SEARCH_REQUIRES_REVIEW` is accepted only as a recorded rejected retry before a smaller cap is physically selected.
 
 An independent read-only review found and caused two pre-PR corrections: incomplete ordinary tie chains now trigger deterministic re-ranking of every affected onset, and the `1.1.0` capability validator now recomputes disposition counts/coverage and validates exact reason, source-identity and retry-prefix evidence.
 
