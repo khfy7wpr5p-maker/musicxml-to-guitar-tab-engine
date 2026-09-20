@@ -1,6 +1,6 @@
 # R9 Melody/Bass Piano Arrangement
 
-Status: local implementation, real-corpus verification and protected CI complete; merge evidence pending.
+Status: merged to protected `main` at `8b2aec65fd5812ee0a4a519bbcbe8d76daa0178e`; real-corpus verification and protected CI complete.
 
 Implementation branch: `r9/melody-bass-arrangement-implementation`
 
@@ -68,21 +68,21 @@ An independent read-only review found and caused three pre-merge corrections: in
 
 ## Protected CI evidence
 
-Pull request [#349](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/349) passed every required workflow on protected head `80233195fda4c953eafa6df1ac969aa998937c8d`:
+Pull request [#349](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/349) passed every required workflow on final protected PR head `0cc122c12cd2504ea74780ad1c331c0fb2467556`:
 
-- Tests run `1753`: success.
-- MusicXML Compatibility run `1371`: success, including the browser Workbench hardening smoke.
-- Runtime Staging E2E run `507`: success.
-- A3 Real Piano Corpus Audit run `157`: success.
-- Stage 09 Real Corpus Audit run `207`: success.
+- Tests run `1754`: success.
+- MusicXML Compatibility run `1372`: success, including the browser Workbench hardening smoke.
+- Runtime Staging E2E run `508`: success.
+- A3 Real Piano Corpus Audit run `158`: success.
+- Stage 09 Real Corpus Audit run `208`: success.
 - Vercel status: success.
 
-This SHA is the last fully protected-CI-verified R9 implementation head before this documentation-only evidence refresh; no production/runtime/test source is changed by the refresh commit.
+The PR was squash-merged to protected `main` at `8b2aec65fd5812ee0a4a519bbcbe8d76daa0178e`. The post-merge closeout changes only documentation evidence; production/runtime/test source remains the R9 tree validated on the final PR head.
 
 The first compatibility attempt exposed an R8-era browser assertion that still expected three unassigned notes. R9 correctly preassigned five of six notes, leaving one. The smoke now selects that exact remaining source note, assigns string 4/fret 10, and verifies all six selected physical positions before passing.
 
-## Acceptance and remaining gate
+## Acceptance and closeout
 
-Local acceptance requires deterministic artifact identity, immutable source bytes, no POLY-to-MONO routing downgrade, valid R9 reason/attempt evidence, renderer-visible TAB for all eleven pinned scores, and no per-file regression against R8. These conditions pass locally.
+Acceptance requires deterministic artifact identity, immutable source bytes, no POLY-to-MONO routing downgrade, valid R9 reason/attempt evidence, renderer-visible TAB for all eleven pinned scores, and no per-file regression against R8. These conditions passed on the final protected PR head.
 
-The remaining release step is merge approval for PR #349. Merge must not be represented as complete until branch policy permits it and protected `main` contains the R9 tree.
+PR #349 is merged. R9 is complete at merge SHA `8b2aec65fd5812ee0a4a519bbcbe8d76daa0178e`. The remaining product-level gate is Stage 09 Tier-B authentic teacher-correction evidence; it is independent from R9 merge completion.
