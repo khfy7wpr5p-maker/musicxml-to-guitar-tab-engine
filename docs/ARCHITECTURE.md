@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -17,7 +17,7 @@ The application score-state contract is also independent from route: `PASS`, `RE
 
 The application source-rendering artifact is independent from canonical TAB authority. After XML/MXL safety and bounded parsing succeed, `MusicXmlSourceArtifact 1.0.0` retains safety-normalized renderer MusicXML even when a later projection, arrangement or solver boundary stops conversion. It never grants TAB or export authority. See [`r1-source-artifact-retention.md`](r1-source-artifact-retention.md).
 
-Dense-score recovery has a second non-canonical boundary. `PartialGuitarTabArrangement 1.0.0` may turn the exact allow-listed PA-8 assignment-limit failure into a renderer-visible provisional TAB with one explicit disposition per source note. It never grants export authority and never replaces the immutable source or `CanonicalTabResult`. See [`r2-partial-guitar-arrangement.md`](r2-partial-guitar-arrangement.md).
+Dense-score recovery has a second non-canonical boundary. `PartialGuitarTabArrangement 1.1.0` may turn exact allow-listed physical-selection failures into renderer-visible provisional TAB with one explicit disposition per source note and bounded R9 attempt evidence. It never grants export authority and never replaces the immutable source or `CanonicalTabResult`. See [`r2-partial-guitar-arrangement.md`](r2-partial-guitar-arrangement.md) and [`r9-melody-bass-piano-arrangement.md`](r9-melody-bass-piano-arrangement.md).
 
 R3 broadens the same review-only boundary to exact, bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense physical-selection failures. The derived projection records every approximation and remains independent from the immutable source artifact. See [`r3-review-projection-continuation.md`](r3-review-projection-continuation.md).
 
@@ -53,7 +53,7 @@ Canonical TAB Result
 MusicXML / TAB Writer
 ```
 
-When the complete path reaches an exact recoverable physical-selection boundary, the review branch applies deterministic sparse melody reduction, reuses the same bounded physical pipeline, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. Before projection, R3 may also isolate exact non-executable navigation/repeat uncertainty or clamp a repairable positive measure overflow in the derived document. Other failures continue through the ordinary review or fail-closed paths.
+When the complete path reaches an exact recoverable physical-selection boundary, the review branch applies the deterministic R9 melody/bass policy, reuses the same bounded physical pipeline, and returns `REVIEW_REQUIRED + PartialGuitarTabArrangement + provisional writer MusicXML`. The policy tries fixed retained-note caps from six through one, preserves explicit teacher assignments, prefers outer melody/bass anchors, retains playable inner voices when capacity permits, and records every reduction and attempt. The one-note fallback is truly monophonic across overlapping durations. Before projection, R3 may also isolate exact non-executable navigation/repeat uncertainty or clamp a repairable positive measure overflow in the derived document. Other failures continue through the ordinary review or fail-closed paths.
 
 R4 adds no canonical authority. A successful partial recovery also emits `ReviewEditableTabProjection 1.0.0`, bound to the immutable upload SHA and containing the original measure/event/group identities plus explicit `KEEP`/`OMIT` renderer dispositions. The Workbench host may present that model to its legacy PASS-gated selection core, but retains the authoritative `REVIEW_REQUIRED` result. An accepted pitch command is validated against source SHA, event location and complete simultaneous-group membership, replayed cumulatively from the original bytes, then sent through the same bounded arrangement/writer path. If full selection remains impossible, the result stays provisional and non-exportable.
 
@@ -65,11 +65,13 @@ R7 versions the POLY_V2 edit result contract to `1.3.0` and makes a valid retain
 
 R8 versions the POLY_V2 edit result contract to `1.4.0`, `ReviewEditableTabProjection` to `1.1.0`, the additive upload-result schema to `1.5.0`, and the capability contract to `1.3.0`. A partial arrangement now marks only untied `UNASSIGNED / BOUNDED_GUITAR_REDUCTION` source notes as `assignmentEligible`. The same-page Fingering panel lists those source identities even though they are absent from renderer TAB. An exact teacher-selected string/fret is accepted only with explicit `assignmentMode: ASSIGN_OMITTED`; regeneration preserves every prior assigned position and must retain the requested note. Semantic `OMITTED` notes, grace/tie cases, pitch-plus-assignment, impossible positions and over-capacity shapes remain closed. See [`r8-omitted-note-assignment.md`](r8-omitted-note-assignment.md).
 
+R9 replaces the sparse dense-piano fallback with `MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0`. `PartialGuitarTabArrangement 1.1.0` and `ReviewEditableTabProjection 1.1.0` retain source identities and expose exact reason codes for melody, bass, inner-voice, teacher-assignment, capacity and duplicate-pitch decisions. The Workbench renders these explanations on the existing same-page editing surface. The arrangement remains provisional: teacher edits rerun the bounded production pipeline, while canonical/export authority remains closed until ordinary validation succeeds. See [`r9-melody-bass-piano-arrangement.md`](r9-melody-bass-piano-arrangement.md).
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
 - source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
-- partial arrangement recovery: `src/app/partialGuitarArrangement.js`;
+- partial arrangement recovery and R9 voice policy: `src/app/partialGuitarArrangement.js`, `src/music/melodyBassArrangementPolicy.js`;
 - provisional review selection and pitch/position/duration/tie-chain/explicit-unassigned-note regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
 - repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;
 - guitar configuration provenance: `src/parser/musicXmlGuitarConfigurationProvenance.js`, `src/app/musicXmlUploadRuntime.js`;

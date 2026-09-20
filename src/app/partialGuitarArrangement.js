@@ -5,6 +5,10 @@ const crypto = require('node:crypto');
 const { EngineError } = require('../errors/engineError');
 const { createPolyphonicSourceModel } = require('../music/polyphonicSourceModel');
 const { createDeterministicReductionPlan } = require('../music/deterministicReductionPlan');
+const {
+  RETAINED_NOTE_CAPS,
+  createMelodyBassArrangementSelection,
+} = require('../music/melodyBassArrangementPolicy');
 const { createSustainTieGraph } = require('../music/sustainTieGraph');
 const { createSimultaneousEventModel } = require('../music/simultaneousEventModel');
 const { createCanonicalTabResultV2 } = require('../tab/canonicalTabResultV2');
@@ -12,13 +16,12 @@ const {
   serializeCanonicalTabResultV2ToMusicXml,
 } = require('../writers/canonicalTabMusicXmlWriterV2');
 
-const PARTIAL_GUITAR_ARRANGEMENT_VERSION = '1.0.0';
+const PARTIAL_GUITAR_ARRANGEMENT_VERSION = '1.1.0';
 const PARTIAL_GUITAR_ARRANGEMENT_DOCUMENT_TYPE = 'PartialGuitarTabArrangement';
 const PARTIAL_GUITAR_ARRANGEMENT_AUTHORITY = 'PROVISIONAL_REVIEW_ONLY';
-const PARTIAL_GUITAR_ARRANGEMENT_POLICY = 'MELODY_BASS_BOUNDED_REDUCTION_1.0';
+const PARTIAL_GUITAR_ARRANGEMENT_POLICY = 'MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0';
 const REVIEW_EDITABLE_PROJECTION_VERSION = '1.1.0';
 const REVIEW_EDITABLE_PROJECTION_DOCUMENT_TYPE = 'ReviewEditableTabProjection';
-const RETAINED_NOTE_CAPS = Object.freeze([3, 2, 1]);
 
 function isRecoverableArrangementFailure(error) {
   if (error?.code === 'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED') return true;
@@ -51,125 +54,6 @@ function sourceNotes(sourceModel) {
 
 function graceNotes(graceOrnamentGroups) {
   return (graceOrnamentGroups || []).flatMap((group) => group.notes);
-}
-
-function selectOuterRegisterNotes(sourceModel, reduction, cap, runtime, tieGraph, forcedSourceEventIds) {
-  const instructionById = new Map(
-    reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
-  );
-  const selected = new Set();
-
-  for (let measureIndex = 0; measureIndex < sourceModel.measures.length; measureIndex += 1) {
-    const measure = sourceModel.measures[measureIndex];
-    const byOnset = new Map();
-    for (const event of measure.events) {
-      if (event.type !== 'note') continue;
-      const instruction = instructionById.get(event.sourceEventId);
-      if (!instruction || instruction.disposition !== 'KEEP') continue;
-      const entries = byOnset.get(event.onsetDivisions) || [];
-      entries.push({ event, instruction });
-      byOnset.set(event.onsetDivisions, entries);
-    }
-
-    for (const [onsetDivisions, entries] of byOnset) {
-      checkpoint(runtime, 'partial-arrangement:select-group', {
-        measureIndex,
-        onsetDivisions,
-        sourceNoteCount: entries.length,
-        retainedNoteCap: cap,
-      });
-      const descending = [...entries].sort((left, right) => (
-        right.event.pitch.midi - left.event.pitch.midi
-        || left.event.sourceOrder - right.event.sourceOrder
-      ));
-      const targetMidis = new Set();
-      for (const candidate of descending) {
-        if (!forcedSourceEventIds.has(candidate.event.sourceEventId)) continue;
-        selected.add(candidate.event.sourceEventId);
-        targetMidis.add(candidate.instruction.targetMidi);
-      }
-      let highIndex = 0;
-      let lowIndex = descending.length - 1;
-      while (highIndex <= lowIndex && targetMidis.size < cap) {
-        const candidates = [descending[highIndex]];
-        highIndex += 1;
-        if (highIndex <= lowIndex) {
-          candidates.push(descending[lowIndex]);
-          lowIndex -= 1;
-        }
-        for (const candidate of candidates) {
-          if (targetMidis.size >= cap) break;
-          const targetMidi = candidate.instruction.targetMidi;
-          if (targetMidis.has(targetMidi)) continue;
-          targetMidis.add(targetMidi);
-          selected.add(candidate.event.sourceEventId);
-        }
-      }
-    }
-  }
-
-  // A tied logical note is indivisible. If any segment was reduced, reduce the
-  // complete chain rather than emitting a broken or pitch-changing tie.
-  for (const chain of tieGraph?.chains || []) {
-    if (chain.segments.some((segment) => !selected.has(segment.sourceEventId))) {
-      for (const segment of chain.segments) selected.delete(segment.sourceEventId);
-    }
-  }
-  return selected;
-}
-
-function selectMonophonicMelodyNotes(sourceModel, reduction, runtime, tieGraph, forcedSourceEventIds) {
-  const instructionById = new Map(
-    reduction.instructions.map((instruction) => [instruction.sourceEventId, instruction]),
-  );
-  const selected = new Set();
-
-  for (let measureIndex = 0; measureIndex < sourceModel.measures.length; measureIndex += 1) {
-    const measure = sourceModel.measures[measureIndex];
-    const byOnset = new Map();
-    for (const event of measure.events) {
-      if (event.type !== 'note') continue;
-      const instruction = instructionById.get(event.sourceEventId);
-      if (!instruction || instruction.disposition !== 'KEEP') continue;
-      const entries = byOnset.get(event.onsetDivisions) || [];
-      entries.push({ event, instruction });
-      byOnset.set(event.onsetDivisions, entries);
-    }
-
-    let activeUntil = 0;
-    for (const [onsetDivisions, entries] of [...byOnset].sort((left, right) => left[0] - right[0])) {
-      checkpoint(runtime, 'partial-arrangement:select-monophonic-group', {
-        measureIndex,
-        onsetDivisions,
-        sourceNoteCount: entries.length,
-      });
-      if (onsetDivisions < activeUntil) continue;
-      const forced = entries.filter((entry) => forcedSourceEventIds.has(entry.event.sourceEventId));
-      if (forced.length > 0) {
-        for (const entry of forced) selected.add(entry.event.sourceEventId);
-        activeUntil = Math.max(...forced.map(
-          (entry) => onsetDivisions + entry.event.durationDivisions,
-        ));
-        continue;
-      }
-      const chosen = [...entries].sort((left, right) => (
-        right.instruction.targetMidi - left.instruction.targetMidi
-        || left.event.sourceOrder - right.event.sourceOrder
-      ))[0];
-      selected.add(chosen.event.sourceEventId);
-      activeUntil = onsetDivisions + chosen.event.durationDivisions;
-    }
-  }
-
-  // Keep tie chains as all-or-nothing provenance units, matching the chord
-  // reduction path. Removing an incomplete chain is safer than inventing a
-  // detached note in the provisional melody line.
-  for (const chain of tieGraph?.chains || []) {
-    if (chain.segments.some((segment) => !selected.has(segment.sourceEventId))) {
-      for (const segment of chain.segments) selected.delete(segment.sourceEventId);
-    }
-  }
-  return selected;
 }
 
 function reducedSourceModel(sourceModel, selected, runtime, preserveTies) {
@@ -307,6 +191,8 @@ function buildArtifact({
   canonicalTabResult,
   musicXml,
   retainedNoteCap,
+  attempts,
+  reasonBySourceEventId,
   originalError,
   graceOrnamentGroups = [],
   tiesNormalizedForReview = false,
@@ -346,7 +232,7 @@ function buildArtifact({
         targetPitch: null,
         octaveShiftSemitones: null,
         selectedPosition: null,
-        reasonCode: 'BOUNDED_GUITAR_REDUCTION',
+        reasonCode: reasonBySourceEventId[event.sourceEventId],
       });
     }
     const octaveShifted = selectedDisposition.octaveShiftSemitones !== 0;
@@ -357,7 +243,9 @@ function buildArtifact({
       targetPitch: pitchSnapshot(selectedDisposition.targetPitch),
       octaveShiftSemitones: selectedDisposition.octaveShiftSemitones,
       selectedPosition: Object.freeze({ ...selectedDisposition.selectedPosition }),
-      reasonCode: octaveShifted ? 'OCTAVE_NEAREST_IN_REGISTER' : 'PRESERVE_IN_REGISTER',
+      reasonCode: octaveShifted
+        ? 'OCTAVE_NEAREST_IN_REGISTER'
+        : reasonBySourceEventId[event.sourceEventId],
     });
   });
   const graceNoteDispositions = graceNotes(graceOrnamentGroups).map((event) => Object.freeze({
@@ -396,6 +284,7 @@ function buildArtifact({
       originalErrorCode: originalError.code,
       originalSourceGroupId: originalError.details?.sourceGroupId || null,
       retainedNoteCap,
+      attempts: Object.freeze(attempts.map((attempt) => Object.freeze({ ...attempt }))),
       unassignedGraceNoteCount: graceNoteDispositions.length,
       tiesNormalizedForReview,
     }),
@@ -473,6 +362,13 @@ function isProcessingStop(error) {
     || error?.code === 'PROCESSING_DEADLINE_EXCEEDED';
 }
 
+function isRetryableCandidateFailure(error) {
+  if (isRecoverableArrangementFailure(error)) return true;
+  return error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
+    && (error?.details?.reason === 'POSITION_OVERRIDE_NOT_PLAYABLE'
+      || error?.details?.reason === 'POSITION_OVERRIDE_NOT_RETAINED');
+}
+
 function recoverPartialGuitarArrangement({
   sourceModel,
   arrangementDecisions,
@@ -483,7 +379,7 @@ function recoverPartialGuitarArrangement({
   originalError,
   graceOrnamentGroups = [],
 }) {
-  if (!isRecoverableArrangementFailure(originalError)) return null;
+  if (!isRetryableCandidateFailure(originalError)) return null;
   checkpoint(processing, 'partial-arrangement:start', { originalErrorCode: originalError.code });
   let tieGraph = null;
   const recoveryReviewIssues = [];
@@ -521,25 +417,18 @@ function recoverPartialGuitarArrangement({
   );
   const forcedSourceEventIds = new Set(Object.keys(guitarOptions.positionOverrides || {}));
   let positionOverrideError = null;
+  const attempts = [];
 
   for (const retainedNoteCap of RETAINED_NOTE_CAPS) {
     try {
-      const selected = retainedNoteCap === 1
-        ? selectMonophonicMelodyNotes(
-          sourceModel,
-          reduction,
-          processing,
-          tieGraph,
-          forcedSourceEventIds,
-        )
-        : selectOuterRegisterNotes(
-          sourceModel,
-          reduction,
-          retainedNoteCap,
-          processing,
-          tieGraph,
-          forcedSourceEventIds,
-        );
+      const selection = createMelodyBassArrangementSelection({
+        sourceModel,
+        reduction,
+        tieGraph,
+        retainedNoteCap,
+        forcedSourceEventIds,
+      }, processing);
+      const selected = new Set(selection.selectedSourceEventIds);
       assertPositionOverridesRetained(selected, guitarOptions);
       const reduced = reducedSourceModel(sourceModel, selected, processing, tieGraph !== null);
       const decisions = reducedDecisions(reduced.model, reduced.originalByReducedId, instructionById);
@@ -557,6 +446,11 @@ function recoverPartialGuitarArrangement({
         partialWriterOptions,
         processing,
       );
+      const successfulAttempts = [...attempts, Object.freeze({
+        retainedNoteCap,
+        outcome: 'SELECTED',
+        errorCode: null,
+      })];
       const arrangementArtifact = buildArtifact({
         sourceModel,
         sourceUploadSha256,
@@ -566,6 +460,8 @@ function recoverPartialGuitarArrangement({
         canonicalTabResult,
         musicXml,
         retainedNoteCap,
+        attempts: successfulAttempts,
+        reasonBySourceEventId: selection.reasonBySourceEventId,
         originalError,
         graceOrnamentGroups,
         tiesNormalizedForReview: tieGraph === null,
@@ -594,11 +490,17 @@ function recoverPartialGuitarArrangement({
     } catch (error) {
       if (isProcessingStop(error)) throw error;
       if (error instanceof TypeError && /Review projection/.test(error.message)) throw error;
+      if (!isRetryableCandidateFailure(error)) throw error;
       if (
         error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
         && (error?.details?.reason === 'POSITION_OVERRIDE_NOT_PLAYABLE'
           || error?.details?.reason === 'POSITION_OVERRIDE_NOT_RETAINED')
       ) positionOverrideError = error;
+      attempts.push(Object.freeze({
+        retainedNoteCap,
+        outcome: 'REJECTED',
+        errorCode: error.code,
+      }));
       checkpoint(processing, 'partial-arrangement:retry', {
         retainedNoteCap,
         errorCode: error?.code || 'UNCLASSIFIED_ERROR',

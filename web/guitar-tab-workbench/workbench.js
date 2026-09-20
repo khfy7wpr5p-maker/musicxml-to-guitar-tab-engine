@@ -5,6 +5,18 @@
   const MAX_REVISION_COMMANDS = 128;
   const ALLOWED_EXTENSIONS = ['.musicxml', '.xml'];
   const UPLOAD_RESULT_STATUSES = new Set(['PASS', 'REVIEW_REQUIRED', 'BLOCKED']);
+  const ARRANGEMENT_REASON_LABELS = Object.freeze({
+    MELODY_ANCHOR_RETAINED: 'Melody retained',
+    BASS_ANCHOR_RETAINED: 'Bass retained',
+    INNER_VOICE_RETAINED: 'Inner voice retained',
+    TEACHER_ASSIGNMENT_RETAINED: 'Teacher position retained',
+    GUITAR_CAPACITY_REDUCTION: 'Reduced for playable guitar texture',
+    DUPLICATE_TARGET_PITCH_REDUCTION: 'Duplicate pitch left for review',
+  });
+
+  function arrangementReasonLabel(reasonCode) {
+    return ARRANGEMENT_REASON_LABELS[reasonCode] || 'Review decision';
+  }
 
   function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -121,6 +133,7 @@
     const routeStatus = root.querySelector('[data-role="route-status"]');
     const selectedNote = root.querySelector('[data-role="selected-note"]');
     const editStatus = root.querySelector('[data-role="edit-status"]');
+    const arrangementReason = root.querySelector('[data-role="arrangement-reason"]');
     const editStep = root.querySelector('[data-role="edit-step"]');
     const editAlter = root.querySelector('[data-role="edit-alter"]');
     const editOctave = root.querySelector('[data-role="edit-octave"]');
@@ -227,6 +240,7 @@
       state.selectedEvent = null;
       setText(selectedNote, 'None');
       setText(editStatus, message);
+      setText(arrangementReason, 'No arrangement decision selected.');
       editStep.value = 'C';
       editAlter.value = '0';
       editOctave.value = '4';
@@ -251,12 +265,12 @@
         for (const event of measure.events || []) {
           const disposition = dispositionById.get(event?.sourceEventId);
           if (event?.type !== 'note' || disposition?.assignmentEligible !== true) continue;
-          candidates.push({ measureIndex, measure, event });
+          candidates.push({ measureIndex, measure, event, disposition });
         }
       }
       for (const candidate of candidates) {
         const option = createElement(documentRef, 'option', null,
-          `Measure ${visibleMeasureNumber(candidate.measure)} · ${candidate.event.pitch.written} · voice ${candidate.event.voice}`);
+          `Measure ${visibleMeasureNumber(candidate.measure)} · ${candidate.event.pitch.written} · voice ${candidate.event.voice} · ${arrangementReasonLabel(candidate.disposition.reasonCode)}`);
         option.value = candidate.event.sourceEventId;
         option.dataset.measureIndex = String(candidate.measureIndex);
         option.dataset.sourceOrder = String(candidate.event.sourceOrder);
@@ -811,8 +825,9 @@
         return false;
       }
       const groupContainsTies = groupMembers.some((member) => member.tieStart || member.tieStop);
-      const position = dispositions.get(event.sourceEventId)?.selectedPosition || null;
-      const assignmentEligible = dispositions.get(event.sourceEventId)?.assignmentEligible === true;
+      const disposition = dispositions.get(event.sourceEventId);
+      const position = disposition?.selectedPosition || null;
+      const assignmentEligible = disposition?.assignmentEligible === true;
       const number = visibleMeasureNumber(measure);
       state.selectedEvent = {
         route: 'POLY_V2',
@@ -841,6 +856,7 @@
         groupContainsTies,
         selectedPosition: position ? { string: position.string, fret: position.fret } : null,
         assignmentEligible,
+        reasonCode: disposition?.reasonCode || null,
         durationDivisions: event.durationDivisions,
         measureDivisions: measure.divisions,
       };
@@ -848,6 +864,7 @@
         selectedNote,
         `${event.pitch.written} · measure ${number} · voice ${event.voice} · source ${event.sourceOrder + 1}`,
       );
+      setText(arrangementReason, arrangementReasonLabel(disposition?.reasonCode));
       editStep.value = event.pitch.step;
       editAlter.value = String(event.pitch.alter);
       editOctave.value = String(event.pitch.octave);

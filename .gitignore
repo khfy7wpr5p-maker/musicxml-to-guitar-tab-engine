@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 
 # Generated GitHub Pages preview artifact
 _site/
+
+# Local isolated Git worktrees
+.worktrees/

@@ -1,6 +1,6 @@
 # Polyphonic Guitar Arrangement Foundation
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
 
 ## Purpose and boundary
 

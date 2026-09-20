@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -40,7 +40,7 @@ This file is the live convergence view. Historical closure/audit documents retai
 | R1 safely parsed source-artifact retention | ✅ IMPLEMENTED — source rendering separated from TAB/export authority |
 | R2 partial dense-piano arrangement artifact | ✅ IMPLEMENTED / REVIEW-ONLY — explicit per-note dispositions; provisional TAB; no export authority |
 | R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
-| Stage 09 additional corpus source + TAB availability | ✅ 11/11 LOCAL VERIFIED — 0 hard blocks; 2,794/6,631 notes assigned |
+| Stage 09 additional corpus source + R9 TAB availability | ✅ 11/11 VERIFIED — 0 hard blocks; 2,801/6,631 notes assigned; PR #349 protected CI green |
 | `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH + EXACT TAB POSITION + DURATION + REDUCTION-UNASSIGNED NOTE ASSIGNMENT CONNECTED — tied-chain pitch is atomic; semantic omissions and voice/structure remain closed |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
@@ -77,6 +77,8 @@ Stage 09 has a dedicated evidence gate and now meets the Tier-A minimum with 20 
 Tier B remains intentionally open. A cross-repository audit found two teacher-verified references, including one authentic teacher-approved Audiveris chain, but neither supplies a non-empty real teacher-correction patch ledger that can be revalidated through Stage 08. The product gate therefore remains `HOLD_EVIDENCE_GAP` at 0/3 eligible teacher-correction cases and still lacks required real `PASS` / `REVIEW_REQUIRED` / `BLOCKED` plus representation coverage. Synthetic, no-correction and regression-only OMR material cannot satisfy Tier B. See [`stage-09-real-corpus-product-gate.md`](stage-09-real-corpus-product-gate.md).
 
 The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.1.0` maps only proven source-note identities to the provisional score/TAB renderer and distinguishes reduction-unassigned notes from semantic omissions. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 `1.4.0` commands may carry pitch, one exact string/fret position, one positive integer duration in source divisions, complete ordered tie-chain identity, and explicit `ASSIGN_OMITTED` intent for one eligible unassigned note. Commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. A tied pitch revision changes every validated chain segment atomically; incomplete chain identity blocks. An assignment retains the requested source note and preserves every prior assigned position. Impossible/colliding positions, over-capacity shapes, measure overflow and unsafe same-voice overlaps block instead of being guessed, moved or omitted. Tied-chain duration/position, semantic `OMITTED` or grace-note assignment, voice/structure and note creation/deletion remain unavailable; the pinned editor adapter still has no reviewed canonical voice-reassignment primitive.
+
+R9 adds the deterministic `MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0` dense-piano arrangement policy. It tries fixed caps from six to one, keeps teacher-forced positions authoritative, prefers melody and bass anchors, fills playable inner voices, and exposes exact per-note reduction reasons in the same-page Workbench. This changes availability, not authority: the result remains `REVIEW_REQUIRED`, non-canonical and non-exportable until teacher corrections and normal production validation succeed. The A3 candidate-precount, sustained-complexity and R9 bounded retry contracts are integrated at local implementation evidence `8a6d4b1c05f0920a1535a91b0f6a19a801ac6627`; 1,674 tests and the twice-run eleven-file corpus pass locally. PR #349 protected head `80233195fda4c953eafa6df1ac969aa998937c8d` passed Tests #1753, MusicXML Compatibility #1371, Runtime Staging E2E #507, A3 Real Piano Corpus Audit #157 and Stage 09 Real Corpus Audit #207; Vercel also reported success. Merge evidence remains pending.
 
 ## Current production/application path
 
@@ -176,7 +178,7 @@ The committed Stage 03 reviewed audit contains the same nine file names and SHA-
 
 `verification/stage09-additional-real-musicxml-corpus.json` adds eleven distinct external MusicXML identities. `verification/stage09-additional-real-corpus-reviewed-audit.json` pins the successful workflow evidence. Together with the historical nine, Tier A is **20 unique / 20 verified**. Evidence-set overlap fails closed and cannot inflate this count.
 
-The R0 fresh run over the eleven additional cases produced `0 PASS`, `6 REVIEW_REQUIRED` and `5 BLOCKED`, with zero renderer/TAB artifacts. R1 retained source artifacts and R2 added the first dense-score partial arrangements. The R3 local two-run audit now produces `0 PASS`, `11 REVIEW_REQUIRED`, `0 BLOCKED`, `11/11` source-renderable and `11/11` provisional-TAB files. It assigns 2,794 of 6,631 source notes (42.13%) and keeps 3,837 explicit unassigned notes for review. Protected-CI evidence remains required before these R3 numbers become merged-main evidence.
+The R0 fresh run over the eleven additional cases produced `0 PASS`, `6 REVIEW_REQUIRED` and `5 BLOCKED`, with zero renderer/TAB artifacts. R1 retained source artifacts and R2 added the first dense-score partial arrangements. The R8 baseline produced `0 PASS`, `11 REVIEW_REQUIRED`, `0 BLOCKED`, `11/11` source-renderable and `11/11` provisional-TAB files, assigning 2,794 of 6,631 source notes. The final R9 local two-run audit is byte-identical across both runs and preserves all eleven artifacts while assigning 2,801 notes (42.24%) and keeping 3,830 explicit unassigned notes for review. No file regressed; nine are unchanged, `[CLANNAD]汐.xml` gains one assigned note and `[Fate Stay Night]光.xml` gains six. The audit contract is `1.3.0` and records artifact type, version and arrangement policy. Protected-CI evidence remains required before these R9 numbers become merged-main evidence.
 
 ### Stage 09 teacher-correction evidence gap
 
