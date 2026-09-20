@@ -68,13 +68,16 @@ An independent read-only review found and caused three pre-merge corrections: in
 
 ## Protected CI evidence
 
-Pull request [#349](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/349) passed every required workflow on exact implementation head `3d54f49ff5375d8c345e71529b4164fcd4126f5e`:
+Pull request [#349](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/pull/349) passed every required workflow on protected head `80233195fda4c953eafa6df1ac969aa998937c8d`:
 
-- Tests run `1752`: success.
-- MusicXML Compatibility run `1370`: success, including the browser Workbench hardening smoke.
-- Runtime Staging E2E run `506`: success.
-- A3 Real Piano Corpus Audit run `156`: success.
-- Stage 09 Real Corpus Audit run `206`: success.
+- Tests run `1753`: success.
+- MusicXML Compatibility run `1371`: success, including the browser Workbench hardening smoke.
+- Runtime Staging E2E run `507`: success.
+- A3 Real Piano Corpus Audit run `157`: success.
+- Stage 09 Real Corpus Audit run `207`: success.
+- Vercel status: success.
+
+This SHA is the last fully protected-CI-verified R9 implementation head before this documentation-only evidence refresh; no production/runtime/test source is changed by the refresh commit.
 
 The first compatibility attempt exposed an R8-era browser assertion that still expected three unassigned notes. R9 correctly preassigned five of six notes, leaving one. The smoke now selects that exact remaining source note, assigns string 4/fret 10, and verifies all six selected physical positions before passing.
 
