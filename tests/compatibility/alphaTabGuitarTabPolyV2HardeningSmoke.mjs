@@ -536,12 +536,12 @@ try {
   assert.equal(denseLoaded, true);
   await page.waitForFunction(
     () => window.__workbench?.snapshot().scoreLoaded === true
-      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 3,
+      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 1,
     {timeout:30000},
   );
   const omittedSelected = await page.evaluate(() => {
     const list = document.querySelector('[data-role="omitted-note-list"]');
-    list.value = 'P1:measure:0:note:1';
+    list.value = 'P1:measure:0:note:2';
     const selected = window.__workbench.selectOmittedNote();
     return {
       selected,
@@ -551,18 +551,18 @@ try {
     };
   });
   assert.equal(omittedSelected.selected, true);
-  assert.equal(omittedSelected.selectedEvent.sourceEventId, 'P1:measure:0:note:1');
+  assert.equal(omittedSelected.selectedEvent.sourceEventId, 'P1:measure:0:note:2');
   assert.equal(omittedSelected.selectedEvent.assignmentEligible, true);
-  assert.equal(omittedSelected.count, '3');
+  assert.equal(omittedSelected.count, '1');
   assert.equal(omittedSelected.positionDisabled, false);
 
-  await page.select('[data-role="edit-string"]', '5');
+  await page.select('[data-role="edit-string"]', '4');
   await page.$eval('[data-role="edit-fret"]', element => { element.value = '10'; });
   await page.click('[data-role="apply-position-edit"]');
   await page.waitForFunction(
     () => window.__workbench?.snapshot().revisionNumber === 1
       && window.__workbench?.snapshot().scoreLoaded === true
-      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 2,
+      && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 0,
     {timeout:30000},
   );
   const assigned = await page.evaluate(() => ({
@@ -573,11 +573,27 @@ try {
   assert.equal(assigned.smoke.uploadCalls, 3);
   assert.equal(assigned.smoke.polyEditCalls, 4);
   assert.equal(assigned.smoke.lastRuntimeCommands[0].assignmentMode, 'ASSIGN_OMITTED');
-  assert.deepEqual(assigned.smoke.lastRuntimeCommands[0].selectedPosition, {string:5,fret:10});
+  assert.equal(assigned.smoke.lastRuntimeCommands[0].sourceEventId, 'P1:measure:0:note:2');
+  assert.deepEqual(assigned.smoke.lastRuntimeCommands[0].selectedPosition, {string:4,fret:10});
   assert.equal(assigned.smoke.lastAuthoritativeEditResult.status, 'REVIEW_REQUIRED');
-  assert.equal(assigned.smoke.lastAuthoritativeEditResult.arrangementArtifact.assignedNoteCount, 4);
-  assert.equal(assigned.smoke.lastAuthoritativeEditResult.arrangementArtifact.unassignedNoteCount, 2);
-  assert.equal(assigned.remaining, 2);
+  assert.equal(assigned.smoke.lastAuthoritativeEditResult.arrangementArtifact, undefined);
+  assert.equal(
+    assigned.smoke.lastAuthoritativeEditResult.canonicalTabResult.noteDispositions.length,
+    6,
+  );
+  assert.equal(
+    assigned.smoke.lastAuthoritativeEditResult.canonicalTabResult.noteDispositions.every(
+      disposition => disposition.disposition === 'KEEP' && disposition.selectedPosition,
+    ),
+    true,
+  );
+  assert.deepEqual(
+    assigned.smoke.lastAuthoritativeEditResult.canonicalTabResult.noteDispositions.find(
+      disposition => disposition.sourceEventId === 'P1:measure:0:note:2',
+    ).selectedPosition,
+    {string:4,fret:10},
+  );
+  assert.equal(assigned.remaining, 0);
   assert.deepEqual(errors, []);
 
   process.stdout.write(`${JSON.stringify({
