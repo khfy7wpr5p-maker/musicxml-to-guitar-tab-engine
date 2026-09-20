@@ -20,7 +20,7 @@ const {
 const manifestDefault = require('../verification/stage09-additional-real-musicxml-corpus.json');
 
 const SHA1 = /^[a-f0-9]{40}$/;
-const AUDIT_CONTRACT_VERSION = '1.2.0';
+const AUDIT_CONTRACT_VERSION = '1.3.0';
 const USABLE_OUTPUT_GATE_CONTRACT_VERSION = '1.0.0';
 const USABLE_OUTPUT_GATE_STATUS = Object.freeze({
   PASS: 'PASS_USABLE_OUTPUT_GATE',
@@ -240,6 +240,9 @@ function buildUsableOutputRecord(result, {
     tabArtifactAvailable,
     canonicalAvailable,
     teacherEditable,
+    tabArtifactDocumentType: tabArtifact?.documentType || null,
+    tabArtifactVersion: tabArtifact?.contractVersion || tabArtifact?.schemaVersion || null,
+    tabArrangementPolicy: result?.arrangementArtifact?.policy || null,
     tabSourceNoteCount: counts.source,
     tabAssignedNoteCount: counts.assigned,
     tabUnassignedNoteCount: counts.unassigned,

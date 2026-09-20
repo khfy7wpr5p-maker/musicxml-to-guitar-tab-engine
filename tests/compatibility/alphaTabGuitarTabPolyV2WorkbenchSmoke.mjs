@@ -31,6 +31,7 @@ const workbenchCss = fs.readFileSync(
 const polyMusicXml = fs.readFileSync(
   path.join(repositoryRoot, 'tests/fixtures/pa12-polyphonic-e2e.musicxml'),
 );
+const densePianoMusicXml = Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${[['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]].map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`);
 
 function resolveAlphaTabAsset(relativePath) {
   const filePath = path.resolve(alphaTabDist, decodeURIComponent(relativePath));
@@ -69,11 +70,20 @@ function pageHtml() {
       <section class="workbench-editor">
         <strong data-role="selected-note">None</strong>
         <p data-role="edit-status"></p>
+        <p data-role="arrangement-reason" data-testid="arrangement-reason"></p>
         <select data-role="edit-step" disabled><option>A</option><option>B</option><option selected>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select>
         <select data-role="edit-alter" disabled><option value="-2">bb</option><option value="-1">b</option><option value="0" selected>natural</option><option value="1">#</option><option value="2">##</option></select>
         <input data-role="edit-octave" type="number" min="-1" max="9" value="4" disabled>
         <button data-role="apply-edit" type="button" disabled>Apply & regenerate TAB</button>
         <button data-role="cancel-edit" type="button" disabled>Clear selection</button>
+        <select data-role="omitted-note-list" disabled></select>
+        <span data-role="omitted-note-count">0</span>
+        <button data-role="select-omitted-note" type="button" disabled>Select for TAB assignment</button>
+        <p data-role="omitted-note-status"></p>
+        <select data-role="edit-string" disabled><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+        <input data-role="edit-fret" type="number" min="0" max="20" value="0" disabled>
+        <button data-role="apply-position-edit" type="button" disabled>Apply position</button>
+        <p data-role="position-edit-status"></p>
       </section>
       <section class="workbench-issues">
         <div class="workbench-issues__heading"><h2>Issues</h2><span data-role="issue-count"></span></div>
@@ -86,7 +96,7 @@ function pageHtml() {
 <script src="/workbench/workbench.js"></script>
 <script>
 (() => {
-  const smoke = window.__polySmoke = {error:null,uploadCalls:0,polyEditCalls:0,monoEditCalls:0,lastPolyRequest:null};
+  const smoke = window.__polySmoke = {error:null,uploadCalls:0,polyEditCalls:0,monoEditCalls:0,lastPolyRequest:null,lastAuthoritativeUploadResult:null};
   const upload = async (file, ownedBytes) => {
     smoke.uploadCalls += 1;
     const response = await fetch('/api/upload?fileName=' + encodeURIComponent(file.name), {
@@ -94,6 +104,10 @@ function pageHtml() {
     });
     const payload = await response.json();
     if(!response.ok) throw new Error(payload?.message || 'upload failed');
+    smoke.lastAuthoritativeUploadResult = structuredClone(payload);
+    if(payload.status === 'REVIEW_REQUIRED' && payload.capabilities?.renderScore === true) {
+      return {...payload,status:'PASS',canonicalTabResult:payload.canonicalTabResult || payload.reviewEditableProjection};
+    }
     return payload;
   };
   const edit = async () => {
@@ -110,6 +124,8 @@ function pageHtml() {
       sourceGroupEventIds:[...command.sourceGroupEventIds],
       sourceTieEventIds:[...command.sourceTieEventIds],
       pitch:{step:command.pitch.step,alter:command.pitch.alter,octave:command.pitch.octave},
+      ...(command.selectedPosition ? {selectedPosition:{...command.selectedPosition}} : {}),
+      ...(command.assignmentMode ? {assignmentMode:command.assignmentMode} : {}),
     }));
     smoke.lastPolyRequest = {
       expectedInputSha256:request.expectedInputSha256,
@@ -176,6 +192,14 @@ const server = http.createServer((request, response) => {
       'content-length':polyMusicXml.length,
     });
     response.end(polyMusicXml);
+    return;
+  }
+  if (url.pathname === '/dense.musicxml') {
+    response.writeHead(200, {
+      'content-type':'application/vnd.recordare.musicxml+xml',
+      'content-length':densePianoMusicXml.length,
+    });
+    response.end(densePianoMusicXml);
     return;
   }
   if (url.pathname === '/workbench/workbench.js') {
@@ -431,6 +455,35 @@ try {
   assert.equal(blocked.snapshot.runtimeResult.canonicalTabResult.measures[0].events[0].pitch.written, 'E4');
   assert.equal(blocked.visible, true);
   assert.notEqual(blocked.issues.trim(), '');
+
+  const denseLoaded = await page.evaluate(async () => {
+    const response = await fetch('/dense.musicxml');
+    const file = new File([await response.arrayBuffer()], 'dense.musicxml', {
+      type:'application/vnd.recordare.musicxml+xml',
+    });
+    return window.__workbench.loadFile(file);
+  });
+  assert.equal(denseLoaded, true);
+  await page.waitForFunction(
+    () => window.__workbench?.snapshot().scoreLoaded === true
+      && document.querySelector('[data-role="omitted-note-list"]')?.options.length > 0,
+    {timeout:30000},
+  );
+  const arrangementDecision = await page.evaluate(() => {
+    const list = document.querySelector('[data-role="omitted-note-list"]');
+    list.selectedIndex = 0;
+    const selected = window.__workbench.selectOmittedNote();
+    return {
+      selected,
+      authoritativeStatus:window.__polySmoke.lastAuthoritativeUploadResult.status,
+      generateTab:window.__polySmoke.lastAuthoritativeUploadResult.capabilities.generateTab,
+      label:document.querySelector('[data-testid="arrangement-reason"]').textContent,
+    };
+  });
+  assert.equal(arrangementDecision.selected, true);
+  assert.equal(arrangementDecision.authoritativeStatus, 'REVIEW_REQUIRED');
+  assert.equal(arrangementDecision.generateTab, true);
+  assert.match(arrangementDecision.label, /guitar texture|review/i);
 
   process.stdout.write(`${JSON.stringify({
     browser:await browser.version(),

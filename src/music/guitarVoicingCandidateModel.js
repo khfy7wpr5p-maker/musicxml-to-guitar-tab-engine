@@ -133,7 +133,18 @@ function validatePosition(position, targetMidi, sourceEventId, sourceGroupId, co
   }
 }
 
-function buildPositionLayers(group, activeEntries, runtime, configuration) {
+function positionOverrideFor(sourceEventId, guitarOptions) {
+  const overrides = guitarOptions?.positionOverrides;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return null;
+  const position = overrides[sourceEventId];
+  return position
+    && Number.isInteger(position.string)
+    && Number.isInteger(position.fret)
+    ? position
+    : null;
+}
+
+function buildPositionLayers(group, activeEntries, runtime, configuration, guitarOptions) {
   if (activeEntries.length > GUITAR_STRING_COUNT) return [];
 
   const positionLayers = new Array(activeEntries.length);
@@ -143,7 +154,11 @@ function buildPositionLayers(group, activeEntries, runtime, configuration) {
       memberIndex,
     });
     const entry = activeEntries[memberIndex];
-    const positions = getPositionCandidates(entry.targetMidi, configuration);
+    const override = positionOverrideFor(entry.sourceEventId, guitarOptions);
+    const positions = getPositionCandidates(entry.targetMidi, configuration).filter((position) => (
+      !override
+      || (position.string === override.string && position.fret === override.fret)
+    ));
     const normalized = new Array(positions.length);
 
     for (let positionIndex = 0; positionIndex < positions.length; positionIndex += 1) {
@@ -343,6 +358,7 @@ function createGuitarVoicingCandidateModel(
         activeEntries,
         runtime,
         configuration,
+        guitarOptions,
       );
       const remaining = MAX_GUITAR_VOICING_CANDIDATES - candidateCount;
       const groupCandidateCount = countPreparedCandidates(

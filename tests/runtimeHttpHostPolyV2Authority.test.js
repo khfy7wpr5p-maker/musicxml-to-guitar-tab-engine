@@ -24,6 +24,14 @@ function densePianoChord() {
   return Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`);
 }
 
+function assignmentPianoChord() {
+  const pitches = [
+    ['E', 2, 0], ['B', 2, 0], ['C', 3, 0], ['E', 3, 0],
+    ['G', 3, 1], ['B', 3, 0], ['E', 4, 0],
+  ];
+  return Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${pitches.map(([step, octave, alter], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step>${alter === 0 ? '' : `<alter>${alter}</alter>`}<octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`);
+}
+
 function editBody(commands, sourceBytes) {
   const metadata = Buffer.from(JSON.stringify(commands), 'utf8');
   const header = Buffer.alloc(4);
@@ -178,7 +186,7 @@ test('runtime host accepts a guarded TAB position override and returns that exac
 
 test('R8 runtime host assigns a reduction-unassigned piano note without displacing retained notes', async (t) => {
   const origin = await startServer(t);
-  const sourceBytes = densePianoChord();
+  const sourceBytes = assignmentPianoChord();
   const upload = await readJson(await fetch(`${origin}/api/upload?fileName=dense-piano.musicxml`, {
     method: 'POST',
     headers: {'content-type': 'application/octet-stream'},
@@ -188,19 +196,19 @@ test('R8 runtime host assigns a reduction-unassigned piano note without displaci
   assert.equal(upload.payload.status, 'REVIEW_REQUIRED');
   assert.equal(upload.payload.capabilities.assignTabPosition, true);
 
-  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5].map(
+  const sourceGroupEventIds = [0, 1, 2, 3, 4, 5, 6].map(
     (sourceOrder) => `P1:measure:0:note:${sourceOrder}`,
   );
-  const sourceEventId = sourceGroupEventIds[1];
+  const sourceEventId = sourceGroupEventIds[3];
   const commands = [{
     measureIndex: 0,
-    sourceOrder: 1,
+    sourceOrder: 3,
     sourceEventId,
     sourceGroupId: 'P1:measure:0:simultaneous:0',
     sourceGroupEventIds,
     sourceTieEventIds: [sourceEventId],
-    pitch: {step: 'G', alter: 0, octave: 3},
-    selectedPosition: {string: 5, fret: 10},
+    pitch: {step: 'E', alter: 0, octave: 3},
+    selectedPosition: {string: 4, fret: 2},
     assignmentMode: 'ASSIGN_OMITTED',
   }];
   const edit = await readJson(await fetch(
@@ -220,9 +228,9 @@ test('R8 runtime host assigns a reduction-unassigned piano note without displaci
   );
   assert.equal(assigned.disposition, 'KEEP');
   assert.equal(assigned.assignmentEligible, false);
-  assert.deepEqual(assigned.selectedPosition, {string: 5, fret: 10});
-  assert.equal(edit.payload.arrangementArtifact.assignedNoteCount, 4);
-  assert.equal(edit.payload.arrangementArtifact.unassignedNoteCount, 2);
+  assert.deepEqual(assigned.selectedPosition, {string: 4, fret: 2});
+  assert.equal(edit.payload.arrangementArtifact.assignedNoteCount, 6);
+  assert.equal(edit.payload.arrangementArtifact.unassignedNoteCount, 1);
   for (const previous of upload.payload.arrangementArtifact.noteDispositions.filter(
     (entry) => entry.disposition === 'KEPT' || entry.disposition === 'OCTAVE_SHIFTED',
   )) {

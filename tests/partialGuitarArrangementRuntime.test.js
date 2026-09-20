@@ -4,19 +4,37 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
+const {
+  PROCESSING_ABORTED,
+  PROCESSING_DEADLINE_EXCEEDED,
+  createProcessingRuntime,
+} = require('../src/core/processingRuntime');
+const { positionToMidi } = require('../src/guitar/fretboard');
+const { createGuitarConfiguration } = require('../src/guitar/tuning');
 
-function densePianoChord() {
-  const pitches = [
+function densePianoChord({
+  pitches = [
     ['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5],
-  ];
+  ],
+  staffDetails = '',
+} = {}) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
   <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
   <part id="P1"><measure number="1">
-    <attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>
-    ${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}
+    <attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves>${staffDetails}</attributes>
+    ${pitches.map(([step, octave, alter = 0], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step>${alter === 0 ? '' : `<alter>${alter}</alter>`}<octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}
   </measure></part>
 </score-partwise>`;
+}
+
+function staffDetails(tuningLowToHigh, capoFret) {
+  const pitch = /^([A-G])(\d)$/;
+  const tuningXml = tuningLowToHigh.map((written, index) => {
+    const [, step, octave] = pitch.exec(written);
+    return `<staff-tuning line="${index + 1}"><tuning-step>${step}</tuning-step><tuning-octave>${octave}</tuning-octave></staff-tuning>`;
+  }).join('');
+  return `<staff-details><staff-lines>6</staff-lines>${tuningXml}<capo>${capoFret}</capo></staff-details>`;
 }
 
 test('dense piano input becomes an explicit provisional TAB instead of a solver hard block', () => {
@@ -31,15 +49,39 @@ test('dense piano input becomes an explicit provisional TAB instead of a solver 
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.canonicalTabResult, null);
   assert.equal(first.arrangementArtifact.documentType, 'PartialGuitarTabArrangement');
-  assert.equal(first.arrangementArtifact.contractVersion, '1.0.0');
+  assert.equal(first.arrangementArtifact.contractVersion, '1.1.0');
   assert.equal(first.arrangementArtifact.authority, 'PROVISIONAL_REVIEW_ONLY');
+  assert.equal(first.arrangementArtifact.policy, 'MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0');
   assert.equal(first.arrangementArtifact.sourceNoteCount, 6);
-  assert.ok(first.arrangementArtifact.assignedNoteCount > 0);
-  assert.ok(first.arrangementArtifact.unassignedNoteCount > 0);
+  assert.ok(first.arrangementArtifact.assignedNoteCount >= 4);
   assert.equal(
     first.arrangementArtifact.noteDispositions.length,
     first.arrangementArtifact.sourceNoteCount,
   );
+  assert.deepEqual(
+    first.arrangementArtifact.recovery.attempts.map((entry) => entry.retainedNoteCap),
+    [...new Set(first.arrangementArtifact.recovery.attempts.map(
+      (entry) => entry.retainedNoteCap,
+    ))],
+  );
+  assert.equal(first.arrangementArtifact.recovery.attempts.at(-1).outcome, 'SELECTED');
+  if (first.arrangementArtifact.recovery.retainedNoteCap >= 2) {
+    for (const sourceEventId of ['P1:measure:0:note:0', 'P1:measure:0:note:5']) {
+      const anchor = first.arrangementArtifact.noteDispositions.find(
+        (entry) => entry.sourceEventId === sourceEventId,
+      );
+      assert.ok(anchor);
+      assert.notEqual(anchor.disposition, 'UNASSIGNED');
+    }
+  }
+  const allowedReductionReasons = new Set([
+    'GUITAR_CAPACITY_REDUCTION',
+    'DUPLICATE_TARGET_PITCH_REDUCTION',
+    'GRACE_TIMING_REQUIRES_REVIEW',
+  ]);
+  for (const entry of first.arrangementArtifact.noteDispositions) {
+    if (entry.disposition === 'UNASSIGNED') assert.ok(allowedReductionReasons.has(entry.reasonCode));
+  }
   assert.match(first.musicXml, /<sign>TAB<\/sign>/);
   assert.equal(first.capabilities.renderScore, true);
   assert.equal(first.capabilities.generateTab, true);
@@ -92,6 +134,106 @@ test('physically impossible seven-note sonority is reduced to explicit review-on
   assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.export, false);
   assert.match(result.musicXml, /<sign>TAB<\/sign>/);
+});
+
+test('retries retained-note caps in descending order until the first playable low-register texture', () => {
+  const bytes = Buffer.from(densePianoChord({
+    pitches: [
+      ['E', 2], ['F', 2], ['F', 2, 1], ['G', 2], ['G', 2, 1], ['A', 2],
+    ],
+  }));
+  const original = Buffer.from(bytes);
+  const result = processMusicXmlUpload({ fileName: 'low-chromatic-piano.musicxml', bytes });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  const attempts = result.arrangementArtifact.recovery.attempts;
+  assert.ok(attempts.length > 1);
+  assert.equal(attempts[0].retainedNoteCap, 6);
+  assert.equal(attempts.at(-1).outcome, 'SELECTED');
+  for (let index = 1; index < attempts.length; index += 1) {
+    assert.equal(attempts[index].retainedNoteCap, attempts[index - 1].retainedNoteCap - 1);
+  }
+  assert.deepEqual(bytes, original);
+});
+
+test('processing cancellation inside the first R9 candidate stops lower-cap retries', () => {
+  const controller = new AbortController();
+  let selectionCheckpointCount = 0;
+  const runtime = createProcessingRuntime(
+    { signal: controller.signal },
+    {
+      clock: (phase) => {
+        if (phase === 'melody-bass-policy:select-group') {
+          selectionCheckpointCount += 1;
+          controller.abort();
+        }
+        return 0;
+      },
+    },
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'cancelled-dense-piano.musicxml',
+    bytes: Buffer.from(densePianoChord()),
+  }, {}, runtime);
+
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.preflight.issues[0].code, PROCESSING_ABORTED);
+  assert.equal(result.arrangementArtifact, undefined);
+  assert.equal(selectionCheckpointCount, 1);
+});
+
+test('processing deadline inside the first R9 candidate stops lower-cap retries', () => {
+  let selectionCheckpointCount = 0;
+  const runtime = createProcessingRuntime(
+    { maxProcessingMilliseconds: 10 },
+    {
+      clock: (phase) => {
+        if (phase === 'melody-bass-policy:select-group') {
+          selectionCheckpointCount += 1;
+          return 11;
+        }
+        return 0;
+      },
+    },
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'deadline-dense-piano.musicxml',
+    bytes: Buffer.from(densePianoChord()),
+  }, {}, runtime);
+
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.preflight.issues[0].code, PROCESSING_DEADLINE_EXCEEDED);
+  assert.equal(result.arrangementArtifact, undefined);
+  assert.equal(selectionCheckpointCount, 1);
+});
+
+test('R9 delegates DADGAD capo positions to the configured physical fretboard', () => {
+  const tuningLowToHigh = ['D2', 'A2', 'D3', 'G3', 'A3', 'D4'];
+  const result = processMusicXmlUpload({
+    fileName: 'dadgad-capo-dense.musicxml',
+    bytes: Buffer.from(densePianoChord({
+      staffDetails: staffDetails(tuningLowToHigh, 1),
+    })),
+  });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  const configuration = createGuitarConfiguration({
+    tuning: [
+      { number: 6, pitch: 'D2', midi: 38 },
+      { number: 5, pitch: 'A2', midi: 45 },
+      { number: 4, pitch: 'D3', midi: 50 },
+      { number: 3, pitch: 'G3', midi: 55 },
+      { number: 2, pitch: 'A3', midi: 57 },
+      { number: 1, pitch: 'D4', midi: 62 },
+    ],
+    capoFret: 1,
+  });
+  for (const entry of result.arrangementArtifact.noteDispositions) {
+    if (!entry.selectedPosition) continue;
+    assert.equal(positionToMidi(entry.selectedPosition, configuration), entry.targetPitch.midi);
+  }
+  assert.equal(Object.hasOwn(result.arrangementArtifact, 'tuning'), false);
+  assert.equal(Object.hasOwn(result.arrangementArtifact, 'capoFret'), false);
 });
 
 test('partial recovery keeps extracted grace notes explicit as unassigned review work', () => {

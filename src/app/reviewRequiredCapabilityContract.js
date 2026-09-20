@@ -217,16 +217,10 @@ function rendererMusicXml(result) {
   return sourceArtifactMusicXml(result);
 }
 
-function validPartialArrangementArtifact(result) {
-  const artifact = result?.arrangementArtifact;
-  const musicXml = typeof result?.musicXml === 'string' ? result.musicXml : null;
-  const isBoundedReduction = artifact?.documentType === 'PartialGuitarTabArrangement';
-  const isNoLossArpeggiation = artifact?.documentType === 'NoLossArpeggiatedGuitarArrangement';
-
+function validPartialArrangementArtifactShape(artifact, result, musicXml) {
   if (
     !artifact
-    || (!isBoundedReduction && !isNoLossArpeggiation)
-    || artifact.contractVersion !== '1.0.0'
+    || artifact.documentType !== 'PartialGuitarTabArrangement'
     || artifact.authority !== 'PROVISIONAL_REVIEW_ONLY'
     || artifact.sourceUploadSha256 !== result?.input?.sha256
     || !Array.isArray(artifact.noteDispositions)
@@ -241,38 +235,177 @@ function validPartialArrangementArtifact(result) {
     || artifact.renderer?.sha256 !== crypto.createHash('sha256').update(musicXml).digest('hex')
   ) return false;
 
-  if (
-    isNoLossArpeggiation
-    && (
-      artifact.policy !== 'NO_LOSS_ARPEGGIATION_REVIEW_RECOVERY_1.0'
-      || artifact.assignedNoteCount !== artifact.sourceNoteCount
-      || artifact.unassignedNoteCount !== 0
-      || artifact.omittedNoteCount !== 0
-      || artifact.coverageBasisPoints !== 10_000
-      || artifact.recovery?.transform !== 'ARPEGGIATED'
-      || artifact.recovery?.spreadDivisions !== 1
-      || artifact.recovery?.targetTimingAuthority !== false
-      || artifact.recovery?.candidateOrderIsPreferenceRank !== false
-      || artifact.recovery?.orderStrategy !== 'SOURCE_ORDER'
-      || artifact.recovery?.physicalValidationStatus !== 'FEASIBLE'
-      || artifact.timing?.sourceTimingAuthority !== true
-      || artifact.timing?.targetTimingAuthority !== false
-      || !Array.isArray(artifact.timing?.source)
-      || !Array.isArray(artifact.timing?.provisionalTarget)
-      || artifact.timing.source.length !== artifact.sourceNoteCount
-      || artifact.timing.provisionalTarget.length !== artifact.sourceNoteCount
-    )
-  ) return false;
-
   return artifact.noteDispositions.every((entry) => {
     if (entry?.disposition === 'KEPT' || entry?.disposition === 'OCTAVE_SHIFTED') {
       return Boolean(entry.targetPitch && entry.selectedPosition);
     }
-    if (isBoundedReduction && (entry?.disposition === 'UNASSIGNED' || entry?.disposition === 'OMITTED')) {
+    if (entry?.disposition === 'UNASSIGNED' || entry?.disposition === 'OMITTED') {
       return entry.targetPitch === null && entry.selectedPosition === null;
     }
     return false;
   });
+}
+
+function validNoLossArpeggiationArtifactV1(artifact, result, musicXml) {
+  if (
+    !artifact
+    || artifact.documentType !== 'NoLossArpeggiatedGuitarArrangement'
+    || artifact.contractVersion !== '1.0.0'
+    || artifact.authority !== 'PROVISIONAL_REVIEW_ONLY'
+    || artifact.sourceUploadSha256 !== result?.input?.sha256
+    || !Array.isArray(artifact.noteDispositions)
+    || artifact.noteDispositions.length !== artifact.sourceNoteCount
+    || artifact.assignedNoteCount !== artifact.sourceNoteCount
+    || artifact.unassignedNoteCount !== 0
+    || artifact.omittedNoteCount !== 0
+    || artifact.coverageBasisPoints !== 10_000
+    || !musicXml
+    || artifact.renderer?.byteLength !== Buffer.byteLength(musicXml, 'utf8')
+    || artifact.renderer?.sha256 !== crypto.createHash('sha256').update(musicXml).digest('hex')
+    || artifact.policy !== 'NO_LOSS_ARPEGGIATION_REVIEW_RECOVERY_1.0'
+    || artifact.recovery?.transform !== 'ARPEGGIATED'
+    || artifact.recovery?.spreadDivisions !== 1
+    || artifact.recovery?.targetTimingAuthority !== false
+    || artifact.recovery?.candidateOrderIsPreferenceRank !== false
+    || artifact.recovery?.orderStrategy !== 'SOURCE_ORDER'
+    || artifact.recovery?.physicalValidationStatus !== 'FEASIBLE'
+    || artifact.timing?.sourceTimingAuthority !== true
+    || artifact.timing?.targetTimingAuthority !== false
+    || !Array.isArray(artifact.timing?.source)
+    || !Array.isArray(artifact.timing?.provisionalTarget)
+    || artifact.timing.source.length !== artifact.sourceNoteCount
+    || artifact.timing.provisionalTarget.length !== artifact.sourceNoteCount
+  ) return false;
+  return artifact.noteDispositions.every((entry) => (
+    (entry?.disposition === 'KEPT' || entry?.disposition === 'OCTAVE_SHIFTED')
+    && Boolean(entry.targetPitch && entry.selectedPosition)
+  ));
+}
+
+function validPartialArrangementArtifactV1(artifact, result, musicXml) {
+  return artifact?.contractVersion === '1.0.0'
+    && validPartialArrangementArtifactShape(artifact, result, musicXml);
+}
+
+const R9_ARRANGEMENT_REASON_CODES = new Set([
+  'MELODY_ANCHOR_RETAINED',
+  'BASS_ANCHOR_RETAINED',
+  'INNER_VOICE_RETAINED',
+  'TEACHER_ASSIGNMENT_RETAINED',
+  'GUITAR_CAPACITY_REDUCTION',
+  'DUPLICATE_TARGET_PITCH_REDUCTION',
+  'OCTAVE_NEAREST_IN_REGISTER',
+  'SOURCE_REPRESENTATION_NORMALIZATION',
+  'GRACE_TIMING_REQUIRES_REVIEW',
+]);
+
+const R9_RETRY_ERROR_CODES = new Set([
+  'GUITAR_VOICING_CANDIDATE_LIMIT_EXCEEDED',
+  'LEFT_HAND_ASSIGNMENT_ATTEMPT_LIMIT_EXCEEDED',
+  'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION',
+  'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION',
+]);
+
+const R9_REASON_CODES_BY_DISPOSITION = Object.freeze({
+  KEPT: new Set([
+    'MELODY_ANCHOR_RETAINED',
+    'BASS_ANCHOR_RETAINED',
+    'INNER_VOICE_RETAINED',
+    'TEACHER_ASSIGNMENT_RETAINED',
+  ]),
+  OCTAVE_SHIFTED: new Set(['OCTAVE_NEAREST_IN_REGISTER']),
+  UNASSIGNED: new Set([
+    'GUITAR_CAPACITY_REDUCTION',
+    'DUPLICATE_TARGET_PITCH_REDUCTION',
+    'GRACE_TIMING_REQUIRES_REVIEW',
+  ]),
+  OMITTED: new Set(['SOURCE_REPRESENTATION_NORMALIZATION']),
+});
+
+function validR9Recovery(recovery) {
+  const attempts = recovery?.attempts;
+  if (
+    !Number.isSafeInteger(recovery?.retainedNoteCap)
+    || recovery.retainedNoteCap < 1
+    || recovery.retainedNoteCap > 6
+    || !Array.isArray(attempts)
+    || attempts.length !== 7 - recovery.retainedNoteCap
+  ) return false;
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index];
+    if (
+      !attempt
+      || attempt.retainedNoteCap !== 6 - index
+    ) return false;
+    const finalAttempt = index === attempts.length - 1;
+    if (finalAttempt) {
+      if (attempt.outcome !== 'SELECTED' || attempt.errorCode !== null) return false;
+    } else if (
+      attempt.outcome !== 'REJECTED'
+      || !R9_RETRY_ERROR_CODES.has(attempt.errorCode)
+    ) return false;
+  }
+  return recovery.retainedNoteCap === attempts[attempts.length - 1].retainedNoteCap;
+}
+
+function validR9DispositionEvidence(artifact) {
+  const counts = {
+    assigned: 0,
+    unassigned: 0,
+    omitted: 0,
+    unassignedGrace: 0,
+  };
+  const sourceEventIds = new Set();
+  for (const entry of artifact.noteDispositions) {
+    if (
+      typeof entry?.sourceEventId !== 'string'
+      || entry.sourceEventId.length < 1
+      || sourceEventIds.has(entry.sourceEventId)
+      || !R9_ARRANGEMENT_REASON_CODES.has(entry.reasonCode)
+      || !R9_REASON_CODES_BY_DISPOSITION[entry.disposition]?.has(entry.reasonCode)
+    ) return false;
+    sourceEventIds.add(entry.sourceEventId);
+    if (entry.disposition === 'KEPT' || entry.disposition === 'OCTAVE_SHIFTED') {
+      counts.assigned += 1;
+    } else if (entry.disposition === 'UNASSIGNED') {
+      counts.unassigned += 1;
+      if (entry.reasonCode === 'GRACE_TIMING_REQUIRES_REVIEW') {
+        counts.unassignedGrace += 1;
+      }
+    } else if (entry.disposition === 'OMITTED') {
+      counts.omitted += 1;
+    }
+  }
+  const expectedCoverage = artifact.sourceNoteCount === 0
+    ? null
+    : Math.floor((counts.assigned * 10_000) / artifact.sourceNoteCount);
+  return artifact.assignedNoteCount === counts.assigned
+    && artifact.unassignedNoteCount === counts.unassigned
+    && artifact.omittedNoteCount === counts.omitted
+    && artifact.coverageBasisPoints === expectedCoverage
+    && artifact.recovery?.unassignedGraceNoteCount === counts.unassignedGrace;
+}
+
+function validPartialArrangementArtifactV11(artifact, result, musicXml) {
+  return artifact?.contractVersion === '1.1.0'
+    && artifact.policy === 'MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0'
+    && validPartialArrangementArtifactShape(artifact, result, musicXml)
+    && validR9Recovery(artifact.recovery)
+    && validR9DispositionEvidence(artifact);
+}
+
+function validPartialArrangementArtifact(result) {
+  const artifact = result?.arrangementArtifact;
+  const validator = artifact?.documentType === 'PartialGuitarTabArrangement'
+    ? {
+      '1.0.0': validPartialArrangementArtifactV1,
+      '1.1.0': validPartialArrangementArtifactV11,
+    }[artifact?.contractVersion]
+    : artifact?.documentType === 'NoLossArpeggiatedGuitarArrangement'
+      ? { '1.0.0': validNoLossArpeggiationArtifactV1 }[artifact?.contractVersion]
+      : null;
+  const musicXml = typeof result?.musicXml === 'string' ? result.musicXml : null;
+  return Boolean(validator && validator(artifact, result, musicXml));
 }
 
 function validReviewEditableProjection(result) {

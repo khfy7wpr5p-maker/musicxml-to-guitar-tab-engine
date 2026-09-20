@@ -41,6 +41,7 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'edit-fret',
     'apply-position-edit',
     'position-edit-status',
+    'arrangement-reason',
     'omitted-note-list',
     'omitted-note-count',
     'select-omitted-note',
@@ -129,6 +130,17 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /stage09EvidenceReady/);
   assert.match(script, /ASSIGN_OMITTED/);
   assert.match(script, /assignmentEligible/);
+  for (const reason of [
+    'MELODY_ANCHOR_RETAINED',
+    'BASS_ANCHOR_RETAINED',
+    'INNER_VOICE_RETAINED',
+    'TEACHER_ASSIGNMENT_RETAINED',
+    'GUITAR_CAPACITY_REDUCTION',
+    'DUPLICATE_TARGET_PITCH_REDUCTION',
+  ]) assert.match(script, new RegExp(reason));
+  assert.match(script, /function arrangementReasonLabel/);
+  assert.match(script, /Review decision/);
+  assert.match(html, /data-testid=["']arrangement-reason["']/);
   assert.match(script, /createElement\(documentRef, 'option'/);
   assert.match(script, /selectedPosition/);
   assert.match(script, /session\.commands\.length === 0/);

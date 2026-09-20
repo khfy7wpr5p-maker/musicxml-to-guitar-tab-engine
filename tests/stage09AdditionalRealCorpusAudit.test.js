@@ -24,6 +24,15 @@ const {
   createReviewEditorCapabilitySession,
 } = require('../src/app/reviewEditorCapabilityBridge');
 const { EDIT_CLASS } = require('../src/app/teacherCorrectionRevision');
+const { processMusicXmlUpload } = require('../src/app/musicXmlUploadRuntime');
+
+function densePianoRequest() {
+  const pitches = [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]];
+  return {
+    fileName: 'dense-piano.musicxml',
+    bytes: Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`),
+  };
+}
 
 function syntheticCorpus({ poly = false } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-additional-'));
@@ -190,7 +199,7 @@ test('additional corpus audit verifies identity, deterministic reruns and source
     });
     assert.equal(report.status, 'PASS_VERIFIED');
     assert.equal(report.contractVersion, AUDIT_CONTRACT_VERSION);
-    assert.equal(report.contractVersion, '1.2.0');
+    assert.equal(report.contractVersion, '1.3.0');
     assert.equal(report.summary.requiredFiles, 11);
     assert.equal(report.summary.identityVerifiedFiles, 11);
     assert.equal(report.summary.deterministicFiles, 11);
@@ -212,6 +221,9 @@ test('additional corpus audit verifies identity, deterministic reruns and source
     assert.equal(report.records[0].canonicalAvailable, false);
     assert.equal(report.records[0].teacherEditable, false);
     assert.equal(report.records[0].tabCoverageBasisPoints, null);
+    assert.equal(report.records[0].tabArtifactDocumentType, null);
+    assert.equal(report.records[0].tabArtifactVersion, null);
+    assert.equal(report.records[0].tabArrangementPolicy, null);
     assert.deepEqual(report.records[0].hardBlockReason, {
       code: 'TEST_BLOCKER',
       category: 'capability',
@@ -220,6 +232,21 @@ test('additional corpus audit verifies identity, deterministic reruns and source
   } finally {
     fs.rmSync(corpus.directory, { recursive: true, force: true });
   }
+});
+
+test('usable-output record pins exact R9 provisional artifact identity and coverage', () => {
+  const result = processMusicXmlUpload(densePianoRequest());
+  const record = buildUsableOutputRecord(result, {
+    sourceParseable: true,
+    blocker: result.preflight.issues[0] || null,
+  });
+
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+  assert.equal(record.tabArtifactDocumentType, 'PartialGuitarTabArrangement');
+  assert.equal(record.tabArtifactVersion, '1.1.0');
+  assert.equal(record.tabArrangementPolicy, 'MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0');
+  assert.ok(Number.isSafeInteger(record.tabAssignedNoteCount));
+  assert.ok(Number.isSafeInteger(record.tabUnassignedNoteCount));
 });
 
 test('usable-output record requires real artifacts and capabilities instead of trusting PASS alone', () => {

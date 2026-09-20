@@ -1,6 +1,6 @@
 # MusicXML to Guitar TAB Engine
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
 
 A security-first, deterministic MusicXML → playable six-string guitar TAB engine. The repository contains a narrow package-root monophonic API plus separately gated application/internal polyphonic runtime paths. Source MusicXML is immutable source truth; compatibility code may normalize only proven representation differences and may not invent musical semantics.
 

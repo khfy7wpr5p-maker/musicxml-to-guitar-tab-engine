@@ -1,6 +1,6 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-14 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
 
 This is the live package-boundary view. Historical PR numbers, commit SHAs, corpus first-blocker reports, and sealed evidence remain revision-specific records and do not override current source/tests.
 
@@ -71,10 +71,10 @@ The application/internal path may use validated source guitar configuration with
 | GuitarSet v2 runtime shadow connection | ✅ INTERNAL DEFAULT-OFF — `ENGINE_RUNTIME_SHADOW_CONNECTION_REVIEW_V1` |
 | Runtime learned selection authority | 🔒 CLOSED |
 | Guitar TAB Workbench browser UI | ✅ IMPLEMENTED / GUARDED MONO_V1 + POLY_V2 HOST SEAMS |
-| PartialGuitarTabArrangement 1.0.0 | ✅ APPLICATION / REVIEW-ONLY / NON-CANONICAL |
+| PartialGuitarTabArrangement 1.1.0 / melody-bass playable maximization | ✅ APPLICATION / REVIEW-ONLY / NON-CANONICAL |
 | R3 bounded repeat/navigation/timing review projection | ✅ APPLICATION / REVIEW-ONLY / SOURCE-IMMUTABLE |
-| Stage 09 additional-corpus provisional TAB | ✅ 11/11 LOCAL VERIFIED / 0 HARD BLOCKS |
-| REVIEW_REQUIRED Workbench edit regeneration | 🟡 POLY_V2 PITCH + STRING/FRET CONNECTED / ASSIGNED UNTIED NOTES |
+| Stage 09 additional-corpus R9 provisional TAB | ✅ 11/11 LOCAL VERIFIED / 0 HARD BLOCKS / 2,801 OF 6,631 NOTES ASSIGNED |
+| REVIEW_REQUIRED Workbench edit regeneration | 🟡 SAME-PAGE POLY_V2 PITCH + STRING/FRET + DURATION + TIE-CHAIN + ELIGIBLE OMITTED-NOTE ASSIGNMENT |
 | GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
 | Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
 | Hosted persistence / multi-user state / export service | 🔒 NOT IMPLEMENTED |

@@ -25,6 +25,18 @@ function polyphonicScore(direction = '') {
 </score-partwise>`;
 }
 
+function densePianoRequest() {
+  const pitches = [['C', 3], ['G', 3], ['C', 4], ['E', 4], ['G', 4], ['C', 5]];
+  return {
+    fileName: 'dense-piano.musicxml',
+    bytes: Buffer.from(`<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>1</staves></attributes>${pitches.map(([step, octave], index) => `<note>${index > 0 ? '<chord/>' : ''}<pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>`).join('')}</measure></part></score-partwise>`),
+  };
+}
+
+function cloneResult(result) {
+  return structuredClone(result);
+}
+
 test('upload result schema 1.5 exposes additive capability and artifact authority', () => {
   assert.equal(MUSICXML_UPLOAD_RUNTIME_VERSION, '1.0.0');
   assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.5.0');
@@ -173,4 +185,85 @@ test('hard block remains capability-closed', () => {
   assert.equal(result.sourceArtifact, null);
   assert.equal(result.artifacts.sourceArtifactAvailable, false);
   assert.equal(result.artifacts.rendererMusicXmlAvailable, false);
+});
+
+test('admits exact R9 artifacts, keeps historical v1 readable, and rejects unknown versions', () => {
+  const result = processMusicXmlUpload(densePianoRequest());
+  assert.equal(result.arrangementArtifact.contractVersion, '1.1.0');
+  assert.equal(result.capabilities.generateTab, true);
+
+  const unknown = cloneResult(result);
+  unknown.arrangementArtifact.contractVersion = '1.2.0';
+  assert.equal(decorateUploadResultWithCapabilities(unknown).capabilities.generateTab, false);
+
+  const historical = cloneResult(result);
+  historical.arrangementArtifact.contractVersion = '1.0.0';
+  historical.arrangementArtifact.policy = 'MELODY_BASS_BOUNDED_REDUCTION_1.0';
+  delete historical.arrangementArtifact.recovery.attempts;
+  assert.equal(decorateUploadResultWithCapabilities(historical).capabilities.generateTab, true);
+});
+
+test('R9 artifact validation fails closed on retry, reason, count, and renderer tampering', () => {
+  const result = processMusicXmlUpload(densePianoRequest());
+  const cases = [
+    ['missing attempts', (value) => { delete value.arrangementArtifact.recovery.attempts; }],
+    ['duplicate caps', (value) => {
+      value.arrangementArtifact.recovery.attempts[1].retainedNoteCap = 6;
+    }],
+    ['ascending caps', (value) => {
+      value.arrangementArtifact.recovery.attempts = [
+        { retainedNoteCap: 5, outcome: 'REJECTED', errorCode: 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE' },
+        { retainedNoteCap: 6, outcome: 'SELECTED', errorCode: null },
+      ];
+      value.arrangementArtifact.recovery.retainedNoteCap = 6;
+    }],
+    ['out-of-range cap', (value) => {
+      value.arrangementArtifact.recovery.attempts[0].retainedNoteCap = 7;
+    }],
+    ['selected before last', (value) => {
+      value.arrangementArtifact.recovery.attempts[0] = {
+        retainedNoteCap: 6,
+        outcome: 'SELECTED',
+        errorCode: null,
+      };
+    }],
+    ['unknown reason', (value) => {
+      value.arrangementArtifact.noteDispositions[0].reasonCode = 'UNKNOWN_R9_REASON';
+    }],
+    ['reason does not match disposition', (value) => {
+      const unassigned = value.arrangementArtifact.noteDispositions.find(
+        (entry) => entry.disposition === 'UNASSIGNED',
+      );
+      unassigned.reasonCode = 'MELODY_ANCHOR_RETAINED';
+    }],
+    ['inconsistent counts', (value) => { value.arrangementArtifact.assignedNoteCount -= 1; }],
+    ['shifted counts preserve the aggregate total', (value) => {
+      value.arrangementArtifact.assignedNoteCount += 1;
+      value.arrangementArtifact.unassignedNoteCount -= 1;
+    }],
+    ['duplicate source identity', (value) => {
+      value.arrangementArtifact.noteDispositions[1].sourceEventId =
+        value.arrangementArtifact.noteDispositions[0].sourceEventId;
+    }],
+    ['retry sequence skips cap six', (value) => {
+      value.arrangementArtifact.recovery.attempts.shift();
+    }],
+    ['unknown retry error code', (value) => {
+      value.arrangementArtifact.recovery.attempts[0].errorCode = 'UNREVIEWED_RETRY_REASON';
+    }],
+    ['coverage does not match dispositions', (value) => {
+      value.arrangementArtifact.coverageBasisPoints -= 1;
+    }],
+    ['renderer hash mismatch', (value) => { value.arrangementArtifact.renderer.sha256 = '0'.repeat(64); }],
+  ];
+
+  for (const [name, mutate] of cases) {
+    const hostile = cloneResult(result);
+    mutate(hostile);
+    assert.equal(
+      decorateUploadResultWithCapabilities(hostile).capabilities.generateTab,
+      false,
+      name,
+    );
+  }
 });
