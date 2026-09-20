@@ -9,6 +9,7 @@
     alphaTab: global.alphaTab,
     adapters: global.GuitarTabWorkbenchHostAdapters,
     config: global.GuitarTabWorkbenchConfig,
+    stage09Evidence: global.Stage09WorkbenchEvidence,
   });
 
   global.__workbenchHost = host;

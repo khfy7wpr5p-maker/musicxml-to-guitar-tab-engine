@@ -86,6 +86,7 @@
     const edit = options.edit;
     const polyphonicEdit = options.polyphonicEdit;
     const transpose = options.transpose;
+    const stage09Evidence = options.stage09Evidence;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
     assert(alphaTab && typeof alphaTab.AlphaTabApi === 'function', 'alphaTab is required.');
     assert(typeof upload === 'function', 'A bounded upload function is required.');
@@ -97,6 +98,15 @@
     assert(
       transpose === undefined || typeof transpose === 'function',
       'transpose must be a function when provided.',
+    );
+    assert(
+      stage09Evidence === undefined
+        || (
+          stage09Evidence
+          && typeof stage09Evidence.isStage09WorkbenchEvidenceEligible === 'function'
+          && typeof stage09Evidence.createStage09WorkbenchEvidenceExport === 'function'
+        ),
+      'stage09Evidence must expose the bounded Stage 09 evidence contract when provided.',
     );
 
     const documentRef = root.ownerDocument;
@@ -132,6 +142,8 @@
     const transposeDownButton = root.querySelector('[data-role="transpose-down"]');
     const transposeUpButton = root.querySelector('[data-role="transpose-up"]');
     const transposeTargetButton = root.querySelector('[data-role="transpose-target"]');
+    const exportStage09EvidenceButton = root.querySelector('[data-role="export-stage09-evidence"]');
+    const stage09EvidenceStatus = root.querySelector('[data-role="stage09-evidence-status"]');
 
     assert(
       fileInput && playButton && stopButton && scoreHost && issueList
@@ -332,6 +344,15 @@
         && !state.selectedEvent?.groupContainsTies;
     }
 
+    function stage09EvidenceReady() {
+      return Boolean(
+        stage09Evidence
+        && exportStage09EvidenceButton
+        && session.sourceFileName
+        && stage09Evidence.isStage09WorkbenchEvidenceEligible(state.runtimeResult)
+      );
+    }
+
     function updateControls() {
       const busy = state.loading || state.editing || state.transposing;
       const playbackReady = !busy
@@ -364,6 +385,17 @@
       if (transposeUpButton) transposeUpButton.disabled = !canTranspose();
       if (transposeTargetButton) {
         transposeTargetButton.disabled = !canTranspose() || !transposeTargetKey?.value;
+      }
+      if (exportStage09EvidenceButton) {
+        exportStage09EvidenceButton.disabled = busy || !stage09EvidenceReady();
+      }
+      if (stage09EvidenceStatus) {
+        setText(
+          stage09EvidenceStatus,
+          stage09EvidenceReady()
+            ? 'Ready: export exact pitch teacher evidence.'
+            : 'Requires at least one eligible POLY_V2 pitch correction.',
+        );
       }
     }
 
@@ -1334,6 +1366,37 @@
       }
     }
 
+    function stage09EvidenceFileName() {
+      const base = String(session.sourceFileName || 'teacher-correction')
+        .replace(/\.(?:xml|musicxml)$/i, '')
+        .replace(/[^A-Za-z0-9._-]+/g, '_')
+        .slice(0, 120) || 'teacher-correction';
+      return `${base}.stage09-evidence.json`;
+    }
+
+    function exportStage09Evidence() {
+      if (!stage09EvidenceReady()) return false;
+      const evidence = stage09Evidence.createStage09WorkbenchEvidenceExport({
+        sourceFileName: session.sourceFileName,
+        runtimeResult: state.runtimeResult,
+      });
+      const blob = new global.Blob(
+        [`${JSON.stringify(evidence, null, 2)}\n`],
+        { type: 'application/json' },
+      );
+      const url = global.URL.createObjectURL(blob);
+      try {
+        const anchor = documentRef.createElement('a');
+        anchor.href = url;
+        anchor.download = stage09EvidenceFileName();
+        anchor.click();
+      } finally {
+        global.URL.revokeObjectURL(url);
+      }
+      setText(stage09EvidenceStatus, 'Evidence exported. Keep it with the original OMR MusicXML and reference score.');
+      return true;
+    }
+
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
@@ -1391,6 +1454,11 @@
       });
     }
     if (transposeTargetKey) transposeTargetKey.addEventListener('change', updateControls);
+    if (exportStage09EvidenceButton) {
+      exportStage09EvidenceButton.addEventListener('click', () => {
+        exportStage09Evidence();
+      });
+    }
 
     api.error.on((error) => {
       state.lastError = error?.message || String(error);
@@ -1448,6 +1516,7 @@
       applySelectedDurationEdit,
       selectOmittedNote,
       applyDocumentTransposition,
+      exportStage09Evidence,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
         return Object.freeze({
@@ -1478,6 +1547,9 @@
           stopDisabled: stopButton.disabled,
           applyEditDisabled: applyEditButton.disabled,
           transposeDisabled: transposeDownButton ? transposeDownButton.disabled : true,
+          stage09EvidenceExportDisabled: exportStage09EvidenceButton
+            ? exportStage09EvidenceButton.disabled
+            : true,
         });
       },
       destroy() {

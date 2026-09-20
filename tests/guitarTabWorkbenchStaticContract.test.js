@@ -13,10 +13,11 @@ const hostAdapters = fs.readFileSync(path.join(workbenchRoot, 'host-adapters.js'
 const hostController = fs.readFileSync(path.join(workbenchRoot, 'host-controller.js'), 'utf8');
 const boot = fs.readFileSync(path.join(workbenchRoot, 'boot.js'), 'utf8');
 const previewConfig = fs.readFileSync(path.join(workbenchRoot, 'preview-config.js'), 'utf8');
+const stage09Evidence = fs.readFileSync(path.join(workbenchRoot, 'stage09-evidence.js'), 'utf8');
 const tokens = fs.readFileSync(path.join(workbenchRoot, 'tokens.css'), 'utf8');
 const shellCss = fs.readFileSync(path.join(workbenchRoot, 'shell.css'), 'utf8');
 const css = fs.readFileSync(path.join(workbenchRoot, 'workbench.css'), 'utf8');
-const browserScripts = [script, hostAdapters, hostController, boot, previewConfig].join('\n');
+const browserScripts = [script, hostAdapters, hostController, boot, previewConfig, stage09Evidence].join('\n');
 
 test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issues and structured note editing', () => {
   for (const role of [
@@ -55,6 +56,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'transpose-down',
     'transpose-up',
     'transpose-target',
+    'export-stage09-evidence',
+    'stage09-evidence-status',
   ]) {
     assert.match(html, new RegExp(`data-role=["']${role}["']`));
   }
@@ -66,6 +69,7 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(html, /\.\/host-adapters\.js/);
   assert.match(html, /\.\/host-controller\.js/);
   assert.match(html, /\.\/preview-config\.js/);
+  assert.match(html, /\.\/stage09-evidence\.js/);
   assert.match(html, /\.\/boot\.js/);
   assert.match(html, /\.\.\/assets\/alphatab\.js/);
 
@@ -93,8 +97,16 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostController, /createIssueController/);
   assert.match(hostController, /mode === 'preview'/);
   assert.match(hostController, /assetBaseUrl/);
+  assert.match(hostController, /stage09EvidenceFacade/);
+  assert.match(hostController, /capabilityBridge\.currentResult\(\) \|\| runtimeResult/);
   assert.match(previewConfig, /mode:\s*'runtime'/);
   assert.match(previewConfig, /playerMode:\s*'synthesizer'/);
+  assert.match(boot, /Stage09WorkbenchEvidence/);
+  assert.match(stage09Evidence, /Stage09WorkbenchCorrectionEvidence/);
+  assert.match(stage09Evidence, /REPLACE_POLYPHONIC_SOURCE_EVENT_PITCH/);
+  assert.doesNotMatch(stage09Evidence, /SET_POLYPHONIC_SOURCE_EVENT_DURATION/);
+  assert.match(stage09Evidence, /!edit\.selectedPosition/);
+  assert.match(stage09Evidence, /!edit\.assignmentMode/);
 
   assert.match(script, /5 \* 1024 \* 1024/);
   assert.match(script, /MAX_REVISION_COMMANDS\s*=\s*128/);
@@ -113,6 +125,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /function applySelectedPositionEdit/);
   assert.match(script, /function renderOmittedNoteAssignments/);
   assert.match(script, /function selectOmittedNote/);
+  assert.match(script, /function exportStage09Evidence/);
+  assert.match(script, /stage09EvidenceReady/);
   assert.match(script, /ASSIGN_OMITTED/);
   assert.match(script, /assignmentEligible/);
   assert.match(script, /createElement\(documentRef, 'option'/);

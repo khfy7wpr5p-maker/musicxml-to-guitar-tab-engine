@@ -22,6 +22,7 @@ function makeCase(dir, index, coverageTags) {
   const sourceName = `case-${index}.musicxml`;
   const correctedName = `case-${index}.corrected.musicxml`;
   const packetName = `case-${index}.correction-packet.json`;
+  const referenceName = `reference-${index}.pdf`;
   const source = Buffer.from(FIXTURE);
   const sourceText = source.toString('utf8');
   const corrected = Buffer.from(sourceText.replace(
@@ -31,9 +32,11 @@ function makeCase(dir, index, coverageTags) {
   assert.notEqual(sha256(source), sha256(corrected));
   fs.writeFileSync(path.join(dir, sourceName), source);
   fs.writeFileSync(path.join(dir, correctedName), corrected);
+  const reference = Buffer.from(`%PDF-1.4\n% Stage 09 private test reference ${index}\n`);
+  fs.writeFileSync(path.join(dir, referenceName), reference);
   const packet = {
     documentType: 'Stage09TeacherCorrectionPreparedCase',
-    contractVersion: '1.0.0-draft',
+    contractVersion: '1.0.0',
     caseId: `modeled-case-${index}`,
     evidenceClass: 'REAL_TEACHER_CORRECTION_PREPARED',
     work: `Modeled test case ${index}`,
@@ -46,9 +49,9 @@ function makeCase(dir, index, coverageTags) {
       immutable: true,
     },
     reference: {
-      fileName: `reference-${index}.pdf`,
-      sha256: 'a'.repeat(64),
-      byteLength: 1,
+      fileName: referenceName,
+      sha256: sha256(reference),
+      byteLength: reference.byteLength,
       referenceClass: 'TEST_ONLY',
     },
     corrected: {
@@ -80,6 +83,20 @@ test('private Tier B packet verification binds exact local original and correcte
     assert.equal(verified.originalSha256, packet.original.sha256);
     assert.equal(verified.correctedSha256, packet.corrected.sha256);
     assert.notEqual(verified.originalSha256, verified.correctedSha256);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('private Tier B packet verification rejects a tampered teacher reference score', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage09-tierb-reference-tamper-'));
+  try {
+    const packet = makeCase(dir, 1, ['voice-2']);
+    fs.appendFileSync(path.join(dir, packet.reference.fileName), Buffer.from('tampered'));
+    assert.throws(
+      () => verifyPacket(packet, dir),
+      /reference score identity mismatch/,
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
