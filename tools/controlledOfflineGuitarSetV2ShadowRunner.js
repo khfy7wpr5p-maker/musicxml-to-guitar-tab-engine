@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { compareCodeUnitStrings } = require('./codeUnitStringComparator');
 const {
   createMusicXmlProcessingRuntime,
 } = require('../src/parser/musicxmlSemanticResourceLimits');
@@ -41,12 +42,6 @@ const MAX_DETERMINISM_REPETITIONS = 25;
 const MAX_FIXTURE_COUNT = 16;
 const MAX_FIXTURE_BYTES = 1024 * 1024;
 const reviewedFixtureSets = new WeakSet();
-
-function compareCodeUnitStrings(left, right) {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-}
 
 class ControlledOfflineGuitarSetV2ShadowRunnerError extends Error {
   constructor(message, code = 'INVALID_CONTROLLED_OFFLINE_V2_SHADOW_INPUT', details = {}) {
