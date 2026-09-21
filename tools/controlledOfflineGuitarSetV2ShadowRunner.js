@@ -1,6 +1,8 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+
+const compareCodeUnitStrings = (left, right) => (left > right) - (left < right);
 const {
   createMusicXmlProcessingRuntime,
 } = require('../src/parser/musicxmlSemanticResourceLimits');
@@ -77,8 +79,8 @@ function assertExactKeys(value, expectedKeys, field) {
   if (!isPlainObject(value)) {
     throw invalid(`${field} must be a plain object.`, { field });
   }
-  const actual = Object.keys(value).sort();
-  const expected = [...expectedKeys].sort();
+  const actual = Object.keys(value).sort(compareCodeUnitStrings);
+  const expected = [...expectedKeys].sort(compareCodeUnitStrings);
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw invalid(`${field} fields do not match the controlled v2 offline contract.`, {
       field,
@@ -230,10 +232,10 @@ function matchBaselineCandidate(group, baselineResult) {
   const selected = baselineResult.selectedTones
     .filter((tone) => activeIds.has(tone.sourceEventId))
     .map(positionSemanticKey)
-    .sort();
+    .sort(compareCodeUnitStrings);
   if (selected.length !== group.activeSourceEventIds.length) return null;
   for (const candidate of group.candidates) {
-    const candidateKeys = candidate.positions.map(positionSemanticKey).sort();
+    const candidateKeys = candidate.positions.map(positionSemanticKey).sort(compareCodeUnitStrings);
     if (
       candidateKeys.length === selected.length
       && candidateKeys.every((value, index) => value === selected[index])
@@ -254,8 +256,8 @@ function assertExactCandidateScoreCoverage(authoritativeGroup, shadowGroup, eval
     }
     return;
   }
-  const expectedIds = authoritativeGroup.candidates.map((candidate) => candidate.candidateId).sort();
-  const actualIds = shadowGroup.candidateScores.map((entry) => entry.candidateId).sort();
+  const expectedIds = authoritativeGroup.candidates.map((candidate) => candidate.candidateId).sort(compareCodeUnitStrings);
+  const actualIds = shadowGroup.candidateScores.map((entry) => entry.candidateId).sort(compareCodeUnitStrings);
   if (
     actualIds.length !== expectedIds.length
     || actualIds.some((candidateId, index) => candidateId !== expectedIds[index])
