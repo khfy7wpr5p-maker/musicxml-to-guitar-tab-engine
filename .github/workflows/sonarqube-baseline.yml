@@ -1,0 +1,50 @@
+name: SonarQube Baseline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  sonar-baseline:
+    name: SonarQube baseline (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Report unconfigured SonarQube baseline
+        if: ${{ env.SONAR_TOKEN == '' || env.SONAR_PROJECT_KEY == '' || env.SONAR_ORGANIZATION == '' }}
+        shell: bash
+        run: |
+          echo "SonarQube Baseline v1 is not configured yet; scanner is intentionally skipped."
+          echo "Required GitHub repository settings:"
+          echo "  secret:   SONAR_TOKEN"
+          echo "  variable: SONAR_PROJECT_KEY"
+          echo "  variable: SONAR_ORGANIZATION"
+
+      - name: Run SonarQube Cloud baseline scan
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_PROJECT_KEY != '' && env.SONAR_ORGANIZATION != '' }}
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
