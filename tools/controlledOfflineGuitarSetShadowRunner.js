@@ -40,6 +40,12 @@ const ALLOWED_FIXTURE_PREFIXES = Object.freeze([
   'benchmarks/guitarset-shadow/fixtures/',
 ]);
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 class ControlledOfflineGuitarSetShadowRunnerError extends Error {
   constructor(message, code = 'INVALID_CONTROLLED_OFFLINE_SHADOW_INPUT', details = {}) {
     super(message);
@@ -70,8 +76,8 @@ function assertPlainObject(value, field) {
 
 function assertExactKeys(value, expectedKeys, field) {
   assertPlainObject(value, field);
-  const actual = Object.keys(value).sort();
-  const expected = [...expectedKeys].sort();
+  const actual = Object.keys(value).sort(compareCodeUnitStrings);
+  const expected = [...expectedKeys].sort(compareCodeUnitStrings);
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw invalid(`${field} fields do not match the controlled offline contract.`, {
       field,
@@ -314,10 +320,10 @@ function matchBaselineCandidate(group, baselineResult) {
   const selected = baselineResult.selectedTones
     .filter((tone) => activeIds.has(tone.sourceEventId))
     .map(positionSemanticKey)
-    .sort();
+    .sort(compareCodeUnitStrings);
   if (selected.length !== group.activeSourceEventIds.length) return null;
   for (const candidate of group.candidates) {
-    const candidateKeys = candidate.positions.map(positionSemanticKey).sort();
+    const candidateKeys = candidate.positions.map(positionSemanticKey).sort(compareCodeUnitStrings);
     if (
       candidateKeys.length === selected.length
       && candidateKeys.every((value, index) => value === selected[index])
