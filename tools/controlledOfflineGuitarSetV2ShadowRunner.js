@@ -42,6 +42,12 @@ const MAX_FIXTURE_COUNT = 16;
 const MAX_FIXTURE_BYTES = 1024 * 1024;
 const reviewedFixtureSets = new WeakSet();
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 class ControlledOfflineGuitarSetV2ShadowRunnerError extends Error {
   constructor(message, code = 'INVALID_CONTROLLED_OFFLINE_V2_SHADOW_INPUT', details = {}) {
     super(message);
@@ -77,8 +83,8 @@ function assertExactKeys(value, expectedKeys, field) {
   if (!isPlainObject(value)) {
     throw invalid(`${field} must be a plain object.`, { field });
   }
-  const actual = Object.keys(value).sort();
-  const expected = [...expectedKeys].sort();
+  const actual = Object.keys(value).sort(compareCodeUnitStrings);
+  const expected = [...expectedKeys].sort(compareCodeUnitStrings);
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw invalid(`${field} fields do not match the controlled v2 offline contract.`, {
       field,
@@ -230,10 +236,10 @@ function matchBaselineCandidate(group, baselineResult) {
   const selected = baselineResult.selectedTones
     .filter((tone) => activeIds.has(tone.sourceEventId))
     .map(positionSemanticKey)
-    .sort();
+    .sort(compareCodeUnitStrings);
   if (selected.length !== group.activeSourceEventIds.length) return null;
   for (const candidate of group.candidates) {
-    const candidateKeys = candidate.positions.map(positionSemanticKey).sort();
+    const candidateKeys = candidate.positions.map(positionSemanticKey).sort(compareCodeUnitStrings);
     if (
       candidateKeys.length === selected.length
       && candidateKeys.every((value, index) => value === selected[index])
@@ -254,8 +260,8 @@ function assertExactCandidateScoreCoverage(authoritativeGroup, shadowGroup, eval
     }
     return;
   }
-  const expectedIds = authoritativeGroup.candidates.map((candidate) => candidate.candidateId).sort();
-  const actualIds = shadowGroup.candidateScores.map((entry) => entry.candidateId).sort();
+  const expectedIds = authoritativeGroup.candidates.map((candidate) => candidate.candidateId).sort(compareCodeUnitStrings);
+  const actualIds = shadowGroup.candidateScores.map((entry) => entry.candidateId).sort(compareCodeUnitStrings);
   if (
     actualIds.length !== expectedIds.length
     || actualIds.some((candidateId, index) => candidateId !== expectedIds[index])
