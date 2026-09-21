@@ -9,6 +9,7 @@ const TARGETS = [
   'scripts/guitar-tech-real-corpus-gate.js',
   'scripts/stage09-real-corpus-product-gate.js',
   'scripts/stage09-private-tierb-revalidation.js',
+  'src/app/guitarTechniqueCompatibilityNormalizer.js',
 ];
 
 test('Sonar-safe corpus sort sites always use an explicit comparator', () => {
