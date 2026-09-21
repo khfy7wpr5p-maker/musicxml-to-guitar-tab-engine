@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 This is the live architecture contract for the repository. Historical PA/PS closure records and corpus audits remain evidence, but they do not define current production behavior when they conflict with this document and [`current-status.md`](current-status.md).
 
@@ -85,6 +85,14 @@ Representative implementation boundaries:
 - writer: `src/writers/canonicalTabMusicXmlWriterV2.js`.
 
 `src/core/internalPolyphonicConversionPipelineV2.js` is the bounded raw-MusicXML → source model → canonical-v2 → writer integration seam. It reuses one `ProcessingRuntime` across the pipeline and receives only already-resolved immutable guitar configuration options from an owning caller.
+
+## 2.1 Operational verification boundary
+
+Protected CI and SonarQube Cloud verify the implementation but do not define musical semantics. The required Node.js 18/20/22, alphaTab/Workbench, runtime-staging, compatibility, and corpus gates remain independent evidence around the architecture above.
+
+SonarQube Cloud Automatic Analysis is the single Sonar analysis path for the current baseline; a second CI scanner is intentionally not run concurrently. The approved 2026-09-21 safe-cleanup tranche is limited to PRs #352, #355, #356, and #357–#360: explicit corpus/offline string ordering plus behavior-preserving cleanup of four diagnostic collectors. These changes do not grant permission to alter parser facts, routing, physical selection, canonical TAB, editor capabilities, playback, export, or `REVIEW_REQUIRED`/`BLOCKED` policy.
+
+At protected `main` SHA `cd7d5806a1765ef86af208f1ebaa2a02cd657f97`, SonarCloud reports a passing Quality Gate, 0 Security Hotspots, 89 New issues, 0.0% coverage on new code, and 1.1% duplication on new code. The remaining findings are an observational backlog and are not treated as architectural defects or silently fixed without scoped tests.
 
 ## 3. Cross-cutting invariants
 

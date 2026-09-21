@@ -1,6 +1,6 @@
 # AI Context — Read This First
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 This is the active read-first context for coding agents and reviewers. Historical versioned contracts, closure records, corpus audits, PR numbers, commit SHAs, and sealed scientific evidence remain historical records; they are not current architecture authority merely because they are retained in the repository.
 
@@ -82,7 +82,7 @@ The two authority boundaries must not be conflated.
 - PS-4C sustained PA-8/PA-9 physical enumeration: ✅ active
 - sustained canonical final selection: ✅ active for the exact recognized fallback boundary
 - internal configuration-aware `CanonicalTabResult 2.1.0`: ✅ active where admitted
-- application-only `PartialGuitarTabArrangement 1.0.0`: ✅ review-only recovery for the exact PA-8 assignment-limit boundary; never canonical/export authority
+- application-only `PartialGuitarTabArrangement 1.1.0`: ✅ review-only recovery for the exact PA-8 assignment-limit boundary; never canonical/export authority
 - PA-13 public polyphonic API: 🔒 not implemented
 
 The sustained PA-8 enforcement window is per PS-4A sonority point, not a whole-score aggregate budget. Fixed ceilings and enumeration/ranking rules are unchanged.
@@ -149,6 +149,14 @@ Authority boundary:
 - production: false
 
 The shadow adapter receives only a detached, deeply frozen read-copy of an authentic single-generation PA-7 snapshot. It may produce diagnostic evidence only and cannot replace deterministic selection.
+
+## Static analysis / verification boundary
+
+SonarQube Cloud Automatic Analysis is active under project key `khfy7wpr5p-maker_musicxml-to-guitar-tab-engine`. Treat Sonar as engineering evidence only; it is not architecture authority and cannot widen or rewrite the semantic contracts above.
+
+The approved safe-cleanup tranche merged as PRs #352, #355, #356, and #357–#360. Corpus/offline sort cleanup preserved JavaScript code-unit ordering. Diagnostic-collector cleanup preserved callback result/error identity, issue immutability, nested isolation, cleanup, and fail-closed stack consistency. No cleanup tranche authorizes changes to parser semantics, physical selection, canonical TAB, playback, editor authority, or review-state policy.
+
+Fresh protected-`main` evidence at `cd7d5806a1765ef86af208f1ebaa2a02cd657f97`: SonarCloud Quality Gate passed; 0 Security Hotspots; 89 New issues remain open; new-code coverage is 0.0%; new-code duplication is 1.1%. Remaining findings are backlog, not completed work.
 
 ## Non-negotiable rules
 

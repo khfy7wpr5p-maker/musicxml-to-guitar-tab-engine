@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 This file is the live convergence view. Historical closure/audit documents retain the exact state they measured, but do not override this status.
 
@@ -42,6 +42,9 @@ This file is the live convergence view. Historical closure/audit documents retai
 | R3 repeat/direction/timing review projection | ✅ IMPLEMENTED / REVIEW-ONLY — single-pass navigation/ending evidence, repairable overflow clamp, invalid-tie omission |
 | Stage 09 additional corpus source + R9 TAB availability | ✅ 11/11 VERIFIED — 0 hard blocks; 2,801/6,631 notes assigned; PR #349 protected CI green |
 | `REVIEW_REQUIRED` Workbench teacher editing | 🟡 PITCH + EXACT TAB POSITION + DURATION + REDUCTION-UNASSIGNED NOTE ASSIGNMENT CONNECTED — tied-chain pitch is atomic; semantic omissions and voice/structure remain closed |
+| SonarQube Cloud Automatic Analysis | ✅ ACTIVE — single current Sonar analysis path; Quality Gate passing on protected `main` |
+| Approved Sonar safe-cleanup tranche | ✅ CLOSED — PRs #352, #355, #356, #357–#360; bounded behavior-preserving cleanup |
+| Remaining Sonar inventory | ⚠️ 89 NEW ISSUES ON `main` — non-blocking backlog; 0 Security Hotspots |
 | Determinism | ✅ HARD INVARIANT |
 | Source byte / semantic immutability | ✅ HARD INVARIANT |
 | Wider real-corpus production hardening | ⚠️ CONTINUES |
@@ -79,6 +82,14 @@ Tier B remains intentionally open. A cross-repository audit found two teacher-ve
 The Guitar TAB Workbench now has a bounded correction bridge for partial-arrangement `REVIEW_REQUIRED` results. A backend-created `ReviewEditableTabProjection 1.1.0` maps only proven source-note identities to the provisional score/TAB renderer and distinguishes reduction-unassigned notes from semantic omissions. The legacy core receives that projection as presentation data while the host preserves authoritative `REVIEW_REQUIRED` state. POLY_V2 `1.4.0` commands may carry pitch, one exact string/fret position, one positive integer duration in source divisions, complete ordered tie-chain identity, and explicit `ASSIGN_OMITTED` intent for one eligible unassigned note. Commands replay cumulatively from the immutable source SHA and rerun the production compatibility, physical-selection and provisional-writer path. A tied pitch revision changes every validated chain segment atomically; incomplete chain identity blocks. An assignment retains the requested source note and preserves every prior assigned position. Impossible/colliding positions, over-capacity shapes, measure overflow and unsafe same-voice overlaps block instead of being guessed, moved or omitted. Tied-chain duration/position, semantic `OMITTED` or grace-note assignment, voice/structure and note creation/deletion remain unavailable; the pinned editor adapter still has no reviewed canonical voice-reassignment primitive.
 
 R9 adds the deterministic `MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0` dense-piano arrangement policy. It tries fixed caps from six to one, keeps teacher-forced positions authoritative, prefers melody and bass anchors, fills playable inner voices, and exposes exact per-note reduction reasons in the same-page Workbench. This changes availability, not authority: the result remains `REVIEW_REQUIRED`, non-canonical and non-exportable until teacher corrections and normal production validation succeed. The A3 candidate-precount, sustained-complexity and R9 bounded retry contracts are integrated at local implementation evidence `8a6d4b1c05f0920a1535a91b0f6a19a801ac6627`; 1,674 tests and the twice-run eleven-file corpus pass locally. PR #349 protected head `0cc122c12cd2504ea74780ad1c331c0fb2467556` passed Tests #1754, MusicXML Compatibility #1372, Runtime Staging E2E #508, A3 Real Piano Corpus Audit #158 and Stage 09 Real Corpus Audit #208; Vercel also reported success. PR #349 was then squash-merged to protected `main` at `8b2aec65fd5812ee0a4a519bbcbe8d76daa0178e`.
+
+## SonarQube / engineering-quality baseline
+
+SonarQube Cloud Baseline v1 is established with Automatic Analysis; no duplicate SonarScanner workflow is active. The approved safe-cleanup tranche deliberately separated low-risk corpus/offline ordering fixes from runtime diagnostic-control-flow fixes. PRs #352, #355 and #356 changed only corpus/offline tooling plus regression guards. PRs #357–#360 changed four bounded diagnostic collectors with focused tests preserving callback results/errors, immutable issue snapshots, nested isolation, cleanup and fail-closed stack consistency.
+
+This tranche did **not** change MusicXML parsing semantics, POLY_V2 projection/routing, guitar physical-selection rules, canonical TAB authority, playback, editor capabilities, export authority, or `REVIEW_REQUIRED`/`BLOCKED` policy.
+
+Fresh protected-`main` evidence at `cd7d5806a1765ef86af208f1ebaa2a02cd657f97`: SonarCloud Quality Gate passed, 0 Security Hotspots, 89 New issues remain, new-code coverage is 0.0%, and new-code duplication is 1.1%. The 89 findings are future backlog and are not represented as completed cleanup.
 
 ## Current production/application path
 

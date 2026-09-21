@@ -1,6 +1,6 @@
 # MusicXML to Guitar TAB Engine
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 A security-first, deterministic MusicXML → playable six-string guitar TAB engine. The repository contains a narrow package-root monophonic API plus separately gated application/internal polyphonic runtime paths. Source MusicXML is immutable source truth; compatibility code may normalize only proven representation differences and may not invent musical semantics.
 
@@ -40,9 +40,9 @@ The package-root API remains deliberately narrower: standard MONO output uses `C
 
 At the application upload boundary, fully validated explicit six-string source tuning/capo evidence can now become the bounded guitar configuration used by the internal conversion path. This does not broaden the package-root API. Genuine mid-score tuning/capo changes remain fail-closed.
 
-For the exact dense-piano PA-8 assignment-limit boundary, the application can now return `PartialGuitarTabArrangement 1.0.0`: a renderer-visible, non-exportable provisional TAB with `KEPT`, `OCTAVE_SHIFTED`, `UNASSIGNED`, or representation-only `OMITTED` recorded for every source note. It is review evidence, not `CanonicalTabResult` authority.
+For the exact dense-piano PA-8 assignment-limit boundary, the application can now return `PartialGuitarTabArrangement 1.1.0`: a renderer-visible, non-exportable provisional TAB with `KEPT`, `OCTAVE_SHIFTED`, `UNASSIGNED`, or representation-only `OMITTED` recorded for every source note. It is review evidence, not `CanonicalTabResult` authority.
 
-R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus it produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. R4 connects same-page pitch correction for assigned provisional notes. R5 adds an independent string/fret control to the same Fingering panel: the requested position is replayed from immutable source bytes, filters the physical candidate set and is accepted only when the complete simultaneous selection remains playable. Rhythm, voice, structure, tied-note editing and free creation of positions for omitted notes remain closed.
+R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus it produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. R4 connects same-page pitch correction for assigned provisional notes; R5 adds exact string/fret control; R6 adds bounded duration editing; R7 makes retained tie-chain pitch editing atomic; R8 allows explicit assignment of eligible reduction-unassigned notes; and R9 applies deterministic melody/bass playable maximization while keeping the result provisional. Voice/structure, note add/delete, tied-chain duration/position, semantic omissions and grace-note assignment remain closed.
 
 See:
 
@@ -57,6 +57,10 @@ See:
 - [`docs/r3-review-projection-continuation.md`](docs/r3-review-projection-continuation.md) — repeat/direction/timing recovery, real-corpus result and remaining editor boundary.
 - [`docs/r4-review-required-same-page-editor.md`](docs/r4-review-required-same-page-editor.md) — provisional-note identity, same-page pitch correction and remaining editor boundaries.
 - [`docs/r5-review-tab-position-editor.md`](docs/r5-review-tab-position-editor.md) — guarded same-page string/fret override and physical revalidation.
+- [`docs/r6-review-duration-editor.md`](docs/r6-review-duration-editor.md) — bounded duration editing with production revalidation.
+- [`docs/r7-poly-v2-tie-chain-editor.md`](docs/r7-poly-v2-tie-chain-editor.md) — atomic retained tie-chain pitch editing.
+- [`docs/r8-omitted-note-assignment.md`](docs/r8-omitted-note-assignment.md) — explicit assignment of eligible reduction-unassigned notes.
+- [`docs/r9-melody-bass-piano-arrangement.md`](docs/r9-melody-bass-piano-arrangement.md) — deterministic melody/bass playable maximization and review evidence.
 
 ## Current compatibility baseline
 
@@ -104,6 +108,12 @@ Stage 03 also ran a separate exact nine-file SHA-selected AnimeTAB audit against
 **Corpus evidence proves a generic contract; production code must not branch on corpus filename or SHA.**
 
 Historical audit documents and sealed evidence remain in the repository for traceability. They do not override the live architecture/status documents above.
+
+## Engineering quality baseline
+
+SonarQube Cloud Automatic Analysis is active for the repository under project key `khfy7wpr5p-maker_musicxml-to-guitar-tab-engine`. It is a verification signal, not semantic or runtime authority: Sonar findings do not authorize parser, POLY_V2, fingering, canonical TAB, editor, playback, `REVIEW_REQUIRED`, or `BLOCKED` behavior changes.
+
+The approved 2026-09-21 safe-cleanup tranche was merged through PRs #352, #355, #356, #357, #358, #359, and #360. The first three made offline/corpus string ordering explicit; the last four removed throw-from-`finally` cleanup control flow from bounded diagnostic collectors with focused regression coverage. Protected `main` at `cd7d5806a1765ef86af208f1ebaa2a02cd657f97` reports a passing SonarCloud Quality Gate, 0 Security Hotspots, 0.0% coverage on new code, 1.1% duplication on new code, and 89 New issues. Those 89 findings remain a separate non-blocking backlog; this documentation does not claim they are fixed.
 
 ## Package metadata
 

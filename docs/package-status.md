@@ -1,6 +1,6 @@
 # Package and Verification Status
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 This is the live package-boundary view. Historical PR numbers, commit SHAs, corpus first-blocker reports, and sealed evidence remain revision-specific records and do not override current source/tests.
 
@@ -75,6 +75,8 @@ The application/internal path may use validated source guitar configuration with
 | R3 bounded repeat/navigation/timing review projection | ✅ APPLICATION / REVIEW-ONLY / SOURCE-IMMUTABLE |
 | Stage 09 additional-corpus R9 provisional TAB | ✅ 11/11 LOCAL VERIFIED / 0 HARD BLOCKS / 2,801 OF 6,631 NOTES ASSIGNED |
 | REVIEW_REQUIRED Workbench edit regeneration | 🟡 SAME-PAGE POLY_V2 PITCH + STRING/FRET + DURATION + TIE-CHAIN + ELIGIBLE OMITTED-NOTE ASSIGNMENT |
+| SonarQube Cloud Automatic Analysis | ✅ ACTIVE / QUALITY GATE PASSING |
+| 2026-09-21 safe Sonar cleanup tranche | ✅ MERGED — #352, #355, #356, #357–#360 |
 | GitHub Pages Workbench preview | ✅ STATIC / READ-ONLY / NO RUNTIME AUTHORITY |
 | Same-origin Runtime Host | 🟡 STAGING IMPLEMENTATION / NON-PRODUCTION |
 | Hosted persistence / multi-user state / export service | 🔒 NOT IMPLEMENTED |
@@ -145,6 +147,8 @@ The staging host does not publish the npm package, grant public `CanonicalTabRes
 ## Verification baseline
 
 Protected CI continues to require Node.js 18/20/22 and alphaTab import/render/browser-cursor checks. Runtime staging has its own E2E workflow. Documentation changes must satisfy repository documentation-consistency tests and the required protected checks on the exact PR head.
+
+SonarQube Cloud Automatic Analysis is the single active Sonar path for Baseline v1. On protected `main` SHA `cd7d5806a1765ef86af208f1ebaa2a02cd657f97`, the SonarCloud check reports Quality Gate passed, 0 Security Hotspots, 89 New issues, 0.0% coverage on new code and 1.1% duplication on new code. The approved cleanup tranche preserved runtime contracts and does not convert static-analysis findings into semantic authority. The remaining 89 findings are non-blocking backlog.
 
 The Stage 03 exact nine-file AnimeTAB audit is additional evidence and does not replace `verification/guitar-tech-real-corpus-manifest.json`, which pins a different historical Guitar Pro corpus. The Stage 03 audit verified exact source identity, deterministic reruns, source immutability, and `PRESERVED_CLASSIFICATIONS=9/9` between pre-fix production main and the audited candidate.
 
