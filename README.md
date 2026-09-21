@@ -42,7 +42,7 @@ At the application upload boundary, fully validated explicit six-string source t
 
 For the exact dense-piano PA-8 assignment-limit boundary, the application can now return `PartialGuitarTabArrangement 1.1.0`: a renderer-visible, non-exportable provisional TAB with `KEPT`, `OCTAVE_SHIFTED`, `UNASSIGNED`, or representation-only `OMITTED` recorded for every source note. It is review evidence, not `CanonicalTabResult` authority.
 
-R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus it produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. R4 connects same-page pitch correction for assigned provisional notes. R5 adds an independent string/fret control to the same Fingering panel: the requested position is replayed from immutable source bytes, filters the physical candidate set and is accepted only when the complete simultaneous selection remains playable. Rhythm, voice, structure, tied-note editing and free creation of positions for omitted notes remain closed.
+R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus it produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. R4 connects same-page pitch correction for assigned provisional notes; R5 adds exact string/fret control; R6 adds bounded duration editing; R7 makes retained tie-chain pitch editing atomic; R8 allows explicit assignment of eligible reduction-unassigned notes; and R9 applies deterministic melody/bass playable maximization while keeping the result provisional. Voice/structure, note add/delete, tied-chain duration/position, semantic omissions and grace-note assignment remain closed.
 
 See:
 
@@ -57,6 +57,10 @@ See:
 - [`docs/r3-review-projection-continuation.md`](docs/r3-review-projection-continuation.md) — repeat/direction/timing recovery, real-corpus result and remaining editor boundary.
 - [`docs/r4-review-required-same-page-editor.md`](docs/r4-review-required-same-page-editor.md) — provisional-note identity, same-page pitch correction and remaining editor boundaries.
 - [`docs/r5-review-tab-position-editor.md`](docs/r5-review-tab-position-editor.md) — guarded same-page string/fret override and physical revalidation.
+- [`docs/r6-review-duration-editor.md`](docs/r6-review-duration-editor.md) — bounded duration editing with production revalidation.
+- [`docs/r7-poly-v2-tie-chain-editor.md`](docs/r7-poly-v2-tie-chain-editor.md) — atomic retained tie-chain pitch editing.
+- [`docs/r8-omitted-note-assignment.md`](docs/r8-omitted-note-assignment.md) — explicit assignment of eligible reduction-unassigned notes.
+- [`docs/r9-melody-bass-piano-arrangement.md`](docs/r9-melody-bass-piano-arrangement.md) — deterministic melody/bass playable maximization and review evidence.
 
 ## Current compatibility baseline
 
