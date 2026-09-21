@@ -10,6 +10,12 @@ const {
 } = require('../src/app/musicXmlUploadRuntime');
 const DEFAULT_MANIFEST = require('../verification/guitar-tech-real-corpus-manifest.json');
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -91,7 +97,7 @@ function xmlFileNames(directory) {
   return fs.readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && /\.(?:xml|musicxml)$/i.test(entry.name))
     .map((entry) => entry.name)
-    .sort();
+    .sort(compareCodeUnitStrings);
 }
 
 function runGate({
@@ -109,7 +115,7 @@ function runGate({
     return Object.freeze(report);
   }
 
-  const requiredNames = manifest.files.map((entry) => entry.fileName).sort();
+  const requiredNames = manifest.files.map((entry) => entry.fileName).sort(compareCodeUnitStrings);
   const presentNames = xmlFileNames(corpusDirectory);
   const missingFiles = requiredNames.filter((name) => !presentNames.includes(name));
   const unexpectedFiles = presentNames.filter((name) => !requiredNames.includes(name));
