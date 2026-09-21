@@ -8,18 +8,30 @@ function collectSlurRuntimeIssues(callback) {
   }
   const issues = [];
   collectorStack.push(issues);
+
+  let result;
+  let callbackFailed = false;
+  let callbackError;
   try {
-    return Object.freeze({
-      result: callback(),
-      issues: Object.freeze([...issues]),
-    });
-  } finally {
-    const popped = collectorStack.pop();
-    if (popped !== issues) {
-      collectorStack.length = 0;
-      throw new Error('Slur diagnostic collector stack became inconsistent.');
-    }
+    result = callback();
+  } catch (error) {
+    callbackFailed = true;
+    callbackError = error;
   }
+
+  const popped = collectorStack.pop();
+  if (popped !== issues) {
+    collectorStack.length = 0;
+    throw new Error('Slur diagnostic collector stack became inconsistent.');
+  }
+  if (callbackFailed) {
+    throw callbackError;
+  }
+
+  return Object.freeze({
+    result,
+    issues: Object.freeze([...issues]),
+  });
 }
 
 function recordSlurRuntimeIssues(issues) {
