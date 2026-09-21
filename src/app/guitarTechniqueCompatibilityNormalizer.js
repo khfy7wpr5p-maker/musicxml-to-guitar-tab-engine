@@ -8,6 +8,12 @@ const {
   extractGuitarTechniqueProvenance,
 } = require('../parser/guitarTechniqueProvenance');
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function cloneNode(node, children = null) {
   return {
     name: node.name,
@@ -138,7 +144,7 @@ function normalizeVerifiedGuitarTechniqueProvenance(parsedDocument) {
       root: normalizedRoot,
     },
     guitarTechniqueProvenance,
-    ignoredFeatures: Object.freeze([...ignoredFeatures].sort()),
+    ignoredFeatures: Object.freeze([...ignoredFeatures].sort(compareCodeUnitStrings)),
   });
 }
 
