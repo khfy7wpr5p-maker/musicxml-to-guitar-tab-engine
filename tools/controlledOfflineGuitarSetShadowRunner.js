@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+
+const compareCodeUnitStrings = (left, right) => (left > right) - (left < right);
 const {
   createMusicXmlProcessingRuntime,
 } = require('../src/parser/musicxmlSemanticResourceLimits');
@@ -70,8 +72,8 @@ function assertPlainObject(value, field) {
 
 function assertExactKeys(value, expectedKeys, field) {
   assertPlainObject(value, field);
-  const actual = Object.keys(value).sort();
-  const expected = [...expectedKeys].sort();
+  const actual = Object.keys(value).sort(compareCodeUnitStrings);
+  const expected = [...expectedKeys].sort(compareCodeUnitStrings);
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw invalid(`${field} fields do not match the controlled offline contract.`, {
       field,
@@ -314,10 +316,10 @@ function matchBaselineCandidate(group, baselineResult) {
   const selected = baselineResult.selectedTones
     .filter((tone) => activeIds.has(tone.sourceEventId))
     .map(positionSemanticKey)
-    .sort();
+    .sort(compareCodeUnitStrings);
   if (selected.length !== group.activeSourceEventIds.length) return null;
   for (const candidate of group.candidates) {
-    const candidateKeys = candidate.positions.map(positionSemanticKey).sort();
+    const candidateKeys = candidate.positions.map(positionSemanticKey).sort(compareCodeUnitStrings);
     if (
       candidateKeys.length === selected.length
       && candidateKeys.every((value, index) => value === selected[index])
