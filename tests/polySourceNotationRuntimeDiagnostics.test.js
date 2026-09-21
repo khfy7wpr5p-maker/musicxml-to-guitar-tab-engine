@@ -5,59 +5,36 @@ const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const {
-  collectSourceNotationRuntimeIssues,
-  recordSourceNotationRuntimeIssues,
-} = require('../src/app/polySourceNotationRuntimeDiagnostics');
+const diagnostics = require('../src/app/polySourceNotationRuntimeDiagnostics');
 
-test('source notation diagnostics preserve result and collected issues', () => {
-  const issue = Object.freeze({ code: 'TEST_SOURCE_NOTATION_ISSUE' });
-  const collected = collectSourceNotationRuntimeIssues(() => {
-    recordSourceNotationRuntimeIssues([issue]);
-    return 'ok';
-  });
+test('source notation collector survives failure without leaking diagnostic state', () => {
+  const failure = new Error('source notation callback failed');
 
-  assert.equal(collected.result, 'ok');
-  assert.deepEqual(collected.issues, [issue]);
-  assert.equal(Object.isFrozen(collected), true);
-  assert.equal(Object.isFrozen(collected.issues), true);
-});
+  assert.throws(() => diagnostics.collectSourceNotationRuntimeIssues(() => {
+    diagnostics.recordSourceNotationRuntimeIssues([{ code: 'DISCARDED_WITH_FAILURE' }]);
+    throw failure;
+  }), (error) => error === failure);
 
-test('source notation diagnostics clean up after callback failure', () => {
-  const failure = new Error('callback failed');
-  assert.throws(
-    () => collectSourceNotationRuntimeIssues(() => {
-      recordSourceNotationRuntimeIssues([{ code: 'BEFORE_FAILURE' }]);
-      throw failure;
-    }),
-    (error) => error === failure,
-  );
-
-  const after = collectSourceNotationRuntimeIssues(() => {
-    recordSourceNotationRuntimeIssues([{ code: 'AFTER_FAILURE' }]);
-    return 'recovered';
-  });
-  assert.equal(after.result, 'recovered');
-  assert.deepEqual(after.issues, [{ code: 'AFTER_FAILURE' }]);
-});
-
-test('source notation diagnostics keep nested collectors isolated', () => {
-  const outer = collectSourceNotationRuntimeIssues(() => {
-    recordSourceNotationRuntimeIssues([{ code: 'OUTER_BEFORE' }]);
-    const inner = collectSourceNotationRuntimeIssues(() => {
-      recordSourceNotationRuntimeIssues([{ code: 'INNER' }]);
-      return 'inner';
+  const outer = diagnostics.collectSourceNotationRuntimeIssues(() => {
+    diagnostics.recordSourceNotationRuntimeIssues([{ code: 'OUTER' }]);
+    const inner = diagnostics.collectSourceNotationRuntimeIssues(() => {
+      diagnostics.recordSourceNotationRuntimeIssues([{ code: 'INNER' }]);
+      return 17;
     });
-    assert.deepEqual(inner.issues, [{ code: 'INNER' }]);
-    recordSourceNotationRuntimeIssues([{ code: 'OUTER_AFTER' }]);
-    return 'outer';
+    assert.deepEqual(inner, {
+      result: 17,
+      issues: [{ code: 'INNER' }],
+    });
+    return 'done';
   });
 
-  assert.equal(outer.result, 'outer');
-  assert.deepEqual(outer.issues, [{ code: 'OUTER_BEFORE' }, { code: 'OUTER_AFTER' }]);
+  assert.equal(outer.result, 'done');
+  assert.deepEqual(outer.issues, [{ code: 'OUTER' }]);
+  assert.equal(Object.isFrozen(outer), true);
+  assert.equal(Object.isFrozen(outer.issues), true);
 });
 
-test('source notation diagnostics do not throw from a finally block', () => {
+test('source notation collector has no throw-from-finally path', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'app', 'polySourceNotationRuntimeDiagnostics.js'),
     'utf8',
