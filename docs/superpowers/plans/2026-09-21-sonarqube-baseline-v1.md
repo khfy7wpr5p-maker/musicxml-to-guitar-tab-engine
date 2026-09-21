@@ -29,6 +29,12 @@
 - Coverage on new code: 0.0% (Automatic Analysis does not import JS/TS coverage reports)
 - Existing Tests, MusicXML Compatibility, Runtime Staging E2E, Stage 09 Real Corpus Audit and A3 Real Piano Corpus Audit: success
 
+## Closeout evidence — 2026-09-21
+
+Baseline v1 is established with SonarQube Cloud Automatic Analysis as the single active Sonar path. The approved safe-cleanup tranche merged through PRs #352, #355, #356, #357, #358, #359 and #360. It covered explicit corpus/offline string ordering and four behavior-preserving diagnostic-collector cleanup changes with focused regression tests.
+
+Protected `main` at `cd7d5806a1765ef86af208f1ebaa2a02cd657f97` reports SonarCloud Quality Gate passed, 0 Security Hotspots, 89 New issues, 0.0% coverage on new code and 1.1% duplication on new code. Baseline/approved cleanup is closed; the 89 remaining findings are a separate non-blocking backlog. Coverage migration remains an explicit future decision and must disable Automatic Analysis before any CI-based scanner is introduced.
+
 ## Tasks
 
 ### Task 1: Configure Automatic Analysis scope
@@ -39,7 +45,7 @@
 - [x] Separate first-party production sources: `src,api,scripts,tools,web`.
 - [x] Classify `tests,verification,benchmarks` as test code.
 - [x] Exclude `third_party/**`, `evidence/**`, dependency and minified noise.
-- [ ] Verify the next Automatic Analysis run accepts the scoped configuration.
+- [x] Verify Automatic Analysis accepts the scoped configuration.
 
 ### Task 2: Avoid duplicate scanners
 
@@ -54,6 +60,6 @@
 
 - [x] Confirm GitHub SonarCloud Code Analysis check is connected.
 - [x] Confirm Quality Gate passed on PR #351.
-- [ ] Review whole-project issues after the scoped Automatic Analysis reruns.
-- [ ] Prioritize real security/correctness findings before maintainability/code-smell cleanup.
+- [x] Review whole-project issues after the scoped Automatic Analysis reruns.
+- [x] Prioritize reliability/control-flow findings before broader maintainability cleanup.
 - [ ] Decide separately whether coverage is valuable enough to migrate the project to CI-based analysis. Such a migration requires disabling Automatic Analysis first.
