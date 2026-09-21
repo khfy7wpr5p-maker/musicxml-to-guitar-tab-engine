@@ -19,6 +19,12 @@ const STAGE08_STATUSES = new Set(['PASS', 'REVIEW_REQUIRED', 'BLOCKED']);
 const SHA256 = /^[a-f0-9]{64}$/;
 const SHA1 = /^[a-f0-9]{40}$/;
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function isPlainObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -26,7 +32,7 @@ function isPlainObject(value) {
 }
 
 function uniqueStrings(values) {
-  return [...new Set(values)].sort();
+  return [...new Set(values)].sort(compareCodeUnitStrings);
 }
 
 function validateGateManifest(manifest) {
