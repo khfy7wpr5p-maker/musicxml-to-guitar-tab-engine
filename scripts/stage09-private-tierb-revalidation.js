@@ -32,6 +32,12 @@ const PACKET_TYPE = 'Stage09TeacherCorrectionPreparedCase';
 const EVIDENCE_CLASS = 'REAL_TEACHER_CORRECTION';
 const RUNNER_VERSION = '1.0.0';
 
+function compareCodeUnitStrings(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -280,7 +286,7 @@ function runCase(verified, ordinal) {
 function discoverPackets(evidenceDir) {
   return fs.readdirSync(evidenceDir)
     .filter((name) => name.endsWith('.correction-packet.json'))
-    .sort()
+    .sort(compareCodeUnitStrings)
     .map((name) => ({ fileName: name, packet: readJson(path.join(evidenceDir, name)) }));
 }
 
