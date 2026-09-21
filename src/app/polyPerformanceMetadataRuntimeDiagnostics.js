@@ -2,24 +2,34 @@
 
 const collectorStack = [];
 
+function captureCallbackResult(callback) {
+  try {
+    return [true, callback()];
+  } catch (error) {
+    return [false, error];
+  }
+}
+
 function collectPerformanceMetadataRuntimeIssues(callback) {
   if (typeof callback !== 'function') {
     throw new TypeError('callback must be a function.');
   }
+
   const issues = [];
   collectorStack.push(issues);
-  try {
-    return Object.freeze({
-      result: callback(),
-      issues: Object.freeze([...issues]),
-    });
-  } finally {
-    const popped = collectorStack.pop();
-    if (popped !== issues) {
-      collectorStack.length = 0;
-      throw new Error('Performance metadata diagnostic collector stack became inconsistent.');
-    }
+  const [completed, value] = captureCallbackResult(callback);
+  const stackMatches = collectorStack.pop() === issues;
+
+  if (!stackMatches) {
+    collectorStack.length = 0;
+    throw new Error('Performance metadata diagnostic collector stack became inconsistent.');
   }
+  if (!completed) throw value;
+
+  return Object.freeze({
+    result: value,
+    issues: Object.freeze([...issues]),
+  });
 }
 
 function recordPerformanceMetadataRuntimeIssues(issues) {
