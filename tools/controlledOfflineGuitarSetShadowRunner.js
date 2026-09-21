@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { compareCodeUnitStrings } = require('./codeUnitStringComparator');
 const {
   createMusicXmlProcessingRuntime,
 } = require('../src/parser/musicxmlSemanticResourceLimits');
@@ -39,12 +40,6 @@ const ALLOWED_FIXTURE_PREFIXES = Object.freeze([
   'benchmarks/teacher-arrangement-v1/fixtures/',
   'benchmarks/guitarset-shadow/fixtures/',
 ]);
-
-function compareCodeUnitStrings(left, right) {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-}
 
 class ControlledOfflineGuitarSetShadowRunnerError extends Error {
   constructor(message, code = 'INVALID_CONTROLLED_OFFLINE_SHADOW_INPUT', details = {}) {
