@@ -6,6 +6,14 @@ function currentCollector() {
   return collectorStack[collectorStack.length - 1] || null;
 }
 
+function executeCollectorCallback(callback) {
+  try {
+    return Object.freeze({ kind: 'result', value: callback() });
+  } catch (error) {
+    return Object.freeze({ kind: 'error', value: error });
+  }
+}
+
 function collectFingeringRuntimeIssues(callback) {
   if (typeof callback !== 'function') throw new TypeError('callback must be a function.');
   const collector = {
@@ -13,19 +21,20 @@ function collectFingeringRuntimeIssues(callback) {
     exactFingeringConstraints: null,
   };
   collectorStack.push(collector);
-  try {
-    return Object.freeze({
-      result: callback(),
-      issues: Object.freeze([...collector.issues]),
-      exactFingeringConstraints: collector.exactFingeringConstraints,
-    });
-  } finally {
-    const popped = collectorStack.pop();
-    if (popped !== collector) {
-      collectorStack.length = 0;
-      throw new Error('Fingering runtime collector stack became inconsistent.');
-    }
+
+  const execution = executeCollectorCallback(callback);
+  const popped = collectorStack.pop();
+  if (popped !== collector) {
+    collectorStack.length = 0;
+    throw new Error('Fingering runtime collector stack became inconsistent.');
   }
+  if (execution.kind === 'error') throw execution.value;
+
+  return Object.freeze({
+    result: execution.value,
+    issues: Object.freeze([...collector.issues]),
+    exactFingeringConstraints: collector.exactFingeringConstraints,
+  });
 }
 
 function recordFingeringRuntimeIssues(issues) {
