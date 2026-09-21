@@ -10,6 +10,7 @@ const TARGETS = [
   'scripts/stage09-real-corpus-product-gate.js',
   'scripts/stage09-private-tierb-revalidation.js',
   'tools/controlledOfflineGuitarSetShadowRunner.js',
+  'tools/controlledOfflineGuitarSetV2ShadowRunner.js',
 ];
 
 test('Sonar-safe corpus sort sites always use an explicit comparator', () => {
