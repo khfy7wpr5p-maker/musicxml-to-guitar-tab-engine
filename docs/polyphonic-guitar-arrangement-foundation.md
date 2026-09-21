@@ -1,6 +1,6 @@
 # Polyphonic Guitar Arrangement Foundation
 
-<!-- ARCHITECTURE-SNAPSHOT: 2026-09-19 -->
+<!-- ARCHITECTURE-SNAPSHOT: 2026-09-21 -->
 
 ## Purpose and boundary
 
@@ -204,6 +204,10 @@ PA-13 public polyphonic API
 ```
 
 Runtime shadow does not authorize any of these public arrows.
+
+## Engineering verification boundary
+
+SonarQube Cloud and protected CI are verification layers around this foundation, not new arrangement authorities. The 2026-09-21 Sonar safe-cleanup tranche preserved the PA/PS, physical-selection, canonical-result and review-state contracts. Remaining Sonar findings must be handled in separately scoped, test-backed changes and cannot justify silent changes to candidate enumeration, solver ranking, source semantics or fail-closed behavior.
 
 ## Security invariants
 
