@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a safe, non-blocking SonarQube Cloud baseline analysis path without changing MusicXML-to-Guitar-TAB runtime behavior or existing required CI checks.
+**Goal:** Establish a safe SonarQube Cloud baseline for GuitarTab Engine without changing MusicXML-to-Guitar-TAB runtime behavior or existing protected CI checks.
 
-**Architecture:** Keep SonarQube isolated in its own GitHub Actions workflow. Production and test workflows remain unchanged. Sonar project identity is supplied through GitHub repository variables and authentication through `SONAR_TOKEN`, so no organization or project key is guessed or committed.
+**Architecture:** Use SonarQube Cloud Automatic Analysis, which is already active for the GitHub repository. Do not run a second SonarScanner workflow concurrently. Keep analysis scope in `.sonarcloud.properties`; defer test coverage integration until a future explicit migration to CI-based analysis.
 
-**Tech Stack:** GitHub Actions, SonarQube Cloud, Node.js repository, official `SonarSource/sonarqube-scan-action`.
+**Tech Stack:** SonarQube Cloud Automatic Analysis, GitHub integration, JavaScript/Node.js repository.
 
 **Spec:** User-approved SonarQube Baseline v1 integration, 2026-09-21.
 
@@ -14,98 +14,46 @@
 
 - Do not modify MusicXML parsing, POLY_V2, REVIEW_REQUIRED, editor, TAB generation, playback, or runtime behavior.
 - Do not modify existing required branch-protection checks.
-- SonarQube must start as non-blocking observation only.
-- Do not guess or hard-code SonarQube organization or project keys.
-- Do not commit tokens or credentials.
-- Exclude third-party/generated evidence noise from production-source analysis.
+- Keep SonarQube observational during baseline establishment.
+- Do not run Automatic Analysis and CI-based SonarScanner concurrently.
+- Exclude third-party/evidence noise from first-party production-source analysis.
 - Preserve Node.js 18/20/22 compatibility workflows exactly as-is.
 
-## Review Focus
+## Baseline Evidence
 
-- Missing Sonar credentials/variables must skip analysis cleanly rather than fail unrelated PRs.
-- Pull requests from contexts without secrets must remain usable.
-- Sonar scope must classify first-party production code separately from tests/benchmarks/verification.
-- Existing protected CI checks must be untouched.
-- The Sonar scan action must be pinned to an immutable commit SHA.
+- Project key: `khfy7wpr5p-maker_musicxml-to-guitar-tab-engine`
+- PR #351 SonarCloud Code Analysis: Quality Gate passed
+- New issues: 0
+- Security hotspots on new code: 0
+- Duplication on new code: 0.0%
+- Coverage on new code: 0.0% (Automatic Analysis does not import JS/TS coverage reports)
+- Existing Tests, MusicXML Compatibility, Runtime Staging E2E, Stage 09 Real Corpus Audit and A3 Real Piano Corpus Audit: success
 
----
+## Tasks
 
-### Task 1: Define Sonar analysis scope
-
-**Files:**
-- Create: `sonar-project.properties`
-
-**Interfaces:**
-- Consumes: repository layout.
-- Produces: stable source/test/exclusion configuration consumed by the Sonar scanner.
-
-- [x] **Step 1: Define first-party production sources**
-  - `src`
-  - `api`
-  - `scripts`
-  - `tools`
-  - `web`
-
-- [x] **Step 2: Define test/evidence execution code**
-  - `tests`
-  - `verification`
-  - `benchmarks`
-
-- [x] **Step 3: Exclude third-party and dependency noise**
-  - `third_party/**`
-  - `**/node_modules/**`
-  - `**/*.min.js`
-
-- [ ] **Step 4: Verify first Sonar scanner context**
-  Expected: production source and test code are not double-classified.
-
-### Task 2: Add non-blocking GitHub Actions scan
+### Task 1: Configure Automatic Analysis scope
 
 **Files:**
-- Create: `.github/workflows/sonarqube-baseline.yml`
+- Create: `.sonarcloud.properties`
 
-**Interfaces:**
-- Consumes:
-  - secret `SONAR_TOKEN`
-  - variable `SONAR_PROJECT_KEY`
-  - variable `SONAR_ORGANIZATION`
-- Produces: SonarQube Cloud baseline analysis on main/pull requests when configured.
+- [x] Separate first-party production sources: `src,api,scripts,tools,web`.
+- [x] Classify `tests,verification,benchmarks` as test code.
+- [x] Exclude `third_party/**`, `evidence/**`, dependency and minified noise.
+- [ ] Verify the next Automatic Analysis run accepts the scoped configuration.
 
-- [x] **Step 1: Checkout with full history**
-  Use `actions/checkout` with `fetch-depth: 0`.
-
-- [x] **Step 2: Keep job non-blocking**
-  Use job-level `continue-on-error: true`.
-
-- [x] **Step 3: Skip safely when Sonar identity/auth is absent**
-  Emit a configuration message; do not run the scanner.
-
-- [x] **Step 4: Run official pinned scanner when configured**
-  Use `SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f` (v8.2.1).
-
-- [ ] **Step 5: Verify GitHub Actions run**
-  Expected before credentials: workflow succeeds/skips scanner.
-  Expected after credentials: scanner submits analysis to the configured SonarQube Cloud project.
-
-### Task 3: Establish Baseline v1
+### Task 2: Avoid duplicate scanners
 
 **Files:**
-- No production-code changes.
+- No Sonar GitHub Actions scanner workflow.
 
-**Interfaces:**
-- Consumes: first successful Sonar analysis.
-- Produces: baseline counts for bugs, vulnerabilities/security hotspots, code smells, duplication, maintainability and available coverage data.
+- [x] Remove the provisional CI-based scanner workflow after Automatic Analysis was confirmed active.
+- [x] Remove CI-only `sonar-project.properties` from this baseline PR.
+- [x] Keep Automatic Analysis as the single analysis method for Baseline v1.
 
-- [ ] **Step 1: Create/import the repository in SonarQube Cloud**
-  Required human/account action if not already connected.
+### Task 3: Baseline review
 
-- [ ] **Step 2: Configure GitHub repository values**
-  - Secret: `SONAR_TOKEN`
-  - Variable: `SONAR_PROJECT_KEY`
-  - Variable: `SONAR_ORGANIZATION`
-
-- [ ] **Step 3: Run the workflow manually or through PR/main push**
-
-- [ ] **Step 4: Record Baseline v1 findings without changing runtime behavior**
-
-- [ ] **Step 5: Only after baseline review, decide whether to enforce a New Code Quality Gate**
+- [x] Confirm GitHub SonarCloud Code Analysis check is connected.
+- [x] Confirm Quality Gate passed on PR #351.
+- [ ] Review whole-project issues after the scoped Automatic Analysis reruns.
+- [ ] Prioritize real security/correctness findings before maintainability/code-smell cleanup.
+- [ ] Decide separately whether coverage is valuable enough to migrate the project to CI-based analysis. Such a migration requires disabling Automatic Analysis first.
