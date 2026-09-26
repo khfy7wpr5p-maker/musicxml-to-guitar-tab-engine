@@ -1,9 +1,11 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { createGuitarConfiguration } = require('../guitar/tuning');
+const { freezeObjectGraph } = require('./freezeObjectGraph');
 
-const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.3.0';
-const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.5.0';
+const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.4.0';
+const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.6.0';
 
 const PLAYBACK_CAPABILITY = Object.freeze({
   FULL: 'FULL',
@@ -16,22 +18,6 @@ const REVIEW_ACTIONS = Object.freeze([
   'APPLY_SUGGESTED_FIX',
   'EDIT_MANUALLY',
 ]);
-
-function deepFreeze(root) {
-  const pending = [root];
-  const seen = new WeakSet();
-  while (pending.length > 0) {
-    const value = pending.pop();
-    if (!value || typeof value !== 'object' || seen.has(value)) continue;
-    seen.add(value);
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor && Object.hasOwn(descriptor, 'value')) pending.push(descriptor.value);
-    }
-    Object.freeze(value);
-  }
-  return root;
-}
 
 function normalizedIssueLocation(issue) {
   const location = issue && typeof issue.location === 'object' && issue.location
@@ -485,6 +471,148 @@ function validReviewEditableProjection(result) {
   ));
 }
 
+function validReviewDraftGuitarConfiguration(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.tuning)) return false;
+  try {
+    const normalized = createGuitarConfiguration({
+      tuning: value.tuning,
+      minimumFret: value.minimumFret,
+      maximumFret: value.maximumFret,
+      capoFret: value.capoFret,
+    });
+    return JSON.stringify({
+      tuning: value.tuning,
+      minimumFret: value.minimumFret,
+      maximumFret: value.maximumFret,
+      capoFret: value.capoFret,
+      fretSemantics: value.fretSemantics,
+    }) === JSON.stringify({
+      tuning: normalized.tuning,
+      minimumFret: normalized.minimumFret,
+      maximumFret: normalized.maximumFret,
+      capoFret: normalized.capoFret,
+      fretSemantics: normalized.fretSemantics,
+    });
+  } catch {
+    return false;
+  }
+}
+
+function validReviewTabDraft(result) {
+  const index = result?.sourceReviewIndex;
+  const draft = result?.reviewTabDraft;
+  const sourceArtifact = result?.sourceArtifact;
+  const inputSha = result?.input?.sha256;
+
+  const draftTuning = draft?.guitarConfiguration?.tuning;
+
+  if (
+    index?.documentType !== 'SourceReviewIndex'
+    || index?.contractVersion !== '1.0.0'
+    || index?.sourceUploadSha256 !== inputSha
+    || typeof index?.selectedPartId !== 'string'
+    || index.selectedPartId.length === 0
+    || !Array.isArray(index.entries)
+    || draft?.documentType !== 'ReviewTabDraft'
+    || draft?.contractVersion !== '1.0.0'
+    || draft?.authority !== 'PROVISIONAL_TEACHER_REVIEW_ONLY'
+    || draft?.sourceUploadSha256 !== inputSha
+    || draft?.sourceUploadSha256 !== index.sourceUploadSha256
+    || draft?.selectedPartId !== index.selectedPartId
+    || typeof draft?.revisionId !== 'string'
+    || draft.revisionId.length === 0
+    || draft?.sourceScoreArtifact !== sourceArtifact
+    || sourceArtifact?.sourceUploadSha256 !== inputSha
+    || !Array.isArray(draftTuning)
+    || draftTuning.length !== 6
+    || !validReviewDraftGuitarConfiguration(draft?.guitarConfiguration)
+    || !Array.isArray(draft?.perNoteDisposition)
+    || !Array.isArray(draft?.issues)
+    || draft?.renderModel?.documentType !== 'ReviewTabDraftRenderModel'
+    || draft?.renderModel?.contractVersion !== '1.0.0'
+    || draft?.renderModel?.stringCount !== 6
+    || !Array.isArray(draft?.renderModel?.measures)
+    || draft?.capabilities?.draftVisible !== true
+    || draft?.capabilities?.selectSourceEvent !== true
+    || draft?.capabilities?.assignStringFret !== false
+    || draft?.capabilities?.export !== false
+  ) return false;
+
+  const sourceById = new Map();
+  for (const entry of index.entries) {
+    if (
+      typeof entry?.sourceEventId !== 'string'
+      || entry.sourceEventId.length === 0
+      || sourceById.has(entry.sourceEventId)
+      || entry?.sourceUploadSha256 !== inputSha
+      || entry?.selectedPartId !== index.selectedPartId
+      || typeof entry?.measureId !== 'string'
+      || entry.measureId.length === 0
+      || !Array.isArray(entry?.uncertaintyReasonCodes)
+    ) return false;
+    sourceById.set(entry.sourceEventId, entry);
+  }
+
+  const expectedDraftSources = index.entries.filter((entry) => entry.eventKind !== 'REST');
+  if (draft.perNoteDisposition.length !== expectedDraftSources.length) return false;
+
+  const dispositionIds = new Set();
+  for (const disposition of draft.perNoteDisposition) {
+    const source = sourceById.get(disposition?.sourceEventId);
+    if (
+      !source
+      || source.eventKind === 'REST'
+      || dispositionIds.has(disposition.sourceEventId)
+      || disposition?.measureId !== source.measureId
+      || !['UNASSIGNED', 'SOURCE_UNKNOWN'].includes(disposition?.disposition)
+      || disposition?.selectedPosition !== null
+      || disposition?.knownPitchOrNull !== source.knownPitchOrNull
+      || disposition?.knownOnsetOrNull !== source.knownOnsetOrNull
+      || disposition?.knownDurationOrNull !== source.knownDurationOrNull
+      || disposition?.uncertaintyReasonCodes !== source.uncertaintyReasonCodes
+    ) return false;
+    const fullyKnown = source.eventKind === 'PITCHED_NOTE'
+      && source.knownPitchOrNull !== null
+      && source.knownOnsetOrNull !== null
+      && source.knownDurationOrNull !== null;
+    if (disposition.disposition !== (fullyKnown ? 'UNASSIGNED' : 'SOURCE_UNKNOWN')) return false;
+    dispositionIds.add(disposition.sourceEventId);
+  }
+
+  const renderIds = new Set();
+  const renderMeasureIds = new Set();
+  for (const measure of draft.renderModel.measures) {
+    if (
+      typeof measure?.measureId !== 'string'
+      || measure.measureId.length === 0
+      || renderMeasureIds.has(measure.measureId)
+      || !Array.isArray(measure?.events)
+    ) return false;
+    renderMeasureIds.add(measure.measureId);
+    for (const event of measure.events) {
+      const source = sourceById.get(event?.sourceEventId);
+      if (
+        !source
+        || source.measureId !== measure.measureId
+        || source.evidenceLocation?.measureIndex !== measure?.measureIndex
+        || renderIds.has(event.sourceEventId)
+        || source.knownOnsetOrNull === null
+        || event?.onsetDivisions !== source.knownOnsetOrNull
+        || event?.displayToken !== '?'
+        || event?.string !== null
+        || event?.fret !== null
+      ) return false;
+      renderIds.add(event.sourceEventId);
+    }
+  }
+
+  return expectedDraftSources.every((source) => (
+    source.knownOnsetOrNull === null
+      ? !renderIds.has(source.sourceEventId)
+      : renderIds.has(source.sourceEventId)
+  ));
+}
+
 function decorateUploadResultWithCapabilities(result) {
   if (!result || typeof result !== 'object') {
     throw new TypeError('Upload result must be an object.');
@@ -494,16 +622,23 @@ function decorateUploadResultWithCapabilities(result) {
   const renderScore = rendererMusicXmlAvailable && result.status !== 'BLOCKED';
   const partialArrangementAvailable = validPartialArrangementArtifact(result);
   const reviewEditableProjectionAvailable = validReviewEditableProjection(result);
+  const reviewTabDraftAvailable = validReviewTabDraft(result);
   const tabArtifactAvailable = Boolean(result.canonicalTabResult) || partialArrangementAvailable;
   const sourceArtifactAvailable = sourceArtifactMusicXml(result) !== null;
+  const sourceReviewIndexAvailable = Boolean(
+    reviewTabDraftAvailable
+    && result.sourceReviewIndex?.sourceUploadSha256 === result?.input?.sha256
+  );
   const reviewable = result.status === 'REVIEW_REQUIRED';
   const passed = result.status === 'PASS';
   const tabVisible = renderScore && tabArtifactAvailable;
+  const draftVisible = reviewable && renderScore && reviewTabDraftAvailable;
   const issues = enrichedIssues(result, tabVisible);
   const playback = playbackCapability(result, renderScore, issues);
 
   const capabilities = {
     renderScore,
+    draftVisible,
     generateTab: tabArtifactAvailable,
     // REVIEW_REQUIRED pitch editing is exposed only when a backend-created,
     // source-bound selection model exists; never unlock a browser control by
@@ -533,6 +668,8 @@ function decorateUploadResultWithCapabilities(result) {
     sourceArtifactAvailable,
     rendererMusicXmlAvailable,
     provisionalTabAvailable: reviewable && tabArtifactAvailable,
+    reviewTabDraftAvailable: draftVisible,
+    sourceReviewIndexAvailable,
     reviewEditableProjectionAvailable,
     canonicalTabAvailable: passed && Boolean(result.canonicalTabResult),
     playbackTimelineReliability: playback === PLAYBACK_CAPABILITY.FULL
@@ -542,7 +679,7 @@ function decorateUploadResultWithCapabilities(result) {
         : 'NONE',
   };
 
-  return deepFreeze({
+  return freezeObjectGraph({
     ...result,
     // Keep the established upload runtime contractVersion untouched. The
     // capability extension is additive and therefore carries its own schema

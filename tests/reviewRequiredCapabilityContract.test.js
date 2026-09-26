@@ -39,15 +39,15 @@ function cloneResult(result) {
 
 test('upload result schema 1.5 exposes additive capability and artifact authority', () => {
   assert.equal(MUSICXML_UPLOAD_RUNTIME_VERSION, '1.0.0');
-  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.5.0');
+  assert.equal(MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION, '1.6.0');
   const result = processMusicXmlUpload({
     fileName: 'capability-pass.musicxml',
     bytes: Buffer.from(polyphonicScore()),
   });
   assert.equal(result.status, 'PASS');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.5.0');
-  assert.equal(result.capabilityContractVersion, '1.3.0');
+  assert.equal(result.resultSchemaVersion, '1.6.0');
+  assert.equal(result.capabilityContractVersion, '1.4.0');
   assert.equal(result.scoreAvailable, true);
   assert.equal(result.capabilities.renderScore, true);
   assert.equal(result.capabilities.generateTab, true);
@@ -73,7 +73,7 @@ test('combined direction review keeps source score and provisional TAB available
   assert.equal(first.status, 'REVIEW_REQUIRED');
   assert.equal(first.route, 'POLY_V2');
   assert.equal(first.contractVersion, '1.0.0');
-  assert.equal(first.resultSchemaVersion, '1.5.0');
+  assert.equal(first.resultSchemaVersion, '1.6.0');
   assert.ok(first.canonicalTabResult);
   assert.equal(typeof first.musicXml, 'string');
   assert.match(first.musicXml, /<sign>TAB<\/sign>/);
@@ -131,7 +131,7 @@ test('timeline review keeps TAB capability when a provisional artifact exists', 
   });
 
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.5.0');
+  assert.equal(result.resultSchemaVersion, '1.6.0');
   assert.equal(result.capabilities.editRhythm, true);
   assert.equal(result.capabilities.generateTab, true);
   assert.equal(result.capabilities.assignTabPosition, false);
@@ -173,7 +173,7 @@ test('hard block remains capability-closed', () => {
   });
   assert.equal(result.status, 'BLOCKED');
   assert.equal(result.contractVersion, '1.0.0');
-  assert.equal(result.resultSchemaVersion, '1.5.0');
+  assert.equal(result.resultSchemaVersion, '1.6.0');
   assert.equal(result.scoreAvailable, false);
   assert.equal(result.capabilities.renderScore, false);
   assert.equal(result.capabilities.generateTab, false);

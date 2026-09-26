@@ -74,6 +74,12 @@ const {
 const {
   recoverNoLossArpeggiationReviewArrangement,
 } = require('./noLossArpeggiationReviewRecovery');
+const {
+  tryCreateSourceReviewIndex,
+} = require('./sourceReviewIndex');
+const {
+  createReviewTabDraft,
+} = require('./reviewTabDraft');
 
 const MUSICXML_UPLOAD_RUNTIME_VERSION = '1.0.0';
 const MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE = 'MusicXmlUploadRuntimeResult';
@@ -1092,6 +1098,67 @@ function convertGraceProjectionToCanonicalTab(
   return { canonicalTabResult, musicXml };
 }
 
+function earlyReviewTabDraftEligible(error) {
+  return Boolean(
+    (
+      error?.code === 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE'
+      && error?.details?.feature === 'barline-repeat'
+      && error?.details?.reviewDisposition === 'REVIEW_REQUIRED'
+    )
+    || (
+      error?.code === 'UNSUPPORTED_POLYPHONIC_PROJECTION_FEATURE'
+      && error?.details?.reviewDisposition === 'REVIEW_REQUIRED'
+      && (
+        (
+          error?.details?.feature === 'barline-ending'
+          && error?.details?.reason === 'ENDING_PLAYBACK_POLICY_REQUIRES_REVIEW'
+        )
+        || (
+          error?.details?.feature === 'direction-review'
+          && error?.details?.reason === 'PERFORMANCE_DIRECTION_REQUIRES_REVIEW'
+        )
+      )
+    )
+  );
+}
+
+function blockedResultWithEarlyReviewDraft(
+  identity,
+  error,
+  normalization,
+  sourceArtifact,
+  sourceReviewIndex,
+  sourceGuitarConfiguration,
+) {
+  const base = blockedResult(
+    identity,
+    MUSICXML_UPLOAD_ROUTE.POLY_V2,
+    issueFromError(error),
+    normalization,
+    sourceArtifact,
+  );
+  if (!earlyReviewTabDraftEligible(error) || !sourceReviewIndex || !sourceArtifact) return base;
+
+  const issue = issueFromError(error);
+  const reviewTabDraft = createReviewTabDraft({
+    sourceReviewIndex,
+    sourceScoreArtifact: sourceArtifact,
+    guitarConfiguration: sourceGuitarConfiguration?.guitar || null,
+    issues: [{
+      ...issue,
+      category: 'semantic',
+      reviewDisposition: 'REVIEW_REQUIRED',
+    }],
+  });
+  if (!reviewTabDraft) return base;
+
+  return deepFreeze({
+    ...base,
+    sourceReviewIndex,
+    reviewTabDraft,
+  });
+}
+
 function runtimeCompatibilityIssue(runtimeProjection) {
   return Object.freeze({
     severity: 'warning',
@@ -1144,6 +1211,7 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
   let sourceBytes;
   let normalizedSourceXml;
   let sourceArtifact;
+  let sourceReviewIndex = null;
   try {
     processing = resolveProcessingRuntime(normalizedOptions.processing, runtime);
     processing.checkpoint('app-upload:start', { byteLength: normalizedUpload.bytes.byteLength });
@@ -1159,6 +1227,11 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
     processing.checkpoint('app-upload:safety-complete');
     const parsedDocument = parseParsedMusicXmlDocument(sourceBytes, {}, processing);
     sourceArtifact = createSourceArtifact(normalizedSourceXml, identity, extension);
+    try {
+      sourceReviewIndex = tryCreateSourceReviewIndex(parsedDocument, identity.sha256);
+    } catch {
+      sourceReviewIndex = null;
+    }
     harmonyExtraction = extractBasicMusicXmlHarmony(parsedDocument, processing);
   } catch (error) {
     const route = error?.code === 'UNSUPPORTED_BASIC_MUSICXML_HARMONY'
@@ -1489,12 +1562,13 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
         );
       }
     }
-    return blockedResult(
+    return blockedResultWithEarlyReviewDraft(
       identity,
-      MUSICXML_UPLOAD_ROUTE.POLY_V2,
-      issueFromError(error),
+      error,
       normalization ? publicNormalization(normalization) : null,
       sourceArtifact,
+      sourceReviewIndex,
+      sourceGuitarConfiguration,
     );
   }
 }

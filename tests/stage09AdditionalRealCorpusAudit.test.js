@@ -105,8 +105,8 @@ function usableReview(bytes, fileName = 'review.musicxml') {
   return {
     status: 'REVIEW_REQUIRED',
     route: 'POLY_V2',
-    resultSchemaVersion: '1.5.0',
-    capabilityContractVersion: '1.3.0',
+    resultSchemaVersion: '1.6.0',
+    capabilityContractVersion: '1.4.0',
     input: {
       fileName,
       byteLength: bytes.length,

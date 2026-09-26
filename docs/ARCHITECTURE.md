@@ -67,10 +67,12 @@ R8 versions the POLY_V2 edit result contract to `1.4.0`, `ReviewEditableTabProje
 
 R9 replaces the sparse dense-piano fallback with `MELODY_BASS_PLAYABLE_MAXIMIZATION_2.0`. `PartialGuitarTabArrangement 1.1.0` and `ReviewEditableTabProjection 1.1.0` retain source identities and expose exact reason codes for melody, bass, inner-voice, teacher-assignment, capacity and duplicate-pitch decisions. The Workbench renders these explanations on the existing same-page editing surface. The arrangement remains provisional: teacher edits rerun the bounded production pipeline, while canonical/export authority remains closed until ordinary validation succeeds. See [`r9-melody-bass-piano-arrangement.md`](r9-melody-bass-piano-arrangement.md).
 
+EDTAB-02 adds `SourceReviewIndex 1.0.0` and `ReviewTabDraft 1.0.0` before strict compatibility normalization for allow-listed early review failures. The draft is source-SHA-bound and review-only: known pitched notes may remain `UNASSIGNED`, uncertain source events remain `SOURCE_UNKNOWN`, and no string/fret is invented. `draftVisible` is independent from `generateTab`; canonical/export authority is unchanged. The additive upload-result schema is `1.6.0` and capability contract `1.4.0`. See [`edtab-02-review-tab-draft.md`](edtab-02-review-tab-draft.md).
+
 Representative implementation boundaries:
 
 - parser/safety: `src/parser/parsedMusicXmlDocument.js`, `src/core/processingRuntime.js`;
-- source-artifact retention and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/reviewRequiredCapabilityContract.js`;
+- source-artifact retention, early source review indexing and capability projection: `src/app/musicXmlUploadRuntimeBase.js`, `src/app/sourceReviewIndex.js`, `src/app/reviewTabDraft.js`, `src/app/reviewRequiredCapabilityContract.js`;
 - partial arrangement recovery and R9 voice policy: `src/app/partialGuitarArrangement.js`, `src/music/melodyBassArrangementPolicy.js`;
 - provisional review selection and pitch/position/duration/tie-chain/explicit-unassigned-note regeneration: `src/app/musicXmlPolyphonicNoteEditRuntimeV2.js`, `src/music/deterministicPolyphonicFinalSelector.js`, `web/guitar-tab-workbench/host-controller.js`;
 - repairable timing review projection: `src/parser/polyphonicMeasureOverflowReviewProjector.js`;

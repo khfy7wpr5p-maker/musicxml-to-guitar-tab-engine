@@ -36,7 +36,7 @@ For `.xml` and `.musicxml`, `rendererMusicXml` contains the safety-normalized di
 | `sha256` | SHA-256 of the safety-normalized renderer bytes |
 | `rendererMusicXml` | Immutable safety-normalized source score |
 
-R1 introduced upload result schema `1.2.0`. R2 advanced the additive result schema to `1.3.0` for the provisional arrangement artifact. R6 advanced it to `1.4.0` and capability contract `1.2.0` for explicitly authorized POLY_V2 duration editing. R8 advances the additive result schema to `1.5.0` and capability contract to `1.3.0` for backend-validated reduction-unassigned-note TAB placement. The established upload runtime `contractVersion: 1.0.0` remains unchanged.
+R1 introduced upload result schema `1.2.0`. R2 advanced the additive result schema to `1.3.0` for the provisional arrangement artifact. R6 advanced it to `1.4.0` and capability contract `1.2.0` for explicitly authorized POLY_V2 duration editing. R8 advances the additive result schema to `1.5.0` and capability contract to `1.3.0` for backend-validated reduction-unassigned-note TAB placement. EDTAB-02 advances the additive result schema to `1.6.0` and capability contract to `1.4.0` for source-bound `ReviewTabDraft` visibility without TAB/export authority. The established upload runtime `contractVersion: 1.0.0` remains unchanged.
 
 ## Status and authority matrix
 
@@ -44,11 +44,11 @@ R1 introduced upload result schema `1.2.0`. R2 advanced the additive result sche
 |---|---:|---:|---:|---:|
 | Unsafe or unparseable `BLOCKED` | no | no | no | no |
 | Safely parsed, hard downstream `BLOCKED` | yes | no | no | no |
-| Allow-listed `REVIEW_REQUIRED`, conversion stopped | yes | yes | no | no |
+| Allow-listed `REVIEW_REQUIRED`, conversion stopped | yes | yes | review draft only | no |
 | `REVIEW_REQUIRED`, provisional conversion exists | yes | yes | provisional | no |
 | `PASS` | yes | yes | canonical | yes |
 
-`capabilities.renderScore` is enabled for source-backed `REVIEW_REQUIRED` results. `capabilities.generateTab` still requires an actual `canonicalTabResult`; `capabilities.export` still requires `PASS`. The workbench presentation bridge may present the source artifact to its legacy PASS-only renderer, but it preserves the authoritative `REVIEW_REQUIRED` result and does not synthesize canonical data.
+`capabilities.renderScore` is enabled for source-backed `REVIEW_REQUIRED` results. EDTAB-02 adds independent `capabilities.draftVisible` for a validated `ReviewTabDraft`; `capabilities.generateTab` still requires a canonical or established provisional TAB artifact, and `capabilities.export` still requires `PASS`. The workbench presentation bridge may present the source artifact to its legacy PASS-only renderer, but it preserves the authoritative `REVIEW_REQUIRED` result and does not synthesize canonical data.
 
 Repeat, ending, direction and bounded physical-point review cases can therefore show the original score even when conversion stopped before a TAB writer artifact existed. Hard `BLOCKED` results retain the parsed source only as bounded diagnostic/recovery evidence; the current host remains locked for those cases.
 
