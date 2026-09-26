@@ -7,6 +7,9 @@ const {
   MUSICXML_UPLOAD_STATUS,
   processMusicXmlUpload,
 } = require('../src/app/musicXmlUploadRuntime');
+const {
+  decorateUploadResultWithCapabilities,
+} = require('../src/app/reviewRequiredCapabilityContract');
 
 function endingReviewScore() {
   return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
@@ -138,6 +141,36 @@ test('early reviewable ending failure produces a source-anchored ReviewTabDraft 
   assert.deepEqual(bytes, before);
   assert.equal(Object.isFrozen(first.sourceReviewIndex), true);
   assert.equal(Object.isFrozen(first.reviewTabDraft), true);
+});
+
+test('tampered draft position cannot create draft visibility or TAB authority', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'edtab-02-tamper.musicxml',
+    bytes: endingReviewScore(),
+  });
+  const tampered = structuredClone(result);
+  tampered.reviewTabDraft.perNoteDisposition[0].selectedPosition = { string: 1, fret: 0 };
+
+  const decorated = decorateUploadResultWithCapabilities(tampered);
+  assert.equal(decorated.capabilities.draftVisible, false);
+  assert.equal(decorated.artifacts.reviewTabDraftAvailable, false);
+  assert.equal(decorated.capabilities.generateTab, false);
+  assert.equal(decorated.capabilities.export, false);
+});
+
+test('tampered source identity cannot create draft visibility', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'edtab-02-source-tamper.musicxml',
+    bytes: endingReviewScore(),
+  });
+  const tampered = structuredClone(result);
+  tampered.sourceReviewIndex.entries[0].sourceEventId = 'P1:measure:0:note:999';
+
+  const decorated = decorateUploadResultWithCapabilities(tampered);
+  assert.equal(decorated.capabilities.draftVisible, false);
+  assert.equal(decorated.artifacts.sourceReviewIndexAvailable, false);
+  assert.equal(decorated.artifacts.reviewTabDraftAvailable, false);
+  assert.equal(decorated.capabilities.generateTab, false);
 });
 
 test('unsafe XML never gains a review draft or draft visibility', () => {
