@@ -5,26 +5,11 @@ const {
   createMeasureId,
   createSourceEventId,
 } = require('../music/polyphonicSourceModel');
+const { freezeObjectGraph } = require('./freezeObjectGraph');
 
 const SOURCE_REVIEW_INDEX_VERSION = '1.0.0';
 const SOURCE_REVIEW_INDEX_DOCUMENT_TYPE = 'SourceReviewIndex';
 const MAX_INDEXED_EVENTS = 50_000;
-
-function deepFreeze(root) {
-  const pending = [root];
-  const seen = new WeakSet();
-  while (pending.length > 0) {
-    const value = pending.pop();
-    if (!value || typeof value !== 'object' || seen.has(value)) continue;
-    seen.add(value);
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor && Object.hasOwn(descriptor, 'value')) pending.push(descriptor.value);
-    }
-    Object.freeze(value);
-  }
-  return root;
-}
 
 function directChildren(node, name) {
   return node.children.filter((child) => child.uri === node.uri && child.name === name);
@@ -205,7 +190,7 @@ function tryCreateSourceReviewIndex(parsedDocument, sourceUploadSha256) {
     }
   }
 
-  return deepFreeze({
+  return freezeObjectGraph({
     documentType: SOURCE_REVIEW_INDEX_DOCUMENT_TYPE,
     contractVersion: SOURCE_REVIEW_INDEX_VERSION,
     sourceUploadSha256,
