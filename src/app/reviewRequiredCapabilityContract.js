@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { createGuitarConfiguration } = require('../guitar/tuning');
+const { freezeObjectGraph } = require('./freezeObjectGraph');
 
 const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.4.0';
 const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.6.0';
@@ -17,22 +18,6 @@ const REVIEW_ACTIONS = Object.freeze([
   'APPLY_SUGGESTED_FIX',
   'EDIT_MANUALLY',
 ]);
-
-function deepFreeze(root) {
-  const pending = [root];
-  const seen = new WeakSet();
-  while (pending.length > 0) {
-    const value = pending.pop();
-    if (!value || typeof value !== 'object' || seen.has(value)) continue;
-    seen.add(value);
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor && Object.hasOwn(descriptor, 'value')) pending.push(descriptor.value);
-    }
-    Object.freeze(value);
-  }
-  return root;
-}
 
 function normalizedIssueLocation(issue) {
   const location = issue && typeof issue.location === 'object' && issue.location
@@ -519,6 +504,8 @@ function validReviewTabDraft(result) {
   const sourceArtifact = result?.sourceArtifact;
   const inputSha = result?.input?.sha256;
 
+  const draftTuning = draft?.guitarConfiguration?.tuning;
+
   if (
     index?.documentType !== 'SourceReviewIndex'
     || index?.contractVersion !== '1.0.0'
@@ -536,8 +523,9 @@ function validReviewTabDraft(result) {
     || draft.revisionId.length === 0
     || draft?.sourceScoreArtifact !== sourceArtifact
     || sourceArtifact?.sourceUploadSha256 !== inputSha
+    || !Array.isArray(draftTuning)
+    || draftTuning.length !== 6
     || !validReviewDraftGuitarConfiguration(draft?.guitarConfiguration)
-    || draft.guitarConfiguration.tuning.length !== 6
     || !Array.isArray(draft?.perNoteDisposition)
     || !Array.isArray(draft?.issues)
     || draft?.renderModel?.documentType !== 'ReviewTabDraftRenderModel'
@@ -691,7 +679,7 @@ function decorateUploadResultWithCapabilities(result) {
         : 'NONE',
   };
 
-  return deepFreeze({
+  return freezeObjectGraph({
     ...result,
     // Keep the established upload runtime contractVersion untouched. The
     // capability extension is additive and therefore carries its own schema
