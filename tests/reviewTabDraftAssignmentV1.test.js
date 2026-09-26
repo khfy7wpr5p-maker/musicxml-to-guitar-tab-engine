@@ -14,26 +14,9 @@ const {
 
 
 function measureNineReviewScore() {
-  return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="4.0">
-  <part-list><score-part id="P1"><part-name>Review</part-name></score-part></part-list>
-  <part id="P1">
-    <measure number="9">
-      <attributes>
-        <divisions>4</divisions>
-        <time><beats>4</beats><beat-type>4</beat-type></time>
-      </attributes>
-      <note>
-        <pitch><step>E</step><octave>4</octave></pitch>
-        <duration>4</duration><voice>1</voice><type>quarter</type>
-      </note>
-      <barline location="left">
-        <bar-style>regular</bar-style>
-        <ending number="1" type="start" default-y="40"></ending>
-      </barline>
-    </measure>
-  </part>
-</score-partwise>`);
+  return fs.readFileSync(
+    path.resolve(__dirname, 'fixtures/edtab-03-review-draft.musicxml'),
+  );
 }
 
 test('EDTAB-03 grants backend-gated assignment authority for a known ReviewTabDraft note', () => {
