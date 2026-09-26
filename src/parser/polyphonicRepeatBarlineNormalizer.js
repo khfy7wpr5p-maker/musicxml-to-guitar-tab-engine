@@ -43,16 +43,6 @@ const ENDING_ALLOWED_ATTRIBUTE_NAMES = new Set([
   'type',
   ...ENDING_PRESENTATION_ATTRIBUTE_NAMES,
 ]);
-const ENDING_TENTHS_ATTRIBUTE_NAMES = Object.freeze([
-  'default-x',
-  'default-y',
-  'end-length',
-  'relative-x',
-  'relative-y',
-  'text-x',
-  'text-y',
-]);
-const BOUNDED_TENTHS_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 class PolyphonicRepeatBarlineNormalizerError extends EngineError {
   constructor(message, code = 'INVALID_POLYPHONIC_REPEAT_BARLINE', details = {}) {
@@ -268,58 +258,18 @@ function parseEnding(node, location) {
     });
   }
 
-  for (const attributeName of ENDING_TENTHS_ATTRIBUTE_NAMES) {
-    const value = getUniqueAttribute(node, attributeName);
-    if (value !== undefined && (
-      !BOUNDED_TENTHS_PATTERN.test(value)
-      || !Number.isFinite(Number(value))
-      || Math.abs(Number(value)) > 10000
-    )) {
-      throw unsupported('Ending presentation coordinate exceeds the bounded layout profile.', {
-        ...location,
-        reason: 'UNSUPPORTED_ENDING_LAYOUT',
-        attribute: attributeName,
-      });
-    }
-  }
-
-  const fontStyle = getUniqueAttribute(node, 'font-style');
-  if (fontStyle !== undefined && !['normal', 'italic'].includes(fontStyle)) {
-    throw unsupported('Ending font-style is outside the MusicXML presentation profile.', {
-      ...location,
-      reason: 'UNSUPPORTED_ENDING_PRESENTATION_VALUE',
-      attribute: 'font-style',
-    });
-  }
-
-  const fontWeight = getUniqueAttribute(node, 'font-weight');
-  if (fontWeight !== undefined && !['normal', 'bold'].includes(fontWeight)) {
-    throw unsupported('Ending font-weight is outside the MusicXML presentation profile.', {
-      ...location,
-      reason: 'UNSUPPORTED_ENDING_PRESENTATION_VALUE',
-      attribute: 'font-weight',
-    });
-  }
-
-  const printObject = getUniqueAttribute(node, 'print-object');
-  if (printObject !== undefined && !['yes', 'no'].includes(printObject)) {
-    throw unsupported('Ending print-object is outside the MusicXML presentation profile.', {
-      ...location,
-      reason: 'UNSUPPORTED_ENDING_PRESENTATION_VALUE',
-      attribute: 'print-object',
-    });
-  }
-
-  const system = getUniqueAttribute(node, 'system');
-  if (system !== undefined && !['only-top', 'also-top', 'none'].includes(system)) {
-    throw unsupported('Ending system relation is outside the MusicXML presentation profile.', {
-      ...location,
-      reason: 'UNSUPPORTED_ENDING_PRESENTATION_VALUE',
-      attribute: 'system',
-    });
-  }
-
   const defaultY = getUniqueAttribute(node, 'default-y');
+  if (defaultY !== undefined && (
+    !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(defaultY)
+    || !Number.isFinite(Number(defaultY))
+    || Math.abs(Number(defaultY)) > 10000
+  )) {
+    throw unsupported('Ending default-y exceeds the bounded layout profile.', {
+      ...location,
+      reason: 'UNSUPPORTED_ENDING_LAYOUT',
+    });
+  }
+
   return Object.freeze({ number, type, defaultY: defaultY ?? null });
 }
 
