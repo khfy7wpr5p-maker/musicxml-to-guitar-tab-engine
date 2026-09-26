@@ -38,7 +38,7 @@ function lineCoverage(text, ranges) {
     for (let boundaryIndex = 0; boundaryIndex < ordered.length - 1; boundaryIndex += 1) {
       const start = ordered[boundaryIndex];
       const end = ordered[boundaryIndex + 1];
-      if (end <= start) continue;
+      if (end <= start || text.slice(start, end).trim().length === 0) continue;
       const probe = start + Math.floor((end - start - 1) / 2);
       const segmentCount = executableCountForSegment(ranges, probe);
       if (segmentCount === null) continue;
