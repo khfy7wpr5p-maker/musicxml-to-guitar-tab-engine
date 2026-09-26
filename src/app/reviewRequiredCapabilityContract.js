@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { createGuitarConfiguration } = require('../guitar/tuning');
 
 const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.4.0';
 const MUSICXML_UPLOAD_RESULT_SCHEMA_VERSION = '1.6.0';
@@ -485,6 +486,33 @@ function validReviewEditableProjection(result) {
   ));
 }
 
+function validReviewDraftGuitarConfiguration(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.tuning)) return false;
+  try {
+    const normalized = createGuitarConfiguration({
+      tuning: value.tuning,
+      minimumFret: value.minimumFret,
+      maximumFret: value.maximumFret,
+      capoFret: value.capoFret,
+    });
+    return JSON.stringify({
+      tuning: value.tuning,
+      minimumFret: value.minimumFret,
+      maximumFret: value.maximumFret,
+      capoFret: value.capoFret,
+      fretSemantics: value.fretSemantics,
+    }) === JSON.stringify({
+      tuning: normalized.tuning,
+      minimumFret: normalized.minimumFret,
+      maximumFret: normalized.maximumFret,
+      capoFret: normalized.capoFret,
+      fretSemantics: normalized.fretSemantics,
+    });
+  } catch {
+    return false;
+  }
+}
+
 function validReviewTabDraft(result) {
   const index = result?.sourceReviewIndex;
   const draft = result?.reviewTabDraft;
@@ -508,7 +536,7 @@ function validReviewTabDraft(result) {
     || draft.revisionId.length === 0
     || draft?.sourceScoreArtifact !== sourceArtifact
     || sourceArtifact?.sourceUploadSha256 !== inputSha
-    || !Array.isArray(draft?.guitarConfiguration?.tuning)
+    || !validReviewDraftGuitarConfiguration(draft?.guitarConfiguration)
     || draft.guitarConfiguration.tuning.length !== 6
     || !Array.isArray(draft?.perNoteDisposition)
     || !Array.isArray(draft?.issues)
@@ -564,15 +592,21 @@ function validReviewTabDraft(result) {
   }
 
   const renderIds = new Set();
+  const renderMeasureIds = new Set();
   for (const measure of draft.renderModel.measures) {
     if (
       typeof measure?.measureId !== 'string'
+      || measure.measureId.length === 0
+      || renderMeasureIds.has(measure.measureId)
       || !Array.isArray(measure?.events)
     ) return false;
+    renderMeasureIds.add(measure.measureId);
     for (const event of measure.events) {
       const source = sourceById.get(event?.sourceEventId);
       if (
         !source
+        || source.measureId !== measure.measureId
+        || source.evidenceLocation?.measureIndex !== measure?.measureIndex
         || renderIds.has(event.sourceEventId)
         || source.knownOnsetOrNull === null
         || event?.onsetDivisions !== source.knownOnsetOrNull
