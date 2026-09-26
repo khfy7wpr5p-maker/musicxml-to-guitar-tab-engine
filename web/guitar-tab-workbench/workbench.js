@@ -476,6 +476,25 @@
     }
 
     function canEditPosition() {
+      if (
+        state.selectedEvent?.reviewTabDraft === true
+        && state.runtimeResult?.reviewTabDraft
+      ) {
+        return Boolean(
+          typeof reviewTabDraftEdit === 'function'
+          && editString && editFret && applyPositionEditButton
+          && !state.loading
+          && !state.editing
+          && state.scoreLoaded
+          && state.runtimeResult?.status === 'PASS'
+          && state.runtimeResult?.capabilities?.assignTabPosition === true
+          && state.selectedEvent.assignmentEligible === true
+          && session.sourceBytes
+          && session.expectedInputSha256
+          && session.reviewDraftBaseRevisionId
+          && session.reviewDraftCommands.length < MAX_REVISION_COMMANDS
+        );
+      }
       return canEdit()
         && editString && editFret && applyPositionEditButton
         && state.selectedEvent?.route === 'POLY_V2'
@@ -521,6 +540,12 @@
       if (editString) editString.disabled = !canEditPosition();
       if (editFret) editFret.disabled = !canEditPosition();
       if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
+      if (undoReviewDraftButton) {
+        undoReviewDraftButton.disabled = busy || session.reviewDraftCommands.length === 0;
+      }
+      if (redoReviewDraftButton) {
+        redoReviewDraftButton.disabled = busy || session.reviewDraftRedoCommands.length === 0;
+      }
       const omittedAssignmentReady = state.runtimeResult?.route === 'POLY_V2'
         && state.runtimeResult?.capabilities?.assignTabPosition === true
         && (omittedNoteList?.options.length || 0) > 0;
@@ -1353,6 +1378,7 @@
       assert(result && typeof result === 'object', 'Upload result is invalid.');
       assert(UPLOAD_RESULT_STATUSES.has(result.status), 'Upload result status is invalid.');
       state.runtimeResult = result;
+      renderReviewTabDraft();
       renderOmittedNoteAssignments();
       state.lastError = null;
       setText(documentStatus, result.status);
@@ -1373,7 +1399,9 @@
         'PASS result is missing renderer MusicXML.',
       );
       clearActiveScoreState();
-      if (result.route === 'MONO_V1') {
+      if (result.reviewTabDraft?.documentType === 'ReviewTabDraft') {
+        clearSelection('Select a source note or a ReviewTabDraft entry for string/fret assignment.');
+      } else if (result.route === 'MONO_V1') {
         clearSelection('Select a note in the score or TAB.');
       } else if (result.route === 'POLY_V2' && typeof polyphonicEdit === 'function') {
         clearSelection('Select a polyphonic note whose renderer voice/onset identity can be proven.');
@@ -1421,7 +1449,10 @@
           session.sourceBytes = ownedBytes;
           session.expectedInputSha256 = result.input.sha256;
           session.commands = [];
-          state.revisionNumber = 0;
+          session.reviewDraftBaseRevisionId = result.reviewTabDraft?.revisionId || null;
+          session.reviewDraftCommands = [];
+          session.reviewDraftRedoCommands = [];
+          state.revisionNumber = result.revision?.revisionNumber || 0;
         }
         return setRuntimeResult(result);
       } catch (error) {
@@ -1847,6 +1878,7 @@
     clearActiveScoreState();
     clearSession();
     renderIssues([]);
+    renderReviewTabDraft();
     renderOmittedNoteAssignments();
     setText(documentStatus, 'EMPTY');
     setText(routeStatus, 'UNRESOLVED');
