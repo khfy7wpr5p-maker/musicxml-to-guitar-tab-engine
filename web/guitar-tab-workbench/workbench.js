@@ -97,6 +97,7 @@
     const upload = options.upload;
     const edit = options.edit;
     const polyphonicEdit = options.polyphonicEdit;
+    const reviewTabDraftEdit = options.reviewTabDraftEdit;
     const transpose = options.transpose;
     const stage09Evidence = options.stage09Evidence;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
@@ -106,6 +107,10 @@
     assert(
       polyphonicEdit === undefined || typeof polyphonicEdit === 'function',
       'polyphonicEdit must be a function when provided.',
+    );
+    assert(
+      reviewTabDraftEdit === undefined || typeof reviewTabDraftEdit === 'function',
+      'reviewTabDraftEdit must be a function when provided.',
     );
     assert(
       transpose === undefined || typeof transpose === 'function',
@@ -126,6 +131,7 @@
     const playButton = root.querySelector('[data-role="play"]');
     const stopButton = root.querySelector('[data-role="stop"]');
     const scoreHost = root.querySelector('[data-role="score"]');
+    const reviewTabDraftView = root.querySelector('[data-role="review-tab-draft"]');
     const issueList = root.querySelector('[data-role="issues"]');
     const issueCount = root.querySelector('[data-role="issue-count"]');
     const documentStatus = root.querySelector('[data-role="document-status"]');
@@ -149,6 +155,8 @@
     const omittedNoteCount = root.querySelector('[data-role="omitted-note-count"]');
     const selectOmittedNoteButton = root.querySelector('[data-role="select-omitted-note"]');
     const omittedNoteStatus = root.querySelector('[data-role="omitted-note-status"]');
+    const undoReviewDraftButton = root.querySelector('[data-role="undo-review-draft"]');
+    const redoReviewDraftButton = root.querySelector('[data-role="redo-review-draft"]');
     const transposeStatus = root.querySelector('[data-role="transpose-status"]');
     const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
     const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
@@ -200,6 +208,9 @@
       sourceBytes: null,
       expectedInputSha256: null,
       commands: [],
+      reviewDraftBaseRevisionId: null,
+      reviewDraftCommands: [],
+      reviewDraftRedoCommands: [],
       pendingFocus: null,
     };
 
@@ -292,6 +303,9 @@
       session.sourceBytes = null;
       session.expectedInputSha256 = null;
       session.commands = [];
+      session.reviewDraftBaseRevisionId = null;
+      session.reviewDraftCommands = [];
+      session.reviewDraftRedoCommands = [];
       session.pendingFocus = null;
       state.revisionNumber = 0;
       clearSelection();
