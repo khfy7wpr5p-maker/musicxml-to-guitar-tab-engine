@@ -276,6 +276,32 @@ test('valid multi-number ending remains review-only when playback semantics exce
   assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_NUMBER_OR_TYPE');
 });
 
+test('unknown ending attribute remains review-only instead of widening the compatibility profile', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1" type="start" vendor-layout="42">1.</ending>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-unknown-attribute.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assertReviewWithoutOutput(result);
+  assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_SHAPE');
+});
+
+test('out-of-bound ending default-y remains review-only', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1" type="start" default-y="10001">1.</ending>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-layout-bound.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assertReviewWithoutOutput(result);
+  assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_LAYOUT');
+});
+
 test('valid first and second endings preserve volta marks and continue TAB production', () => {
   const bytes = Buffer.from(firstAndSecondEndingScore());
   const before = inputHash(bytes);
