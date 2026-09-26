@@ -239,6 +239,69 @@ test('repeat times above the unchanged fixed bound requires review without outpu
   assert.equal(result.preflight.issues[0].details.reason, 'REPEAT_TIMES_OUT_OF_RANGE');
 });
 
+test('valid MusicXML ending presentation attributes and display text do not block repeat semantics', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1" type="start" default-x="12" default-y="24" relative-x="1" relative-y="-2" end-length="10" text-x="3" text-y="4" font-family="Bravura Text" font-style="italic" font-size="12" font-weight="bold" color="#000000" print-object="yes" system="only-top">1.</ending>',
+  );
+  const bytes = Buffer.from(xml);
+  const before = inputHash(bytes);
+
+  const normalization = normalizePolyphonicRepeatBarlines(parsed(bytes));
+  assert.deepEqual(sourceIndices(normalization.measureOccurrencePlan), [0, 1, 0, 2, 3]);
+
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-presentation.musicxml',
+    bytes,
+  });
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.PASS);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.ok(result.canonicalTabResult);
+  assert.match(result.musicXml, /<ending number="1" type="start" default-y="24"\/>/);
+  assert.equal(inputHash(bytes), before);
+});
+
+test('valid multi-number ending remains review-only when playback semantics exceed the exact first-second contract', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1,2" type="start">1.-2.</ending>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-multi-number.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assertReviewWithoutOutput(result);
+  assert.equal(result.route, MUSICXML_UPLOAD_ROUTE.POLY_V2);
+  assert.equal(result.preflight.issues[0].code, 'UNSUPPORTED_POLYPHONIC_REPEAT_BARLINE');
+  assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_NUMBER_OR_TYPE');
+});
+
+test('unknown ending attribute remains review-only instead of widening the compatibility profile', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1" type="start" vendor-layout="42">1.</ending>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-unknown-attribute.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assertReviewWithoutOutput(result);
+  assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_SHAPE');
+});
+
+test('out-of-bound ending default-y remains review-only', () => {
+  const xml = firstAndSecondEndingScore().replace(
+    '<ending number="1" type="start"/>',
+    '<ending number="1" type="start" default-y="10001">1.</ending>',
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'repeat-ending-layout-bound.musicxml',
+    bytes: Buffer.from(xml),
+  });
+  assertReviewWithoutOutput(result);
+  assert.equal(result.preflight.issues[0].details.reason, 'UNSUPPORTED_ENDING_LAYOUT');
+});
+
 test('valid first and second endings preserve volta marks and continue TAB production', () => {
   const bytes = Buffer.from(firstAndSecondEndingScore());
   const before = inputHash(bytes);

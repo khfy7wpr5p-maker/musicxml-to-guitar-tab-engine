@@ -22,6 +22,28 @@ const SAFE_BARLINE_STYLES = new Set([
   'none',
 ]);
 
+const ENDING_PRESENTATION_ATTRIBUTE_NAMES = new Set([
+  'color',
+  'default-x',
+  'default-y',
+  'end-length',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'print-object',
+  'relative-x',
+  'relative-y',
+  'system',
+  'text-x',
+  'text-y',
+]);
+const ENDING_ALLOWED_ATTRIBUTE_NAMES = new Set([
+  'number',
+  'type',
+  ...ENDING_PRESENTATION_ATTRIBUTE_NAMES,
+]);
+
 class PolyphonicRepeatBarlineNormalizerError extends EngineError {
   constructor(message, code = 'INVALID_POLYPHONIC_REPEAT_BARLINE', details = {}) {
     super(message, code, Object.freeze({ ...details }), 'PolyphonicRepeatBarlineNormalizerError');
@@ -212,22 +234,21 @@ function parseRepeat(node, location) {
 
 function parseEnding(node, location) {
   if (
-    node.text.trim().length !== 0
-    || node.children.length !== 0
+    node.children.length !== 0
     || !hasExactUnqualifiedAttributes(
       node,
-      new Set(['number', 'type', 'default-y']),
+      ENDING_ALLOWED_ATTRIBUTE_NAMES,
       ['number', 'type'],
     )
   ) {
-    throw unsupported('Ending element must use the bounded number/type layout shape.', {
+    throw unsupported('Ending element must use supported semantic and standard presentation attributes.', {
       ...location,
       reason: 'UNSUPPORTED_ENDING_SHAPE',
     });
   }
+
   const number = getUniqueAttribute(node, 'number');
   const type = getUniqueAttribute(node, 'type');
-  const defaultY = getUniqueAttribute(node, 'default-y');
   if (!['1', '2'].includes(number) || !['start', 'stop', 'discontinue'].includes(type)) {
     throw unsupported('Only an exact first/second ending pair is supported.', {
       ...location,
@@ -236,6 +257,8 @@ function parseEnding(node, location) {
       type: type ?? null,
     });
   }
+
+  const defaultY = getUniqueAttribute(node, 'default-y');
   if (defaultY !== undefined && (
     !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(defaultY)
     || !Number.isFinite(Number(defaultY))
@@ -246,6 +269,7 @@ function parseEnding(node, location) {
       reason: 'UNSUPPORTED_ENDING_LAYOUT',
     });
   }
+
   return Object.freeze({ number, type, defaultY: defaultY ?? null });
 }
 
