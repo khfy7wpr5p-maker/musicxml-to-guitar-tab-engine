@@ -1634,6 +1634,169 @@
       return { string, fret };
     }
 
+    async function replayReviewDraftCommands(nextCommands, focusSourceEventId, actionLabel) {
+      if (
+        typeof reviewTabDraftEdit !== 'function'
+        || !session.sourceBytes
+        || !session.expectedInputSha256
+        || !session.reviewDraftBaseRevisionId
+      ) return false;
+
+      state.editing = true;
+      state.lastError = null;
+      if (state.playerReady) api.stop();
+      setText(positionEditStatus, `${actionLabel} · validating against immutable source…`);
+      updateControls();
+
+      try {
+        const result = await reviewTabDraftEdit({
+          fileName: session.sourceFileName,
+          bytes: new Uint8Array(session.sourceBytes),
+          expectedInputSha256: session.expectedInputSha256,
+          baseRevisionId: session.reviewDraftBaseRevisionId,
+          commands: nextCommands.map(cloneReviewDraftCommand),
+        });
+        assert(result && typeof result === 'object', 'ReviewTabDraft edit result is invalid.');
+        assert(
+          result.status === 'PASS' || result.status === 'REVIEW_REQUIRED' || result.status === 'BLOCKED',
+          'ReviewTabDraft edit result status is invalid.',
+        );
+
+        if (result.status === 'BLOCKED') {
+          state.lastError = result.preflight?.issues?.[0]?.message || 'The ReviewTabDraft edit was blocked.';
+          renderIssues(result.preflight?.issues || []);
+          setText(positionEditStatus, `Blocked · ${state.lastError}`);
+          return false;
+        }
+
+        assert(
+          result.reviewTabDraft?.documentType === 'ReviewTabDraft',
+          'ReviewTabDraft edit result is missing the draft artifact.',
+        );
+        assert(
+          result.revision?.revisionNumber === nextCommands.length,
+          'ReviewTabDraft revision number does not match the replay command chain.',
+        );
+        assert(
+          result.reviewTabDraft.sourceUploadSha256 === session.expectedInputSha256,
+          'ReviewTabDraft edit returned a different source identity.',
+        );
+
+        session.reviewDraftCommands = nextCommands.map(cloneReviewDraftCommand);
+        state.revisionNumber = result.revision.revisionNumber;
+        state.runtimeResult = result;
+        renderReviewTabDraft();
+        renderOmittedNoteAssignments();
+        renderIssues(result.preflight?.issues || []);
+        setText(documentStatus, result.status);
+        setText(routeStatus, result.route);
+        setText(
+          positionEditStatus,
+          `${actionLabel} · revision ${state.revisionNumber} · backend validated`,
+        );
+
+        if (focusSourceEventId) {
+          const source = (result.sourceReviewIndex?.entries || [])
+            .find((entry) => entry.sourceEventId === focusSourceEventId);
+          if (source) {
+            selectEventByIdentity({
+              reviewTabDraft: true,
+              measureIndex: source.evidenceLocation.measureIndex,
+              sourceOrder: source.evidenceLocation.sourceOrder,
+              sourceEventId: source.sourceEventId,
+            });
+          }
+        }
+        return true;
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        setText(positionEditStatus, `ReviewTabDraft edit failed: ${state.lastError}`);
+        renderIssues([{
+          code: 'WORKBENCH_REVIEW_DRAFT_EDIT_FAILED',
+          message: state.lastError,
+          location: state.selectedEvent
+            ? {
+              measureIndex: state.selectedEvent.measureIndex,
+              sourceEventId: state.selectedEvent.sourceEventId,
+            }
+            : null,
+        }]);
+        return false;
+      } finally {
+        state.editing = false;
+        updateControls();
+      }
+    }
+
+    async function applyReviewDraftPositionEdit(position) {
+      const sourceEventId = state.selectedEvent?.sourceEventId;
+      if (!sourceEventId) return false;
+      const command = {
+        sourceEventId,
+        selectedPosition: position,
+      };
+      const nextCommands = [
+        ...session.reviewDraftCommands.map(cloneReviewDraftCommand),
+        cloneReviewDraftCommand(command),
+      ];
+      if (nextCommands.length > MAX_REVISION_COMMANDS) {
+        setText(positionEditStatus, 'ReviewTabDraft revision limit reached. Reload the source before continuing.');
+        return false;
+      }
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        sourceEventId,
+        'Applying TAB position',
+      );
+      if (applied) session.reviewDraftRedoCommands = [];
+      return applied;
+    }
+
+    async function undoReviewDraftEdit() {
+      if (state.editing || session.reviewDraftCommands.length === 0) return false;
+      const removed = cloneReviewDraftCommand(
+        session.reviewDraftCommands[session.reviewDraftCommands.length - 1],
+      );
+      const nextCommands = session.reviewDraftCommands
+        .slice(0, -1)
+        .map(cloneReviewDraftCommand);
+      const focusSourceEventId = removed.sourceEventId;
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        focusSourceEventId,
+        'Undoing TAB position',
+      );
+      if (applied) {
+        session.reviewDraftRedoCommands = [
+          removed,
+          ...session.reviewDraftRedoCommands.map(cloneReviewDraftCommand),
+        ];
+        updateControls();
+      }
+      return applied;
+    }
+
+    async function redoReviewDraftEdit() {
+      if (state.editing || session.reviewDraftRedoCommands.length === 0) return false;
+      const restored = cloneReviewDraftCommand(session.reviewDraftRedoCommands[0]);
+      const nextCommands = [
+        ...session.reviewDraftCommands.map(cloneReviewDraftCommand),
+        restored,
+      ];
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        restored.sourceEventId,
+        'Redoing TAB position',
+      );
+      if (applied) {
+        session.reviewDraftRedoCommands = session.reviewDraftRedoCommands
+          .slice(1)
+          .map(cloneReviewDraftCommand);
+        updateControls();
+      }
+      return applied;
+    }
+
     async function applySelectedPositionEdit() {
       if (!canEditPosition()) return false;
       let position;
@@ -1644,7 +1807,9 @@
         return false;
       }
       setText(positionEditStatus, 'Validating position and regenerating TAB…');
-      const applied = await applySelectedEdit({ selectedPosition: position });
+      const applied = state.selectedEvent?.reviewTabDraft
+        ? await applyReviewDraftPositionEdit(position)
+        : await applySelectedEdit({ selectedPosition: position });
       if (!applied && state.lastError) setText(positionEditStatus, state.lastError);
       return applied;
     }
@@ -1678,6 +1843,7 @@
       const sourceOrder = Number(option.dataset.sourceOrder);
       if (!Number.isSafeInteger(measureIndex) || !Number.isSafeInteger(sourceOrder)) return false;
       const selected = selectEventByIdentity({
+        reviewTabDraft: option.dataset.reviewDraft === 'true',
         measureIndex,
         sourceOrder,
         sourceEventId: option.value,
@@ -1802,6 +1968,16 @@
         await applySelectedPositionEdit();
       });
     }
+    if (undoReviewDraftButton) {
+      undoReviewDraftButton.addEventListener('click', async () => {
+        await undoReviewDraftEdit();
+      });
+    }
+    if (redoReviewDraftButton) {
+      redoReviewDraftButton.addEventListener('click', async () => {
+        await redoReviewDraftEdit();
+      });
+    }
     if (applyDurationEditButton) {
       applyDurationEditButton.addEventListener('click', async () => {
         await applySelectedDurationEdit();
@@ -1893,6 +2069,8 @@
       selectEvent: selectEventByIdentity,
       applySelectedEdit,
       applySelectedPositionEdit,
+      undoReviewDraftEdit,
+      redoReviewDraftEdit,
       applySelectedDurationEdit,
       selectOmittedNote,
       applyDocumentTransposition,
@@ -1919,6 +2097,8 @@
           sourceFileName: session.sourceFileName,
           sourceSha256: session.expectedInputSha256,
           revisionCommandCount: session.commands.length,
+          reviewDraftRevisionCommandCount: session.reviewDraftCommands.length,
+          reviewDraftRedoCommandCount: session.reviewDraftRedoCommands.length,
           scoreTracks: state.scoreLoaded ? (api.score?.tracks?.length || 0) : 0,
           scoreStaves: state.scoreLoaded ? (track?.staves?.length || 0) : 0,
           scoreMeasures: state.scoreLoaded ? (api.score?.masterBars?.length || 0) : 0,
