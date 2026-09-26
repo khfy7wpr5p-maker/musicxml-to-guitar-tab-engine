@@ -97,6 +97,9 @@
       async polyphonicEdit(request) {
         return present(await adapter.polyphonicEdit(request));
       },
+      async reviewTabDraftEdit(request) {
+        return present(await adapter.reviewTabDraftEdit(request));
+      },
       async transpose(request) {
         return clearAuthority(await adapter.transpose(request));
       },
@@ -179,6 +182,8 @@
         if (editAlter) editAlter.disabled = true;
         if (editOctave) editOctave.disabled = true;
         if (applyEditButton) applyEditButton.disabled = true;
+      }
+      if (result.capabilities.assignTabPosition !== true) {
         if (editString) editString.disabled = true;
         if (editFret) editFret.disabled = true;
         if (applyPositionEditButton) applyPositionEditButton.disabled = true;
@@ -276,6 +281,35 @@
             return false;
           }
           const applied = await coreWorkbench.applySelectedDurationEdit();
+          syncCapabilityUi();
+          return applied;
+        },
+      },
+      applySelectedPositionEdit: {
+        enumerable: true,
+        async value() {
+          const result = authoritativeRuntimeResult(coreWorkbench.snapshot());
+          if (result?.status === 'REVIEW_REQUIRED' && result?.capabilities?.assignTabPosition !== true) {
+            syncCapabilityUi();
+            return false;
+          }
+          const applied = await coreWorkbench.applySelectedPositionEdit();
+          syncCapabilityUi();
+          return applied;
+        },
+      },
+      undoReviewDraftEdit: {
+        enumerable: true,
+        async value() {
+          const applied = await coreWorkbench.undoReviewDraftEdit();
+          syncCapabilityUi();
+          return applied;
+        },
+      },
+      redoReviewDraftEdit: {
+        enumerable: true,
+        async value() {
+          const applied = await coreWorkbench.redoReviewDraftEdit();
           syncCapabilityUi();
           return applied;
         },
@@ -477,6 +511,7 @@
       upload: capabilityBridge.adapter.upload,
       edit: capabilityBridge.adapter.edit,
       polyphonicEdit: capabilityBridge.adapter.polyphonicEdit,
+      reviewTabDraftEdit: capabilityBridge.adapter.reviewTabDraftEdit,
       transpose: capabilityBridge.adapter.transpose,
       stage09Evidence: stage09EvidenceFacade,
       assetBaseUrl: assetUrls.assetBaseUrl,
