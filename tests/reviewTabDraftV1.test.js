@@ -143,6 +143,35 @@ test('early reviewable ending failure produces a source-anchored ReviewTabDraft 
   assert.equal(Object.isFrozen(first.reviewTabDraft), true);
 });
 
+test('source note with unknown duration remains SOURCE_UNKNOWN and is not silently dropped', () => {
+  const bytes = Buffer.from(
+    endingReviewScore().toString('utf8').replace(
+      '<duration>4</duration><voice>1</voice><type>quarter</type>',
+      '<voice>1</voice><type>quarter</type>',
+    ),
+  );
+  const result = processMusicXmlUpload({
+    fileName: 'edtab-02-source-unknown.musicxml',
+    bytes,
+  });
+
+  assert.equal(result.status, MUSICXML_UPLOAD_STATUS.REVIEW_REQUIRED);
+  assert.equal(result.sourceReviewIndex.entries.length, 2);
+  assert.equal(result.sourceReviewIndex.entries[0].knownDurationOrNull, null);
+  assert.deepEqual(
+    result.sourceReviewIndex.entries[0].uncertaintyReasonCodes,
+    ['SOURCE_DURATION_UNKNOWN'],
+  );
+  assert.equal(result.reviewTabDraft.perNoteDisposition.length, 2);
+  assert.equal(result.reviewTabDraft.perNoteDisposition[0].disposition, 'SOURCE_UNKNOWN');
+  assert.equal(result.reviewTabDraft.perNoteDisposition[0].selectedPosition, null);
+  assert.equal(result.reviewTabDraft.perNoteDisposition[1].disposition, 'SOURCE_UNKNOWN');
+  assert.equal(result.reviewTabDraft.perNoteDisposition[1].selectedPosition, null);
+  assert.equal(result.capabilities.draftVisible, true);
+  assert.equal(result.capabilities.generateTab, false);
+  assert.equal(result.capabilities.export, false);
+});
+
 test('tampered draft position cannot create draft visibility or TAB authority', () => {
   const result = processMusicXmlUpload({
     fileName: 'edtab-02-tamper.musicxml',
