@@ -44,9 +44,12 @@ For the exact dense-piano PA-8 assignment-limit boundary, the application can no
 
 R3 extends that provisional path across bounded repeat/navigation, repairable measure-overflow, invalid-tie and dense/unplayable selection cases. On the pinned eleven-file Stage 09 AnimeTAB corpus it produces a source view and a provisional TAB for all 11 files with zero file-level hard blocks. R4 connects same-page pitch correction for assigned provisional notes; R5 adds exact string/fret control; R6 adds bounded duration editing; R7 makes retained tie-chain pitch editing atomic; R8 allows explicit assignment of eligible reduction-unassigned notes; and R9 applies deterministic melody/bass playable maximization while keeping the result provisional. Voice/structure, note add/delete, tied-chain duration/position, semantic omissions and grace-note assignment remain closed.
 
+EDTAB-02 adds a separate early `ReviewTabDraft 1.0.0` for allow-listed review failures that occur before the ordinary source model and physical TAB pipeline finish. It preserves stable source note identities and a six-string review surface without inventing string/fret values. Draft visibility is separate from TAB generation/export authority; teacher string/fret mutation remains EDTAB-03.
+
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;
+- [`docs/edtab-02-review-tab-draft.md`](docs/edtab-02-review-tab-draft.md) — early source identity and review-only draft authority;
 - [`docs/current-status.md`](docs/current-status.md) — current production status;
 - [`docs/musicxml-compatibility.md`](docs/musicxml-compatibility.md) — generic MusicXML compatibility contract;
 - [`docs/stage-03-source-guitar-configuration-closeout.md`](docs/stage-03-source-guitar-configuration-closeout.md) — Stage 03 tuning/capo and legacy TAB closeout;
