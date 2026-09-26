@@ -1,28 +1,13 @@
 'use strict';
 
 const { createGuitarConfiguration } = require('../guitar/tuning');
+const { freezeObjectGraph } = require('./freezeObjectGraph');
 
 const REVIEW_TAB_DRAFT_VERSION = '1.0.0';
 const REVIEW_TAB_DRAFT_DOCUMENT_TYPE = 'ReviewTabDraft';
 const REVIEW_TAB_DRAFT_RENDER_MODEL_VERSION = '1.0.0';
 const REVIEW_TAB_DRAFT_RENDER_MODEL_DOCUMENT_TYPE = 'ReviewTabDraftRenderModel';
 const REVIEW_TAB_DRAFT_AUTHORITY = 'PROVISIONAL_TEACHER_REVIEW_ONLY';
-
-function deepFreeze(root) {
-  const pending = [root];
-  const seen = new WeakSet();
-  while (pending.length > 0) {
-    const value = pending.pop();
-    if (!value || typeof value !== 'object' || seen.has(value)) continue;
-    seen.add(value);
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor && Object.hasOwn(descriptor, 'value')) pending.push(descriptor.value);
-    }
-    Object.freeze(value);
-  }
-  return root;
-}
 
 function normalizedGuitarConfiguration(value) {
   if (!value) return createGuitarConfiguration();
@@ -106,7 +91,7 @@ function createReviewTabDraft({
 
   if (dispositions.length === 0) return null;
 
-  return deepFreeze({
+  return freezeObjectGraph({
     documentType: REVIEW_TAB_DRAFT_DOCUMENT_TYPE,
     contractVersion: REVIEW_TAB_DRAFT_VERSION,
     authority: REVIEW_TAB_DRAFT_AUTHORITY,
