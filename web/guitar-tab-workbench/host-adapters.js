@@ -110,6 +110,30 @@
     });
   }
 
+  function reviewDraftRuntimeCommands(commands) {
+    assert(Array.isArray(commands), 'ReviewTabDraft commands must be an array.');
+    return commands.map((command) => {
+      assert(command && typeof command === 'object', 'ReviewTabDraft command must be an object.');
+      assert(
+        typeof command.sourceEventId === 'string' && command.sourceEventId.length > 0,
+        'ReviewTabDraft command requires sourceEventId.',
+      );
+      assert(
+        command.selectedPosition
+          && Number.isSafeInteger(command.selectedPosition.string)
+          && Number.isSafeInteger(command.selectedPosition.fret),
+        'ReviewTabDraft command requires an exact string/fret position.',
+      );
+      return {
+        sourceEventId: command.sourceEventId,
+        selectedPosition: {
+          string: command.selectedPosition.string,
+          fret: command.selectedPosition.fret,
+        },
+      };
+    });
+  }
+
   function transpositionQuery(request) {
     assert(request && typeof request === 'object', 'Document transposition request is required.');
     assert(request.bytes instanceof Uint8Array, 'Document transposition requires owned source bytes.');
@@ -182,6 +206,26 @@
         });
         return readJsonResponse(response, 'POLY_V2 edit request failed.');
       },
+      async reviewTabDraftEdit(request) {
+        assert(
+          request && typeof request.baseRevisionId === 'string' && request.baseRevisionId.length > 0,
+          'ReviewTabDraft edit requires the source-bound base revision.',
+        );
+        const wire = createEditRequest(
+          request,
+          'ReviewTabDraft edit',
+          reviewDraftRuntimeCommands(request?.commands),
+        );
+        const response = await fetch(
+          `${apiBaseUrl}/edit/review-tab-draft?${wire.query}&revision=${encodeURIComponent(request.baseRevisionId)}`,
+          {
+            method: 'POST',
+            headers: wire.headers,
+            body: wire.body,
+          },
+        );
+        return readJsonResponse(response, 'ReviewTabDraft edit request failed.');
+      },
       async transpose(request) {
         const query = transpositionQuery(request);
         const response = await fetch(`${apiBaseUrl}/transpose?${query}`, {
@@ -215,6 +259,9 @@
         throw readOnlyError();
       },
       async polyphonicEdit() {
+        throw readOnlyError();
+      },
+      async reviewTabDraftEdit() {
         throw readOnlyError();
       },
       async transpose() {

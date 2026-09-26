@@ -32,6 +32,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install pinned browser coverage dependency without changing the repository
+        run: npm install --no-save --package-lock=false --ignore-scripts puppeteer-core@25.3.0
+
+      - name: Detect a preinstalled Chrome or Chromium executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=""
+          for command in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$command" >/dev/null 2>&1; then
+              found="$(command -v "$command")"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "No preinstalled Chrome or Chromium executable was found." >&2
+            exit 1
+          fi
+          echo "BROWSER_EXECUTABLE=$found" >> "$GITHUB_ENV"
+          "$found" --version
+
       - name: Generate LCOV coverage
         run: |
           mkdir -p coverage
@@ -41,6 +62,14 @@ jobs:
             --test-reporter=lcov \
             --test-reporter-destination=stdout \
             --test-reporter-destination=coverage/lcov.info
+
+      - name: Add ReviewTabDraft Workbench browser coverage
+        env:
+          BROWSER_COVERAGE_LCOV_PATH: coverage/browser.lcov
+        run: |
+          node tests/compatibility/alphaTabRuntimeHostReviewTabDraftE2e.mjs
+          test -s coverage/browser.lcov
+          cat coverage/browser.lcov >> coverage/lcov.info
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1

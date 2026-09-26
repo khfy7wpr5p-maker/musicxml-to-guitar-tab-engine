@@ -27,6 +27,27 @@ function draftDisposition(entry) {
   return fullyKnown ? 'UNASSIGNED' : 'SOURCE_UNKNOWN';
 }
 
+function assignmentMap(positionAssignments) {
+  if (!Array.isArray(positionAssignments)) return null;
+  const result = new Map();
+  for (const assignment of positionAssignments) {
+    if (
+      !assignment
+      || typeof assignment.sourceEventId !== 'string'
+      || assignment.sourceEventId.length === 0
+      || !assignment.selectedPosition
+      || !Number.isSafeInteger(assignment.selectedPosition.string)
+      || !Number.isSafeInteger(assignment.selectedPosition.fret)
+      || result.has(assignment.sourceEventId)
+    ) return null;
+    result.set(assignment.sourceEventId, Object.freeze({
+      string: assignment.selectedPosition.string,
+      fret: assignment.selectedPosition.fret,
+    }));
+  }
+  return result;
+}
+
 function buildRenderModel(index, dispositions, guitarConfiguration) {
   const sourceById = new Map(index.entries.map((entry) => [entry.sourceEventId, entry]));
   const measureMap = new Map();
@@ -43,12 +64,18 @@ function buildRenderModel(index, dispositions, guitarConfiguration) {
       };
       measureMap.set(source.measureId, renderMeasure);
     }
+    const position = disposition.selectedPosition;
     renderMeasure.events.push({
       sourceEventId: source.sourceEventId,
+      sourceOrder: source.evidenceLocation.sourceOrder,
       onsetDivisions: source.knownOnsetOrNull,
-      displayToken: '?',
-      string: null,
-      fret: null,
+      durationDivisions: source.knownDurationOrNull,
+      pitch: source.knownPitchOrNull,
+      voice: source.evidenceLocation.voice,
+      staff: source.evidenceLocation.staff,
+      displayToken: position ? String(position.fret) : '?',
+      string: position?.string ?? null,
+      fret: position?.fret ?? null,
     });
   }
 
@@ -66,6 +93,8 @@ function createReviewTabDraft({
   sourceScoreArtifact,
   guitarConfiguration = null,
   issues = [],
+  positionAssignments = [],
+  revisionId = null,
 }) {
   if (
     !sourceReviewIndex
@@ -77,19 +106,29 @@ function createReviewTabDraft({
 
   const guitar = normalizedGuitarConfiguration(guitarConfiguration);
   if (!Array.isArray(guitar.tuning) || guitar.tuning.length !== 6) return null;
+  const assignments = assignmentMap(positionAssignments);
+  if (!assignments) return null;
+  const sourceIds = new Set(sourceReviewIndex.entries.map((entry) => entry.sourceEventId));
+  if ([...assignments.keys()].some((sourceEventId) => !sourceIds.has(sourceEventId))) return null;
 
   const dispositions = sourceReviewIndex.entries
     .filter((entry) => entry.eventKind !== 'REST')
-    .map((entry) => ({
-      measureId: entry.measureId,
-      sourceEventId: entry.sourceEventId,
-      disposition: draftDisposition(entry),
-      knownPitchOrNull: entry.knownPitchOrNull,
-      knownOnsetOrNull: entry.knownOnsetOrNull,
-      knownDurationOrNull: entry.knownDurationOrNull,
-      selectedPosition: null,
-      uncertaintyReasonCodes: entry.uncertaintyReasonCodes,
-    }));
+    .map((entry) => {
+      const baseDisposition = draftDisposition(entry);
+      const selectedPosition = assignments.get(entry.sourceEventId) || null;
+      if (selectedPosition && baseDisposition !== 'UNASSIGNED') return null;
+      return {
+        measureId: entry.measureId,
+        sourceEventId: entry.sourceEventId,
+        disposition: selectedPosition ? 'ASSIGNED' : baseDisposition,
+        knownPitchOrNull: entry.knownPitchOrNull,
+        knownOnsetOrNull: entry.knownOnsetOrNull,
+        knownDurationOrNull: entry.knownDurationOrNull,
+        selectedPosition,
+        uncertaintyReasonCodes: entry.uncertaintyReasonCodes,
+      };
+    });
+  if (dispositions.some((entry) => entry === null)) return null;
 
   if (dispositions.length === 0) return null;
 
@@ -99,7 +138,7 @@ function createReviewTabDraft({
     authority: REVIEW_TAB_DRAFT_AUTHORITY,
     sourceUploadSha256: sourceReviewIndex.sourceUploadSha256,
     selectedPartId: sourceReviewIndex.selectedPartId,
-    revisionId: `review:${sourceReviewIndex.sourceUploadSha256}:0`,
+    revisionId: revisionId || `review:${sourceReviewIndex.sourceUploadSha256}:0`,
     guitarConfiguration: guitar,
     sourceScoreArtifact,
     perNoteDisposition: dispositions,
@@ -108,7 +147,7 @@ function createReviewTabDraft({
     capabilities: {
       draftVisible: true,
       selectSourceEvent: true,
-      assignStringFret: false,
+      assignStringFret: dispositions.some((entry) => entry.disposition === 'UNASSIGNED' || entry.disposition === 'ASSIGNED'),
       export: false,
     },
   });

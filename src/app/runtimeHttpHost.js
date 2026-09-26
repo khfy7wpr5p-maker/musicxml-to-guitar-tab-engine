@@ -12,6 +12,9 @@ const {
   processMusicXmlPolyphonicNoteEditV2,
 } = require('./musicXmlPolyphonicNoteEditRuntimeV2');
 const {
+  processReviewTabDraftEdit,
+} = require('./reviewTabDraftEditRuntime');
+const {
   processMusicXmlDocumentTransposition,
 } = require('./musicXmlDocumentTranspositionRuntime');
 
@@ -323,7 +326,11 @@ function createRuntimeHttpServer(options = {}) {
         return;
       }
 
-      if (url.pathname === '/api/edit' || url.pathname === '/api/edit/poly-v2') {
+      if (
+        url.pathname === '/api/edit'
+        || url.pathname === '/api/edit/poly-v2'
+        || url.pathname === '/api/edit/review-tab-draft'
+      ) {
         if (request.method !== 'POST') {
           response.setHeader('allow', 'POST');
           writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
@@ -338,9 +345,14 @@ function createRuntimeHttpServer(options = {}) {
           expectedInputSha256,
           commands: framed.commands,
         };
-        const result = url.pathname === '/api/edit/poly-v2'
-          ? processMusicXmlPolyphonicNoteEditV2(runtimeRequest)
-          : processMusicXmlNoteEdit(runtimeRequest);
+        const result = url.pathname === '/api/edit/review-tab-draft'
+          ? processReviewTabDraftEdit({
+            ...runtimeRequest,
+            baseRevisionId: readSingleQueryValue(url, 'revision'),
+          })
+          : url.pathname === '/api/edit/poly-v2'
+            ? processMusicXmlPolyphonicNoteEditV2(runtimeRequest)
+            : processMusicXmlNoteEdit(runtimeRequest);
         writeJson(response, 200, result);
         return;
       }
