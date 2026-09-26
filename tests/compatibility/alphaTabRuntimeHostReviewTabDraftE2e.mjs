@@ -141,7 +141,7 @@ try {
   assert.equal(assigned.snapshot.runtimeResult.capabilities.export, false);
   assert.equal(assigned.disposition.disposition, 'ASSIGNED');
   assert.deepEqual(assigned.disposition.selectedPosition, {string: 1, fret: 0});
-  assert.match(assigned.draftText, /1 E4 \|\s+0/);
+  assert.match(assigned.draftText, /1 E4 \|\s+-0/);
   assert.match(assigned.positionStatus, /backend validated|Current ReviewTabDraft position/);
   assert.equal(
     apiRequests.filter(item => item === 'POST /api/edit/review-tab-draft').length,
