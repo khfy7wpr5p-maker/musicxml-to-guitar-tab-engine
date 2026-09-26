@@ -863,6 +863,178 @@
       return chain.map((entry) => entry.event.sourceEventId);
     }
 
+    function reviewDraftIndexes() {
+      const index = state.runtimeResult?.sourceReviewIndex;
+      const draft = state.runtimeResult?.reviewTabDraft;
+      const sources = new Map();
+      const dispositions = new Map();
+      for (const entry of index?.entries || []) {
+        if (entry && typeof entry.sourceEventId === 'string') sources.set(entry.sourceEventId, entry);
+      }
+      for (const entry of draft?.perNoteDisposition || []) {
+        if (entry && typeof entry.sourceEventId === 'string') dispositions.set(entry.sourceEventId, entry);
+      }
+      return { index, draft, sources, dispositions };
+    }
+
+    function resolveReviewDraftRendererNote(note, measureIndex) {
+      const midi = note?.realValue;
+      const bar = note?.beat?.voice?.bar;
+      if (!Number.isSafeInteger(midi) || !bar) return null;
+
+      const { index } = reviewDraftIndexes();
+      if (index?.documentType !== 'SourceReviewIndex') return null;
+      const measureSources = index.entries.filter((entry) => (
+        entry?.evidenceLocation?.measureIndex === measureIndex
+        && entry.eventKind === 'PITCHED_NOTE'
+        && entry.knownPitchOrNull
+        && Number.isSafeInteger(entry.knownOnsetOrNull)
+      ));
+      if (measureSources.length === 0) return null;
+
+      const activeRendererVoices = rendererActiveVoices(bar);
+      const voiceOrdinal = activeRendererVoices.indexOf(note.beat.voice);
+      if (voiceOrdinal < 0) return null;
+
+      const sourceVoices = [...new Map(
+        measureSources
+          .slice()
+          .sort((left, right) => left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder)
+          .map((entry) => [String(entry.evidenceLocation.voice), entry.evidenceLocation.sourceOrder]),
+      ).entries()];
+      if (sourceVoices.length !== activeRendererVoices.length || voiceOrdinal >= sourceVoices.length) {
+        return null;
+      }
+      const sourceVoice = sourceVoices[voiceOrdinal][0];
+      const voiceSources = measureSources
+        .filter((entry) => String(entry.evidenceLocation.voice) === sourceVoice)
+        .sort((left, right) => (
+          left.knownOnsetOrNull - right.knownOnsetOrNull
+          || left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder
+        ));
+
+      const onsetEvidence = rendererTrackOnsetEvidence(note);
+      if (!onsetEvidence) return null;
+      const sourceOnsets = [...new Set(voiceSources.map((entry) => entry.knownOnsetOrNull))]
+        .sort((left, right) => left - right);
+      if (sourceOnsets.length !== onsetEvidence.count || onsetEvidence.ordinal >= sourceOnsets.length) {
+        return null;
+      }
+      const sourceOnset = sourceOnsets[onsetEvidence.ordinal];
+      const sourceChord = voiceSources
+        .filter((entry) => entry.knownOnsetOrNull === sourceOnset)
+        .sort((left, right) => left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder);
+      const rendererChord = Array.isArray(note?.beat?.notes)
+        ? note.beat.notes.filter((candidate) => Number.isSafeInteger(candidate?.realValue))
+        : [];
+      if (rendererChord.length !== sourceChord.length || rendererChord.length < 1) return null;
+
+      const rendererFingerprint = sortedNumbers(rendererChord.map((candidate) => candidate.realValue));
+      const sourceFingerprint = sortedNumbers(sourceChord.map((entry) => entry.knownPitchOrNull?.midi));
+      if (sourceFingerprint.some((value) => !Number.isSafeInteger(value))) return null;
+      if (!equalNumbers(rendererFingerprint, sourceFingerprint)) return null;
+
+      const rendererMidiPeers = rendererChord.filter((candidate) => candidate.realValue === midi);
+      const duplicateOrdinal = rendererMidiPeers.indexOf(note);
+      const sourceMidiPeers = sourceChord.filter((entry) => entry.knownPitchOrNull.midi === midi);
+      if (
+        duplicateOrdinal < 0
+        || rendererMidiPeers.length !== sourceMidiPeers.length
+        || duplicateOrdinal >= sourceMidiPeers.length
+      ) return null;
+
+      const source = sourceMidiPeers[duplicateOrdinal];
+      return {
+        reviewTabDraft: true,
+        measureIndex,
+        sourceOrder: source.evidenceLocation.sourceOrder,
+        sourceEventId: source.sourceEventId,
+        rendererVoiceOrdinal: voiceOrdinal,
+        rendererActiveVoiceCount: activeRendererVoices.length,
+        rendererOnsetOrdinal: onsetEvidence.ordinal,
+        rendererDuplicateOrdinal: duplicateOrdinal,
+        rendererChordSize: rendererChord.length,
+      };
+    }
+
+    function renderReviewDraftSelectedEvent(source, disposition, identity) {
+      if (
+        !source
+        || source.eventKind !== 'PITCHED_NOTE'
+        || !source.knownPitchOrNull
+        || !Number.isSafeInteger(source.knownOnsetOrNull)
+        || !Number.isSafeInteger(source.knownDurationOrNull)
+        || !disposition
+        || !['UNASSIGNED', 'ASSIGNED'].includes(disposition.disposition)
+      ) {
+        clearSelection('The selected source event is not eligible for a ReviewTabDraft position.');
+        updateControls();
+        return false;
+      }
+
+      const position = disposition.selectedPosition || null;
+      state.selectedEvent = {
+        route: 'POLY_V2',
+        reviewTabDraft: true,
+        measureIndex: source.evidenceLocation.measureIndex,
+        sourceOrder: source.evidenceLocation.sourceOrder,
+        sourceEventId: source.sourceEventId,
+        sourceGroupId: null,
+        sourceGroupEventIds: [source.sourceEventId],
+        sourceTieEventIds: [source.sourceEventId],
+        visibleMeasureNumber: source.evidenceLocation.measure ?? source.evidenceLocation.measureIndex + 1,
+        voice: String(source.evidenceLocation.voice),
+        staff: source.evidenceLocation.staff,
+        rendererVoiceOrdinal: identity?.rendererVoiceOrdinal ?? null,
+        rendererActiveVoiceCount: identity?.rendererActiveVoiceCount ?? null,
+        rendererOnsetOrdinal: identity?.rendererOnsetOrdinal ?? null,
+        rendererDuplicateOrdinal: identity?.rendererDuplicateOrdinal ?? null,
+        rendererChordSize: identity?.rendererChordSize ?? null,
+        pitch: {
+          step: source.knownPitchOrNull.step,
+          alter: source.knownPitchOrNull.alter,
+          octave: source.knownPitchOrNull.octave,
+          written: source.knownPitchOrNull.written,
+          midi: source.knownPitchOrNull.midi,
+        },
+        tied: false,
+        groupContainsTies: false,
+        selectedPosition: position ? { string: position.string, fret: position.fret } : null,
+        assignmentEligible: true,
+        reasonCode: disposition.disposition === 'ASSIGNED'
+          ? 'TEACHER_ASSIGNMENT_RETAINED'
+          : 'REVIEW_TAB_DRAFT_UNASSIGNED',
+        durationDivisions: source.knownDurationOrNull,
+        measureDivisions: null,
+      };
+
+      setText(
+        selectedNote,
+        `${source.knownPitchOrNull.written} · measure ${state.selectedEvent.visibleMeasureNumber} · voice ${state.selectedEvent.voice} · source ${source.evidenceLocation.sourceOrder + 1}`,
+      );
+      setText(
+        arrangementReason,
+        position ? 'Teacher ReviewTabDraft position' : 'ReviewTabDraft · Konum atanmamış',
+      );
+      editStep.value = source.knownPitchOrNull.step;
+      editAlter.value = String(source.knownPitchOrNull.alter);
+      editOctave.value = String(source.knownPitchOrNull.octave);
+      if (editDuration) editDuration.value = String(source.knownDurationOrNull);
+      if (position) {
+        if (editString) editString.value = String(position.string);
+        if (editFret) editFret.value = String(position.fret);
+        setText(positionEditStatus, `Current ReviewTabDraft position · string ${position.string}, fret ${position.fret}`);
+      } else {
+        setText(positionEditStatus, 'Ready to assign: choose the exact string and fret.');
+      }
+      setText(
+        editStatus,
+        `ReviewTabDraft source identity verified · revision ${state.revisionNumber}`,
+      );
+      updateControls();
+      return true;
+    }
+
     function resolvePolyphonicRendererNote(note, measureIndex) {
       const midi = note?.realValue;
       if (!Number.isSafeInteger(midi)) return null;
@@ -1031,6 +1203,28 @@
         return false;
       }
       const route = state.runtimeResult.route;
+
+      if (route === 'POLY_V2' && state.runtimeResult?.reviewTabDraft) {
+        if (typeof reviewTabDraftEdit !== 'function') {
+          clearSelection('ReviewTabDraft editing is not connected to this host.');
+          updateControls();
+          return false;
+        }
+        const { sources, dispositions } = reviewDraftIndexes();
+        const source = sources.get(identity?.sourceEventId);
+        const disposition = dispositions.get(identity?.sourceEventId);
+        if (
+          !source
+          || source.evidenceLocation.measureIndex !== identity?.measureIndex
+          || source.evidenceLocation.sourceOrder !== identity?.sourceOrder
+        ) {
+          clearSelection('The selected source note no longer matches its ReviewTabDraft identity.');
+          updateControls();
+          return false;
+        }
+        return renderReviewDraftSelectedEvent(source, disposition, identity);
+      }
+
       const measures = state.runtimeResult.canonicalTabResult?.measures;
       if (!Array.isArray(measures)) return false;
 
@@ -1139,7 +1333,9 @@
       }
 
       if (state.runtimeResult?.route === 'POLY_V2') {
-        const identity = resolvePolyphonicRendererNote(note, measureIndex);
+        const identity = state.runtimeResult?.reviewTabDraft
+          ? resolveReviewDraftRendererNote(note, measureIndex)
+          : resolvePolyphonicRendererNote(note, measureIndex);
         if (!identity) {
           clearSelection('POLY_V2 renderer mapping is ambiguous or incomplete; no edit target was selected.');
           updateControls();
