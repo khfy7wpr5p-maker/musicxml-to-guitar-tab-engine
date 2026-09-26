@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 import puppeteer from 'puppeteer-core';
+import { startBrowserCoverage, writeStoppedBrowserCoverage } from './browserCoverageLcov.mjs';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,8 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+  const browserCoveragePath = process.env.BROWSER_COVERAGE_LCOV_PATH || null;
+  if (browserCoveragePath) await startBrowserCoverage(page);
   await page.setViewport({width: 1440, height: 1100, deviceScaleFactor: 1});
   const messages = [];
   const apiRequests = [];
@@ -211,8 +214,13 @@ try {
     ['POST /api/upload'],
   );
 
+  const browserCoverage = browserCoveragePath
+    ? await writeStoppedBrowserCoverage(page, repositoryRoot, browserCoveragePath)
+    : null;
+
   process.stdout.write(`${JSON.stringify({
     browser: await browser.version(),
+    browserCoverage,
     sourceEventId: blocked.snapshot.selectedEvent.sourceEventId,
     revisionCommands: blocked.snapshot.reviewDraftRevisionCommandCount,
     apiRequests,
