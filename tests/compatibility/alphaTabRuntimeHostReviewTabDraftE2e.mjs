@@ -68,7 +68,7 @@ try {
         && snapshot?.runtimeResult?.status === 'REVIEW_REQUIRED'
         && snapshot?.runtimeResult?.reviewTabDraft?.documentType === 'ReviewTabDraft'
         && document.querySelectorAll('[data-role="score"] svg').length > 0
-        && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 1;
+        && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 2;
     },
     {timeout: 30000},
   );
