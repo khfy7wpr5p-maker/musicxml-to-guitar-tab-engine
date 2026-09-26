@@ -158,6 +158,21 @@ test('tampered draft position cannot create draft visibility or TAB authority', 
   assert.equal(decorated.capabilities.export, false);
 });
 
+test('tampered guitar configuration cannot create draft visibility', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'edtab-02-guitar-tamper.musicxml',
+    bytes: endingReviewScore(),
+  });
+  const tampered = structuredClone(result);
+  tampered.reviewTabDraft.guitarConfiguration.tuning[0].midi += 1;
+
+  const decorated = decorateUploadResultWithCapabilities(tampered);
+  assert.equal(decorated.capabilities.draftVisible, false);
+  assert.equal(decorated.artifacts.reviewTabDraftAvailable, false);
+  assert.equal(decorated.capabilities.generateTab, false);
+  assert.equal(decorated.capabilities.export, false);
+});
+
 test('tampered source identity cannot create draft visibility', () => {
   const result = processMusicXmlUpload({
     fileName: 'edtab-02-source-tamper.musicxml',
