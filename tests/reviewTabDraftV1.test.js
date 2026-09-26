@@ -29,7 +29,7 @@ function endingReviewScore() {
       </note>
       <barline location="left">
         <bar-style>regular</bar-style>
-        <ending number="1" type="start" default-y="40">1.</ending>
+        <ending number="1" type="start" default-y="40"></ending>
       </barline>
     </measure>
   </part>
