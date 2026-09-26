@@ -98,7 +98,12 @@
         return present(await adapter.polyphonicEdit(request));
       },
       async reviewTabDraftEdit(request) {
-        return present(await adapter.reviewTabDraftEdit(request));
+        const result = await adapter.reviewTabDraftEdit(request);
+        // A rejected teacher position must not replace the last valid review
+        // revision. The core receives the BLOCKED response for its issue
+        // surface while authoritative review state stays on the valid draft.
+        if (result?.status === 'BLOCKED') return result;
+        return present(result);
       },
       async transpose(request) {
         return clearAuthority(await adapter.transpose(request));
