@@ -195,6 +195,30 @@ test('source-index contract retains unknown duration as SOURCE_UNKNOWN without i
   assert.equal(draft.capabilities.export, false);
 });
 
+test('source review uncertainty reasons use explicit deterministic lexical ordering', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Poly</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <note>
+        <chord/>
+        <voice>1</voice>
+      </note>
+    </measure>
+  </part>
+</score-partwise>`);
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+  const index = tryCreateSourceReviewIndex(parseParsedMusicXmlDocument(bytes), sha256);
+
+  assert.ok(index);
+  assert.deepEqual(index.entries[0].uncertaintyReasonCodes, [
+    'SOURCE_DURATION_UNKNOWN',
+    'SOURCE_ONSET_UNKNOWN',
+    'SOURCE_PITCH_UNKNOWN',
+  ]);
+});
+
 test('tampered draft position cannot create draft visibility or TAB authority', () => {
   const result = processMusicXmlUpload({
     fileName: 'edtab-02-tamper.musicxml',
