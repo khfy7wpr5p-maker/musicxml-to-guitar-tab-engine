@@ -138,7 +138,7 @@ test('early reviewable ending failure produces a source-anchored ReviewTabDraft 
   );
   assert.equal(draft.capabilities.draftVisible, true);
   assert.equal(draft.capabilities.selectSourceEvent, true);
-  assert.equal(draft.capabilities.assignStringFret, false);
+  assert.equal(draft.capabilities.assignStringFret, true);
   assert.equal(draft.capabilities.export, false);
 
   assert.equal(first.capabilities.draftVisible, true);
