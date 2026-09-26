@@ -225,6 +225,21 @@ test('tampered guitar configuration cannot create draft visibility', () => {
   assert.equal(decorated.capabilities.export, false);
 });
 
+test('missing draft guitar configuration fails closed without throwing', () => {
+  const result = processMusicXmlUpload({
+    fileName: 'edtab-02-missing-guitar.musicxml',
+    bytes: endingReviewScore(),
+  });
+  const tampered = structuredClone(result);
+  tampered.reviewTabDraft.guitarConfiguration = null;
+
+  const decorated = decorateUploadResultWithCapabilities(tampered);
+  assert.equal(decorated.capabilities.draftVisible, false);
+  assert.equal(decorated.artifacts.reviewTabDraftAvailable, false);
+  assert.equal(decorated.capabilities.generateTab, false);
+  assert.equal(decorated.capabilities.export, false);
+});
+
 test('tampered source identity cannot create draft visibility', () => {
   const result = processMusicXmlUpload({
     fileName: 'edtab-02-source-tamper.musicxml',
