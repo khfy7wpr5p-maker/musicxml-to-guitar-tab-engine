@@ -175,7 +175,7 @@ function tryCreateSourceReviewIndex(parsedDocument, sourceUploadSha256) {
           voice: simpleVoice(child),
           staff: simpleStaff(child),
         },
-        uncertaintyReasonCodes: [...new Set(uncertainty)].sort(),
+        uncertaintyReasonCodes: [...new Set(uncertainty)].sort((left, right) => left.localeCompare(right)),
       });
 
       previousNoteOnset = onset;
