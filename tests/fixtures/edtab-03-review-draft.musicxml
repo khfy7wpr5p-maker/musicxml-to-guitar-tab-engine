@@ -15,6 +15,13 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
+      <backup><duration>4</duration></backup>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <voice>2</voice>
+        <type>quarter</type>
+      </note>
       <barline location="left">
         <bar-style>regular</bar-style>
         <ending number="1" type="start" default-y="40"></ending>
