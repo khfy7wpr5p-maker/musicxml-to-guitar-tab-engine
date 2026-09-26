@@ -90,6 +90,16 @@
     };
   }
 
+  function cloneReviewDraftCommand(command) {
+    return {
+      sourceEventId: command.sourceEventId,
+      selectedPosition: {
+        string: command.selectedPosition.string,
+        fret: command.selectedPosition.fret,
+      },
+    };
+  }
+
   function mount(options) {
     assert(options && typeof options === 'object', 'Workbench options are required.');
     const root = options.root;
@@ -261,12 +271,123 @@
       setText(positionEditStatus, 'Select an assigned POLY_V2 note to change its TAB position.');
     }
 
+    function renderReviewTabDraft() {
+      if (!reviewTabDraftView) return;
+      const draft = state.runtimeResult?.reviewTabDraft;
+      if (
+        draft?.documentType !== 'ReviewTabDraft'
+        || draft?.contractVersion !== '1.0.0'
+        || draft?.renderModel?.documentType !== 'ReviewTabDraftRenderModel'
+      ) {
+        reviewTabDraftView.hidden = true;
+        reviewTabDraftView.textContent = '';
+        return;
+      }
+
+      const events = [];
+      for (const measure of draft.renderModel.measures || []) {
+        for (const event of measure.events || []) {
+          events.push({
+            ...event,
+            measure: measure.measure,
+            measureIndex: measure.measureIndex,
+          });
+        }
+      }
+      events.sort((left, right) => (
+        left.measureIndex - right.measureIndex
+        || left.onsetDivisions - right.onsetDivisions
+        || left.sourceOrder - right.sourceOrder
+      ));
+
+      const lines = [...(draft.renderModel.strings || [])]
+        .sort((left, right) => left.number - right.number)
+        .map((stringDefinition) => {
+          const cells = events.map((event) => (
+            event.string === stringDefinition.number ? String(event.fret).padStart(2, '-') : '--'
+          ));
+          return `${stringDefinition.number} ${stringDefinition.pitch || ''} | ${cells.join(' ')}`;
+        });
+
+      const sourceById = new Map(
+        (state.runtimeResult?.sourceReviewIndex?.entries || [])
+          .map((entry) => [entry.sourceEventId, entry]),
+      );
+      const unassigned = draft.perNoteDisposition
+        .filter((entry) => entry.disposition === 'UNASSIGNED')
+        .map((entry) => {
+          const source = sourceById.get(entry.sourceEventId);
+          return `Measure ${source?.evidenceLocation?.measure ?? '?'} · ${entry.knownPitchOrNull?.written || '?'} · ? Konum atanmamış · ${entry.sourceEventId}`;
+        });
+
+      reviewTabDraftView.textContent = [
+        'Review TAB draft · provisional teacher review only',
+        ...lines,
+        ...(unassigned.length > 0 ? ['', 'Unassigned:', ...unassigned] : []),
+      ].join('\n');
+      reviewTabDraftView.hidden = false;
+    }
+
     function renderOmittedNoteAssignments() {
       if (!omittedNoteList) return;
       while (omittedNoteList.firstChild) omittedNoteList.removeChild(omittedNoteList.firstChild);
-      const canonical = state.runtimeResult?.canonicalTabResult;
       const enabled = state.runtimeResult?.route === 'POLY_V2'
         && state.runtimeResult?.capabilities?.assignTabPosition === true;
+
+      const draft = state.runtimeResult?.reviewTabDraft;
+      const sourceIndex = state.runtimeResult?.sourceReviewIndex;
+      if (
+        draft?.documentType === 'ReviewTabDraft'
+        && draft?.contractVersion === '1.0.0'
+        && sourceIndex?.documentType === 'SourceReviewIndex'
+      ) {
+        const sourceById = new Map(
+          sourceIndex.entries.map((entry) => [entry.sourceEventId, entry]),
+        );
+        const candidates = draft.perNoteDisposition
+          .filter((entry) => (
+            ['UNASSIGNED', 'ASSIGNED'].includes(entry.disposition)
+            && entry.knownPitchOrNull
+            && Number.isSafeInteger(entry.knownOnsetOrNull)
+            && Number.isSafeInteger(entry.knownDurationOrNull)
+          ))
+          .map((disposition) => ({
+            disposition,
+            source: sourceById.get(disposition.sourceEventId),
+          }))
+          .filter((candidate) => candidate.source);
+
+        for (const candidate of candidates) {
+          const position = candidate.disposition.selectedPosition;
+          const positionLabel = position
+            ? `string ${position.string}, fret ${position.fret}`
+            : '? Konum atanmamış';
+          const option = createElement(
+            documentRef,
+            'option',
+            null,
+            `Measure ${candidate.source.evidenceLocation.measure ?? candidate.source.evidenceLocation.measureIndex + 1} · ${candidate.disposition.knownPitchOrNull.written} · voice ${candidate.source.evidenceLocation.voice} · ${positionLabel}`,
+          );
+          option.value = candidate.disposition.sourceEventId;
+          option.dataset.measureIndex = String(candidate.source.evidenceLocation.measureIndex);
+          option.dataset.sourceOrder = String(candidate.source.evidenceLocation.sourceOrder);
+          option.dataset.reviewDraft = 'true';
+          omittedNoteList.appendChild(option);
+        }
+
+        omittedNoteList.disabled = !enabled || candidates.length === 0;
+        selectOmittedNoteButton.disabled = !enabled || candidates.length === 0;
+        setText(omittedNoteCount, String(candidates.length));
+        setText(
+          omittedNoteStatus,
+          candidates.length > 0
+            ? 'Select a ReviewTabDraft note, then choose its exact string and fret.'
+            : 'No source-verified ReviewTabDraft note is available for TAB assignment.',
+        );
+        return;
+      }
+
+      const canonical = state.runtimeResult?.canonicalTabResult;
       const dispositionById = new Map(
         (canonical?.noteDispositions || []).map((entry) => [entry.sourceEventId, entry]),
       );
