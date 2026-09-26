@@ -124,6 +124,46 @@ test('EDTAB-03 rejects a string/fret that does not reproduce source pitch', () =
   assert.match(result.preflight.issues[0].message, /does not reproduce/i);
 });
 
+test('EDTAB-03 rejects simultaneous assignments that collide on one string', () => {
+  const bytes = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Collision</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="9">
+      <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type></note>
+      <backup><duration>4</duration></backup>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>4</duration><voice>2</voice><type>quarter</type></note>
+      <barline location="left"><bar-style>regular</bar-style><ending number="1" type="start" default-y="40"></ending></barline>
+    </measure>
+  </part>
+</score-partwise>`);
+  const upload = processMusicXmlUpload({
+    fileName: 'edtab-03-collision.musicxml',
+    bytes,
+  });
+  const result = processReviewTabDraftEdit({
+    fileName: 'edtab-03-collision.musicxml',
+    bytes,
+    expectedInputSha256: upload.input.sha256,
+    baseRevisionId: upload.reviewTabDraft.revisionId,
+    commands: [
+      {
+        sourceEventId: 'P1:measure:0:note:0',
+        selectedPosition: { string: 1, fret: 0 },
+      },
+      {
+        sourceEventId: 'P1:measure:0:note:1',
+        selectedPosition: { string: 1, fret: 1 },
+      },
+    ],
+  });
+
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.preflight.issues[0].code, 'REVIEW_DRAFT_STRING_COLLISION');
+  assert.match(result.preflight.issues[0].message, /same guitar string/i);
+});
+
 test('EDTAB-03 empty replay provides deterministic undo to the source-bound base draft', () => {
   const bytes = measureNineReviewScore();
   const upload = processMusicXmlUpload({
