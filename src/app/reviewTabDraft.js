@@ -33,15 +33,17 @@ function buildRenderModel(index, dispositions, guitarConfiguration) {
   for (const disposition of dispositions) {
     const source = sourceById.get(disposition.sourceEventId);
     if (!source || source.knownOnsetOrNull === null) continue;
-    if (!measureMap.has(source.measureId)) {
-      measureMap.set(source.measureId, {
+    let renderMeasure = measureMap.get(source.measureId);
+    if (!renderMeasure) {
+      renderMeasure = {
         measureId: source.measureId,
         measure: source.evidenceLocation.measure,
         measureIndex: source.evidenceLocation.measureIndex,
         events: [],
-      });
+      };
+      measureMap.set(source.measureId, renderMeasure);
     }
-    measureMap.get(source.measureId).events.push({
+    renderMeasure.events.push({
       sourceEventId: source.sourceEventId,
       onsetDivisions: source.knownOnsetOrNull,
       displayToken: '?',
