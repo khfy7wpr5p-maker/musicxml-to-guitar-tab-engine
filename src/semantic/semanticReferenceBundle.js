@@ -3,7 +3,10 @@
 const crypto = require('node:crypto');
 
 const PROVENANCE_SCHEMA_VERSION = 'st-guitar-semantic-reference-provenance-v1';
-const PINNED_SOURCE_SHA256 = '943708ecae3d291f32f8c42472b12a300f2719a1c46fc74ab2aba9456a847dd6';
+const PINNED_SOURCE_SHA256S = new Set([
+  '943708ecae3d291f32f8c42472b12a300f2719a1c46fc74ab2aba9456a847dd6',
+  'e76c8917eec7ff1404b912083f9947c7fe14cf7df0cb56a219adc24df741cc3e',
+]);
 const PINNED_SEMANTIC_ENGINE_COMMIT = 'ef305f45ff90d940ac6c51a0c46c4fac006d7c5c';
 const PINNED_SNAPSHOT_SCHEMA_VERSION = 'st-semantic-snapshot-v1';
 const PINNED_PARTITURA_VERSION = '1.9.0';
@@ -69,8 +72,8 @@ function admitSemanticReferenceBundle(bundle) {
   }
 
   const sourceSha256 = crypto.createHash('sha256').update(sourceBuffer).digest('hex');
-  if (sourceSha256 !== PINNED_SOURCE_SHA256
-    || provenance.sourceSha256 !== PINNED_SOURCE_SHA256) {
+  if (!PINNED_SOURCE_SHA256S.has(sourceSha256)
+    || provenance.sourceSha256 !== sourceSha256) {
     return unsupported('SOURCE_SHA256_MISMATCH');
   }
 
