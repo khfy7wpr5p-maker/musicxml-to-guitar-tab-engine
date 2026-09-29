@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "st-guitar-semantic-reference-provenance-v1",
+  "sourceSha256": "e76c8917eec7ff1404b912083f9947c7fe14cf7df0cb56a219adc24df741cc3e",
+  "semanticEngineCommit": "ef305f45ff90d940ac6c51a0c46c4fac006d7c5c",
+  "semanticQualificationCommit": "89c30ef354bb6a9b626f3bc94d9122dcf7ba7114",
+  "semanticSnapshotSchemaVersion": "st-semantic-snapshot-v1",
+  "partituraVersion": "1.9.0",
+  "profile": {
+    "sourceKind": "musicxml",
+    "musicXmlVersion": "3.1",
+    "divisions": 4,
+    "partCount": 1,
+    "measureCount": 2
+  }
+}
