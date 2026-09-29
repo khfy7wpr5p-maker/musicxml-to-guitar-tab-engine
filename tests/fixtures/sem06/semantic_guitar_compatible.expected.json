@@ -1,0 +1,97 @@
+{
+  "schema_version": "st-semantic-snapshot-v1",
+  "source_kind": "musicxml",
+  "part_count": 1,
+  "measure_count": 2,
+  "notes": [
+    {
+      "source_id": "n1",
+      "part_id": "P1",
+      "measure_index": 0,
+      "pitch_midi": 60,
+      "onset_div": 0,
+      "duration_div": 8,
+      "voice": 1,
+      "staff": 1,
+      "tie_prev": null,
+      "tie_next": null,
+      "is_grace": false
+    },
+    {
+      "source_id": "n3",
+      "part_id": "P1",
+      "measure_index": 0,
+      "pitch_midi": 55,
+      "onset_div": 0,
+      "duration_div": 16,
+      "voice": 2,
+      "staff": 1,
+      "tie_prev": null,
+      "tie_next": null,
+      "is_grace": false
+    },
+    {
+      "source_id": "n2",
+      "part_id": "P1",
+      "measure_index": 0,
+      "pitch_midi": 62,
+      "onset_div": 8,
+      "duration_div": 8,
+      "voice": 1,
+      "staff": 1,
+      "tie_prev": null,
+      "tie_next": "n4",
+      "is_grace": false
+    },
+    {
+      "source_id": "n4",
+      "part_id": "P1",
+      "measure_index": 1,
+      "pitch_midi": 62,
+      "onset_div": 16,
+      "duration_div": 4,
+      "voice": 1,
+      "staff": 1,
+      "tie_prev": "n2",
+      "tie_next": null,
+      "is_grace": false
+    },
+    {
+      "source_id": "n6",
+      "part_id": "P1",
+      "measure_index": 1,
+      "pitch_midi": 57,
+      "onset_div": 16,
+      "duration_div": 16,
+      "voice": 2,
+      "staff": 1,
+      "tie_prev": null,
+      "tie_next": null,
+      "is_grace": false
+    },
+    {
+      "source_id": "n5",
+      "part_id": "P1",
+      "measure_index": 1,
+      "pitch_midi": 64,
+      "onset_div": 20,
+      "duration_div": 12,
+      "voice": 1,
+      "staff": 1,
+      "tie_prev": null,
+      "tie_next": null,
+      "is_grace": false
+    }
+  ],
+  "time_signatures": [
+    {
+      "part_id": "P1",
+      "onset_div": 0,
+      "beats": 4,
+      "beat_type": 4
+    }
+  ],
+  "key_signatures": [],
+  "clefs": [],
+  "diagnostics": []
+}
