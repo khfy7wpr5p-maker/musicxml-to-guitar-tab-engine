@@ -12,7 +12,7 @@ function freezeResult(status, diagnostics, unverifiedContexts = []) {
   return Object.freeze({
     status,
     diagnostics: Object.freeze(diagnostics.map(freezeDiagnostic)),
-    unverifiedContexts: Object.freeze([...unverifiedContexts].sort()),
+    unverifiedContexts: Object.freeze([...unverifiedContexts].sort((left, right) => left.localeCompare(right))),
   });
 }
 
@@ -280,7 +280,7 @@ function compareGuitarSourceWithSemanticReference({
   const structuralKeys = [...new Set([
     ...guitarBuckets.keys(),
     ...semanticBuckets.keys(),
-  ])].sort();
+  ])].sort((left, right) => left.localeCompare(right));
 
   for (const key of structuralKeys) {
     const guitar = guitarBuckets.get(key)?.[0] ?? null;
