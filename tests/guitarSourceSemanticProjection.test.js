@@ -1,0 +1,368 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const packageRoot = require('../src');
+const {
+  createPolyphonicSourceModel,
+} = require('../src/music/polyphonicSourceModel');
+
+function loadProjectionApi() {
+  let api;
+  assert.doesNotThrow(() => {
+    api = require('../src/semantic/guitarSourceSemanticProjection');
+  });
+  return api;
+}
+
+function pinnedSourceModel() {
+  return createPolyphonicSourceModel({
+    documentType: 'PolyphonicSourceModel',
+    contractVersion: '1.0.0',
+    source: { format: 'score-partwise', musicXmlVersion: '3.1', partId: 'P1' },
+    measureCount: 2,
+    eventCount: 6,
+    measures: [
+      {
+        measureId: 'P1:measure:0',
+        index: 0,
+        number: '1',
+        implicit: false,
+        divisions: 4,
+        timeSignature: { beats: 4, beatType: 4 },
+        expectedDurationDivisions: 16,
+        events: [
+          {
+            sourceEventId: 'P1:measure:0:note:0',
+            sourceOrder: 0,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 8,
+            pitch: { step: 'C', alter: 0, octave: 4, midi: 60, written: 'C4' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 0,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:0:note:1',
+            sourceOrder: 1,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 8,
+            durationDivisions: 8,
+            pitch: { step: 'D', alter: 0, octave: 4, midi: 62, written: 'D4' },
+            tieStart: true,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 1,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:0:note:2',
+            sourceOrder: 2,
+            type: 'note',
+            voice: '2',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 16,
+            pitch: { step: 'G', alter: 0, octave: 3, midi: 55, written: 'G3' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 2,
+              chordWithPrevious: false,
+            },
+          },
+        ],
+      },
+      {
+        measureId: 'P1:measure:1',
+        index: 1,
+        number: '2',
+        implicit: false,
+        divisions: 4,
+        timeSignature: { beats: 4, beatType: 4 },
+        expectedDurationDivisions: 16,
+        events: [
+          {
+            sourceEventId: 'P1:measure:1:note:0',
+            sourceOrder: 0,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 4,
+            pitch: { step: 'D', alter: 0, octave: 4, midi: 62, written: 'D4' },
+            tieStart: false,
+            tieStop: true,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 0,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:1:note:1',
+            sourceOrder: 1,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 4,
+            durationDivisions: 12,
+            pitch: { step: 'E', alter: 0, octave: 4, midi: 64, written: 'E4' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 1,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:1:note:2',
+            sourceOrder: 2,
+            type: 'note',
+            voice: '2',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 16,
+            pitch: { step: 'A', alter: 0, octave: 3, midi: 57, written: 'A3' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 2,
+              chordWithPrevious: false,
+            },
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function duplicateUnisonModel() {
+  return createPolyphonicSourceModel({
+    documentType: 'PolyphonicSourceModel',
+    contractVersion: '1.0.0',
+    source: { format: 'score-partwise', musicXmlVersion: '4.0', partId: 'P1' },
+    measureCount: 1,
+    eventCount: 2,
+    measures: [{
+      measureId: 'P1:measure:0',
+      index: 0,
+      number: '1',
+      implicit: false,
+      divisions: 4,
+      timeSignature: { beats: 4, beatType: 4 },
+      expectedDurationDivisions: 16,
+      events: [
+        {
+          sourceEventId: 'P1:measure:0:note:0',
+          sourceOrder: 0,
+          type: 'note',
+          voice: '1',
+          staff: 1,
+          onsetDivisions: 0,
+          durationDivisions: 4,
+          pitch: { step: 'C', alter: 0, octave: 4, midi: 60, written: 'C4' },
+          tieStart: false,
+          tieStop: false,
+          source: {
+            partId: 'P1',
+            measureIndex: 0,
+            measureNumber: '1',
+            noteIndex: 0,
+            chordWithPrevious: false,
+          },
+        },
+        {
+          sourceEventId: 'P1:measure:0:note:1',
+          sourceOrder: 1,
+          type: 'note',
+          voice: '1',
+          staff: 1,
+          onsetDivisions: 0,
+          durationDivisions: 4,
+          pitch: { step: 'C', alter: 0, octave: 4, midi: 60, written: 'C4' },
+          tieStart: false,
+          tieStop: false,
+          source: {
+            partId: 'P1',
+            measureIndex: 0,
+            measureNumber: '1',
+            noteIndex: 1,
+            chordWithPrevious: true,
+          },
+        },
+      ],
+    }],
+  });
+}
+
+function assertNoGuitarAuthorityKeys(value) {
+  const forbidden = new Set([
+    'string',
+    'stringNumber',
+    'fret',
+    'finger',
+    'barre',
+    'handPosition',
+    'arrangement',
+    'arrangementScore',
+  ]);
+
+  const stack = [value];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === null || typeof current !== 'object') continue;
+    for (const [key, nested] of Object.entries(current)) {
+      assert.equal(forbidden.has(key), false, `projection must not expose ${key}`);
+      if (nested && typeof nested === 'object') stack.push(nested);
+    }
+  }
+}
+
+test('SEM-06B keeps Guitar semantic projection internal to the package', () => {
+  const api = loadProjectionApi();
+
+  assert.equal(typeof api.projectGuitarSourceSemantics, 'function');
+  assert.equal(packageRoot.projectGuitarSourceSemantics, undefined);
+});
+
+test('SEM-06B projects deterministic read-only source semantics from the admitted source model matching the pinned fixture', () => {
+  const { projectGuitarSourceSemantics } = loadProjectionApi();
+  const sourceModel = pinnedSourceModel();
+  const before = JSON.stringify(sourceModel);
+
+  const result = projectGuitarSourceSemantics(sourceModel);
+
+  assert.equal(result.status, 'PASS');
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.projection.schemaVersion, 'st-guitar-source-semantic-projection-v1');
+  assert.equal(result.projection.partId, 'P1');
+  assert.equal(result.projection.measureCount, 2);
+  assert.deepEqual(result.projection.meters, [
+    { measureIndex: 0, divisions: 4, beats: 4, beatType: 4 },
+    { measureIndex: 1, divisions: 4, beats: 4, beatType: 4 },
+  ]);
+  assert.deepEqual(result.projection.notes, [
+    {
+      measureIndex: 0,
+      sourceOrder: 0,
+      pitchMidi: 60,
+      onsetDivisions: 0,
+      durationDivisions: 8,
+      voice: '1',
+      staff: 1,
+      tieStart: false,
+      tieStop: false,
+    },
+    {
+      measureIndex: 0,
+      sourceOrder: 2,
+      pitchMidi: 55,
+      onsetDivisions: 0,
+      durationDivisions: 16,
+      voice: '2',
+      staff: 1,
+      tieStart: false,
+      tieStop: false,
+    },
+    {
+      measureIndex: 0,
+      sourceOrder: 1,
+      pitchMidi: 62,
+      onsetDivisions: 8,
+      durationDivisions: 8,
+      voice: '1',
+      staff: 1,
+      tieStart: true,
+      tieStop: false,
+    },
+    {
+      measureIndex: 1,
+      sourceOrder: 0,
+      pitchMidi: 62,
+      onsetDivisions: 0,
+      durationDivisions: 4,
+      voice: '1',
+      staff: 1,
+      tieStart: false,
+      tieStop: true,
+    },
+    {
+      measureIndex: 1,
+      sourceOrder: 2,
+      pitchMidi: 57,
+      onsetDivisions: 0,
+      durationDivisions: 16,
+      voice: '2',
+      staff: 1,
+      tieStart: false,
+      tieStop: false,
+    },
+    {
+      measureIndex: 1,
+      sourceOrder: 1,
+      pitchMidi: 64,
+      onsetDivisions: 4,
+      durationDivisions: 12,
+      voice: '1',
+      staff: 1,
+      tieStart: false,
+      tieStop: false,
+    },
+  ]);
+  assert.equal(result.projection.contextSupport.keySignatures, false);
+  assert.equal(result.projection.contextSupport.clefs, false);
+  assert.ok(Object.isFrozen(result));
+  assert.ok(Object.isFrozen(result.projection));
+  assert.ok(Object.isFrozen(result.projection.notes));
+  assert.equal(JSON.stringify(sourceModel), before);
+  assertNoGuitarAuthorityKeys(result);
+});
+
+test('SEM-06B is deterministic across repeated projection', () => {
+  const { projectGuitarSourceSemantics } = loadProjectionApi();
+  const sourceModel = pinnedSourceModel();
+
+  const first = projectGuitarSourceSemantics(sourceModel);
+  const second = projectGuitarSourceSemantics(sourceModel);
+
+  assert.deepEqual(first, second);
+});
+
+test('SEM-06B fails closed on duplicate-unison structural ambiguity', () => {
+  const { projectGuitarSourceSemantics } = loadProjectionApi();
+
+  const result = projectGuitarSourceSemantics(duplicateUnisonModel());
+
+  assert.equal(result.status, 'UNSUPPORTED');
+  assert.deepEqual(result.diagnostics, ['AMBIGUOUS_DUPLICATE_UNISON']);
+  assert.equal(result.projection, null);
+  assertNoGuitarAuthorityKeys(result);
+});
