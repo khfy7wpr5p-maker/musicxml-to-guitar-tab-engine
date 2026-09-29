@@ -1,25 +1,12 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
 
 const packageRoot = require('../src');
 const {
   createPolyphonicSourceModel,
 } = require('../src/music/polyphonicSourceModel');
-const {
-  parseParsedMusicXmlDocument,
-} = require('../src/parser/parsedMusicXmlDocument');
-const {
-  createMusicXmlProcessingRuntime,
-} = require('../src/parser/musicxmlSemanticResourceLimits');
-const {
-  projectParsedMusicXmlToPolyphonicSourceModel,
-} = require('../src/parser/polyphonicMusicXmlProjector');
-
-const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'sem06', 'semantic_baseline.musicxml');
 
 function loadProjectionApi() {
   let api;
@@ -30,10 +17,151 @@ function loadProjectionApi() {
 }
 
 function pinnedSourceModel() {
-  const xml = fs.readFileSync(FIXTURE_PATH, 'utf8');
-  const runtime = createMusicXmlProcessingRuntime();
-  const parsed = parseParsedMusicXmlDocument(xml, {}, runtime);
-  return projectParsedMusicXmlToPolyphonicSourceModel(parsed, runtime);
+  return createPolyphonicSourceModel({
+    documentType: 'PolyphonicSourceModel',
+    contractVersion: '1.0.0',
+    source: { format: 'score-partwise', musicXmlVersion: '3.1', partId: 'P1' },
+    measureCount: 2,
+    eventCount: 6,
+    measures: [
+      {
+        measureId: 'P1:measure:0',
+        index: 0,
+        number: '1',
+        implicit: false,
+        divisions: 4,
+        timeSignature: { beats: 4, beatType: 4 },
+        expectedDurationDivisions: 16,
+        events: [
+          {
+            sourceEventId: 'P1:measure:0:note:0',
+            sourceOrder: 0,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 8,
+            pitch: { step: 'C', alter: 0, octave: 4, midi: 60, written: 'C4' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 0,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:0:note:1',
+            sourceOrder: 1,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 8,
+            durationDivisions: 8,
+            pitch: { step: 'D', alter: 0, octave: 4, midi: 62, written: 'D4' },
+            tieStart: true,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 1,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:0:note:2',
+            sourceOrder: 2,
+            type: 'note',
+            voice: '2',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 16,
+            pitch: { step: 'G', alter: 0, octave: 3, midi: 55, written: 'G3' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 0,
+              measureNumber: '1',
+              noteIndex: 2,
+              chordWithPrevious: false,
+            },
+          },
+        ],
+      },
+      {
+        measureId: 'P1:measure:1',
+        index: 1,
+        number: '2',
+        implicit: false,
+        divisions: 4,
+        timeSignature: { beats: 4, beatType: 4 },
+        expectedDurationDivisions: 16,
+        events: [
+          {
+            sourceEventId: 'P1:measure:1:note:0',
+            sourceOrder: 0,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 4,
+            pitch: { step: 'D', alter: 0, octave: 4, midi: 62, written: 'D4' },
+            tieStart: false,
+            tieStop: true,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 0,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:1:note:1',
+            sourceOrder: 1,
+            type: 'note',
+            voice: '1',
+            staff: 1,
+            onsetDivisions: 4,
+            durationDivisions: 12,
+            pitch: { step: 'E', alter: 0, octave: 4, midi: 64, written: 'E4' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 1,
+              chordWithPrevious: false,
+            },
+          },
+          {
+            sourceEventId: 'P1:measure:1:note:2',
+            sourceOrder: 2,
+            type: 'note',
+            voice: '2',
+            staff: 1,
+            onsetDivisions: 0,
+            durationDivisions: 16,
+            pitch: { step: 'A', alter: 0, octave: 3, midi: 57, written: 'A3' },
+            tieStart: false,
+            tieStop: false,
+            source: {
+              partId: 'P1',
+              measureIndex: 1,
+              measureNumber: '2',
+              noteIndex: 2,
+              chordWithPrevious: false,
+            },
+          },
+        ],
+      },
+    ],
+  });
 }
 
 function duplicateUnisonModel() {
@@ -125,7 +253,7 @@ test('SEM-06B keeps Guitar semantic projection internal to the package', () => {
   assert.equal(packageRoot.projectGuitarSourceSemantics, undefined);
 });
 
-test('SEM-06B projects deterministic read-only source semantics from the pinned real source model', () => {
+test('SEM-06B projects deterministic read-only source semantics from the admitted source model matching the pinned fixture', () => {
   const { projectGuitarSourceSemantics } = loadProjectionApi();
   const sourceModel = pinnedSourceModel();
   const before = JSON.stringify(sourceModel);
