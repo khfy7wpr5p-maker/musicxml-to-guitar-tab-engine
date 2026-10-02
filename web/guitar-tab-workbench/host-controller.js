@@ -335,19 +335,19 @@
     });
 
     coreWorkbench.api.noteMouseDown.on(() => {
-      Promise.resolve().then(() => {
+      queueMicrotask(() => {
         syncMonoEditor();
         syncCapabilityUi();
       });
     });
     coreWorkbench.api.scoreLoaded.on(() => {
-      Promise.resolve().then(() => {
+      queueMicrotask(() => {
         syncMonoEditor();
         syncCapabilityUi();
       });
     });
     coreWorkbench.api.playerReady.on(() => {
-      Promise.resolve().then(syncCapabilityUi);
+      queueMicrotask(syncCapabilityUi);
     });
 
     return Object.freeze(presentation);
