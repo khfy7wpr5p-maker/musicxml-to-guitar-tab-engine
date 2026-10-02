@@ -42,7 +42,7 @@ function session(patches = [patch()]) {
   const review = createReviewRevision(source, {
     revision_id: 'edtab-04-review', actor: 'teacher-1',
     timestamp: '2026-10-03T01:00:00.000Z', reason: 'Review source pitch',
-    provenance: 'test', review_evidence: { status: 'REVIEW_REQUIRED' },
+    provenance: 'test', review_evidence: { status: 'REVIEW_REQUIRED', canOpenForReview: true },
   });
   const saved = createTeacherCorrectedRevision(review, {
     revision_id: 'edtab-04-corrected', actor: 'teacher-1',
