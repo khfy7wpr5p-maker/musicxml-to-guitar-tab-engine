@@ -21,7 +21,7 @@ function sha256(bytes) {
 
 function exactPitch(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || isProxy(value)) return null;
-  const keys = Object.keys(value).sort();
+  const keys = Object.keys(value).sort((left, right) => left.localeCompare(right));
   if (keys.join(',') !== 'alter,octave,step') return null;
   if (!/^[A-G]$/.test(value.step)
     || !Number.isSafeInteger(value.alter) || value.alter < -2 || value.alter > 2
