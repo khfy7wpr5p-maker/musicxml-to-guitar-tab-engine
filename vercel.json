@@ -12,6 +12,7 @@
     { "source": "/api/upload", "destination": "/api/index" },
     { "source": "/api/edit", "destination": "/api/index" },
     { "source": "/api/edit/poly-v2", "destination": "/api/index" },
+    { "source": "/api/edit/review-tab-draft", "destination": "/api/index" },
     { "source": "/workbench", "destination": "/api/index" },
     { "source": "/workbench/(.*)", "destination": "/api/index" },
     { "source": "/assets/(.*)", "destination": "/api/index" },

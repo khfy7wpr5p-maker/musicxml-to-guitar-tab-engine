@@ -98,6 +98,7 @@
             <span class="workbench-score-context" data-role="score-context">No score loaded</span>
           </div>
           <div class="workbench-score" data-role="score"></div>
+          <pre class="workbench-review-tab-draft" data-role="review-tab-draft" aria-label="Review TAB draft" hidden></pre>
         </section>
 
         <aside class="workbench-sidebar" id="workbench-inspector" aria-label="Workbench inspector">
@@ -201,6 +202,8 @@
               </div>
               <div class="workbench-editor__actions">
                 <button data-role="apply-position-edit" type="button" disabled>Apply position & regenerate TAB</button>
+                <button data-role="undo-review-draft" type="button" disabled>Undo TAB position</button>
+                <button data-role="redo-review-draft" type="button" disabled>Redo TAB position</button>
               </div>
               <p class="workbench-editor__status" data-role="position-edit-status">Select an assigned POLY_V2 note to change its TAB position.</p>
             </div>

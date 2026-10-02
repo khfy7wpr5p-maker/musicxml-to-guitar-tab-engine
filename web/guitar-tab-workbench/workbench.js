@@ -90,6 +90,16 @@
     };
   }
 
+  function cloneReviewDraftCommand(command) {
+    return {
+      sourceEventId: command.sourceEventId,
+      selectedPosition: {
+        string: command.selectedPosition.string,
+        fret: command.selectedPosition.fret,
+      },
+    };
+  }
+
   function mount(options) {
     assert(options && typeof options === 'object', 'Workbench options are required.');
     const root = options.root;
@@ -97,6 +107,7 @@
     const upload = options.upload;
     const edit = options.edit;
     const polyphonicEdit = options.polyphonicEdit;
+    const reviewTabDraftEdit = options.reviewTabDraftEdit;
     const transpose = options.transpose;
     const stage09Evidence = options.stage09Evidence;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
@@ -106,6 +117,10 @@
     assert(
       polyphonicEdit === undefined || typeof polyphonicEdit === 'function',
       'polyphonicEdit must be a function when provided.',
+    );
+    assert(
+      reviewTabDraftEdit === undefined || typeof reviewTabDraftEdit === 'function',
+      'reviewTabDraftEdit must be a function when provided.',
     );
     assert(
       transpose === undefined || typeof transpose === 'function',
@@ -126,6 +141,7 @@
     const playButton = root.querySelector('[data-role="play"]');
     const stopButton = root.querySelector('[data-role="stop"]');
     const scoreHost = root.querySelector('[data-role="score"]');
+    const reviewTabDraftView = root.querySelector('[data-role="review-tab-draft"]');
     const issueList = root.querySelector('[data-role="issues"]');
     const issueCount = root.querySelector('[data-role="issue-count"]');
     const documentStatus = root.querySelector('[data-role="document-status"]');
@@ -149,6 +165,8 @@
     const omittedNoteCount = root.querySelector('[data-role="omitted-note-count"]');
     const selectOmittedNoteButton = root.querySelector('[data-role="select-omitted-note"]');
     const omittedNoteStatus = root.querySelector('[data-role="omitted-note-status"]');
+    const undoReviewDraftButton = root.querySelector('[data-role="undo-review-draft"]');
+    const redoReviewDraftButton = root.querySelector('[data-role="redo-review-draft"]');
     const transposeStatus = root.querySelector('[data-role="transpose-status"]');
     const transposeSpelling = root.querySelector('[data-role="transpose-spelling"]');
     const transposeTargetKey = root.querySelector('[data-role="transpose-target-key"]');
@@ -200,6 +218,9 @@
       sourceBytes: null,
       expectedInputSha256: null,
       commands: [],
+      reviewDraftBaseRevisionId: null,
+      reviewDraftCommands: [],
+      reviewDraftRedoCommands: [],
       pendingFocus: null,
     };
 
@@ -250,12 +271,123 @@
       setText(positionEditStatus, 'Select an assigned POLY_V2 note to change its TAB position.');
     }
 
+    function renderReviewTabDraft() {
+      if (!reviewTabDraftView) return;
+      const draft = state.runtimeResult?.reviewTabDraft;
+      if (
+        draft?.documentType !== 'ReviewTabDraft'
+        || draft?.contractVersion !== '1.0.0'
+        || draft?.renderModel?.documentType !== 'ReviewTabDraftRenderModel'
+      ) {
+        reviewTabDraftView.hidden = true;
+        reviewTabDraftView.textContent = '';
+        return;
+      }
+
+      const events = [];
+      for (const measure of draft.renderModel.measures || []) {
+        for (const event of measure.events || []) {
+          events.push({
+            ...event,
+            measure: measure.measure,
+            measureIndex: measure.measureIndex,
+          });
+        }
+      }
+      events.sort((left, right) => (
+        left.measureIndex - right.measureIndex
+        || left.onsetDivisions - right.onsetDivisions
+        || left.sourceOrder - right.sourceOrder
+      ));
+
+      const lines = [...(draft.renderModel.strings || [])]
+        .sort((left, right) => left.number - right.number)
+        .map((stringDefinition) => {
+          const cells = events.map((event) => (
+            event.string === stringDefinition.number ? String(event.fret).padStart(2, '-') : '--'
+          ));
+          return `${stringDefinition.number} ${stringDefinition.pitch || ''} | ${cells.join(' ')}`;
+        });
+
+      const sourceById = new Map(
+        (state.runtimeResult?.sourceReviewIndex?.entries || [])
+          .map((entry) => [entry.sourceEventId, entry]),
+      );
+      const unassigned = draft.perNoteDisposition
+        .filter((entry) => entry.disposition === 'UNASSIGNED')
+        .map((entry) => {
+          const source = sourceById.get(entry.sourceEventId);
+          return `Measure ${source?.evidenceLocation?.measure ?? '?'} · ${entry.knownPitchOrNull?.written || '?'} · ? Konum atanmamış · ${entry.sourceEventId}`;
+        });
+
+      reviewTabDraftView.textContent = [
+        'Review TAB draft · provisional teacher review only',
+        ...lines,
+        ...(unassigned.length > 0 ? ['', 'Unassigned:', ...unassigned] : []),
+      ].join('\n');
+      reviewTabDraftView.hidden = false;
+    }
+
     function renderOmittedNoteAssignments() {
       if (!omittedNoteList) return;
       while (omittedNoteList.firstChild) omittedNoteList.removeChild(omittedNoteList.firstChild);
-      const canonical = state.runtimeResult?.canonicalTabResult;
       const enabled = state.runtimeResult?.route === 'POLY_V2'
         && state.runtimeResult?.capabilities?.assignTabPosition === true;
+
+      const draft = state.runtimeResult?.reviewTabDraft;
+      const sourceIndex = state.runtimeResult?.sourceReviewIndex;
+      if (
+        draft?.documentType === 'ReviewTabDraft'
+        && draft?.contractVersion === '1.0.0'
+        && sourceIndex?.documentType === 'SourceReviewIndex'
+      ) {
+        const sourceById = new Map(
+          sourceIndex.entries.map((entry) => [entry.sourceEventId, entry]),
+        );
+        const candidates = draft.perNoteDisposition
+          .filter((entry) => (
+            ['UNASSIGNED', 'ASSIGNED'].includes(entry.disposition)
+            && entry.knownPitchOrNull
+            && Number.isSafeInteger(entry.knownOnsetOrNull)
+            && Number.isSafeInteger(entry.knownDurationOrNull)
+          ))
+          .map((disposition) => ({
+            disposition,
+            source: sourceById.get(disposition.sourceEventId),
+          }))
+          .filter((candidate) => candidate.source);
+
+        for (const candidate of candidates) {
+          const position = candidate.disposition.selectedPosition;
+          const positionLabel = position
+            ? `string ${position.string}, fret ${position.fret}`
+            : '? Konum atanmamış';
+          const option = createElement(
+            documentRef,
+            'option',
+            null,
+            `Measure ${candidate.source.evidenceLocation.measure ?? candidate.source.evidenceLocation.measureIndex + 1} · ${candidate.disposition.knownPitchOrNull.written} · voice ${candidate.source.evidenceLocation.voice} · ${positionLabel}`,
+          );
+          option.value = candidate.disposition.sourceEventId;
+          option.dataset.measureIndex = String(candidate.source.evidenceLocation.measureIndex);
+          option.dataset.sourceOrder = String(candidate.source.evidenceLocation.sourceOrder);
+          option.dataset.reviewDraft = 'true';
+          omittedNoteList.appendChild(option);
+        }
+
+        omittedNoteList.disabled = !enabled || candidates.length === 0;
+        selectOmittedNoteButton.disabled = !enabled || candidates.length === 0;
+        setText(omittedNoteCount, String(candidates.length));
+        setText(
+          omittedNoteStatus,
+          candidates.length > 0
+            ? 'Select a ReviewTabDraft note, then choose its exact string and fret.'
+            : 'No source-verified ReviewTabDraft note is available for TAB assignment.',
+        );
+        return;
+      }
+
+      const canonical = state.runtimeResult?.canonicalTabResult;
       const dispositionById = new Map(
         (canonical?.noteDispositions || []).map((entry) => [entry.sourceEventId, entry]),
       );
@@ -292,6 +424,9 @@
       session.sourceBytes = null;
       session.expectedInputSha256 = null;
       session.commands = [];
+      session.reviewDraftBaseRevisionId = null;
+      session.reviewDraftCommands = [];
+      session.reviewDraftRedoCommands = [];
       session.pendingFocus = null;
       state.revisionNumber = 0;
       clearSelection();
@@ -341,6 +476,25 @@
     }
 
     function canEditPosition() {
+      if (
+        state.selectedEvent?.reviewTabDraft === true
+        && state.runtimeResult?.reviewTabDraft
+      ) {
+        return Boolean(
+          typeof reviewTabDraftEdit === 'function'
+          && editString && editFret && applyPositionEditButton
+          && !state.loading
+          && !state.editing
+          && state.scoreLoaded
+          && state.runtimeResult?.status === 'PASS'
+          && state.runtimeResult?.capabilities?.assignTabPosition === true
+          && state.selectedEvent.assignmentEligible === true
+          && session.sourceBytes
+          && session.expectedInputSha256
+          && session.reviewDraftBaseRevisionId
+          && session.reviewDraftCommands.length < MAX_REVISION_COMMANDS
+        );
+      }
       return canEdit()
         && editString && editFret && applyPositionEditButton
         && state.selectedEvent?.route === 'POLY_V2'
@@ -386,6 +540,12 @@
       if (editString) editString.disabled = !canEditPosition();
       if (editFret) editFret.disabled = !canEditPosition();
       if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
+      if (undoReviewDraftButton) {
+        undoReviewDraftButton.disabled = busy || session.reviewDraftCommands.length === 0;
+      }
+      if (redoReviewDraftButton) {
+        redoReviewDraftButton.disabled = busy || session.reviewDraftRedoCommands.length === 0;
+      }
       const omittedAssignmentReady = state.runtimeResult?.route === 'POLY_V2'
         && state.runtimeResult?.capabilities?.assignTabPosition === true
         && (omittedNoteList?.options.length || 0) > 0;
@@ -728,6 +888,178 @@
       return chain.map((entry) => entry.event.sourceEventId);
     }
 
+    function reviewDraftIndexes() {
+      const index = state.runtimeResult?.sourceReviewIndex;
+      const draft = state.runtimeResult?.reviewTabDraft;
+      const sources = new Map();
+      const dispositions = new Map();
+      for (const entry of index?.entries || []) {
+        if (entry && typeof entry.sourceEventId === 'string') sources.set(entry.sourceEventId, entry);
+      }
+      for (const entry of draft?.perNoteDisposition || []) {
+        if (entry && typeof entry.sourceEventId === 'string') dispositions.set(entry.sourceEventId, entry);
+      }
+      return { index, draft, sources, dispositions };
+    }
+
+    function resolveReviewDraftRendererNote(note, measureIndex) {
+      const midi = note?.realValue;
+      const bar = note?.beat?.voice?.bar;
+      if (!Number.isSafeInteger(midi) || !bar) return null;
+
+      const { index } = reviewDraftIndexes();
+      if (index?.documentType !== 'SourceReviewIndex') return null;
+      const measureSources = index.entries.filter((entry) => (
+        entry?.evidenceLocation?.measureIndex === measureIndex
+        && entry.eventKind === 'PITCHED_NOTE'
+        && entry.knownPitchOrNull
+        && Number.isSafeInteger(entry.knownOnsetOrNull)
+      ));
+      if (measureSources.length === 0) return null;
+
+      const activeRendererVoices = rendererActiveVoices(bar);
+      const voiceOrdinal = activeRendererVoices.indexOf(note.beat.voice);
+      if (voiceOrdinal < 0) return null;
+
+      const sourceVoices = [...new Map(
+        measureSources
+          .slice()
+          .sort((left, right) => left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder)
+          .map((entry) => [String(entry.evidenceLocation.voice), entry.evidenceLocation.sourceOrder]),
+      ).entries()];
+      if (sourceVoices.length !== activeRendererVoices.length || voiceOrdinal >= sourceVoices.length) {
+        return null;
+      }
+      const sourceVoice = sourceVoices[voiceOrdinal][0];
+      const voiceSources = measureSources
+        .filter((entry) => String(entry.evidenceLocation.voice) === sourceVoice)
+        .sort((left, right) => (
+          left.knownOnsetOrNull - right.knownOnsetOrNull
+          || left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder
+        ));
+
+      const onsetEvidence = rendererTrackOnsetEvidence(note);
+      if (!onsetEvidence) return null;
+      const sourceOnsets = [...new Set(voiceSources.map((entry) => entry.knownOnsetOrNull))]
+        .sort((left, right) => left - right);
+      if (sourceOnsets.length !== onsetEvidence.count || onsetEvidence.ordinal >= sourceOnsets.length) {
+        return null;
+      }
+      const sourceOnset = sourceOnsets[onsetEvidence.ordinal];
+      const sourceChord = voiceSources
+        .filter((entry) => entry.knownOnsetOrNull === sourceOnset)
+        .sort((left, right) => left.evidenceLocation.sourceOrder - right.evidenceLocation.sourceOrder);
+      const rendererChord = Array.isArray(note?.beat?.notes)
+        ? note.beat.notes.filter((candidate) => Number.isSafeInteger(candidate?.realValue))
+        : [];
+      if (rendererChord.length !== sourceChord.length || rendererChord.length < 1) return null;
+
+      const rendererFingerprint = sortedNumbers(rendererChord.map((candidate) => candidate.realValue));
+      const sourceFingerprint = sortedNumbers(sourceChord.map((entry) => entry.knownPitchOrNull?.midi));
+      if (sourceFingerprint.some((value) => !Number.isSafeInteger(value))) return null;
+      if (!equalNumbers(rendererFingerprint, sourceFingerprint)) return null;
+
+      const rendererMidiPeers = rendererChord.filter((candidate) => candidate.realValue === midi);
+      const duplicateOrdinal = rendererMidiPeers.indexOf(note);
+      const sourceMidiPeers = sourceChord.filter((entry) => entry.knownPitchOrNull.midi === midi);
+      if (
+        duplicateOrdinal < 0
+        || rendererMidiPeers.length !== sourceMidiPeers.length
+        || duplicateOrdinal >= sourceMidiPeers.length
+      ) return null;
+
+      const source = sourceMidiPeers[duplicateOrdinal];
+      return {
+        reviewTabDraft: true,
+        measureIndex,
+        sourceOrder: source.evidenceLocation.sourceOrder,
+        sourceEventId: source.sourceEventId,
+        rendererVoiceOrdinal: voiceOrdinal,
+        rendererActiveVoiceCount: activeRendererVoices.length,
+        rendererOnsetOrdinal: onsetEvidence.ordinal,
+        rendererDuplicateOrdinal: duplicateOrdinal,
+        rendererChordSize: rendererChord.length,
+      };
+    }
+
+    function renderReviewDraftSelectedEvent(source, disposition, identity) {
+      if (
+        !source
+        || source.eventKind !== 'PITCHED_NOTE'
+        || !source.knownPitchOrNull
+        || !Number.isSafeInteger(source.knownOnsetOrNull)
+        || !Number.isSafeInteger(source.knownDurationOrNull)
+        || !disposition
+        || !['UNASSIGNED', 'ASSIGNED'].includes(disposition.disposition)
+      ) {
+        clearSelection('The selected source event is not eligible for a ReviewTabDraft position.');
+        updateControls();
+        return false;
+      }
+
+      const position = disposition.selectedPosition || null;
+      state.selectedEvent = {
+        route: 'POLY_V2',
+        reviewTabDraft: true,
+        measureIndex: source.evidenceLocation.measureIndex,
+        sourceOrder: source.evidenceLocation.sourceOrder,
+        sourceEventId: source.sourceEventId,
+        sourceGroupId: null,
+        sourceGroupEventIds: [source.sourceEventId],
+        sourceTieEventIds: [source.sourceEventId],
+        visibleMeasureNumber: source.evidenceLocation.measure ?? source.evidenceLocation.measureIndex + 1,
+        voice: String(source.evidenceLocation.voice),
+        staff: source.evidenceLocation.staff,
+        rendererVoiceOrdinal: identity?.rendererVoiceOrdinal ?? null,
+        rendererActiveVoiceCount: identity?.rendererActiveVoiceCount ?? null,
+        rendererOnsetOrdinal: identity?.rendererOnsetOrdinal ?? null,
+        rendererDuplicateOrdinal: identity?.rendererDuplicateOrdinal ?? null,
+        rendererChordSize: identity?.rendererChordSize ?? null,
+        pitch: {
+          step: source.knownPitchOrNull.step,
+          alter: source.knownPitchOrNull.alter,
+          octave: source.knownPitchOrNull.octave,
+          written: source.knownPitchOrNull.written,
+          midi: source.knownPitchOrNull.midi,
+        },
+        tied: false,
+        groupContainsTies: false,
+        selectedPosition: position ? { string: position.string, fret: position.fret } : null,
+        assignmentEligible: true,
+        reasonCode: disposition.disposition === 'ASSIGNED'
+          ? 'TEACHER_ASSIGNMENT_RETAINED'
+          : 'REVIEW_TAB_DRAFT_UNASSIGNED',
+        durationDivisions: source.knownDurationOrNull,
+        measureDivisions: null,
+      };
+
+      setText(
+        selectedNote,
+        `${source.knownPitchOrNull.written} · measure ${state.selectedEvent.visibleMeasureNumber} · voice ${state.selectedEvent.voice} · source ${source.evidenceLocation.sourceOrder + 1}`,
+      );
+      setText(
+        arrangementReason,
+        position ? 'Teacher ReviewTabDraft position' : 'ReviewTabDraft · Konum atanmamış',
+      );
+      editStep.value = source.knownPitchOrNull.step;
+      editAlter.value = String(source.knownPitchOrNull.alter);
+      editOctave.value = String(source.knownPitchOrNull.octave);
+      if (editDuration) editDuration.value = String(source.knownDurationOrNull);
+      if (position) {
+        if (editString) editString.value = String(position.string);
+        if (editFret) editFret.value = String(position.fret);
+        setText(positionEditStatus, `Current ReviewTabDraft position · string ${position.string}, fret ${position.fret}`);
+      } else {
+        setText(positionEditStatus, 'Ready to assign: choose the exact string and fret.');
+      }
+      setText(
+        editStatus,
+        `ReviewTabDraft source identity verified · revision ${state.revisionNumber}`,
+      );
+      updateControls();
+      return true;
+    }
+
     function resolvePolyphonicRendererNote(note, measureIndex) {
       const midi = note?.realValue;
       if (!Number.isSafeInteger(midi)) return null;
@@ -896,6 +1228,28 @@
         return false;
       }
       const route = state.runtimeResult.route;
+
+      if (route === 'POLY_V2' && state.runtimeResult?.reviewTabDraft) {
+        if (typeof reviewTabDraftEdit !== 'function') {
+          clearSelection('ReviewTabDraft editing is not connected to this host.');
+          updateControls();
+          return false;
+        }
+        const { sources, dispositions } = reviewDraftIndexes();
+        const source = sources.get(identity?.sourceEventId);
+        const disposition = dispositions.get(identity?.sourceEventId);
+        if (
+          !source
+          || source.evidenceLocation.measureIndex !== identity?.measureIndex
+          || source.evidenceLocation.sourceOrder !== identity?.sourceOrder
+        ) {
+          clearSelection('The selected source note no longer matches its ReviewTabDraft identity.');
+          updateControls();
+          return false;
+        }
+        return renderReviewDraftSelectedEvent(source, disposition, identity);
+      }
+
       const measures = state.runtimeResult.canonicalTabResult?.measures;
       if (!Array.isArray(measures)) return false;
 
@@ -1004,7 +1358,9 @@
       }
 
       if (state.runtimeResult?.route === 'POLY_V2') {
-        const identity = resolvePolyphonicRendererNote(note, measureIndex);
+        const identity = state.runtimeResult?.reviewTabDraft
+          ? resolveReviewDraftRendererNote(note, measureIndex)
+          : resolvePolyphonicRendererNote(note, measureIndex);
         if (!identity) {
           clearSelection('POLY_V2 renderer mapping is ambiguous or incomplete; no edit target was selected.');
           updateControls();
@@ -1022,6 +1378,7 @@
       assert(result && typeof result === 'object', 'Upload result is invalid.');
       assert(UPLOAD_RESULT_STATUSES.has(result.status), 'Upload result status is invalid.');
       state.runtimeResult = result;
+      renderReviewTabDraft();
       renderOmittedNoteAssignments();
       state.lastError = null;
       setText(documentStatus, result.status);
@@ -1042,7 +1399,9 @@
         'PASS result is missing renderer MusicXML.',
       );
       clearActiveScoreState();
-      if (result.route === 'MONO_V1') {
+      if (result.reviewTabDraft?.documentType === 'ReviewTabDraft') {
+        clearSelection('Select a source note or a ReviewTabDraft entry for string/fret assignment.');
+      } else if (result.route === 'MONO_V1') {
         clearSelection('Select a note in the score or TAB.');
       } else if (result.route === 'POLY_V2' && typeof polyphonicEdit === 'function') {
         clearSelection('Select a polyphonic note whose renderer voice/onset identity can be proven.');
@@ -1090,7 +1449,10 @@
           session.sourceBytes = ownedBytes;
           session.expectedInputSha256 = result.input.sha256;
           session.commands = [];
-          state.revisionNumber = 0;
+          session.reviewDraftBaseRevisionId = result.reviewTabDraft?.revisionId || null;
+          session.reviewDraftCommands = [];
+          session.reviewDraftRedoCommands = [];
+          state.revisionNumber = result.revision?.revisionNumber || 0;
         }
         return setRuntimeResult(result);
       } catch (error) {
@@ -1272,6 +1634,169 @@
       return { string, fret };
     }
 
+    async function replayReviewDraftCommands(nextCommands, focusSourceEventId, actionLabel) {
+      if (
+        typeof reviewTabDraftEdit !== 'function'
+        || !session.sourceBytes
+        || !session.expectedInputSha256
+        || !session.reviewDraftBaseRevisionId
+      ) return false;
+
+      state.editing = true;
+      state.lastError = null;
+      if (state.playerReady) api.stop();
+      setText(positionEditStatus, `${actionLabel} · validating against immutable source…`);
+      updateControls();
+
+      try {
+        const result = await reviewTabDraftEdit({
+          fileName: session.sourceFileName,
+          bytes: new Uint8Array(session.sourceBytes),
+          expectedInputSha256: session.expectedInputSha256,
+          baseRevisionId: session.reviewDraftBaseRevisionId,
+          commands: nextCommands.map(cloneReviewDraftCommand),
+        });
+        assert(result && typeof result === 'object', 'ReviewTabDraft edit result is invalid.');
+        assert(
+          result.status === 'PASS' || result.status === 'REVIEW_REQUIRED' || result.status === 'BLOCKED',
+          'ReviewTabDraft edit result status is invalid.',
+        );
+
+        if (result.status === 'BLOCKED') {
+          state.lastError = result.preflight?.issues?.[0]?.message || 'The ReviewTabDraft edit was blocked.';
+          renderIssues(result.preflight?.issues || []);
+          setText(positionEditStatus, `Blocked · ${state.lastError}`);
+          return false;
+        }
+
+        assert(
+          result.reviewTabDraft?.documentType === 'ReviewTabDraft',
+          'ReviewTabDraft edit result is missing the draft artifact.',
+        );
+        assert(
+          result.revision?.revisionNumber === nextCommands.length,
+          'ReviewTabDraft revision number does not match the replay command chain.',
+        );
+        assert(
+          result.reviewTabDraft.sourceUploadSha256 === session.expectedInputSha256,
+          'ReviewTabDraft edit returned a different source identity.',
+        );
+
+        session.reviewDraftCommands = nextCommands.map(cloneReviewDraftCommand);
+        state.revisionNumber = result.revision.revisionNumber;
+        state.runtimeResult = result;
+        renderReviewTabDraft();
+        renderOmittedNoteAssignments();
+        renderIssues(result.preflight?.issues || []);
+        setText(documentStatus, result.status);
+        setText(routeStatus, result.route);
+        setText(
+          positionEditStatus,
+          `${actionLabel} · revision ${state.revisionNumber} · backend validated`,
+        );
+
+        if (focusSourceEventId) {
+          const source = (result.sourceReviewIndex?.entries || [])
+            .find((entry) => entry.sourceEventId === focusSourceEventId);
+          if (source) {
+            selectEventByIdentity({
+              reviewTabDraft: true,
+              measureIndex: source.evidenceLocation.measureIndex,
+              sourceOrder: source.evidenceLocation.sourceOrder,
+              sourceEventId: source.sourceEventId,
+            });
+          }
+        }
+        return true;
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        setText(positionEditStatus, `ReviewTabDraft edit failed: ${state.lastError}`);
+        renderIssues([{
+          code: 'WORKBENCH_REVIEW_DRAFT_EDIT_FAILED',
+          message: state.lastError,
+          location: state.selectedEvent
+            ? {
+              measureIndex: state.selectedEvent.measureIndex,
+              sourceEventId: state.selectedEvent.sourceEventId,
+            }
+            : null,
+        }]);
+        return false;
+      } finally {
+        state.editing = false;
+        updateControls();
+      }
+    }
+
+    async function applyReviewDraftPositionEdit(position) {
+      const sourceEventId = state.selectedEvent?.sourceEventId;
+      if (!sourceEventId) return false;
+      const command = {
+        sourceEventId,
+        selectedPosition: position,
+      };
+      const nextCommands = [
+        ...session.reviewDraftCommands.map(cloneReviewDraftCommand),
+        cloneReviewDraftCommand(command),
+      ];
+      if (nextCommands.length > MAX_REVISION_COMMANDS) {
+        setText(positionEditStatus, 'ReviewTabDraft revision limit reached. Reload the source before continuing.');
+        return false;
+      }
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        sourceEventId,
+        'Applying TAB position',
+      );
+      if (applied) session.reviewDraftRedoCommands = [];
+      return applied;
+    }
+
+    async function undoReviewDraftEdit() {
+      if (state.editing || session.reviewDraftCommands.length === 0) return false;
+      const removed = cloneReviewDraftCommand(
+        session.reviewDraftCommands[session.reviewDraftCommands.length - 1],
+      );
+      const nextCommands = session.reviewDraftCommands
+        .slice(0, -1)
+        .map(cloneReviewDraftCommand);
+      const focusSourceEventId = removed.sourceEventId;
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        focusSourceEventId,
+        'Undoing TAB position',
+      );
+      if (applied) {
+        session.reviewDraftRedoCommands = [
+          removed,
+          ...session.reviewDraftRedoCommands.map(cloneReviewDraftCommand),
+        ];
+        updateControls();
+      }
+      return applied;
+    }
+
+    async function redoReviewDraftEdit() {
+      if (state.editing || session.reviewDraftRedoCommands.length === 0) return false;
+      const restored = cloneReviewDraftCommand(session.reviewDraftRedoCommands[0]);
+      const nextCommands = [
+        ...session.reviewDraftCommands.map(cloneReviewDraftCommand),
+        restored,
+      ];
+      const applied = await replayReviewDraftCommands(
+        nextCommands,
+        restored.sourceEventId,
+        'Redoing TAB position',
+      );
+      if (applied) {
+        session.reviewDraftRedoCommands = session.reviewDraftRedoCommands
+          .slice(1)
+          .map(cloneReviewDraftCommand);
+        updateControls();
+      }
+      return applied;
+    }
+
     async function applySelectedPositionEdit() {
       if (!canEditPosition()) return false;
       let position;
@@ -1282,7 +1807,9 @@
         return false;
       }
       setText(positionEditStatus, 'Validating position and regenerating TAB…');
-      const applied = await applySelectedEdit({ selectedPosition: position });
+      const applied = state.selectedEvent?.reviewTabDraft
+        ? await applyReviewDraftPositionEdit(position)
+        : await applySelectedEdit({ selectedPosition: position });
       if (!applied && state.lastError) setText(positionEditStatus, state.lastError);
       return applied;
     }
@@ -1316,6 +1843,7 @@
       const sourceOrder = Number(option.dataset.sourceOrder);
       if (!Number.isSafeInteger(measureIndex) || !Number.isSafeInteger(sourceOrder)) return false;
       const selected = selectEventByIdentity({
+        reviewTabDraft: option.dataset.reviewDraft === 'true',
         measureIndex,
         sourceOrder,
         sourceEventId: option.value,
@@ -1440,6 +1968,16 @@
         await applySelectedPositionEdit();
       });
     }
+    if (undoReviewDraftButton) {
+      undoReviewDraftButton.addEventListener('click', async () => {
+        await undoReviewDraftEdit();
+      });
+    }
+    if (redoReviewDraftButton) {
+      redoReviewDraftButton.addEventListener('click', async () => {
+        await redoReviewDraftEdit();
+      });
+    }
     if (applyDurationEditButton) {
       applyDurationEditButton.addEventListener('click', async () => {
         await applySelectedDurationEdit();
@@ -1516,6 +2054,7 @@
     clearActiveScoreState();
     clearSession();
     renderIssues([]);
+    renderReviewTabDraft();
     renderOmittedNoteAssignments();
     setText(documentStatus, 'EMPTY');
     setText(routeStatus, 'UNRESOLVED');
@@ -1530,6 +2069,8 @@
       selectEvent: selectEventByIdentity,
       applySelectedEdit,
       applySelectedPositionEdit,
+      undoReviewDraftEdit,
+      redoReviewDraftEdit,
       applySelectedDurationEdit,
       selectOmittedNote,
       applyDocumentTransposition,
@@ -1556,6 +2097,8 @@
           sourceFileName: session.sourceFileName,
           sourceSha256: session.expectedInputSha256,
           revisionCommandCount: session.commands.length,
+          reviewDraftRevisionCommandCount: session.reviewDraftCommands.length,
+          reviewDraftRedoCommandCount: session.reviewDraftRedoCommands.length,
           scoreTracks: state.scoreLoaded ? (api.score?.tracks?.length || 0) : 0,
           scoreStaves: state.scoreLoaded ? (track?.staves?.length || 0) : 0,
           scoreMeasures: state.scoreLoaded ? (api.score?.masterBars?.length || 0) : 0,

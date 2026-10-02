@@ -32,6 +32,7 @@ test('Vercel staging adapter preserves the reviewed runtime host boundary', () =
     '/api/upload',
     '/api/edit',
     '/api/edit/poly-v2',
+    '/api/edit/review-tab-draft',
     '/workbench',
     '/workbench/(.*)',
     '/assets/(.*)',
@@ -39,7 +40,7 @@ test('Vercel staging adapter preserves the reviewed runtime host boundary', () =
   ]) {
     assert.equal(rewrites.get(route), '/api/index');
   }
-  assert.equal(config.rewrites.length, 8);
+  assert.equal(config.rewrites.length, 9);
 
   assert.match(adapter, /createRuntimeHttpServer/);
   assert.match(adapter, /\.listeners\(['"]request['"]\)/);

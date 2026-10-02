@@ -122,6 +122,9 @@ jobs:
       - name: Run Guitar TAB Workbench POLY_V2 unison and tie hardening smoke test
         run: node tests/compatibility/alphaTabGuitarTabPolyV2HardeningSmoke.mjs
 
+      - name: Run ReviewTabDraft same-page teacher assignment smoke test
+        run: node tests/compatibility/alphaTabRuntimeHostReviewTabDraftE2e.mjs
+
       - name: Build static GitHub Pages Workbench preview
         run: node scripts/build-github-pages-preview.js
 

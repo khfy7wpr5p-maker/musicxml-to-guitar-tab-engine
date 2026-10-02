@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { createGuitarConfiguration } = require('../guitar/tuning');
+const { getPositionCandidates } = require('../guitar/fretboard');
 const { freezeObjectGraph } = require('./freezeObjectGraph');
 
 const REVIEW_REQUIRED_CAPABILITY_CONTRACT_VERSION = '1.4.0';
@@ -534,7 +535,7 @@ function validReviewTabDraft(result) {
     || !Array.isArray(draft?.renderModel?.measures)
     || draft?.capabilities?.draftVisible !== true
     || draft?.capabilities?.selectSourceEvent !== true
-    || draft?.capabilities?.assignStringFret !== false
+    || typeof draft?.capabilities?.assignStringFret !== 'boolean'
     || draft?.capabilities?.export !== false
   ) return false;
 
@@ -564,8 +565,7 @@ function validReviewTabDraft(result) {
       || source.eventKind === 'REST'
       || dispositionIds.has(disposition.sourceEventId)
       || disposition?.measureId !== source.measureId
-      || !['UNASSIGNED', 'SOURCE_UNKNOWN'].includes(disposition?.disposition)
-      || disposition?.selectedPosition !== null
+      || !['ASSIGNED', 'UNASSIGNED', 'SOURCE_UNKNOWN'].includes(disposition?.disposition)
       || disposition?.knownPitchOrNull !== source.knownPitchOrNull
       || disposition?.knownOnsetOrNull !== source.knownOnsetOrNull
       || disposition?.knownDurationOrNull !== source.knownDurationOrNull
@@ -575,7 +575,20 @@ function validReviewTabDraft(result) {
       && source.knownPitchOrNull !== null
       && source.knownOnsetOrNull !== null
       && source.knownDurationOrNull !== null;
-    if (disposition.disposition !== (fullyKnown ? 'UNASSIGNED' : 'SOURCE_UNKNOWN')) return false;
+    if (!fullyKnown && disposition.disposition !== 'SOURCE_UNKNOWN') return false;
+    if (fullyKnown && !['UNASSIGNED', 'ASSIGNED'].includes(disposition.disposition)) return false;
+    if (disposition.disposition === 'ASSIGNED') {
+      const position = disposition.selectedPosition;
+      if (
+        !position
+        || !Number.isSafeInteger(position.string)
+        || !Number.isSafeInteger(position.fret)
+        || !getPositionCandidates(source.knownPitchOrNull.midi, draft.guitarConfiguration)
+          .some((candidate) => candidate.string === position.string && candidate.fret === position.fret)
+      ) return false;
+    } else if (disposition.selectedPosition !== null) {
+      return false;
+    }
     dispositionIds.add(disposition.sourceEventId);
   }
 
@@ -598,13 +611,40 @@ function validReviewTabDraft(result) {
         || renderIds.has(event.sourceEventId)
         || source.knownOnsetOrNull === null
         || event?.onsetDivisions !== source.knownOnsetOrNull
-        || event?.displayToken !== '?'
-        || event?.string !== null
-        || event?.fret !== null
+      ) return false;
+      const disposition = draft.perNoteDisposition.find(
+        (entry) => entry.sourceEventId === event.sourceEventId,
+      );
+      const position = disposition?.selectedPosition ?? null;
+      if (
+        event?.displayToken !== (position ? String(position.fret) : '?')
+        || event?.string !== (position?.string ?? null)
+        || event?.fret !== (position?.fret ?? null)
       ) return false;
       renderIds.add(event.sourceEventId);
     }
   }
+
+  const assigned = draft.perNoteDisposition.filter((entry) => entry.disposition === 'ASSIGNED');
+  for (let leftIndex = 0; leftIndex < assigned.length; leftIndex += 1) {
+    const left = sourceById.get(assigned[leftIndex].sourceEventId);
+    for (let rightIndex = leftIndex + 1; rightIndex < assigned.length; rightIndex += 1) {
+      const right = sourceById.get(assigned[rightIndex].sourceEventId);
+      if (
+        left.measureId === right.measureId
+        && left.knownOnsetOrNull === right.knownOnsetOrNull
+        && assigned[leftIndex].selectedPosition.string === assigned[rightIndex].selectedPosition.string
+      ) return false;
+    }
+  }
+
+  const expectedAssignmentCapability = expectedDraftSources.some((source) => (
+    source.eventKind === 'PITCHED_NOTE'
+    && source.knownPitchOrNull !== null
+    && source.knownOnsetOrNull !== null
+    && source.knownDurationOrNull !== null
+  ));
+  if (draft.capabilities.assignStringFret !== expectedAssignmentCapability) return false;
 
   return expectedDraftSources.every((source) => (
     source.knownOnsetOrNull === null
@@ -649,11 +689,15 @@ function decorateUploadResultWithCapabilities(result) {
       (passed && Boolean(result.canonicalTabResult))
       || (reviewable && (Boolean(result.canonicalTabResult) || reviewEditableProjectionAvailable))
     ),
-    assignTabPosition: reviewable
-      && reviewEditableProjectionAvailable
-      && result.reviewEditableProjection.noteDispositions.some(
-        (entry) => entry.assignmentEligible === true,
-      ),
+    assignTabPosition: reviewable && (
+      (
+        reviewEditableProjectionAvailable
+        && result.reviewEditableProjection.noteDispositions.some(
+          (entry) => entry.assignmentEligible === true,
+        )
+      )
+      || (reviewTabDraftAvailable && result.reviewTabDraft.capabilities.assignStringFret === true)
+    ),
     editVoice: false,
     editStructure: false,
     playback,
