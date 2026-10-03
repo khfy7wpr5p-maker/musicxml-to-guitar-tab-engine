@@ -434,11 +434,11 @@ function partialArrangementReviewResult(
   const reviewTabDraft = (
     error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
     && error?.details?.reason === 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE'
-    && sourceReviewIndex && sourceArtifact && sourceGuitarConfiguration?.guitar
+    && sourceReviewIndex && sourceArtifact && sourceGuitarConfiguration
   ) ? createReviewTabDraft({
     sourceReviewIndex,
     sourceScoreArtifact: sourceArtifact,
-    guitarConfiguration: sourceGuitarConfiguration.guitar,
+    guitarConfiguration: sourceGuitarConfiguration.guitar || null,
     issues,
   }) : null;
   return deepFreeze({
