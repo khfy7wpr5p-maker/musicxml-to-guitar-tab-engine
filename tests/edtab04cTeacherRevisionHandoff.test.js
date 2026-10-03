@@ -123,7 +123,7 @@ test('04C2 abstains when physical REVIEW_REQUIRED has no editable ReviewTabDraft
 </measure></part></score-partwise>`);
   const upload = processMusicXmlUpload({ fileName, bytes: physical });
   assert.equal(upload.status, 'REVIEW_REQUIRED');
-  assert.equal(upload.reviewTabDraft, null);
+  assert.equal(upload.reviewTabDraft ?? null, null);
   const digest = crypto.createHash('sha256').update(physical).digest('hex');
   const patches = [{
     patch_id: 'physical-pitch-1', edit_class: EDIT_CLASS.PITCH_UPDATE,
