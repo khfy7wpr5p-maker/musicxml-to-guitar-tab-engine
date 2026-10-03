@@ -23,7 +23,8 @@ test('physical-point review yields an editable evidence-bound draft but no canon
   assert.ok(upload.preflight.issues.some((issue) => (
     issue.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
       && issue.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
-  )));
+  )), JSON.stringify(upload.preflight.issues.map((issue) => ({ code: issue.code,
+    reason: issue.details?.reason, category: issue.category }))));
   assert.equal(upload.reviewTabDraft?.documentType, 'ReviewTabDraft');
   assert.equal(upload.sourceReviewIndex?.entries.length, 2);
   const edited = processReviewTabDraftEdit({
