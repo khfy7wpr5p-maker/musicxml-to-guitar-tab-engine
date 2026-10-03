@@ -113,7 +113,7 @@ test('04C2 does not treat a PASS source as an editable teacher review draft', ()
   assert.equal(result.canonicalAuthority, false);
 });
 
-test('04C2 accepts a corrected physical unison only if the teacher position survives ordinary PASS', () => {
+test('04C2 abstains when physical REVIEW_REQUIRED has no editable ReviewTabDraft', () => {
   const physical = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Physical review</part-name></score-part></part-list>
 <part id="P1"><measure number="1"><attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
@@ -123,7 +123,7 @@ test('04C2 accepts a corrected physical unison only if the teacher position surv
 </measure></part></score-partwise>`);
   const upload = processMusicXmlUpload({ fileName, bytes: physical });
   assert.equal(upload.status, 'REVIEW_REQUIRED');
-  assert.ok(upload.reviewTabDraft);
+  assert.equal(upload.reviewTabDraft, null);
   const digest = crypto.createHash('sha256').update(physical).digest('hex');
   const patches = [{
     patch_id: 'physical-pitch-1', edit_class: EDIT_CLASS.PITCH_UPDATE,
@@ -133,13 +133,13 @@ test('04C2 accepts a corrected physical unison only if the teacher position surv
   }];
   const result = assessEdtab04TeacherRevision(request({
     originalSourceBytes: physical, expectedInputSha256: digest,
-    baseRevisionId: upload.reviewTabDraft.revisionId,
+    baseRevisionId: 'missing-review-draft',
     commands: [{ sourceEventId: 'P1:measure:0:note:0',
       selectedPosition: { string: 1, fret: 17 } }],
     session: session(patches, physical),
   }));
-  assert.equal(result.status, 'MATCHED_FOR_REVIEW');
-  assert.equal(result.matchedCount, 1);
+  assert.equal(result.status, 'ABSTAIN');
+  assert.equal(result.code, 'REVIEW_DRAFT_NOT_REPRODUCED');
   assert.equal(result.canonicalAuthority, false);
   assert.equal(result.export, false);
 });
