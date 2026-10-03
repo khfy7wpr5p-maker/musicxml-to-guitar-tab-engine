@@ -1,0 +1,21 @@
+# EDTAB-04E — MusicXML format capability matrix
+
+Verified against main `39f2a23e9b8a1f7da96776917516ebf15acb59fc` on 2026-10-03. This is a declaration of the current bounded runtime contract, not a format expansion. A parseable source may still be `REVIEW_REQUIRED` for musical or physical reasons; the table does not promise a canonical TAB for every input.
+
+| Capability | Status | Current contract | Positive evidence | Negative / fail-closed evidence | Real corpus evidence | Limit |
+| --- | --- | --- | --- | --- | --- | --- |
+| `PARTWISE_SINGLE_PITCHED` | PARTIAL | One selected part with known pitched notes can enter MONO_V1 or POLY_V2 under the existing semantic, tuning, timing and physical gates. A source-bound ReviewTabDraft can remain provisional when the bounded review path is available. | `tests/musicXmlUploadRuntime.test.js`, `tests/edtab04PhysicalReviewDraft.test.js`, `tests/edtab04cTeacherRevisionHandoff.test.js` | The upload status and canonical/writer evidence still decide PASS, REVIEW_REQUIRED or BLOCKED. A position assignment alone grants no export. | Stage 09 Tier A has 20 unique verified identities; the additional eleven-file audit reports usable-output gaps. | No arbitrary score support; exact supported notation and physical feasibility required. |
+| `SCORE_TIMEWISE` | FAIL_CLOSED | The current adapter explicitly rejects `score-timewise` with `UNSUPPORTED_SCORE_FORMAT`. No measure/part reordering or guessed selection occurs. | None; no production admission. | `src/parser/musicxmlDocumentAdapter.js`; `tests/musicxmlValidation.test.js`; `tests/musicxmlPreflight.test.js`. | No qualifying timewise conversion evidence. | A future conversion needs a separate source-identity and timing-preservation contract. |
+| `MULTIPART` | FAIL_CLOSED | More than one score part/part is rejected with `UNSUPPORTED_MULTIPART_SCORE`; the source-review index also requires exactly one part. No orchestral reduction or implicit part choice. | None; no production admission. | `src/parser/musicxmlDocumentAdapter.js`; `src/app/sourceReviewIndex.js`; `tests/musicxmlValidation.test.js`. | No qualifying multipart selection evidence. | Explicit teacher part selection and proof of omitted parts are separate work. |
+| `UNPITCHED_OR_UNKNOWN_PITCH` | FAIL_CLOSED | Unpitched notes do not acquire an inferred guitar pitch. The POLY projector rejects `unpitched-note`; unknown pitch can be represented as `SOURCE_UNKNOWN` evidence by the source index, never an assignable tel/perde candidate. | `src/app/sourceReviewIndex.js` records uncertainty without a pitch. | `src/parser/polyphonicMusicXmlProjector.js`, `src/parser/polyphonicMusicXmlSemanticProfile.js`, `tests/polyphonicProjectionBasic.test.js`; `src/app/reviewTabDraft.js` permits assignments only for fully known source facts. | No genuine teacher correction proving unknown-to-pitched conversion. | Teacher semantic correction requires its own validated patch class and re-entry. |
+
+## Authority and admission
+
+- `PASS` requires the ordinary upload/revalidation path, canonical TAB and writer output. `REVIEW_REQUIRED` may show source and a provisional draft where exact evidence exists; it is not export authority.
+- EDTAB-04C2's synthetic teacher-position match is evidence only. The current HTTP host has no server-owned Stage 06 correction session and no EDTAB-04D finalize endpoint. Browser-provided revision/session objects must not be treated as trusted approval.
+- Source bytes stay immutable. No filename/SHA dispatch, pitch guessing, silent poly-to-mono fallback, solver changes or resource-limit increase is permitted.
+- Stage 09 Tier B authentic teacher corrections remain 0/3. This matrix does not close the real-corpus product gate.
+
+## Promotion gate
+
+Move a row to SUPPORTED only after a bounded implementation proves source identity and musical semantics, focused positive and negative tests, real corpus evidence where relevant, deterministic reruns, immutable source bytes, full CI/Sonar, review and merge on current main. Record the exact verified main SHA and known limits on each change.
