@@ -10,6 +10,7 @@ const { EDIT_CLASS, VALIDATION_STATE } = require('./teacherCorrectionRevision');
 const { materializeStage09WorkbenchPitchCorrections } =
   require('./stage09WorkbenchSourceCorrectionMaterializer');
 const { processMusicXmlUpload } = require('./musicXmlUploadRuntime');
+const { DEFAULT_MAX_XML_BYTES } = require('../validation/xmlSafety');
 
 const EVENT_ID = /^(.+):measure:(0|[1-9]\d*):note:(0|[1-9]\d*)$/;
 const MAX_PATCHES = 256;
@@ -57,10 +58,20 @@ function ledger(state) {
   return state.patches;
 }
 
+function patchIdentity(patch) {
+  return JSON.stringify({
+    patch_id: patch.patch_id,
+    edit_class: patch.edit_class,
+    target_event: patch.target_event,
+    before: exactPitch(patch.before),
+    after: exactPitch(patch.after),
+  });
+}
+
 function createEdtab04dTrustedPitchAdapter({ fileName, sourceBytes }) {
   if (typeof fileName !== 'string' || !fileName.toLowerCase().endsWith('.musicxml')
     || (!Buffer.isBuffer(sourceBytes) && !(sourceBytes instanceof Uint8Array))
-    || isProxy(sourceBytes)) {
+    || isProxy(sourceBytes) || sourceBytes.byteLength > DEFAULT_MAX_XML_BYTES) {
     throw new TypeError('A bounded MusicXML source must be retained by the server.');
   }
   const source = Buffer.from(sourceBytes);
@@ -114,7 +125,10 @@ function createEdtab04dTrustedPitchAdapter({ fileName, sourceBytes }) {
     revalidate({ adapterState, savedRevision }) {
       const patches = ledger(adapterState);
       if (adapterState.originalSha256 !== originalSha256 || patches.length === 0
-        || JSON.stringify(savedRevision?.patches) !== JSON.stringify(patches)) {
+        || !Array.isArray(savedRevision?.patches)
+        || savedRevision.patches.length !== patches.length
+        || savedRevision.patches.some((patch, index) =>
+          patchIdentity(patch) !== patchIdentity(patches[index]))) {
         throw new TypeError('Saved revision and trusted editor ledger disagree.');
       }
       const correctedBytes = materialize(patches);
