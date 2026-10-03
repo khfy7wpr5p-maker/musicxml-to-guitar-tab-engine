@@ -17,6 +17,7 @@ const {
 const {
   processMusicXmlDocumentTransposition,
 } = require('./musicXmlDocumentTranspositionRuntime');
+const { createEdtab04dSessionStore } = require('./edtab04dSessionStore');
 
 const RUNTIME_HOST_VERSION = '1.0.0';
 const EDIT_CONTENT_TYPE = 'application/vnd.st-guitar-tab-edit+octet-stream';
@@ -24,6 +25,7 @@ const EDIT_FRAME_HEADER_BYTES = 4;
 const MAX_EDIT_COMMAND_BYTES = 8 * 1024 * 1024;
 const MAX_EDIT_REQUEST_BYTES = EDIT_FRAME_HEADER_BYTES + MAX_EDIT_COMMAND_BYTES + DEFAULT_MAX_XML_BYTES;
 const MAX_HEADER_BYTES = 64 * 1024;
+const MAX_TEACHER_COMMAND_BYTES = 16 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_HEADERS_TIMEOUT_MS = 10_000;
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -195,6 +197,27 @@ async function readEditRequestBody(request) {
   return parseEditBodyFrame(await readBoundedBody(request, MAX_EDIT_REQUEST_BYTES));
 }
 
+async function readTeacherCommand(request, fields) {
+  requireMediaType(request, 'application/json', 'Teacher commands require application/json.');
+  const bytes = await readBoundedBody(request, MAX_TEACHER_COMMAND_BYTES);
+  let command;
+  try {
+    command = JSON.parse(UTF8_DECODER.decode(bytes));
+  } catch {
+    throw new RuntimeHttpHostError('Teacher command must be bounded UTF-8 JSON.', 400, 'INVALID_TEACHER_COMMAND');
+  }
+  if (!command || typeof command !== 'object' || Array.isArray(command)) {
+    throw new RuntimeHttpHostError('Teacher command must be an object.', 400, 'INVALID_TEACHER_COMMAND');
+  }
+  const observed = Object.keys(command).sort((left, right) => left.localeCompare(right));
+  const expected = [...fields].sort((left, right) => left.localeCompare(right));
+  if (observed.length !== expected.length
+    || observed.some((field, index) => field !== expected[index])) {
+    throw new RuntimeHttpHostError('Teacher command fields are invalid.', 400, 'INVALID_TEACHER_COMMAND');
+  }
+  return command;
+}
+
 function readSingleQueryValue(url, name) {
   const values = url.searchParams.getAll(name);
   if (values.length !== 1 || values[0].length === 0) {
@@ -280,6 +303,7 @@ function normalizeHostOptions(options = {}) {
 
 function createRuntimeHttpServer(options = {}) {
   const config = normalizeHostOptions(options);
+  const teacherSessions = createEdtab04dSessionStore();
   const server = http.createServer({ maxHeaderSize: MAX_HEADER_BYTES }, async (request, response) => {
     try {
       const url = new URL(request.url || '/', 'http://runtime.local');
@@ -303,6 +327,34 @@ function createRuntimeHttpServer(options = {}) {
         const fileName = readSingleQueryValue(url, 'fileName');
         const bytes = await readBoundedBody(request);
         writeJson(response, 200, processMusicXmlUpload({ fileName, bytes }));
+        return;
+      }
+
+      if (url.pathname === '/api/review/session') {
+        if (request.method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        requireOctetStream(request);
+        const fileName = readSingleQueryValue(url, 'fileName');
+        const sourceBytes = await readBoundedBody(request);
+        writeJson(response, 200, teacherSessions.open({ fileName, sourceBytes }));
+        return;
+      }
+
+      if (url.pathname === '/api/review/patch' || url.pathname === '/api/review/revalidate') {
+        if (request.method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
+          return;
+        }
+        const command = await readTeacherCommand(request,
+          url.pathname === '/api/review/patch' ? ['token', 'patch'] : ['token']);
+        const result = url.pathname === '/api/review/patch'
+          ? teacherSessions.apply(command.token, command.patch)
+          : teacherSessions.saveAndRevalidate(command.token);
+        writeJson(response, 200, result);
         return;
       }
 
