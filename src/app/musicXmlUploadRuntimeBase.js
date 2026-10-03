@@ -400,6 +400,8 @@ function partialArrangementReviewResult(
   sourceArtifact,
   sourceModel,
   recovery,
+  sourceReviewIndex,
+  sourceGuitarConfiguration,
   additionalReviewIssues = [],
 ) {
   const issue = {
@@ -429,12 +431,23 @@ function partialArrangementReviewResult(
       { status: scoreState.status },
     );
   }
+  const reviewTabDraft = (
+    error?.code === 'UNSUPPORTED_DETERMINISTIC_POLYPHONIC_FINAL_SELECTION'
+    && error?.details?.reason === 'NO_PLAYABLE_FINAL_SELECTION_CANDIDATE'
+    && sourceReviewIndex && sourceArtifact && sourceGuitarConfiguration
+  ) ? createReviewTabDraft({
+    sourceReviewIndex,
+    sourceScoreArtifact: sourceArtifact,
+    guitarConfiguration: sourceGuitarConfiguration.guitar || null,
+    issues,
+  }) : null;
   return deepFreeze({
     documentType: MUSICXML_UPLOAD_RUNTIME_DOCUMENT_TYPE,
     contractVersion: MUSICXML_UPLOAD_RUNTIME_VERSION,
     status: SCORE_STATUS.REVIEW_REQUIRED,
     route: MUSICXML_UPLOAD_ROUTE.POLY_V2,
     input: identity,
+    ...(reviewTabDraft ? { sourceReviewIndex, reviewTabDraft } : {}),
     preflight: {
       status: 'REVIEW_REQUIRED',
       canProcess: false,
@@ -1558,6 +1571,8 @@ function processMusicXmlUpload(upload, options = {}, runtime = null) {
           sourceArtifact,
           sourceModel,
           recovery,
+          sourceReviewIndex,
+          sourceGuitarConfiguration,
           graceProjection?.reviewIssues || [],
         );
       }
