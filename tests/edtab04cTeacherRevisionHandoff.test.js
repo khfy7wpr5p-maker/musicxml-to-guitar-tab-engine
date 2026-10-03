@@ -142,6 +142,7 @@ test('04C2 retains an exact teacher position after a pitch correction resolves p
   assert.equal(result.status, 'MATCHED_FOR_REVIEW');
   assert.equal(result.matchedCount, 1);
   assert.equal(result.sourceSha256, digest);
+  assert.match(result.correctedSha256, /^[0-9a-f]{64}$/);
   assert.deepEqual(physical, immutableOriginal);
   assert.equal(result.canonicalAuthority, false);
   assert.equal(result.export, false);
