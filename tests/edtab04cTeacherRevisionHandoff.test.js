@@ -124,6 +124,7 @@ test('04C2 retains an exact teacher position after a pitch correction resolves p
   const upload = processMusicXmlUpload({ fileName, bytes: physical });
   assert.equal(upload.status, 'REVIEW_REQUIRED');
   assert.equal(upload.reviewTabDraft?.documentType, 'ReviewTabDraft');
+  const immutableOriginal = Buffer.from(physical);
   const digest = crypto.createHash('sha256').update(physical).digest('hex');
   const patches = [{
     patch_id: 'physical-pitch-1', edit_class: EDIT_CLASS.PITCH_UPDATE,
@@ -141,6 +142,7 @@ test('04C2 retains an exact teacher position after a pitch correction resolves p
   assert.equal(result.status, 'MATCHED_FOR_REVIEW');
   assert.equal(result.matchedCount, 1);
   assert.equal(result.sourceSha256, digest);
+  assert.deepEqual(physical, immutableOriginal);
   assert.equal(result.canonicalAuthority, false);
   assert.equal(result.export, false);
 });
