@@ -37,7 +37,11 @@ test('trusted teacher pitch edit materializes source-bound note and independentl
     selectedTarget: chosen.target_event,
   });
   const validated = adapter.revalidate({
-    adapterState: applied.adapterState,
+    adapterState: {
+      originalSha256,
+      patches: [Object.fromEntries(Object.entries(chosen).sort(([left], [right]) =>
+        left.localeCompare(right)))],
+    },
     savedRevision: { patches: [chosen] },
   });
   assert.equal(applied.evidence.originalSha256, originalSha256);
