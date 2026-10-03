@@ -111,3 +111,20 @@ test('04C abstains on stale revision, non-PASS, or changed guitar configuration'
     assert.equal(verifyEdtab04PositionParity(data).status, 'ABSTAIN');
   }
 });
+
+test('04C returns abstention for malformed nested evidence instead of throwing', () => {
+  for (const mutate of [
+    (data) => { data.draft.revision.appliedEdits = [null]; },
+    (data) => { data.session.revalidated_revision.patches = [null]; },
+    (data) => { data.draft.sourceReviewIndex.entries = [null]; },
+    (data) => { data.stage08Result.canonicalTabResult.measures = [null]; },
+    (data) => { data.stage08Result.canonicalTabResult.measures[0].events = [null]; },
+    (data) => { data.stage08Result.canonicalTabResult.noteDispositions = [null]; },
+    (data) => { data.stage08Result.canonicalTabResult.guitar.tuning[0] = null; },
+    (data) => { data.stage08Result.canonicalTabResult.measures[0].events[0].source = null; },
+  ]) {
+    const data = caseData();
+    mutate(data);
+    assert.equal(verifyEdtab04PositionParity(data).status, 'ABSTAIN');
+  }
+});
