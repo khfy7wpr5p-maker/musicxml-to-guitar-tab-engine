@@ -1119,6 +1119,12 @@ function earlyReviewTabDraftEligible(error) {
         )
       )
     )
+    || (
+      error?.code === 'UNSUPPORTED_SUSTAINED_POLYPHONIC_PATH_SELECTION'
+      && error?.details?.reason === 'UNPLAYABLE_PHYSICAL_POINT'
+      && Number.isInteger(error?.details?.measureIndex)
+      && Number.isInteger(error?.details?.timeDivisions)
+    )
   );
 }
 
