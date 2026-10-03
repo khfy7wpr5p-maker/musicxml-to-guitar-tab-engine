@@ -21,7 +21,8 @@ function sameGuitar(left, right) {
     && (left.capoFret ?? 0) === (right.capoFret ?? 0)
     && Array.isArray(left.tuning) && Array.isArray(right.tuning)
     && left.tuning.length === 6 && right.tuning.length === 6
-    && left.tuning.every((string, index) => string.number === right.tuning[index].number
+    && left.tuning.every((string, index) => string && right.tuning[index]
+      && string.number === right.tuning[index].number
       && string.midi === right.tuning[index].midi && string.pitch === right.tuning[index].pitch);
 }
 
@@ -30,6 +31,10 @@ function sameGuitar(left, right) {
 function verifyEdtab04PositionParity({ binding, draft, session, stage08Result }) {
   if (binding?.status !== 'BOUND_FOR_REVALIDATION'
     || binding.canonicalAuthority !== false || binding.export !== false
+    || typeof binding.sourceSha256 !== 'string'
+    || typeof binding.draftRevisionId !== 'string'
+    || typeof binding.baseRevisionId !== 'string'
+    || typeof binding.correctedRevisionId !== 'string'
     || draft?.status !== 'REVIEW_REQUIRED'
     || draft.input?.sha256 !== binding.sourceSha256
     || draft.revision?.revisionId !== binding.draftRevisionId
@@ -42,8 +47,8 @@ function verifyEdtab04PositionParity({ binding, draft, session, stage08Result })
   const patches = session.revalidated_revision.patches;
   if (!Array.isArray(edits) || edits.length === 0 || edits.length > 128
     || !Array.isArray(patches) || patches.length === 0 || patches.length > 256
-    || edits.some((edit) => edit.commandType !== 'SET_REVIEW_TAB_DRAFT_POSITION')
-    || patches.some((patch) => patch.edit_class !== 'PITCH_UPDATE'
+    || edits.some((edit) => !edit || edit.commandType !== 'SET_REVIEW_TAB_DRAFT_POSITION')
+    || patches.some((patch) => !patch || patch.edit_class !== 'PITCH_UPDATE'
       || edits.some((edit) => edit.sourceEventId === patch.target_event))) {
     return abstain('UNPROVEN_POSITION_SOURCE');
   }
@@ -62,6 +67,9 @@ function verifyEdtab04PositionParity({ binding, draft, session, stage08Result })
     || !String(canonical.schemaVersion).startsWith('2.')
     || !Array.isArray(canonical.measures)
     || !Array.isArray(canonical.noteDispositions)
+    || canonical.measures.some((measure) => !measure || !Array.isArray(measure.events))
+    || canonical.measures.some((measure) => measure.events.some((event) => !event))
+    || canonical.noteDispositions.some((entry) => !entry)
     || typeof stage08Result.musicXml !== 'string' || stage08Result.musicXml.length === 0) {
     return abstain('STAGE08_PASS_NOT_PROVEN');
   }
@@ -70,7 +78,8 @@ function verifyEdtab04PositionParity({ binding, draft, session, stage08Result })
   }
 
   const sourceEntries = draft.sourceReviewIndex?.entries;
-  if (!Array.isArray(sourceEntries) || sourceEntries.length > 50000) {
+  if (!Array.isArray(sourceEntries) || sourceEntries.length > 50000
+    || sourceEntries.some((entry) => !entry)) {
     return abstain('SOURCE_INDEX_MISSING');
   }
   const sourceIds = new Set();
@@ -82,9 +91,9 @@ function verifyEdtab04PositionParity({ binding, draft, session, stage08Result })
       return abstain('DUPLICATE_OR_INVALID_POSITION');
     }
     sourceIds.add(id);
-    const source = sourceEntries.filter((entry) => entry.sourceEventId === id);
+    const source = sourceEntries.filter((entry) => entry && entry.sourceEventId === id);
     const notes = canonical.measures.flatMap((measure) => measure.events)
-      .filter((event) => event.sourceEventId === id);
+      .filter((event) => event && event.sourceEventId === id);
     const dispositions = canonical.noteDispositions.filter((entry) => entry.sourceEventId === id);
     if (source.length !== 1 || notes.length !== 1 || dispositions.length !== 1) {
       return abstain('SOURCE_EVENT_IDENTITY_MISMATCH');
@@ -94,6 +103,8 @@ function verifyEdtab04PositionParity({ binding, draft, session, stage08Result })
     const disposition = dispositions[0];
     if (original.eventKind !== 'PITCHED_NOTE'
       || original.sourceUploadSha256 !== binding.sourceSha256
+      || typeof original.selectedPartId !== 'string'
+      || !original.evidenceLocation
       || original.selectedPartId !== canonical.source?.partId
       || note.type !== 'note'
       || note.source?.partId !== original.selectedPartId
