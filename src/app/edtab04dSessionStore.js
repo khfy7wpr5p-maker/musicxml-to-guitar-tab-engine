@@ -11,6 +11,12 @@ const {
   selectReviewEditorEvent,
 } = require('./reviewEditorBackend');
 const { createEdtab04dTrustedPitchAdapter } = require('./edtab04dTrustedPitchAdapter');
+const { assessEdtab04TeacherRevision } = require('./edtab04cTeacherRevisionHandoff');
+const { createEdtab04PitchMaterializer } = require('./edtab04PitchMaterializer');
+const {
+  STAGE08_STATUS,
+  continueRevalidatedRevisionToTab,
+} = require('./stage08RevalidationTabContinuation');
 
 const MAX_SESSIONS = 8;
 const SESSION_TTL_MS = 15 * 60 * 1000;
@@ -70,6 +76,7 @@ function createEdtab04dSessionStore({ now = Date.now } = {}) {
     return Object.freeze({
       token,
       sourceSha256: uploadResult.input.sha256,
+      draftBaseRevisionId: uploadResult.reviewTabDraft.revisionId,
       reviewRevisionId: session.review_revision.revision_id,
       issues: session.issues,
       capabilities: adapter.manifest,
@@ -111,6 +118,67 @@ function createEdtab04dSessionStore({ now = Date.now } = {}) {
     });
   }
 
+  function finalize(token, { baseRevisionId, commands } = {}) {
+    const record = get(token);
+    if (record.session.phase !== SESSION_PHASE.REVALIDATED
+      || record.session.revalidated_revision.validation_state !== 'VALID') {
+      throw new TypeError('Only a VALID correction session can finalize.');
+    }
+    const timestamp = new Date(now()).toISOString();
+    const approvalMetadata = {
+      revision_id: `approved-${record.session.session_id}`,
+      actor: 'local-teacher',
+      timestamp,
+      reason: 'Approve exact teacher correction and TAB position parity.',
+      provenance: { kind: 'RUNTIME_HOST_SESSION' },
+    };
+    const parity = assessEdtab04TeacherRevision({
+      fileName: record.fileName,
+      originalSourceBytes: record.sourceBytes,
+      expectedInputSha256: record.uploadResult.input.sha256,
+      baseRevisionId,
+      commands,
+      session: record.session,
+      approvalMetadata,
+    });
+    if (parity.status !== 'MATCHED_FOR_REVIEW') {
+      const error = new TypeError(`Teacher position parity was not proven: ${parity.code}.`);
+      error.code = 'EDTAB04_POSITION_PARITY_NOT_PROVEN';
+      throw error;
+    }
+
+    const execution = continueRevalidatedRevisionToTab({
+      session: record.session,
+      sourceFileName: record.fileName,
+      originalSourceBytes: record.sourceBytes,
+      materializer: createEdtab04PitchMaterializer(),
+      approvalMetadata,
+    });
+    if (execution.status !== STAGE08_STATUS.PASS
+      || execution.sourceIdentity.sha256 !== parity.sourceSha256
+      || execution.sourceIdentity.correctedSha256 !== parity.correctedSha256
+      || !execution.canonicalTabResult
+      || typeof execution.musicXml !== 'string'
+      || execution.musicXml.length === 0
+      || !execution.approvedRevision) {
+      throw new TypeError('Approved canonical output did not reproduce the proven teacher revision.');
+    }
+
+    sessions.delete(token);
+    return Object.freeze({
+      status: 'APPROVED',
+      route: execution.route,
+      sourceSha256: parity.sourceSha256,
+      correctedSha256: parity.correctedSha256,
+      draftRevisionId: parity.draftRevisionId,
+      correctedRevisionId: parity.correctedRevisionId,
+      matchedCount: parity.matchedCount,
+      canonicalTabResult: execution.canonicalTabResult,
+      musicXml: execution.musicXml,
+      approvedRevision: execution.approvedRevision,
+    });
+  }
+
   // Internal continuation only. Never serialize this result into an HTTP response.
   function consumeValidated(token) {
     const record = get(token);
@@ -122,7 +190,7 @@ function createEdtab04dSessionStore({ now = Date.now } = {}) {
     return record;
   }
 
-  return Object.freeze({ open, apply, saveAndRevalidate, consumeValidated });
+  return Object.freeze({ open, apply, saveAndRevalidate, finalize, consumeValidated });
 }
 
 module.exports = { createEdtab04dSessionStore };
