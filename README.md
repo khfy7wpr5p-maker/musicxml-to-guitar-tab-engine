@@ -46,6 +46,8 @@ R3 extends that provisional path across bounded repeat/navigation, repairable me
 
 EDTAB-02 adds a separate early `ReviewTabDraft 1.0.0` for allow-listed review failures that occur before the ordinary source model and physical TAB pipeline finish. It preserves stable source note identities and a six-string review surface without inventing string/fret values. Draft visibility is separate from TAB generation/export authority; teacher string/fret mutation remains EDTAB-03.
 
+EDTAB-04D connects that draft to an ephemeral server-owned teacher session. The browser submits bounded pitch patches and exact string/fret commands, while approval remains fail-closed behind corrected-source re-entry, `POLY_V2`, source/revision parity, canonical writer output, and one-time session consumption. Browser state never becomes canonical authority, and this synthetic workflow does not satisfy the separate Stage 09 authentic 3-case evidence gate.
+
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;

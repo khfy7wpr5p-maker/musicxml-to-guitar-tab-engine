@@ -1,6 +1,6 @@
 # EDTAB-04E — MusicXML format capability matrix
 
-Verified against main `39f2a23e9b8a1f7da96776917516ebf15acb59fc` on 2026-10-03. This is a declaration of the current bounded runtime contract, not a format expansion. A parseable source may still be `REVIEW_REQUIRED` for musical or physical reasons; the table does not promise a canonical TAB for every input.
+Updated for the EDTAB-04D bounded runtime contract on 2026-10-04. This is a declaration of the current bounded runtime contract, not a format expansion. A parseable source may still be `REVIEW_REQUIRED` for musical or physical reasons; the table does not promise a canonical TAB for every input.
 
 | Capability | Status | Current contract | Positive evidence | Negative / fail-closed evidence | Real corpus evidence | Limit |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ Verified against main `39f2a23e9b8a1f7da96776917516ebf15acb59fc` on 2026-10-03. 
 ## Authority and admission
 
 - `PASS` requires the ordinary upload/revalidation path, canonical TAB and writer output. `REVIEW_REQUIRED` may show source and a provisional draft where exact evidence exists; it is not export authority.
-- EDTAB-04C2's synthetic teacher-position match is evidence only. The current HTTP host has no server-owned Stage 06 correction session and no EDTAB-04D finalize endpoint. Browser-provided revision/session objects must not be treated as trusted approval.
+- EDTAB-04D adds an ephemeral, server-owned Stage 06 correction session and a one-time finalize endpoint. The Workbench sends only bounded pitch and ReviewTabDraft position commands; it never receives the server session or gains approval authority. Final output remains withheld unless corrected-source re-entry is `PASS`, route is `POLY_V2`, exact source/revision/position parity is proven, and the canonical writer produces the approved artifact.
 - Source bytes stay immutable. No filename/SHA dispatch, pitch guessing, silent poly-to-mono fallback, solver changes or resource-limit increase is permitted.
 - Stage 09 Tier B authentic teacher corrections remain 0/3. This matrix does not close the real-corpus product gate.
 

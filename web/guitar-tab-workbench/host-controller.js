@@ -105,6 +105,14 @@
         if (result?.status === 'BLOCKED') return result;
         return present(result);
       },
+      async applyTeacherPitchPatch(request) {
+        return adapter.applyTeacherPitchPatch(request);
+      },
+      async finalizeTeacherReview(request) {
+        const result = await adapter.finalizeTeacherReview(request);
+        authoritativeResult = result;
+        return result;
+      },
       async transpose(request) {
         return clearAuthority(await adapter.transpose(request));
       },
@@ -517,6 +525,8 @@
       edit: capabilityBridge.adapter.edit,
       polyphonicEdit: capabilityBridge.adapter.polyphonicEdit,
       reviewTabDraftEdit: capabilityBridge.adapter.reviewTabDraftEdit,
+      applyTeacherPitchPatch: capabilityBridge.adapter.applyTeacherPitchPatch,
+      finalizeTeacherReview: capabilityBridge.adapter.finalizeTeacherReview,
       transpose: capabilityBridge.adapter.transpose,
       stage09Evidence: stage09EvidenceFacade,
       assetBaseUrl: assetUrls.assetBaseUrl,

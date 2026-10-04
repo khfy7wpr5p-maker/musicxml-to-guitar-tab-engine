@@ -13,9 +13,22 @@
     GUITAR_CAPACITY_REDUCTION: 'Reduced for playable guitar texture',
     DUPLICATE_TARGET_PITCH_REDUCTION: 'Duplicate pitch left for review',
   });
+  const PITCH_CLASS = Object.freeze({C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11});
+  const ACCIDENTAL_LABEL = Object.freeze({'-2': 'bb', '-1': 'b', 0: '', 1: '#', 2: '##'});
 
   function arrangementReasonLabel(reasonCode) {
     return ARRANGEMENT_REASON_LABELS[reasonCode] || 'Review decision';
+  }
+
+  function displayPitch(pitch) {
+    const accidental = ACCIDENTAL_LABEL[pitch.alter];
+    return {
+      step: pitch.step,
+      alter: pitch.alter,
+      octave: pitch.octave,
+      written: `${pitch.step}${accidental ?? ''}${pitch.octave}`,
+      midi: (pitch.octave + 1) * 12 + PITCH_CLASS[pitch.step] + pitch.alter,
+    };
   }
 
   function assert(condition, message) {
@@ -108,6 +121,8 @@
     const edit = options.edit;
     const polyphonicEdit = options.polyphonicEdit;
     const reviewTabDraftEdit = options.reviewTabDraftEdit;
+    const applyTeacherPitchPatch = options.applyTeacherPitchPatch;
+    const finalizeTeacherReview = options.finalizeTeacherReview;
     const transpose = options.transpose;
     const stage09Evidence = options.stage09Evidence;
     assert(root && root.ownerDocument, 'A workbench root element is required.');
@@ -121,6 +136,14 @@
     assert(
       reviewTabDraftEdit === undefined || typeof reviewTabDraftEdit === 'function',
       'reviewTabDraftEdit must be a function when provided.',
+    );
+    assert(
+      applyTeacherPitchPatch === undefined || typeof applyTeacherPitchPatch === 'function',
+      'applyTeacherPitchPatch must be a function when provided.',
+    );
+    assert(
+      finalizeTeacherReview === undefined || typeof finalizeTeacherReview === 'function',
+      'finalizeTeacherReview must be a function when provided.',
     );
     assert(
       transpose === undefined || typeof transpose === 'function',
@@ -175,6 +198,8 @@
     const transposeTargetButton = root.querySelector('[data-role="transpose-target"]');
     const exportStage09EvidenceButton = root.querySelector('[data-role="export-stage09-evidence"]');
     const stage09EvidenceStatus = root.querySelector('[data-role="stage09-evidence-status"]');
+    const finalizeTeacherReviewButton = root.querySelector('[data-role="finalize-teacher-review"]');
+    const teacherReviewStatus = root.querySelector('[data-role="teacher-review-status"]');
 
     assert(
       fileInput && playButton && stopButton && scoreHost && issueList
@@ -200,6 +225,7 @@
       loading: false,
       editing: false,
       transposing: false,
+      finalizingTeacherReview: false,
       runtimeResult: null,
       scoreLoaded: false,
       playerReady: false,
@@ -211,6 +237,7 @@
       revisionNumber: 0,
       selectedEvent: null,
       lastError: null,
+      teacherReviewStatusMessage: null,
     };
 
     const session = {
@@ -221,6 +248,10 @@
       reviewDraftBaseRevisionId: null,
       reviewDraftCommands: [],
       reviewDraftRedoCommands: [],
+      teacherPitchCorrections: new Map(),
+      teacherPitchPatchCount: 0,
+      teacherCorrectionSealed: false,
+      teacherReviewApproved: false,
       pendingFocus: null,
     };
 
@@ -427,8 +458,13 @@
       session.reviewDraftBaseRevisionId = null;
       session.reviewDraftCommands = [];
       session.reviewDraftRedoCommands = [];
+      session.teacherPitchCorrections.clear();
+      session.teacherPitchPatchCount = 0;
+      session.teacherCorrectionSealed = false;
+      session.teacherReviewApproved = false;
       session.pendingFocus = null;
       state.revisionNumber = 0;
+      state.teacherReviewStatusMessage = null;
       clearSelection();
     }
 
@@ -443,11 +479,18 @@
 
     function canEdit() {
       const route = state.runtimeResult?.route;
-      const routeReady = route === 'MONO_V1'
-        ? typeof edit === 'function'
-        : route === 'POLY_V2'
-          ? typeof polyphonicEdit === 'function'
-          : false;
+      let routeReady = false;
+      if (state.selectedEvent?.reviewTabDraft === true) {
+        routeReady = typeof applyTeacherPitchPatch === 'function';
+      } else if (route === 'MONO_V1') {
+        routeReady = typeof edit === 'function';
+      } else if (route === 'POLY_V2') {
+        routeReady = typeof polyphonicEdit === 'function';
+      }
+      const revisionCapacityReady = state.selectedEvent?.reviewTabDraft === true
+        ? !session.teacherCorrectionSealed
+          && session.teacherPitchPatchCount < MAX_REVISION_COMMANDS
+        : session.commands.length < MAX_REVISION_COMMANDS;
       return Boolean(
         !state.loading
         && !state.editing
@@ -457,7 +500,25 @@
         && state.selectedEvent
         && session.sourceBytes
         && session.expectedInputSha256
-        && session.commands.length < MAX_REVISION_COMMANDS,
+        && revisionCapacityReady,
+      );
+    }
+
+    function canFinalizeTeacherCorrection() {
+      return Boolean(
+        typeof finalizeTeacherReview === 'function'
+        && finalizeTeacherReviewButton
+        && !state.loading
+        && !state.editing
+        && !state.transposing
+        && !state.finalizingTeacherReview
+        && state.runtimeResult?.status === 'PASS'
+        && state.runtimeResult?.route === 'POLY_V2'
+        && state.runtimeResult?.reviewTabDraft?.documentType === 'ReviewTabDraft'
+        && session.reviewDraftBaseRevisionId
+        && session.teacherPitchPatchCount > 0
+        && session.reviewDraftCommands.length > 0
+        && session.teacherReviewApproved === false
       );
     }
 
@@ -508,6 +569,7 @@
       return canEdit()
         && editDuration && applyDurationEditButton
         && state.selectedEvent?.route === 'POLY_V2'
+        && state.selectedEvent?.reviewTabDraft !== true
         && Number.isSafeInteger(state.selectedEvent?.durationDivisions)
         && !state.selectedEvent?.groupContainsTies;
     }
@@ -522,15 +584,18 @@
     }
 
     function updateControls() {
-      const busy = state.loading || state.editing || state.transposing;
+      const busy = state.loading || state.editing || state.transposing || state.finalizingTeacherReview;
       const playbackReady = !busy
         && state.scoreLoaded
         && state.playerReady
-        && state.runtimeResult?.status === 'PASS';
+        && (state.runtimeResult?.status === 'PASS' || state.runtimeResult?.status === 'APPROVED');
       fileInput.disabled = busy;
       playButton.disabled = !playbackReady;
       stopButton.disabled = !playbackReady;
       applyEditButton.disabled = !canEdit();
+      applyEditButton.textContent = state.selectedEvent?.reviewTabDraft === true
+        ? 'Stage teacher pitch correction'
+        : 'Apply & regenerate TAB';
       cancelEditButton.disabled = busy || !state.selectedEvent;
       editStep.disabled = busy || !state.selectedEvent;
       editAlter.disabled = busy || !state.selectedEvent;
@@ -562,6 +627,22 @@
       }
       if (exportStage09EvidenceButton) {
         exportStage09EvidenceButton.disabled = busy || !stage09EvidenceReady();
+      }
+      if (finalizeTeacherReviewButton) {
+        finalizeTeacherReviewButton.disabled = !canFinalizeTeacherCorrection();
+      }
+      if (teacherReviewStatus && !state.finalizingTeacherReview) {
+        if (state.teacherReviewStatusMessage) {
+          setText(teacherReviewStatus, state.teacherReviewStatusMessage);
+        } else if (session.teacherReviewApproved) {
+          setText(teacherReviewStatus, 'Approved canonical score loaded. This teacher session is consumed.');
+        } else if (session.teacherPitchPatchCount > 0 && session.reviewDraftCommands.length > 0) {
+          setText(teacherReviewStatus, 'Ready: revalidate the pitch correction and prove exact TAB-position parity.');
+        } else if (session.teacherPitchPatchCount > 0) {
+          setText(teacherReviewStatus, 'Pitch correction staged. Assign at least one exact string/fret position.');
+        } else {
+          setText(teacherReviewStatus, 'Requires a trusted pitch correction and an exact ReviewTabDraft position.');
+        }
       }
       if (stage09EvidenceStatus) {
         setText(
@@ -998,6 +1079,8 @@
       }
 
       const position = disposition.selectedPosition || null;
+      const correctedPitch = session.teacherPitchCorrections.get(source.sourceEventId)
+        || source.knownPitchOrNull;
       state.selectedEvent = {
         route: 'POLY_V2',
         reviewTabDraft: true,
@@ -1016,11 +1099,11 @@
         rendererDuplicateOrdinal: identity?.rendererDuplicateOrdinal ?? null,
         rendererChordSize: identity?.rendererChordSize ?? null,
         pitch: {
-          step: source.knownPitchOrNull.step,
-          alter: source.knownPitchOrNull.alter,
-          octave: source.knownPitchOrNull.octave,
-          written: source.knownPitchOrNull.written,
-          midi: source.knownPitchOrNull.midi,
+          step: correctedPitch.step,
+          alter: correctedPitch.alter,
+          octave: correctedPitch.octave,
+          written: correctedPitch.written,
+          midi: correctedPitch.midi,
         },
         tied: false,
         groupContainsTies: false,
@@ -1035,15 +1118,15 @@
 
       setText(
         selectedNote,
-        `${source.knownPitchOrNull.written} · measure ${state.selectedEvent.visibleMeasureNumber} · voice ${state.selectedEvent.voice} · source ${source.evidenceLocation.sourceOrder + 1}`,
+        `${correctedPitch.written} · measure ${state.selectedEvent.visibleMeasureNumber} · voice ${state.selectedEvent.voice} · source ${source.evidenceLocation.sourceOrder + 1}`,
       );
       setText(
         arrangementReason,
         position ? 'Teacher ReviewTabDraft position' : 'ReviewTabDraft · Konum atanmamış',
       );
-      editStep.value = source.knownPitchOrNull.step;
-      editAlter.value = String(source.knownPitchOrNull.alter);
-      editOctave.value = String(source.knownPitchOrNull.octave);
+      editStep.value = correctedPitch.step;
+      editAlter.value = String(correctedPitch.alter);
+      editOctave.value = String(correctedPitch.octave);
       if (editDuration) editDuration.value = String(source.knownDurationOrNull);
       if (position) {
         if (editString) editString.value = String(position.string);
@@ -1534,6 +1617,71 @@
       };
     }
 
+    async function applyTeacherPitchCorrection(pitch) {
+      const selected = state.selectedEvent;
+      assert(selected?.reviewTabDraft === true, 'A ReviewTabDraft source note must be selected.');
+      assert(typeof applyTeacherPitchPatch === 'function', 'Trusted teacher pitch correction is not connected.');
+      if (
+        selected.pitch.step === pitch.step
+        && selected.pitch.alter === pitch.alter
+        && selected.pitch.octave === pitch.octave
+      ) {
+        setText(editStatus, 'Choose a different pitch before applying the teacher correction.');
+        return false;
+      }
+
+      state.editing = true;
+      state.lastError = null;
+      if (state.playerReady) api.stop();
+      setText(editStatus, 'Applying bounded teacher pitch correction…');
+      updateControls();
+      try {
+        const result = await applyTeacherPitchPatch({
+          sourceEventId: selected.sourceEventId,
+          before: {
+            step: selected.pitch.step,
+            alter: selected.pitch.alter,
+            octave: selected.pitch.octave,
+          },
+          after: {
+            step: pitch.step,
+            alter: pitch.alter,
+            octave: pitch.octave,
+          },
+        });
+        assert(
+          result && Array.isArray(result.patchIds) && result.patchIds.length > 0,
+          'Teacher pitch correction did not return bounded patch evidence.',
+        );
+        const correctedPitch = displayPitch(pitch);
+        session.teacherPitchCorrections.set(selected.sourceEventId, correctedPitch);
+        session.teacherPitchPatchCount += 1;
+        state.teacherReviewStatusMessage = null;
+        state.selectedEvent = {...selected, pitch: correctedPitch};
+        setText(
+          selectedNote,
+          `${correctedPitch.written} · measure ${selected.visibleMeasureNumber} · voice ${selected.voice} · source ${selected.sourceOrder + 1}`,
+        );
+        setText(
+          editStatus,
+          `Teacher pitch correction staged · ${session.teacherPitchPatchCount} bounded patch${session.teacherPitchPatchCount === 1 ? '' : 'es'}`,
+        );
+        return true;
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        setText(editStatus, `Teacher correction failed: ${state.lastError}`);
+        renderIssues([{
+          code: 'WORKBENCH_TEACHER_PITCH_PATCH_FAILED',
+          message: state.lastError,
+          location: {sourceEventId: selected.sourceEventId},
+        }]);
+        return false;
+      } finally {
+        state.editing = false;
+        updateControls();
+      }
+    }
+
     async function applySelectedEdit(editOptions = {}) {
       if (!canEdit()) return false;
 
@@ -1543,6 +1691,10 @@
       } catch (error) {
         setText(editStatus, error.message);
         return false;
+      }
+
+      if (state.selectedEvent?.reviewTabDraft === true) {
+        return applyTeacherPitchCorrection(pitch);
       }
 
       const route = state.runtimeResult.route;
@@ -1919,6 +2071,72 @@
       return `${base}.stage09-evidence.json`;
     }
 
+    async function finalizeTeacherCorrection() {
+      if (!canFinalizeTeacherCorrection()) return false;
+      state.finalizingTeacherReview = true;
+      state.lastError = null;
+      state.teacherReviewStatusMessage = null;
+      session.teacherCorrectionSealed = true;
+      if (state.playerReady) api.stop();
+      setText(teacherReviewStatus, 'Revalidating correction and proving exact position parity…');
+      updateControls();
+      try {
+        const result = await finalizeTeacherReview({
+          baseRevisionId: session.reviewDraftBaseRevisionId,
+          commands: session.reviewDraftCommands.map(cloneReviewDraftCommand),
+        });
+        assert(result && result.status === 'APPROVED', 'Teacher finalize result is not approved.');
+        assert(result.route === 'POLY_V2', 'Teacher finalize returned an unexpected route.');
+        assert(
+          result.sourceSha256 === session.expectedInputSha256,
+          'Teacher finalize returned a different immutable source identity.',
+        );
+        assert(
+          typeof result.correctedSha256 === 'string' && /^[0-9a-f]{64}$/.test(result.correctedSha256),
+          'Teacher finalize is missing the corrected source identity.',
+        );
+        assert(
+          result.canonicalTabResult && Array.isArray(result.canonicalTabResult.measures),
+          'Teacher finalize is missing canonical TAB.',
+        );
+        assert(
+          result.approvedRevision?.state === 'APPROVED_CANONICAL_SCORE',
+          'Teacher finalize is missing the approved canonical revision.',
+        );
+        assert(
+          typeof result.musicXml === 'string' && result.musicXml.length > 0,
+          'Teacher finalize is missing renderer MusicXML.',
+        );
+
+        state.runtimeResult = result;
+        session.teacherReviewApproved = true;
+        state.teacherReviewStatusMessage = 'Approved canonical score loaded. This teacher session is consumed.';
+        renderReviewTabDraft();
+        renderOmittedNoteAssignments();
+        renderIssues([]);
+        setText(documentStatus, 'APPROVED');
+        setText(routeStatus, result.route);
+        clearSelection('Approved canonical score is read-only in this consumed teacher session.');
+        clearActiveScoreState();
+        const accepted = api.load(new TextEncoder().encode(result.musicXml));
+        if (!accepted) throw new Error('alphaTab rejected approved renderer MusicXML.');
+        return true;
+      } catch (error) {
+        state.lastError = error instanceof Error ? error.message : String(error);
+        state.teacherReviewStatusMessage = `Finalize failed: ${state.lastError}`;
+        setText(teacherReviewStatus, state.teacherReviewStatusMessage);
+        renderIssues([{
+          code: 'WORKBENCH_TEACHER_FINALIZE_FAILED',
+          message: state.lastError,
+          location: null,
+        }]);
+        return false;
+      } finally {
+        state.finalizingTeacherReview = false;
+        updateControls();
+      }
+    }
+
     function exportStage09Evidence() {
       if (!stage09EvidenceReady()) return false;
       const evidence = stage09Evidence.createStage09WorkbenchEvidenceExport({
@@ -2014,6 +2232,11 @@
         exportStage09Evidence();
       });
     }
+    if (finalizeTeacherReviewButton) {
+      finalizeTeacherReviewButton.addEventListener('click', async () => {
+        await finalizeTeacherCorrection();
+      });
+    }
 
     api.error.on((error) => {
       state.lastError = error?.message || String(error);
@@ -2074,6 +2297,7 @@
       applySelectedDurationEdit,
       selectOmittedNote,
       applyDocumentTransposition,
+      finalizeTeacherCorrection,
       exportStage09Evidence,
       snapshot() {
         const track = state.scoreLoaded ? api.score?.tracks?.[0] : null;
@@ -2099,6 +2323,9 @@
           revisionCommandCount: session.commands.length,
           reviewDraftRevisionCommandCount: session.reviewDraftCommands.length,
           reviewDraftRedoCommandCount: session.reviewDraftRedoCommands.length,
+          teacherPitchPatchCount: session.teacherPitchPatchCount,
+          teacherCorrectionSealed: session.teacherCorrectionSealed,
+          teacherReviewApproved: session.teacherReviewApproved,
           scoreTracks: state.scoreLoaded ? (api.score?.tracks?.length || 0) : 0,
           scoreStaves: state.scoreLoaded ? (track?.staves?.length || 0) : 0,
           scoreMeasures: state.scoreLoaded ? (api.score?.masterBars?.length || 0) : 0,
@@ -2109,6 +2336,9 @@
           transposeDisabled: transposeDownButton ? transposeDownButton.disabled : true,
           stage09EvidenceExportDisabled: exportStage09EvidenceButton
             ? exportStage09EvidenceButton.disabled
+            : true,
+          teacherFinalizeDisabled: finalizeTeacherReviewButton
+            ? finalizeTeacherReviewButton.disabled
             : true,
         });
       },
