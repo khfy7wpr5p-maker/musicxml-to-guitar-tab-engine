@@ -9,6 +9,7 @@
   const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
   const MAX_EDIT_COMMAND_BYTES = 8 * 1024 * 1024;
   const EDIT_FRAME_HEADER_BYTES = 4;
+  const TEACHER_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
   function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -171,18 +172,88 @@
 
   function createRuntimeApiAdapter(options = {}) {
     const apiBaseUrl = normalizeSameOriginPath(options.apiBaseUrl, '/api', 'apiBaseUrl');
+    let teacherSession = null;
+    let teacherPatchSequence = 0;
+
+    async function postTeacherJson(path, body, fallbackMessage) {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      return readJsonResponse(response, fallbackMessage);
+    }
+
+    function clearTeacherSession() {
+      if (teacherSession?.sourceBytes) teacherSession.sourceBytes.fill(0);
+      teacherSession = null;
+      teacherPatchSequence = 0;
+    }
+
+    function prepareTeacherSession(file, ownedBytes, uploadResult) {
+      if (
+        uploadResult?.status !== 'REVIEW_REQUIRED'
+        || uploadResult?.route !== 'POLY_V2'
+        || uploadResult?.capabilities?.editPitch !== true
+        || uploadResult?.reviewTabDraft?.documentType !== 'ReviewTabDraft'
+      ) return;
+
+      teacherSession = {
+        token: null,
+        fileName: file.name,
+        sourceBytes: new Uint8Array(ownedBytes),
+        sourceSha256: uploadResult.input?.sha256,
+        draftBaseRevisionId: uploadResult.reviewTabDraft.revisionId,
+        validated: false,
+      };
+    }
+
+    async function ensureTeacherSession() {
+      const pending = requireTeacherSession();
+      if (pending.token) return pending;
+      const response = await fetch(
+        `${apiBaseUrl}/review/session?fileName=${encodeURIComponent(pending.fileName)}`,
+        {
+          method: 'POST',
+          headers: {'content-type': 'application/octet-stream'},
+          body: pending.sourceBytes,
+        },
+      );
+      const opened = await readJsonResponse(response, 'Teacher session could not be opened.');
+      assert(TEACHER_TOKEN_PATTERN.test(opened.token), 'Teacher session returned an invalid token.');
+      assert(
+        opened.sourceSha256 === pending.sourceSha256,
+        'Teacher session returned a different source identity.',
+      );
+      assert(
+        opened.draftBaseRevisionId === pending.draftBaseRevisionId,
+        'Teacher session returned a different ReviewTabDraft base revision.',
+      );
+      pending.token = opened.token;
+      pending.sourceBytes.fill(0);
+      pending.sourceBytes = null;
+      return pending;
+    }
+
+    function requireTeacherSession() {
+      assert(teacherSession, 'No trusted teacher session is active for this source.');
+      return teacherSession;
+    }
 
     return Object.freeze({
       mode: HOST_MODE.RUNTIME,
       async upload(file, ownedBytes) {
         assert(file && typeof file.name === 'string', 'Runtime upload requires a file name.');
         assert(ownedBytes instanceof Uint8Array, 'Runtime upload requires owned bytes.');
+        clearTeacherSession();
         const response = await fetch(`${apiBaseUrl}/upload?fileName=${encodeURIComponent(file.name)}`, {
           method: 'POST',
           headers: {'content-type': 'application/octet-stream'},
           body: ownedBytes,
         });
-        return readJsonResponse(response, 'Upload request failed.');
+        const result = await readJsonResponse(response, 'Upload request failed.');
+        prepareTeacherSession(file, ownedBytes, result);
+        return result;
       },
       async edit(request) {
         const wire = createEditRequest(request, 'Runtime edit');
@@ -226,6 +297,70 @@
         );
         return readJsonResponse(response, 'ReviewTabDraft edit request failed.');
       },
+      async applyTeacherPitchPatch(request) {
+        const session = await ensureTeacherSession();
+        assert(session.validated === false, 'The validated teacher correction is closed to new pitch patches.');
+        assert(request && typeof request === 'object', 'Teacher pitch correction is required.');
+        assert(
+          typeof request.sourceEventId === 'string' && request.sourceEventId.length > 0,
+          'Teacher pitch correction requires a source event.',
+        );
+        for (const [label, pitch] of [['before', request.before], ['after', request.after]]) {
+          assert(pitch && typeof pitch === 'object', `Teacher pitch correction ${label} pitch is required.`);
+          assert(/^[A-G]$/.test(pitch.step), `Teacher pitch correction ${label} step is invalid.`);
+          assert(Number.isSafeInteger(pitch.alter), `Teacher pitch correction ${label} alter is invalid.`);
+          assert(Number.isSafeInteger(pitch.octave), `Teacher pitch correction ${label} octave is invalid.`);
+        }
+        teacherPatchSequence += 1;
+        return postTeacherJson('/review/patch', {
+          token: session.token,
+          patch: {
+            patch_id: `teacher-pitch-${String(teacherPatchSequence).padStart(4, '0')}`,
+            edit_class: 'PITCH_UPDATE',
+            target_event: request.sourceEventId,
+            before: {
+              step: request.before.step,
+              alter: request.before.alter,
+              octave: request.before.octave,
+            },
+            after: {
+              step: request.after.step,
+              alter: request.after.alter,
+              octave: request.after.octave,
+            },
+          },
+        }, 'Teacher pitch correction failed.');
+      },
+      async finalizeTeacherReview(request) {
+        const session = requireTeacherSession();
+        assert(TEACHER_TOKEN_PATTERN.test(session.token), 'Teacher finalize requires a staged pitch correction.');
+        assert(request && typeof request === 'object', 'Teacher finalize request is required.');
+        assert(
+          request.baseRevisionId === session.draftBaseRevisionId,
+          'Teacher finalize requires the source-bound ReviewTabDraft base revision.',
+        );
+        const commands = reviewDraftRuntimeCommands(request.commands);
+        if (!session.validated) {
+          const validation = await postTeacherJson(
+            '/review/revalidate',
+            {token: session.token},
+            'Teacher correction revalidation failed.',
+          );
+          assert(
+            validation.validationState === 'VALID',
+            'Teacher correction did not revalidate as VALID.',
+          );
+          session.validated = true;
+        }
+        const result = await postTeacherJson('/review/finalize', {
+          token: session.token,
+          baseRevisionId: request.baseRevisionId,
+          commands,
+        }, 'Teacher correction finalize failed.');
+        assert(result.status === 'APPROVED', 'Teacher finalize did not return an approved revision.');
+        clearTeacherSession();
+        return result;
+      },
       async transpose(request) {
         const query = transpositionQuery(request);
         const response = await fetch(`${apiBaseUrl}/transpose?${query}`, {
@@ -262,6 +397,12 @@
         throw readOnlyError();
       },
       async reviewTabDraftEdit() {
+        throw readOnlyError();
+      },
+      async applyTeacherPitchPatch() {
+        throw readOnlyError();
+      },
+      async finalizeTeacherReview() {
         throw readOnlyError();
       },
       async transpose() {

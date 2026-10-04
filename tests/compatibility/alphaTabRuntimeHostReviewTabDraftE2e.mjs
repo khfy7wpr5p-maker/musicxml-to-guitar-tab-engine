@@ -18,6 +18,10 @@ assert.ok(browserExecutable && fs.existsSync(browserExecutable));
 const alphaTabEntry = require.resolve('@coderline/alphatab');
 const alphaTabDist = path.dirname(alphaTabEntry);
 const fixturePath = path.join(repositoryRoot, 'tests/fixtures/edtab-03-review-draft.musicxml');
+const finalizeFixturePath = path.join(
+  repositoryRoot,
+  'tests/fixtures/edtab-04d-teacher-finalize.musicxml',
+);
 
 const server = createRuntimeHttpServer({
   repositoryRoot,
@@ -214,6 +218,81 @@ try {
     ['POST /api/upload'],
   );
 
+  const [finalizeChooser] = await Promise.all([
+    page.waitForFileChooser(),
+    page.click('[data-role="runtime-upload-action"]'),
+  ]);
+  await finalizeChooser.accept([finalizeFixturePath]);
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.__workbench?.snapshot();
+      return snapshot?.scoreLoaded === true
+        && snapshot?.runtimeResult?.status === 'REVIEW_REQUIRED'
+        && document.querySelector('[data-role="omitted-note-list"]')?.options.length === 2;
+    },
+    {timeout: 30000},
+  );
+
+  const selectedCorrectionTarget = await page.evaluate(() => {
+    const list = document.querySelector('[data-role="omitted-note-list"]');
+    list.value = 'P1:measure:0:note:1';
+    return window.__workbench.selectOmittedNote();
+  });
+  assert.equal(selectedCorrectionTarget, true);
+  await page.select('[data-role="edit-step"]', 'C');
+  await page.select('[data-role="edit-alter"]', '0');
+  await page.$eval('[data-role="edit-octave"]', element => { element.value = '5'; });
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedEdit()), true);
+
+  const selectedPositionTarget = await page.evaluate(() => {
+    const list = document.querySelector('[data-role="omitted-note-list"]');
+    list.value = 'P1:measure:0:note:0';
+    return window.__workbench.selectOmittedNote();
+  });
+  assert.equal(selectedPositionTarget, true);
+  await page.select('[data-role="edit-string"]', '1');
+  await page.$eval('[data-role="edit-fret"]', element => { element.value = '17'; });
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), true);
+  assert.equal(
+    await page.$eval('[data-role="finalize-teacher-review"]', element => element.disabled),
+    false,
+  );
+  assert.equal(
+    await page.evaluate(() => window.__workbench.finalizeTeacherCorrection()),
+    true,
+  );
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.__workbench?.snapshot();
+      return snapshot?.scoreLoaded === true
+        && snapshot?.runtimeResult?.status === 'APPROVED'
+        && snapshot?.teacherReviewApproved === true;
+    },
+    {timeout: 30000},
+  );
+
+  const approved = await page.evaluate(() => ({
+    snapshot: window.__workbench.snapshot(),
+    documentStatus: document.querySelector('[data-role="document-status"]').textContent,
+    teacherStatus: document.querySelector('[data-role="teacher-review-status"]').textContent,
+    bodyText: document.body.textContent,
+  }));
+  assert.equal(approved.snapshot.runtimeResult.status, 'APPROVED');
+  assert.equal(approved.snapshot.runtimeResult.route, 'POLY_V2');
+  assert.equal(approved.snapshot.runtimeResult.approvedRevision.state, 'APPROVED_CANONICAL_SCORE');
+  assert.equal(approved.snapshot.runtimeResult.canonicalTabResult.documentType, 'CanonicalTabResult');
+  assert.equal(approved.snapshot.teacherPitchPatchCount, 1);
+  assert.equal(approved.documentStatus, 'APPROVED');
+  assert.match(approved.teacherStatus, /Approved canonical score loaded/);
+  assert.doesNotMatch(JSON.stringify(approved.snapshot), /"token"\s*:/);
+  assert.equal(approved.bodyText.includes('teacher-pitch-0001'), false);
+  for (const route of [
+    'POST /api/review/session',
+    'POST /api/review/patch',
+    'POST /api/review/revalidate',
+    'POST /api/review/finalize',
+  ]) assert.equal(apiRequests.includes(route), true);
+
   const browserCoverage = browserCoveragePath
     ? await writeStoppedBrowserCoverage(page, repositoryRoot, browserCoveragePath)
     : null;
@@ -223,6 +302,7 @@ try {
     browserCoverage,
     sourceEventId: blocked.snapshot.selectedEvent.sourceEventId,
     revisionCommands: blocked.snapshot.reviewDraftRevisionCommandCount,
+    approvedStatus: approved.snapshot.runtimeResult.status,
     apiRequests,
     browserMessages: messages,
   })}\n`);
