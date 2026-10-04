@@ -343,16 +343,27 @@ function createRuntimeHttpServer(options = {}) {
         return;
       }
 
-      if (url.pathname === '/api/review/patch' || url.pathname === '/api/review/revalidate') {
+      if (url.pathname === '/api/review/patch'
+        || url.pathname === '/api/review/revalidate'
+        || url.pathname === '/api/review/finalize') {
         if (request.method !== 'POST') {
           response.setHeader('allow', 'POST');
           writeJson(response, 405, { message: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' });
           return;
         }
-        const command = await readTeacherCommand(request,
-          url.pathname === '/api/review/patch' ? ['token', 'patch'] : ['token']);
+        const fields = url.pathname === '/api/review/patch'
+          ? ['token', 'patch']
+          : url.pathname === '/api/review/finalize'
+            ? ['token', 'baseRevisionId', 'commands']
+            : ['token'];
+        const command = await readTeacherCommand(request, fields);
         const result = url.pathname === '/api/review/patch'
           ? teacherSessions.apply(command.token, command.patch)
+          : url.pathname === '/api/review/finalize'
+            ? teacherSessions.finalize(command.token, {
+              baseRevisionId: command.baseRevisionId,
+              commands: command.commands,
+            })
           : teacherSessions.saveAndRevalidate(command.token);
         writeJson(response, 200, result);
         return;
