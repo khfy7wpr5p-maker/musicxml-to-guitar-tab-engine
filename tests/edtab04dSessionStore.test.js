@@ -37,6 +37,57 @@ test('server-owned Stage 06 session saves an exact correction and consumes it on
   assert.throws(() => store.consumeValidated(opened.token), /Unknown or expired/);
 });
 
+test('finalize grants one-time canonical output only after exact teacher position parity', () => {
+  const store = createEdtab04dSessionStore();
+  const opened = store.open({ fileName, sourceBytes });
+  store.apply(opened.token, correction());
+  store.saveAndRevalidate(opened.token);
+
+  const finalized = store.finalize(opened.token, {
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [{
+      sourceEventId: 'P1:measure:0:note:0',
+      selectedPosition: { string: 1, fret: 17 },
+    }],
+  });
+
+  assert.equal(finalized.status, 'APPROVED');
+  assert.equal(finalized.route, 'POLY_V2');
+  assert.equal(finalized.matchedCount, 1);
+  assert.equal(finalized.canonicalTabResult.documentType, 'CanonicalTabResult');
+  assert.equal(typeof finalized.musicXml, 'string');
+  assert.equal(finalized.musicXml.length > 0, true);
+  assert.equal(finalized.approvedRevision.state, 'APPROVED_CANONICAL_SCORE');
+  assert.throws(() => store.finalize(opened.token, {
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [],
+  }), /Unknown or expired/);
+});
+
+test('finalize withholds canonical output on position mismatch without consuming the session', () => {
+  const store = createEdtab04dSessionStore();
+  const opened = store.open({ fileName, sourceBytes });
+  store.apply(opened.token, correction());
+  store.saveAndRevalidate(opened.token);
+
+  assert.throws(() => store.finalize(opened.token, {
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [{
+      sourceEventId: 'P1:measure:0:note:0',
+      selectedPosition: { string: 2, fret: 22 },
+    }],
+  }), /Teacher position parity was not proven/);
+
+  const finalized = store.finalize(opened.token, {
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [{
+      sourceEventId: 'P1:measure:0:note:0',
+      selectedPosition: { string: 1, fret: 17 },
+    }],
+  });
+  assert.equal(finalized.status, 'APPROVED');
+});
+
 test('forged, cross-store, expired and mismatched teacher sessions fail closed', () => {
   let time = Date.parse('2026-10-03T15:00:00.000Z');
   const store = createEdtab04dSessionStore({ now: () => time });

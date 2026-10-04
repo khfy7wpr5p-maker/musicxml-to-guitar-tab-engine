@@ -56,6 +56,28 @@ test('HTTP host owns the teacher revision; browser receives only token and bound
   assert.equal(validated.data.validationState, 'VALID');
   assert.equal(validated.data.canonicalTabResult, undefined);
   assert.equal(validated.data.export, undefined);
+
+  const finalized = await postJson(origin, '/api/review/finalize', {
+    token: opened.token,
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [{
+      sourceEventId: 'P1:measure:0:note:0',
+      selectedPosition: { string: 1, fret: 17 },
+    }],
+  });
+  assert.equal(finalized.response.status, 200);
+  assert.equal(finalized.data.status, 'APPROVED');
+  assert.equal(finalized.data.route, 'POLY_V2');
+  assert.equal(finalized.data.canonicalTabResult.documentType, 'CanonicalTabResult');
+  assert.equal(typeof finalized.data.musicXml, 'string');
+
+  const replay = await postJson(origin, '/api/review/finalize', {
+    token: opened.token,
+    baseRevisionId: opened.draftBaseRevisionId,
+    commands: [],
+  });
+  assert.equal(replay.response.status, 400);
+  assert.match(replay.data.message, /Unknown or expired/);
 });
 
 test('HTTP host rejects forged session fields, cross-server tokens and oversized JSON', async (t) => {
