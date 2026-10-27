@@ -170,3 +170,38 @@ test('runtime adapter preserves a validated session for position retry and clear
   await adapter.upload({name: 'replacement.musicxml'}, new Uint8Array([2]));
   await assert.rejects(() => adapter.finalizeTeacherReview(request), /No trusted teacher session/);
 });
+
+test('teacher finalize sends the last active position per source note without changing draft history', async () => {
+  let finalizedCommands;
+  const adapter = runtimeAdapter(async (url, options) => {
+    if (url.startsWith('/api/upload?')) return response(reviewUpload());
+    if (url.startsWith('/api/review/session?')) {
+      return response({token: TOKEN, sourceSha256: SHA, draftBaseRevisionId: BASE_REVISION});
+    }
+    if (url === '/api/review/patch') return response({phase: 'EDITING'});
+    if (url === '/api/review/revalidate') return response({validationState: 'VALID'});
+    if (url === '/api/review/finalize') {
+      finalizedCommands = JSON.parse(options.body).commands;
+      return response({status: 'APPROVED'});
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+  await adapter.upload({name: 'teacher.musicxml'}, new Uint8Array([1]));
+  await adapter.applyTeacherPitchPatch({
+    sourceEventId: 'corrected-note',
+    before: {step: 'A', alter: 0, octave: 5},
+    after: {step: 'C', alter: 0, octave: 5},
+  });
+  const commands = [
+    {sourceEventId: 'note-0', selectedPosition: {string: 2, fret: 5}},
+    {sourceEventId: 'note-1', selectedPosition: {string: 3, fret: 9}},
+    {sourceEventId: 'note-0', selectedPosition: {string: 1, fret: 0}},
+  ];
+  const history = JSON.stringify(commands);
+  await adapter.finalizeTeacherReview({baseRevisionId: BASE_REVISION, commands});
+  assert.deepEqual(finalizedCommands, [
+    {sourceEventId: 'note-0', selectedPosition: {string: 1, fret: 0}},
+    {sourceEventId: 'note-1', selectedPosition: {string: 3, fret: 9}},
+  ]);
+  assert.equal(JSON.stringify(commands), history);
+});

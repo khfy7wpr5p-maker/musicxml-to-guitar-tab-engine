@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const test = require('node:test');
 const { createRuntimeHttpServer } = require('../src/app/runtimeHttpHost');
@@ -38,46 +39,63 @@ async function postJson(origin, route, body) {
   return { response, data: await response.json() };
 }
 
-test('HTTP host owns the teacher revision; browser receives only token and bounded results', async (t) => {
+for (const fileName of ['teacher.musicxml', 'teacher.xml', 'teacher.XML']) {
+  test(`HTTP teacher correction and approval preserve source identity for ${fileName}`, async (t) => {
+    const origin = await start(t);
+    const response = await fetch(`${origin}/api/review/session?fileName=${fileName}`, {
+      method: 'POST', headers: { 'content-type': 'application/octet-stream' },
+      body: sourceBytes,
+    });
+    assert.equal(response.status, 200);
+    const opened = await response.json();
+    assert.equal(opened.sourceSha256, crypto.createHash('sha256').update(sourceBytes).digest('hex'));
+    assert.match(opened.token, /^[0-9a-f]{64}$/);
+    assert.equal(opened.session, undefined);
+    const applied = await postJson(origin, '/api/review/patch', command(opened.token));
+    assert.equal(applied.response.status, 200);
+    assert.deepEqual(applied.data.patchIds, ['teacher-pitch-1']);
+    const validated = await postJson(origin, '/api/review/revalidate', { token: opened.token });
+    assert.equal(validated.response.status, 200);
+    assert.equal(validated.data.validationState, 'VALID');
+    assert.equal(validated.data.canonicalTabResult, undefined);
+    assert.equal(validated.data.export, undefined);
+
+    const finalized = await postJson(origin, '/api/review/finalize', {
+      token: opened.token,
+      baseRevisionId: opened.draftBaseRevisionId,
+      commands: [{
+        sourceEventId: 'P1:measure:0:note:0',
+        selectedPosition: { string: 1, fret: 17 },
+      }],
+    });
+    assert.equal(finalized.response.status, 200);
+    assert.equal(finalized.data.status, 'APPROVED');
+    assert.equal(finalized.data.sourceSha256, opened.sourceSha256);
+    assert.equal(finalized.data.route, 'POLY_V2');
+    assert.equal(finalized.data.canonicalTabResult.documentType, 'CanonicalTabResult');
+    assert.equal(typeof finalized.data.musicXml, 'string');
+
+    const replay = await postJson(origin, '/api/review/finalize', {
+      token: opened.token,
+      baseRevisionId: opened.draftBaseRevisionId,
+      commands: [],
+    });
+    assert.equal(replay.response.status, 400);
+    assert.match(replay.data.message, /Unknown or expired/);
+  });
+}
+
+test('HTTP teacher sessions keep compressed and unrelated source extensions closed', async (t) => {
   const origin = await start(t);
-  const response = await fetch(`${origin}/api/review/session?fileName=teacher.musicxml`, {
-    method: 'POST', headers: { 'content-type': 'application/octet-stream' },
-    body: sourceBytes,
-  });
-  assert.equal(response.status, 200);
-  const opened = await response.json();
-  assert.match(opened.token, /^[0-9a-f]{64}$/);
-  assert.equal(opened.session, undefined);
-  const applied = await postJson(origin, '/api/review/patch', command(opened.token));
-  assert.equal(applied.response.status, 200);
-  assert.deepEqual(applied.data.patchIds, ['teacher-pitch-1']);
-  const validated = await postJson(origin, '/api/review/revalidate', { token: opened.token });
-  assert.equal(validated.response.status, 200);
-  assert.equal(validated.data.validationState, 'VALID');
-  assert.equal(validated.data.canonicalTabResult, undefined);
-  assert.equal(validated.data.export, undefined);
-
-  const finalized = await postJson(origin, '/api/review/finalize', {
-    token: opened.token,
-    baseRevisionId: opened.draftBaseRevisionId,
-    commands: [{
-      sourceEventId: 'P1:measure:0:note:0',
-      selectedPosition: { string: 1, fret: 17 },
-    }],
-  });
-  assert.equal(finalized.response.status, 200);
-  assert.equal(finalized.data.status, 'APPROVED');
-  assert.equal(finalized.data.route, 'POLY_V2');
-  assert.equal(finalized.data.canonicalTabResult.documentType, 'CanonicalTabResult');
-  assert.equal(typeof finalized.data.musicXml, 'string');
-
-  const replay = await postJson(origin, '/api/review/finalize', {
-    token: opened.token,
-    baseRevisionId: opened.draftBaseRevisionId,
-    commands: [],
-  });
-  assert.equal(replay.response.status, 400);
-  assert.match(replay.data.message, /Unknown or expired/);
+  for (const fileName of ['teacher.mxl', 'teacher.musicxml.gz', 'teacher.xml.html']) {
+    const response = await fetch(`${origin}/api/review/session?fileName=${fileName}`, {
+      method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: sourceBytes,
+    });
+    assert.equal(response.status, 400);
+    const rejected = await response.json();
+    assert.equal(rejected.token, undefined);
+    assert.equal(rejected.canonicalTabResult, undefined);
+  }
 });
 
 test('HTTP host rejects forged session fields, cross-server tokens and oversized JSON', async (t) => {

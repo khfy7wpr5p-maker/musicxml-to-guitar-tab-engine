@@ -48,6 +48,8 @@ EDTAB-02 adds a separate early `ReviewTabDraft 1.0.0` for allow-listed review fa
 
 EDTAB-04D connects that draft to an ephemeral server-owned teacher session. The browser submits bounded pitch patches and exact string/fret commands, while approval remains fail-closed behind corrected-source re-entry, `POLY_V2`, source/revision parity, canonical writer output, and one-time session consumption. Browser state never becomes canonical authority, and this synthetic workflow does not satisfy the separate Stage 09 authentic 3-case evidence gate.
 
+Uncompressed `.xml` and `.musicxml` sources share that correction path. Pitch correction and ReviewTabDraft position assignment remain disjoint per source note, including redo; active positions must be undone before correcting that note's pitch. Finalization sends only the last active position for each source note while preserving the complete draft undo/redo history.
+
 See:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — live system architecture and invariants;

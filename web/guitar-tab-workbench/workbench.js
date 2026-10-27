@@ -490,6 +490,9 @@
       const revisionCapacityReady = state.selectedEvent?.reviewTabDraft === true
         ? !session.teacherCorrectionSealed
           && session.teacherPitchPatchCount < MAX_REVISION_COMMANDS
+          && !session.reviewDraftCommands.some(
+            (command) => command.sourceEventId === state.selectedEvent.sourceEventId,
+          )
         : session.commands.length < MAX_REVISION_COMMANDS;
       return Boolean(
         !state.loading
@@ -518,6 +521,9 @@
         && session.reviewDraftBaseRevisionId
         && session.teacherPitchPatchCount > 0
         && session.reviewDraftCommands.length > 0
+        && session.reviewDraftCommands.every(
+          (command) => !session.teacherPitchCorrections.has(command.sourceEventId),
+        )
         && session.teacherReviewApproved === false
       );
     }
@@ -550,6 +556,7 @@
           && state.runtimeResult?.status === 'PASS'
           && state.runtimeResult?.capabilities?.assignTabPosition === true
           && state.selectedEvent.assignmentEligible === true
+          && !session.teacherPitchCorrections.has(state.selectedEvent.sourceEventId)
           && session.sourceBytes
           && session.expectedInputSha256
           && session.reviewDraftBaseRevisionId
@@ -609,7 +616,17 @@
         undoReviewDraftButton.disabled = busy || session.reviewDraftCommands.length === 0;
       }
       if (redoReviewDraftButton) {
-        redoReviewDraftButton.disabled = busy || session.reviewDraftRedoCommands.length === 0;
+        redoReviewDraftButton.disabled = busy || session.reviewDraftRedoCommands.length === 0
+          || session.teacherPitchCorrections.has(session.reviewDraftRedoCommands[0]?.sourceEventId);
+      }
+      if (!busy && state.selectedEvent?.reviewTabDraft === true) {
+        if (session.teacherPitchCorrections.has(state.selectedEvent.sourceEventId)) {
+          setText(positionEditStatus, 'TAB position assignment is unavailable for a pitch-corrected source note.');
+        } else if (session.reviewDraftCommands.some(
+          (command) => command.sourceEventId === state.selectedEvent.sourceEventId,
+        )) {
+          setText(editStatus, 'Undo this note\'s TAB assignments before staging a pitch correction.');
+        }
       }
       const omittedAssignmentReady = state.runtimeResult?.route === 'POLY_V2'
         && state.runtimeResult?.capabilities?.assignTabPosition === true
@@ -1793,6 +1810,13 @@
         || !session.expectedInputSha256
         || !session.reviewDraftBaseRevisionId
       ) return false;
+
+      if (nextCommands.some(
+        (command) => session.teacherPitchCorrections.has(command.sourceEventId),
+      )) {
+        setText(positionEditStatus, 'TAB position assignment is unavailable for a pitch-corrected source note.');
+        return false;
+      }
 
       state.editing = true;
       state.lastError = null;

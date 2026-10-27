@@ -218,11 +218,9 @@ try {
     ['POST /api/upload'],
   );
 
-  const [finalizeChooser] = await Promise.all([
-    page.waitForFileChooser(),
-    page.click('[data-role="runtime-upload-action"]'),
-  ]);
-  await finalizeChooser.accept([finalizeFixturePath]);
+  assert.equal(await page.evaluate((source) => window.__workbench.loadFile(
+    new File([source], 'teacher-finalize.xml', {type: 'application/xml'}),
+  ), fs.readFileSync(finalizeFixturePath, 'utf8')), true);
   await page.waitForFunction(
     () => {
       const snapshot = window.__workbench?.snapshot();
@@ -239,10 +237,37 @@ try {
     return window.__workbench.selectOmittedNote();
   });
   assert.equal(selectedCorrectionTarget, true);
+  await page.select('[data-role="edit-string"]', '1');
+  await page.$eval('[data-role="edit-fret"]', element => { element.value = '17'; });
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), true);
+  assert.equal(
+    await page.$eval('[data-role="apply-edit"]', element => element.disabled),
+    true,
+    'An active position assignment must prevent a conflicting pitch correction.',
+  );
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedEdit()), false);
+  assert.equal(await page.evaluate(() => window.__workbench.undoReviewDraftEdit()), true);
   await page.select('[data-role="edit-step"]', 'C');
   await page.select('[data-role="edit-alter"]', '0');
   await page.$eval('[data-role="edit-octave"]', element => { element.value = '5'; });
   assert.equal(await page.evaluate(() => window.__workbench.applySelectedEdit()), true);
+  const requestsBeforeUnsupportedEdit = apiRequests.length;
+  assert.equal(
+    await page.$eval('[data-role="apply-position-edit"]', element => element.disabled),
+    true,
+    'Pitch-corrected notes must not advertise position assignment.',
+  );
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), false);
+  assert.equal(await page.evaluate(() => window.__workbench.redoReviewDraftEdit()), false);
+  assert.equal(apiRequests.length, requestsBeforeUnsupportedEdit);
+  assert.equal(
+    await page.$eval('[data-role="redo-review-draft"]', element => element.disabled),
+    true,
+  );
+  assert.equal(
+    await page.$eval('[data-role="finalize-teacher-review"]', element => element.disabled),
+    true,
+  );
 
   const selectedPositionTarget = await page.evaluate(() => {
     const list = document.querySelector('[data-role="omitted-note-list"]');
@@ -253,6 +278,14 @@ try {
   await page.select('[data-role="edit-string"]', '1');
   await page.$eval('[data-role="edit-fret"]', element => { element.value = '17'; });
   assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), true);
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), true);
+  assert.equal(await page.evaluate(() => window.__workbench.undoReviewDraftEdit()), true);
+  assert.equal(await page.evaluate(() => window.__workbench.redoReviewDraftEdit()), true);
+  assert.equal(
+    await page.evaluate(() => window.__workbench.snapshot().reviewDraftRevisionCommandCount),
+    2,
+    'Reassignment history must remain reversible until finalization.',
+  );
   assert.equal(
     await page.$eval('[data-role="finalize-teacher-review"]', element => element.disabled),
     false,
@@ -281,6 +314,11 @@ try {
   assert.equal(approved.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(approved.snapshot.runtimeResult.approvedRevision.state, 'APPROVED_CANONICAL_SCORE');
   assert.equal(approved.snapshot.runtimeResult.canonicalTabResult.documentType, 'CanonicalTabResult');
+  assert.deepEqual(
+    approved.snapshot.runtimeResult.canonicalTabResult.noteDispositions
+      .find(note => note.sourceEventId === 'P1:measure:0:note:0').selectedPosition,
+    {string: 1, fret: 17},
+  );
   assert.equal(approved.snapshot.teacherPitchPatchCount, 1);
   assert.equal(approved.documentStatus, 'APPROVED');
   assert.match(approved.teacherStatus, /Approved canonical score loaded/);

@@ -339,7 +339,11 @@
           request.baseRevisionId === session.draftBaseRevisionId,
           'Teacher finalize requires the source-bound ReviewTabDraft base revision.',
         );
-        const commands = reviewDraftRuntimeCommands(request.commands);
+        const currentPositions = new Map();
+        for (const command of reviewDraftRuntimeCommands(request.commands)) {
+          currentPositions.set(command.sourceEventId, command);
+        }
+        const commands = [...currentPositions.values()];
         if (!session.validated) {
           const validation = await postTeacherJson(
             '/review/revalidate',
