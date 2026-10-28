@@ -91,7 +91,7 @@ Current Tier B: **0 / 3 minimum eligible correction cases**.
 
 The gate reports `PASS_PRODUCT_GATE` only when every requirement is satisfied. Missing authentic evidence reports `HOLD_EVIDENCE_GAP`; malformed, overlapping or contradictory evidence reports `FAIL_INVALID_EVIDENCE`.
 
-## Current evidence result
+## Evidence snapshot — 2026-10-28
 
 - unique real MusicXML: **20 / 20 minimum**;
 - verified real MusicXML: **20 / 20**;
@@ -99,7 +99,18 @@ The gate reports `PASS_PRODUCT_GATE` only when every requirement is satisfied. M
 - real Stage 08 correction status coverage: **none yet**;
 - required real correction representation coverage: **not yet demonstrated**.
 
-On current main, the fresh eleven-file Tier-A run produces `0 PASS`, `6 REVIEW_REQUIRED`, `5 BLOCKED`, zero renderer/TAB artifacts and therefore `FAIL_USABLE_OUTPUT_GATE` with `0 / 11` source-renderable, TAB-artifact and teacher-editable files.
+The earlier pre-recovery snapshot (`0 PASS`, `6 REVIEW_REQUIRED`, `5 BLOCKED`, no renderer/TAB artifacts) is historical. It must not be presented as the current-main result after the R1–R3 recovery changes.
+
+The commit-bound CI observations are:
+
+| Observation | Engine commit | Source renderable / TAB artifact | Teacher-session evidence | Assigned notes | Product gate |
+| --- | --- | --- | --- | --- | --- |
+| [PR #372, 2026-10-03](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/actions/runs/37114393707/job/111178253079) | `0d6067151cae5ae4c2777163921acc9dac8b4f8d` (PR test merge) | 11/11 for both | 0/11 | 2801/6631 (42.24%) | `FAIL_USABLE_OUTPUT_GATE` |
+| [PR #379, 2026-10-28](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/actions/runs/40642286262/job/122662940213) | `7c335748ce53e1010bcb4792ebc60dc28945a876` (PR test merge) | 11/11 for both | 0/11 | 2801/6631 (42.24%) | `FAIL_USABLE_OUTPUT_GATE` |
+
+Both runs verify all eleven source identities, deterministic two-run results and source-byte immutability, with `11 REVIEW_REQUIRED`, `0 PASS`, `0 BLOCKED` and no poly-to-mono downgrade. The remaining usable-output gap is `TEACHER_EDITABLE_FILES_0_OF_11`. This is missing observed Stage 06 session evidence in the corpus audit; it is not proof that the Workbench cannot edit any file.
+
+At this snapshot, PR #379 is open against main `f09f299e617a485555ac42942dfe0201565b8672`. Its branch connects the existing server-owned teacher session to the Workbench for bounded uncompressed `.xml`/`.musicxml` pitch corrections, position parity and finalization. Its synthetic browser proof does not replace a real eleven-file editability audit or authentic Tier B cases. A merged implementation and fresh post-merge evidence are still required before updating stage completion records.
 
 Therefore **Stage 09 is not COMPLETE**. The independent blockers are authentic teacher-correction evidence and usable product output; Tier-A corpus identity/safety coverage alone does not prove either one.
 
@@ -139,4 +150,4 @@ A legitimate `BLOCKED` result remains valid safety evidence, but a recoverable s
 - `tests/stage09AdditionalRealCorpusAudit.test.js`
 - `tests/stage09TeacherCorrectionEvidenceIntake.test.js`
 
-R1 source-artifact retention and R2 partial arrangement are now followed by the R3 bounded review projection. The local R3 two-run audit of the pinned eleven-file corpus produces 11/11 renderer artifacts, 11/11 provisional TAB artifacts and 0 hard-blocked files, with 2,794/6,631 notes assigned. The usable-output product gate still fails only because no observed Workbench teacher-edit session is connected for those `REVIEW_REQUIRED` results. Protected-CI evidence and genuine Tier-B acquisition remain required for Stage 09 closure.
+R1 source-artifact retention and R2 partial arrangement are followed by the R3 bounded review projection. The historical local R3 audit assigned 2,794/6,631 notes; the later CI observations above assigned 2,801/6,631. Use each number only with its corresponding observation. The Workbench session connection must still be exercised by the real-corpus audit, and genuine Tier B evidence remains required for Stage 09 closure.

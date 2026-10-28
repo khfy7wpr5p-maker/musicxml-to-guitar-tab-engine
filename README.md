@@ -118,9 +118,13 @@ Historical audit documents and sealed evidence remain in the repository for trac
 
 ## Engineering quality baseline
 
-SonarQube Cloud Automatic Analysis is active for the repository under project key `khfy7wpr5p-maker_musicxml-to-guitar-tab-engine`. It is a verification signal, not semantic or runtime authority: Sonar findings do not authorize parser, POLY_V2, fingering, canonical TAB, editor, playback, `REVIEW_REQUIRED`, or `BLOCKED` behavior changes.
+The repository's `.github/workflows/sonarqube.yml` runs SonarQube Cloud CI analysis with LCOV coverage under project key `khfy7wpr5p-maker_musicxml-to-guitar-tab-engine`. Automatic Analysis was the historical September baseline; that record is not a statement about today's analysis mode. Sonar is a verification signal, not semantic or runtime authority: findings do not authorize parser, POLY_V2, fingering, canonical TAB, editor, playback, `REVIEW_REQUIRED`, or `BLOCKED` behavior changes.
 
-The approved 2026-09-21 safe-cleanup tranche was merged through PRs #352, #355, #356, #357, #358, #359, and #360. The first three made offline/corpus string ordering explicit; the last four removed throw-from-`finally` cleanup control flow from bounded diagnostic collectors with focused regression coverage. Protected `main` at `cd7d5806a1765ef86af208f1ebaa2a02cd657f97` reports a passing SonarCloud Quality Gate, 0 Security Hotspots, 0.0% coverage on new code, 1.1% duplication on new code, and 89 New issues. Those 89 findings remain a separate non-blocking backlog; this documentation does not claim they are fixed.
+The approved 2026-09-21 safe-cleanup tranche was merged through PRs #352, #355, #356, #357, #358, #359, and #360. The first three made offline/corpus string ordering explicit; the last four removed throw-from-`finally` cleanup control flow from bounded diagnostic collectors with focused regression coverage. The historical main snapshot `cd7d5806a1765ef86af208f1ebaa2a02cd657f97` reported a passing SonarCloud Quality Gate, 0 Security Hotspots, 0.0% coverage on new code, 1.1% duplication on new code, and 89 New issues. Those values are historical observations, not a fresh quality verdict.
+
+CI requires the repository secret `SONAR_TOKEN` and variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`. A configuration check detects missing values before coverage preparation; it does not validate service authentication. PR issue diagnostics use the [documented bearer authentication scheme](https://docs.sonarsource.com/sonarqube-cloud/appendices/web-api) and report HTTP failures without parsing failed-response bodies as JSON or exposing credentials. Scanner quality-gate waiting remains enabled.
+
+At the 2026-10-28 verification snapshot, [PR #379's Sonar job](https://github.com/khfy7wpr5p-maker/musicxml-to-guitar-tab-engine/actions/runs/40642286306/job/122662940393) failed on scanner HTTP 403 and issue-diagnostic HTTP 401 responses. A repository administrator must verify token validity and applicable project permissions; no successful Sonar analysis is claimed for that head. The local error-handling changes do not repair or replace service credentials.
 
 ## Package metadata
 

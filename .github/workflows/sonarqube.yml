@@ -29,6 +29,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Check required Sonar CI configuration
+        id: sonar_configuration
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        run: node scripts/sonarqube-pr-issues.js --check-config
+
       - name: Install dependencies
         run: npm ci
 
@@ -83,40 +91,9 @@ jobs:
             -Dsonar.qualitygate.timeout=300
 
       - name: Diagnose Sonar PR issues
-        if: ${{ always() && github.event_name == 'pull_request' }}
+        if: ${{ always() && github.event_name == 'pull_request' && steps.sonar_configuration.outcome == 'success' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          curl --fail --silent --show-error \
-            -u "${SONAR_TOKEN}:" \
-            --get \
-            --data-urlencode "componentKeys=${SONAR_PROJECT_KEY}" \
-            --data-urlencode "pullRequest=${PR_NUMBER}" \
-            --data-urlencode "issueStatuses=OPEN,CONFIRMED" \
-            --data-urlencode "sinceLeakPeriod=true" \
-            --data-urlencode "ps=100" \
-            https://sonarcloud.io/api/issues/search \
-          | node -e '
-              let body = "";
-              process.stdin.setEncoding("utf8");
-              process.stdin.on("data", (chunk) => { body += chunk; });
-              process.stdin.on("end", () => {
-                const payload = JSON.parse(body);
-                const issues = Array.isArray(payload.issues) ? payload.issues : [];
-                for (const issue of issues) {
-                  console.log(JSON.stringify({
-                    key: issue.key,
-                    rule: issue.rule,
-                    severity: issue.severity,
-                    type: issue.type,
-                    component: issue.component,
-                    line: issue.line ?? null,
-                    message: issue.message,
-                    impacts: issue.impacts ?? null,
-                    cleanCodeAttribute: issue.cleanCodeAttribute ?? null,
-                  }));
-                }
-              });
-            '
+        run: node scripts/sonarqube-pr-issues.js

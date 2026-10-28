@@ -10,13 +10,16 @@ const REVIEW_TAB_DRAFT_RENDER_MODEL_DOCUMENT_TYPE = 'ReviewTabDraftRenderModel';
 const REVIEW_TAB_DRAFT_AUTHORITY = 'PROVISIONAL_TEACHER_REVIEW_ONLY';
 
 function normalizedGuitarConfiguration(value) {
-  if (!value) return createGuitarConfiguration();
-  return createGuitarConfiguration({
+  const guitar = !value ? createGuitarConfiguration() : createGuitarConfiguration({
     tuning: value.tuning,
     minimumFret: value.minimumFret,
     maximumFret: value.maximumFret,
     capoFret: value.capoFret,
   });
+  if (guitar.capoFret === 0) return guitar;
+  // Internal configurations keep capo fields non-enumerable for legacy
+  // contracts. The public review draft must retain these facts over JSON.
+  return { ...guitar, capoFret: guitar.capoFret, fretSemantics: guitar.fretSemantics };
 }
 
 function draftDisposition(entry) {
