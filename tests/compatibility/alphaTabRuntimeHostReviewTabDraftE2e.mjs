@@ -253,6 +253,20 @@ try {
   assert.equal(await page.evaluate(() => window.__workbench.applySelectedEdit()), true);
   const requestsBeforeUnsupportedEdit = apiRequests.length;
   assert.equal(
+    await page.$eval('[data-role="apply-edit"]', element => element.disabled),
+    true,
+    'A source note must not advertise an unsupported second pitch correction.',
+  );
+  assert.match(
+    await page.$eval('[data-role="edit-status"]', element => element.textContent),
+    /Pitch correction already staged.*Reload the source/i,
+  );
+  await page.select('[data-role="edit-step"]', 'D');
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedEdit()), false);
+  const stagedCorrection = await page.evaluate(() => window.__workbench.snapshot());
+  assert.equal(stagedCorrection.teacherPitchPatchCount, 1);
+  assert.equal(stagedCorrection.selectedEvent.pitch.written, 'C5');
+  assert.equal(
     await page.$eval('[data-role="apply-position-edit"]', element => element.disabled),
     true,
     'Pitch-corrected notes must not advertise position assignment.',
@@ -286,14 +300,46 @@ try {
     2,
     'Reassignment history must remain reversible until finalization.',
   );
+  assert.equal(await page.evaluate(() => window.__workbench.applySelectedPositionEdit()), true);
+  assert.equal(await page.evaluate(() => window.__workbench.undoReviewDraftEdit()), true);
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const snapshot = window.__workbench.snapshot();
+      return [snapshot.reviewDraftRevisionCommandCount, snapshot.reviewDraftRedoCommandCount];
+    }),
+    [2, 1],
+    'Finalization must handle active reassignment history and a pending redo.',
+  );
   assert.equal(
     await page.$eval('[data-role="finalize-teacher-review"]', element => element.disabled),
     false,
   );
+  await page.setRequestInterception(true);
+  const holdTeacherFinalize = (request) => {
+    if (new URL(request.url()).pathname !== '/api/review/finalize') {
+      void request.continue();
+    }
+  };
+  page.on('request', holdTeacherFinalize);
+  const pendingFinalizeRequest = page.waitForRequest(
+    request => new URL(request.url()).pathname === '/api/review/finalize',
+  );
+  await page.evaluate(() => {
+    window.__pendingTeacherApproval = window.__workbench.finalizeTeacherCorrection();
+  });
+  const heldFinalizeRequest = await pendingFinalizeRequest;
   assert.equal(
-    await page.evaluate(() => window.__workbench.finalizeTeacherCorrection()),
+    await page.evaluate(() => window.__workbench.snapshot().finalizingTeacherReview),
     true,
   );
+  const requestsDuringFinalize = apiRequests.length;
+  assert.equal(await page.evaluate(() => window.__workbench.undoReviewDraftEdit()), false);
+  assert.equal(await page.evaluate(() => window.__workbench.redoReviewDraftEdit()), false);
+  assert.equal(apiRequests.length, requestsDuringFinalize);
+  await heldFinalizeRequest.continue();
+  assert.equal(await page.evaluate(() => window.__pendingTeacherApproval), true);
+  page.off('request', holdTeacherFinalize);
+  await page.setRequestInterception(false);
   await page.waitForFunction(
     () => {
       const snapshot = window.__workbench?.snapshot();
@@ -304,6 +350,21 @@ try {
     {timeout: 30000},
   );
 
+  const approvedResultBeforeHistory = await page.evaluate(
+    () => window.__workbench.snapshot().runtimeResult,
+  );
+  const requestsBeforeApprovedHistory = apiRequests.length;
+  for (const role of ['undo-review-draft', 'redo-review-draft']) {
+    assert.equal(
+      await page.$eval(`[data-role="${role}"]`, element => element.disabled),
+      true,
+      'Approved teacher sessions must not advertise draft history actions.',
+    );
+  }
+  assert.equal(await page.evaluate(() => window.__workbench.undoReviewDraftEdit()), false);
+  assert.equal(await page.evaluate(() => window.__workbench.redoReviewDraftEdit()), false);
+  assert.equal(apiRequests.length, requestsBeforeApprovedHistory);
+
   const approved = await page.evaluate(() => ({
     snapshot: window.__workbench.snapshot(),
     documentStatus: document.querySelector('[data-role="document-status"]').textContent,
@@ -311,6 +372,11 @@ try {
     bodyText: document.body.textContent,
   }));
   assert.equal(approved.snapshot.runtimeResult.status, 'APPROVED');
+  assert.deepEqual(approved.snapshot.runtimeResult, approvedResultBeforeHistory);
+  assert.equal(approved.snapshot.scoreLoaded, true);
+  assert.equal(approved.snapshot.teacherReviewApproved, true);
+  assert.equal(approved.snapshot.reviewDraftRevisionCommandCount, 2);
+  assert.equal(approved.snapshot.reviewDraftRedoCommandCount, 1);
   assert.equal(approved.snapshot.runtimeResult.route, 'POLY_V2');
   assert.equal(approved.snapshot.runtimeResult.approvedRevision.state, 'APPROVED_CANONICAL_SCORE');
   assert.equal(approved.snapshot.runtimeResult.canonicalTabResult.documentType, 'CanonicalTabResult');

@@ -490,6 +490,7 @@
       const revisionCapacityReady = state.selectedEvent?.reviewTabDraft === true
         ? !session.teacherCorrectionSealed
           && session.teacherPitchPatchCount < MAX_REVISION_COMMANDS
+          && !session.teacherPitchCorrections.has(state.selectedEvent.sourceEventId)
           && !session.reviewDraftCommands.some(
             (command) => command.sourceEventId === state.selectedEvent.sourceEventId,
           )
@@ -613,14 +614,17 @@
       if (editFret) editFret.disabled = !canEditPosition();
       if (applyPositionEditButton) applyPositionEditButton.disabled = !canEditPosition();
       if (undoReviewDraftButton) {
-        undoReviewDraftButton.disabled = busy || session.reviewDraftCommands.length === 0;
+        undoReviewDraftButton.disabled = busy || session.teacherReviewApproved
+          || session.reviewDraftCommands.length === 0;
       }
       if (redoReviewDraftButton) {
-        redoReviewDraftButton.disabled = busy || session.reviewDraftRedoCommands.length === 0
+        redoReviewDraftButton.disabled = busy || session.teacherReviewApproved
+          || session.reviewDraftRedoCommands.length === 0
           || session.teacherPitchCorrections.has(session.reviewDraftRedoCommands[0]?.sourceEventId);
       }
       if (!busy && state.selectedEvent?.reviewTabDraft === true) {
         if (session.teacherPitchCorrections.has(state.selectedEvent.sourceEventId)) {
+          setText(editStatus, 'Pitch correction already staged for this source note. Reload the source to start a new correction session.');
           setText(positionEditStatus, 'TAB position assignment is unavailable for a pitch-corrected source note.');
         } else if (session.reviewDraftCommands.some(
           (command) => command.sourceEventId === state.selectedEvent.sourceEventId,
@@ -1806,6 +1810,8 @@
     async function replayReviewDraftCommands(nextCommands, focusSourceEventId, actionLabel) {
       if (
         typeof reviewTabDraftEdit !== 'function'
+        || state.finalizingTeacherReview
+        || session.teacherReviewApproved
         || !session.sourceBytes
         || !session.expectedInputSha256
         || !session.reviewDraftBaseRevisionId

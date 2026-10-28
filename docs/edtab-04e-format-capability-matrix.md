@@ -1,6 +1,6 @@
 # EDTAB-04E — MusicXML format capability matrix
 
-Updated for the EDTAB-04D bounded runtime contract on 2026-10-27. This is a declaration of the current bounded runtime contract, not a format expansion. A parseable source may still be `REVIEW_REQUIRED` for musical or physical reasons; the table does not promise a canonical TAB for every input.
+Updated for the EDTAB-04D bounded runtime contract on 2026-10-28. This is a declaration of the current bounded runtime contract, not a format expansion. A parseable source may still be `REVIEW_REQUIRED` for musical or physical reasons; the table does not promise a canonical TAB for every input.
 
 | Capability | Status | Current contract | Positive evidence | Negative / fail-closed evidence | Real corpus evidence | Limit |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ Updated for the EDTAB-04D bounded runtime contract on 2026-10-27. This is a decl
 
 ## Authority and admission
 
-- The uncompressed `.xml` and `.musicxml` extensions share the trusted pitch-correction session path. A pitch-corrected source note cannot also receive a ReviewTabDraft position command. Draft history stays reversible; finalization submits only each note's last active position and still requires ordinary backend parity and approval.
+- The uncompressed `.xml` and `.musicxml` extensions share the trusted pitch-correction session path. Each source note accepts at most one staged pitch correction per session; changing it requires reloading the source into a new session. A pitch-corrected source note cannot also receive a ReviewTabDraft position command. Draft history stays reversible before finalization; finalization submits only each note's last active position and still requires ordinary backend parity and approval. Draft undo/redo is locked during pending finalization and after successful approval consumes the session; history is retained.
 - `PASS` requires the ordinary upload/revalidation path, canonical TAB and writer output. `REVIEW_REQUIRED` may show source and a provisional draft where exact evidence exists; it is not export authority.
 - EDTAB-04D adds an ephemeral, server-owned Stage 06 correction session and a one-time finalize endpoint. The Workbench sends only bounded pitch and ReviewTabDraft position commands; it never receives the server session or gains approval authority. Final output remains withheld unless corrected-source re-entry is `PASS`, route is `POLY_V2`, exact source/revision/position parity is proven, and the canonical writer produces the approved artifact.
 - Source bytes stay immutable. No filename/SHA dispatch, pitch guessing, silent poly-to-mono fallback, solver changes or resource-limit increase is permitted.
