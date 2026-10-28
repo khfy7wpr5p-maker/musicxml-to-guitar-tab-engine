@@ -69,7 +69,7 @@ function patchIdentity(patch) {
 }
 
 function createEdtab04dTrustedPitchAdapter({ fileName, sourceBytes }) {
-  if (typeof fileName !== 'string' || !fileName.toLowerCase().endsWith('.musicxml')
+  if (typeof fileName !== 'string' || !/\.(?:musicxml|xml)$/i.test(fileName)
     || (!Buffer.isBuffer(sourceBytes) && !(sourceBytes instanceof Uint8Array))
     || isProxy(sourceBytes) || sourceBytes.byteLength > DEFAULT_MAX_XML_BYTES) {
     throw new TypeError('A bounded MusicXML source must be retained by the server.');

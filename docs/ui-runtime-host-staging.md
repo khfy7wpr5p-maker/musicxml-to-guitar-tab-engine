@@ -51,6 +51,10 @@ npm run start:runtime
 
 The Vercel preview adapter keeps the same exact alphaTab version and includes the package assets needed by the same-origin Workbench. The CLI defaults to `127.0.0.1:4173`; a non-serverless staging platform may explicitly set `HOST=0.0.0.0` and `PORT` as required. Preview/staging deployment is allowed by this gate; production deployment remains a separate consequential gate.
 
+The EDTAB-04D teacher flow also requires explicit Vercel rewrites for `/api/review/session`, `/api/review/patch`, `/api/review/revalidate` and `/api/review/finalize` to the same `/api/index` handler. Without those routes the platform returns 404 before the runtime can validate the request. The adapter smoke check follows the configured routes through correction, revalidation, approval and consumed-session replay rejection.
+
+Teacher sessions are bounded, process-local and ephemeral (15-minute lifetime). A serverless instance replacement or a request sent to another instance can invalidate a session; these rewrites do not add durable or shared storage. Such requests remain rejected. A completed local adapter smoke check alone does not prove a deployed multi-request session, and synthetic staging approval does not count toward authentic Tier B evidence.
+
 ## Browser wire contract
 
 Upload:

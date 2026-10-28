@@ -59,6 +59,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
     'transpose-target',
     'export-stage09-evidence',
     'stage09-evidence-status',
+    'finalize-teacher-review',
+    'teacher-review-status',
   ]) {
     assert.match(html, new RegExp(`data-role=["']${role}["']`));
   }
@@ -87,6 +89,11 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(hostAdapters, /assignmentMode/);
   assert.match(hostAdapters, /polyV2RuntimeCommands\(request\?\.commands\)/);
   assert.match(hostAdapters, /function transpositionQuery/);
+  assert.match(hostAdapters, /\/review\/session/);
+  assert.match(hostAdapters, /\/review\/patch/);
+  assert.match(hostAdapters, /\/review\/revalidate/);
+  assert.match(hostAdapters, /\/review\/finalize/);
+  assert.match(hostAdapters, /let teacherSession = null/);
   assert.match(hostAdapters, /createRuntimeApiAdapter/);
   assert.match(hostAdapters, /createStaticPreviewAdapter/);
   assert.match(hostAdapters, /same-origin path/);
@@ -127,6 +134,8 @@ test('Guitar TAB Workbench exposes product shell, upload, playback, cursor, issu
   assert.match(script, /function renderOmittedNoteAssignments/);
   assert.match(script, /function selectOmittedNote/);
   assert.match(script, /function exportStage09Evidence/);
+  assert.match(script, /function applyTeacherPitchCorrection/);
+  assert.match(script, /function finalizeTeacherCorrection/);
   assert.match(script, /stage09EvidenceReady/);
   assert.match(script, /ASSIGN_OMITTED/);
   assert.match(script, /assignmentEligible/);

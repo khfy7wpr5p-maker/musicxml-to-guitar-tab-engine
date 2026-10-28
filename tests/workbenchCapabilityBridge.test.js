@@ -246,3 +246,41 @@ test('failed replacement upload clears prior review authority', async () => {
   await assert.rejects(() => bridge.adapter.upload({}, new Uint8Array()), /replacement upload failed/);
   assert.equal(bridge.currentResult(), null);
 });
+
+test('teacher finalize crosses the bridge only as a server-approved authoritative result', async () => {
+  const api = hostApi();
+  const authoritative = reviewResult();
+  const approved = {
+    status: 'APPROVED',
+    route: 'POLY_V2',
+    sourceSha256: authoritative.input.sha256,
+    correctedSha256: 'b'.repeat(64),
+    canonicalTabResult: {measures: []},
+    musicXml: '<score-partwise/>',
+    approvedRevision: {state: 'APPROVED_CANONICAL_SCORE'},
+  };
+  const patchRequest = {sourceEventId: 'event-1'};
+  const finalizeRequest = {baseRevisionId: 'draft-1', commands: []};
+  const bridge = api.createCapabilityBridge({
+    upload: async () => authoritative,
+    edit: async () => ({status: 'PASS'}),
+    polyphonicEdit: async () => ({status: 'PASS'}),
+    reviewTabDraftEdit: async () => authoritative,
+    applyTeacherPitchPatch: async (request) => {
+      assert.equal(request, patchRequest);
+      return {phase: 'EDITING', patchIds: ['patch-1']};
+    },
+    finalizeTeacherReview: async (request) => {
+      assert.equal(request, finalizeRequest);
+      return approved;
+    },
+    transpose: async () => ({status: 'PASS'}),
+    loadPreview: null,
+  });
+
+  await bridge.adapter.upload({}, new Uint8Array());
+  assert.equal((await bridge.adapter.applyTeacherPitchPatch(patchRequest)).phase, 'EDITING');
+  assert.equal(bridge.currentResult(), authoritative);
+  assert.equal(await bridge.adapter.finalizeTeacherReview(finalizeRequest), approved);
+  assert.equal(bridge.currentResult(), approved);
+});
